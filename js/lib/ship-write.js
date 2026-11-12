@@ -3,13 +3,14 @@
 //   조건부서식·유효성·이름 정의·styles·병합 XML 은 원본 그대로 둔다(ExcelJS 는 duplicateValues·containsText 를 잃어 쓰지 않음).
 //   Python 판(openpyxl load → save)과 같게 하려고:
 //     · 남기는 행(머리글)은 원본 XML 그대로, 그 아래는 '값만 비움'(칸 서식 s 는 남김) 또는 '행째 지움'(시트1 8행 아래 — 새 칸 서식 없음)
-//     · 새 글자는 inlineStr, '=' 로 시작하는 2자 이상 글자는 수식(openpyxl 동작), 제어 문자는 멈춤(openpyxl IllegalCharacterError)
+//     · 새 글자는 늘 inlineStr — '=' 로 시작해도 글자(2026-11-12 보안: 상품명 등이 수식으로 열리지 않게. openpyxl 판은 수식으로 썼다).
+//       수식은 { f: '…' } 객체로 넘긴 칸만(시트2 G·H, 원본 마스터에 있던 수식). 제어 문자는 멈춤(openpyxl IllegalCharacterError)
 //     · calcChain·미리보기 그림(thumbnail)·프린터 설정(printerSettings — 프린터 이름이 들어 있을 수 있음) 제거, 열 때 다시 계산(fullCalcOnLoad)
 //     · 아무 칸도 쓰지 않게 된 공유 문자열(sharedStrings)은 뺀다 — 지운 옛 마스터 글이 파일 안에 남지 않게(웹판에서 더함)
 //   재고출고용 .xls(biff8)는 js/lib/xls-limits.js xlsBytes 를 쓴다.
 // JSZip·XLSX 는 넘겨받은 것으로만 쓴다(브라우저 CDN · node 공용).
 
-import { xlsBytes } from './xls-limits.js?v=202611121346';
+import { xlsBytes } from './xls-limits.js?v=202611121504';
 
 // ---------------------------------------------------------------- XML 도우미
 const escXml = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -43,7 +44,7 @@ function dropAttrs(attrs, names) {
     return s;
 }
 
-/** 새 칸 XML. v: null · 숫자 · 글자 · 참거짓 · { f: '수식' } . s: 칸 서식 번호(옛 칸에서 물려받을 때) */
+/** 새 칸 XML. v: null · 숫자 · 글자 · 참거짓 · { f: '수식' } . s: 칸 서식 번호(옛 칸에서 물려받을 때). 글자는 '=' 로 시작해도 글자 */
 export function cellXml(ref, v, s) {
     const sa = s ? ` s="${s}"` : '';
     if (v === null || v === undefined) return s ? `<c r="${ref}"${sa}/>` : '';
@@ -55,7 +56,6 @@ export function cellXml(ref, v, s) {
     if (typeof v === 'boolean') return `<c r="${ref}"${sa} t="b"><v>${v ? 1 : 0}</v></c>`;
     const t = v instanceof Date ? v.toISOString() : String(v);
     if (ILLEGAL.test(t)) throw new Error(`엑셀에 쓸 수 없는 글자(제어 문자 등)가 있습니다 (${ref}) — 입력 파일의 그 칸을 고친 뒤 다시 해 주세요.`);
-    if (t.length > 1 && t.startsWith('=')) return `<c r="${ref}"${sa}><f>${escXml(t.slice(1))}</f></c>`;
     const sp = /^\s|\s$/.test(t) ? ' xml:space="preserve"' : '';
     return `<c r="${ref}"${sa} t="inlineStr"><is><t${sp}>${escXml(t)}</t></is></c>`;
 }
@@ -360,13 +360,15 @@ async function compactSharedStrings(zip, info) {
 /**
  * 템플릿 xlsx 고쳐 쓰기.
  * edits: [{ sheet: 시트이름 | sheetIndex: 번호(0 기준, 'active' 면 활성 시트), keepUpTo, rows, dropOld, clearCols }]
+ * opts.before(zip, info, ct): 시트를 고치기 전에 부를 일(양식 정리 — cleanZikjinTemplate)
  * @returns {Promise<{ bytes: Uint8Array, calcChainRemoved: boolean, sstRemoved: number }>}
  */
-export async function rewriteXlsx(JSZip, templateBytes, edits) {
+export async function rewriteXlsx(JSZip, templateBytes, edits, opts = {}) {
     const zip = await JSZip.loadAsync(templateBytes);
     if (!zip.file('xl/workbook.xml')) throw new Error('엑셀(.xlsx) 양식이 아닙니다.');
     const info = await workbookParts(zip);
     const ct = { xml: await readStr(zip, '[Content_Types].xml') || '' };
+    if (opts.before) await opts.before(zip, info, ct);
     for (const e of edits) {
         let s;
         if (e.sheet !== undefined) s = info.sheets.find(x => x.name === e.sheet);
@@ -386,7 +388,127 @@ export async function rewriteXlsx(JSZip, templateBytes, edits) {
     return { bytes, calcChainRemoved, sstRemoved };
 }
 
-/** 직진배송출고리스트 — ship-zikjin.zikjinStep2 결과로 */
+// ---------------------------------------------------------------- 직진 양식(앱 Storage) 정리 — 2026-11-12
+// 관리자가 화면에서 직진배송출고리스트 원본(또는 빈 양식)을 올리면, 앱에 저장하기 전에 이 브라우저에서 머리글만 남긴다.
+//   지그재그양식서 1~7행 · 재고로그조회리스트 1행 · 패키지번호 1행만 남기고 그 아래 값은 지운다(서식·조건부서식·유효성·병합은 그대로 —
+//   출고리스트를 만들 때와 같은 rewriteXlsx). 그 밖의 시트는 값을 모두 비운다. 안 쓰게 된 공유 문자열은 빠진다(옛 자료 글이 남지 않게).
+//   문서 속성의 작성자·마지막 수정한 사람·사용자 지정 속성, 자동 필터 조건(filterColumn), _xlnm.* 밖 이름 정의도 지운다.
+//   자료가 숨을 수 있는데 안전하게 지우기 어려운 것(메모·피벗·차트·외부 연결·매크로·그림/도형·하이퍼링크·머리글/바닥글 글)이
+//   있으면 올리지 않고 안내한다(zikjinTemplateProblem — 앱 양식을 받아 쓸 때도 같은 검사).
+const ZG_KEEP_ROWS = { '지그재그양식서': 7, '재고로그조회리스트': 1, '패키지번호': 1 };
+export const ZIKJIN_TEMPLATE_SHEETS = Object.keys(ZG_KEEP_ROWS);
+const RISKY_PARTS = [
+    [/^xl\/comments\d*\.xml$|^xl\/threadedComments\//i, '메모'],
+    [/^xl\/persons\//i, '메모 작성자 목록'],
+    [/^xl\/pivotCache\/|^xl\/pivotTables\//i, '피벗 테이블'],
+    [/^xl\/charts\/|^xl\/chartsheets\//i, '차트'],
+    [/^xl\/externalLinks\//i, '다른 파일 연결'],
+    [/^xl\/connections\.xml$|^xl\/queryTables\//i, '외부 데이터 연결'],
+    [/^xl\/vbaProject\.bin$/i, '매크로'],
+    [/^xl\/drawings\/|^xl\/media\//i, '그림·도형'],              // 그림 안 글·사진(얼굴 등)을 가려 지울 수 없다
+];
+const RISKY_SHEET = [
+    [/<hyperlinks\b/, '하이퍼링크'],
+    [/<headerFooter\b[^>]*>[\s\S]*?<(oddHeader|oddFooter|evenHeader|evenFooter|firstHeader|firstFooter)>\s*[^<\s][\s\S]*?<\/headerFooter>/, '머리글/바닥글 글'],
+];
+
+/**
+ * 양식으로 쓰면 안 되는 이유(없으면 null) — 올릴 때(cleanZikjinTemplate)와 앱 양식을 받아 쓸 때(js/ship.js) 같은 검사.
+ *   자료가 숨을 수 있는데 안전하게 지우기 어려운 부품(RISKY_PARTS) · 시트 안 하이퍼링크·머리글/바닥글 글(RISKY_SHEET) · 시트 3개.
+ */
+export async function zikjinTemplateProblem(JSZip, bytes) {
+    let zip;
+    try { zip = await JSZip.loadAsync(bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes)); } catch (_) { zip = null; }
+    if (!zip || !zip.file('xl/workbook.xml')) return '엑셀(.xlsx) 파일이 아닙니다 — 직진배송출고리스트 원본(.xlsx)을 올려 주세요.';
+    const parts = Object.keys(zip.files).filter(p => !zip.files[p].dir);
+    const risky = new Set(RISKY_PARTS.filter(([re]) => parts.some(p => re.test(p))).map(([, label]) => label));
+    const info = await workbookParts(zip);
+    for (const s of info.sheets) {
+        if (s.kind !== 'work') continue;
+        const x = (await readStr(zip, s.part)) || '';
+        for (const [re, label] of RISKY_SHEET) if (re.test(x)) risky.add(label);
+    }
+    if (risky.size) {
+        return `이 파일에는 ${[...risky].join('·')}이(가) 들어 있어 양식으로 쓰지 않습니다(자료가 남을 수 있음) — 엑셀에서 지우고 다른 이름으로 저장한 뒤 다시 올려 주세요.`;
+    }
+    const names = info.sheets.map(s => s.name);
+    const missing = ZIKJIN_TEMPLATE_SHEETS.filter(n => !names.includes(n));
+    if (missing.length) return `직진배송출고리스트 양식이 아닙니다 — '${missing.join("', '")}' 시트가 없습니다.`;
+    return null;
+}
+
+/** 남길 시트의 자동 필터 조건(filterColumn — 거른 값이 들어 있다)을 지운다. 범위(ref)는 남김 */
+const dropFilterColumns = (xml) => xml.replace(/<autoFilter\b([^>]*?)>[\s\S]*?<\/autoFilter>/g, (m, a) => `<autoFilter${a.replace(/\/$/, '')}/>`);
+/** 이름 정의는 _xlnm.*(인쇄 영역·필터 등 엑셀 기본)만 남긴다 — 사용자 이름 정의엔 값·글이 들어갈 수 있다 */
+function keepXlnmNames(wbXml) {
+    return wbXml.replace(/<definedNames\b[^>]*>([\s\S]*?)<\/definedNames>/, (m, inner) => {
+        const keep = [...inner.matchAll(/<definedName\b[^>]*?(?:\/>|>[\s\S]*?<\/definedName>)/g)].map(x => x[0])
+            .filter(d => /\bname\s*=\s*"_xlnm\.[^"]*"/.test(d));
+        return keep.length ? `<definedNames>${keep.join('')}</definedNames>` : '';
+    });
+}
+const CORE_DROP = /<(dc:creator|cp:lastModifiedBy|cp:lastPrinted|dc:title|dc:subject|dc:description|cp:keywords|cp:category|cp:contentStatus)\b[^>]*?(?:\/>|>[\s\S]*?<\/\1>)/g;
+
+/** 값이 든 칸이 있는 행 수(keepUpTo 아래) */
+function dataRowCount(xml, keepUpTo) {
+    let n = 0;
+    for (const row of parseRows(findSheetData(xml).inner)) {
+        if (row.r > keepUpTo && parseCells(row.inner, row.r).some(c => /<(v|f|is)\b/.test(c.content))) n++;
+    }
+    return n;
+}
+
+/** 문서 속성에서 사람 이름 등 지우기 + 사용자 지정 속성(custom.xml) 빼기 */
+async function scrubDocProps(zip, ct) {
+    const core = await readStr(zip, 'docProps/core.xml');
+    if (core !== null) put(zip, 'docProps/core.xml', core.replace(CORE_DROP, ''));
+    const rels = await readStr(zip, '_rels/.rels');
+    const custom = rels ? parseRels(rels).filter(r => /\/custom-properties$/.test(r.type)) : [];
+    let x = rels;
+    for (const r of custom) {
+        x = x.replace(r.raw, '');
+        const p = resolveTarget('', r.target);
+        if (zip.file(p)) zip.remove(p);
+        ct.xml = ct.xml.replace(new RegExp(`<Override\\b[^>]*PartName="/${p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"[^>]*/>`, 'g'), '');
+    }
+    if (custom.length) put(zip, '_rels/.rels', x);
+    if (zip.file('docProps/custom.xml')) zip.remove('docProps/custom.xml');
+}
+
+/**
+ * 직진배송출고리스트 원본(또는 빈 양식) → 앱에 저장할 빈 양식.
+ * @returns {Promise<{ bytes: Uint8Array, dropped: {[sheet]: number}, cleared: string[], calcChainRemoved: boolean, sstRemoved: number }>}
+ *   dropped = 시트별로 지운 자료 행 수, cleared = 값을 통째로 비운 (그 밖의) 시트 이름
+ */
+export async function cleanZikjinTemplate(JSZip, bytes) {
+    const u8 = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+    const problem = await zikjinTemplateProblem(JSZip, u8);
+    if (problem) throw new Error(problem);
+    const zip = await JSZip.loadAsync(u8);
+    const info = await workbookParts(zip);
+    const dropped = {}, cleared = [], edits = [];
+    for (const s of info.sheets) {
+        if (s.kind !== 'work') continue;   // 차트 시트는 위에서 막는다(차트 부품)
+        const keep = Object.prototype.hasOwnProperty.call(ZG_KEEP_ROWS, s.name) ? ZG_KEEP_ROWS[s.name] : 0;
+        if (keep === 0) cleared.push(s.name);
+        dropped[s.name] = dataRowCount(await readStr(zip, s.part), keep);
+        edits.push({ sheet: s.name, keepUpTo: keep, rows: [], dropOld: s.name === '지그재그양식서' });
+    }
+    const res = await rewriteXlsx(JSZip, u8, edits, {
+        before: async (z, inf, ct) => {
+            await scrubDocProps(z, ct);
+            inf.wbXml = keepXlnmNames(inf.wbXml);   // rewriteXlsx 가 inf.wbXml 로 workbook.xml 을 쓴다
+            for (const s of inf.sheets) {
+                if (s.kind !== 'work') continue;
+                const x = await readStr(z, s.part);
+                if (x !== null) put(z, s.part, dropFilterColumns(x));
+            }
+        },
+    });
+    return { bytes: res.bytes, dropped, cleared, calcChainRemoved: res.calcChainRemoved, sstRemoved: res.sstRemoved };
+}
+
+/** 직진배송출고리스트 — ship-zikjin.zikjinStep2 결과로(양식 = cleanZikjinTemplate 로 비운 앱 양식) */
 export function zikjinListBytes(JSZip, templateBytes, r) {
     return rewriteXlsx(JSZip, templateBytes, [
         { sheet: '지그재그양식서', keepUpTo: 7, rows: r.sheet1, dropOld: true },

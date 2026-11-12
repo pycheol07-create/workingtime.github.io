@@ -12,8 +12,8 @@
 //   · HTML 숫자 모양 글자: 앞자리 0(예 '00123')·15자리 넘는 숫자는 글자로 둔다(Python 은 int 로 바꿔 0 을 잃음 / JS 는 자릿수를 잃음)
 //   · UTF-8 BOM 뒤에 '<' 가 오는 HTML 도 HTML 로 본다(Python 판은 '알 수 없는 형식' → .xls 로 읽다 실패)
 
-import { pyStr, pyStrip } from './ship-core.js?v=202611121346';
-import { HTML_ENTITIES } from './ship-html-entities.js?v=202611121346';
+import { pyStr, pyStrip } from './ship-core.js?v=202611121504';
+import { HTML_ENTITIES } from './ship-html-entities.js?v=202611121504';
 
 export const FORMAT = Object.freeze({ XLS: 'xls_binary', XLSX: 'xlsx_zip', HTML: 'html', UNKNOWN: 'unknown' });
 
@@ -124,6 +124,13 @@ function sheetFromSheetJS(X, name, ws, format, formulas) {
         cell(r, c) {
             if (!ws || r < 1 || c < 1) return null;   // 읽지 않은 시트(opts.sheets 밖)는 빈 시트
             return normCell(ws[enc({ r: r - 1, c: c - 1 })], format, formulas);
+        },
+        // formulas 모드에서 진짜 수식 칸인가(cell.f) — cell() 은 수식 칸·'=' 로 시작하는 글자 칸을 같은 '=…' 글자로 돌려주므로
+        // 출처를 가릴 때(ship-zikjin tplCell — 원본 수식만 수식으로 다시 쓰기)는 이것을 본다. formulas 가 아니면 늘 false
+        formulaAt(r, c) {
+            if (!formulas || format !== FORMAT.XLSX || !ws || r < 1 || c < 1) return false;
+            const x = ws[enc({ r: r - 1, c: c - 1 })];
+            return !!(x && x.f);
         },
     };
 }

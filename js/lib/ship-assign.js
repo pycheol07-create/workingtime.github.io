@@ -4,14 +4,14 @@
 //   판정은 계산 코드(ship-zikjin·ship-ably)가 실제로 찾는 머리글과 같은 것을 본다 — 판정이 맞아도 계산이 따로 다시 검사한다.
 // 순수 모듈(XLSX 는 넘겨받음). 테스트: tests/ship-assign.test.js
 
-import { pyStr, pyStrip, looksLikeStockOut, STOCK_OUT_MSG } from './ship-core.js?v=202611121346';
-import { detectFormat, FORMAT, readHtmlBook, normCell } from './ship-read.js?v=202611121346';
-import { TEMPLATE_SHEETS } from './ship-zikjin.js?v=202611121346';
-import { TMPL_HEADERS, TMPL_HEADER_ROW, REQ_HEADER_ROW } from './ship-ably.js?v=202611121346';
+import { pyStr, pyStrip, looksLikeStockOut, STOCK_OUT_MSG } from './ship-core.js?v=202611121504';
+import { detectFormat, FORMAT, readHtmlBook, normCell } from './ship-read.js?v=202611121504';
+import { TEMPLATE_SHEETS } from './ship-zikjin.js?v=202611121504';
+import { TMPL_HEADERS, TMPL_HEADER_ROW, REQ_HEADER_ROW } from './ship-ably.js?v=202611121504';
 
 export const KIND = Object.freeze({
     ZIKJIN_REQUEST: 'zikjinRequest',   // 직진 출고요청(GPM)
-    ZIKJIN_TEMPLATE: 'zikjinTemplate', // 직진배송출고리스트 원본
+    ZIKJIN_TEMPLATE: 'zikjinTemplate', // 직진배송출고리스트 원본 — 2026-11-12 부터 칸에 넣지 않는다(양식은 앱 Storage, 안내만)
     ABLY_REQUEST: 'ablyRequest',       // 에이블리 도착보장출고요청
     ABLY_TEMPLATE: 'ablyTemplate',     // 에이블리 대량입고 양식
     ADMIN: 'admin',                    // 이지어드민 출고전표(직진·에이블리 같은 모양)
@@ -25,8 +25,10 @@ export const KIND_LABEL = Object.freeze({
 });
 
 // 화면 칸: 플랫폼 → 단계 → { 칸 id: 종류 }
+//   직진 2단계에 원본 칸이 없다(2026-11-12) — 양식은 앱에 저장(관리자가 올림), SKU·상품명·옵션은 출고요청에서.
+export const ZIKJIN_TEMPLATE_NOTE = '직진배송출고리스트 원본은 이제 넣지 않습니다(양식은 앱에 저장되어 있음) — 양식이 바뀌었으면 관리자가 [양식 다시 올리기]로 올립니다.';
 export const SLOTS = Object.freeze({
-    zikjin: { 1: { request: KIND.ZIKJIN_REQUEST }, 2: { admin: KIND.ADMIN, template: KIND.ZIKJIN_TEMPLATE, request: KIND.ZIKJIN_REQUEST } },
+    zikjin: { 1: { request: KIND.ZIKJIN_REQUEST }, 2: { admin: KIND.ADMIN, request: KIND.ZIKJIN_REQUEST } },
     ably:   { 1: { request: KIND.ABLY_REQUEST },   2: { admin: KIND.ADMIN, request: KIND.ABLY_REQUEST, template: KIND.ABLY_TEMPLATE } },
 });
 const PLATFORM_OF = { zikjinRequest: 'zikjin', zikjinTemplate: 'zikjin', ablyRequest: 'ably', ablyTemplate: 'ably' };
@@ -123,7 +125,8 @@ const TAB_NAME = { zikjin: '직진배송', ably: '에이블리' };
  *   탭: 출고요청·양식(원본)이 어느 플랫폼 것인지로. 출고전표만 있으면(직진·에이블리 같은 모양) 1단계를 마치고
  *       2단계를 기다리는 탭(pending) — 하나뿐이면 그 탭, 아니면 지금 탭.
  *   단계: 출고전표가 있으면 2단계, 아니고 출고요청이 있으면 1단계, 양식(원본)만이면 2단계(칸에 넣기만).
- *         1단계로 갈 때 같이 넣은 양식은 화면이 2단계 칸에 넣어 둔다(js/ship.js dropMany).
+ *         1단계로 갈 때 같이 넣은 에이블리 양식은 화면이 2단계 칸에 넣어 둔다(js/ship.js dropMany).
+ *         직진 원본은 칸이 없어 안내만 한다(assignFiles — ZIKJIN_TEMPLATE_NOTE).
  * @param {Array<{kind}>} files
  * @param {{ tab: 'zikjin'|'ably', pending?: { zikjin?: boolean, ably?: boolean } }} now
  * @returns {{ tab, step: 1|2|null, note: string|null, error: string|null }}  step null = 넣을 파일이 없음(칸을 안 바꿈)
@@ -153,9 +156,11 @@ export function routeFiles(files, { tab, pending = {} } = {}) {
 /**
  * 판정된 파일들 → 지금 화면(플랫폼·단계)의 칸에 넣기.
  * files: [{ name, kind, ... }] (넣은 순서). 같은 칸에 두 파일이면 먼저 것만 넣고 나머지는 안내.
+ * opts.screen: 기존 방식 화면(직진·에이블리 따로, js/lib/ship-flow.js modeView)이면 true — 다른 쪽 파일 안내를 '그 화면으로 바꾸라'로.
+ *   (넣지 않는 것은 같다. 화면을 저절로 바꾸지 않는다)
  * @returns {{ assign: {[slot]: file}, notes: string[] }}
  */
-export function assignFiles(files, platform, step) {
+export function assignFiles(files, platform, step, opts = {}) {
     const slots = (SLOTS[platform] || {})[step] || {};
     const assign = {};
     const notes = [];
@@ -167,10 +172,15 @@ export function assignFiles(files, platform, step) {
             continue;
         }
         if (f.kind === KIND.STOCK_OUT) { notes.push(`'${f.name}' — ${STOCK_OUT_MSG}`); continue; }
+        // 직진 원본 안내는 직진일 때만 — 에이블리 화면이면 아래 '다른 쪽 파일' 안내
+        if (f.kind === KIND.ZIKJIN_TEMPLATE && platform === 'zikjin') { notes.push(`'${f.name}' — ${ZIKJIN_TEMPLATE_NOTE}`); continue; }
         if (f.kind === KIND.UNKNOWN) { notes.push(`'${f.name}' — 어떤 파일인지 알 수 없어 넣지 않았습니다(칸에 직접 넣어 주세요).`); continue; }
         const other = PLATFORM_OF[f.kind];
         if (other && other !== platform) {
-            notes.push(`'${f.name}' — ${KIND_LABEL[f.kind]} 입니다. [${other === 'ably' ? '에이블리' : '직진배송'}] 탭에 넣어 주세요.`);
+            const nm = other === 'ably' ? '에이블리' : '직진배송';
+            notes.push(opts.screen
+                ? `'${f.name}' — 이 파일은 ${nm} 파일 같습니다(${KIND_LABEL[f.kind]}). 이 화면(${TAB_NAME[platform] || platform})에는 넣지 않았습니다 — 위쪽 [${nm}]로 바꿔서 넣어 주세요.`
+                : `'${f.name}' — ${KIND_LABEL[f.kind]} 입니다. [${nm}] 탭에 넣어 주세요.`);
         } else {
             notes.push(`'${f.name}' — ${KIND_LABEL[f.kind]} 는 ${step}단계에 쓰지 않습니다.`);
         }

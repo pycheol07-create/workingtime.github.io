@@ -17,6 +17,12 @@
 .sp-now-name { font-size: 15px; font-weight: 700; color: var(--c-accent-deep); }
 .sp-manual summary { cursor: pointer; font-size: 12.5px; color: var(--c-text-2); width: fit-content; }
 .sp-manual-body { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px; }
+/* 2026-11-12 화면 방식 — 통합 · 기존 방식(직진·에이블리 따로). 기존 방식은 큰 상자·플랫폼 탭을 숨기고 단계 고르기를 펼쳐 둔다 */
+.sp-mode-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.sp-intake[hidden] { display: none; }
+.sp-main-card.is-legacy .sp-manual > summary { display: none; }
+.sp-main-card.is-legacy .sp-manual-body { margin-top: 0; }
+.sp-main-card.is-legacy #sp-tabs { display: none; }
 .sp-slots { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
 
 .sp-slot { border: 1px solid var(--c-line); border-radius: var(--r-inner); padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; background: var(--c-surface); min-width: 0; transition: border-color .15s, background .15s; }

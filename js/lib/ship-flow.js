@@ -61,6 +61,34 @@ function uploadText(name) {
     return `1단계 결과 파일 '${name}'을 이지어드민에 올린 뒤, 받은 출고전표를 여기에 놓으세요.`;
 }
 
+// ── 화면 방식(#sp-mode) — 2026-11-12 사용자 요청 ────────────────────
+//   auto   = 통합(자동 인식): 파일을 놓으면 직진·에이블리와 단계를 알아보고(ship-assign.routeFiles) 탭·단계를 옮기고 저절로 [만들기]
+//   zikjin = 기존 방식 직진배송 · ably = 기존 방식 에이블리 (2026.11.12c 합치기 전 c018fd1 과 같은 동작):
+//            고른 쪽의 1·2단계 칸만 보이고, 파일을 놓으면 지금 단계 칸에만 넣는다(탭·단계를 안 옮기고 저절로 시작 안 함).
+//            다른 쪽 파일은 경고만(ship-assign.assignFiles 의 screen 안내).
+//   만들기·저장·전송·봉 수·오늘 묶음 합산·[묶음 빼기]는 두 방식이 같은 코드(js/ship.js run·transmit)를 쓴다 — 방식은 화면만 바꾼다.
+//   마지막 방식은 이 PC 가 기억(localStorage MODE_STORE_KEY). 처음 여는 PC·못 읽으면 통합.
+export const SHIP_MODES = Object.freeze(['auto', 'zikjin', 'ably']);
+export const MODE_LABEL = Object.freeze({ auto: '통합', zikjin: '직진배송', ably: '에이블리' });
+export const MODE_STORE_KEY = 'ggsShipMode';
+
+/** 기억한 값 → 방식(모르는 값·없음 → 'auto') */
+export const loadMode = (raw) => (SHIP_MODES.includes(raw) ? raw : 'auto');
+
+/**
+ * 방식 → 화면 모양
+ * @returns {{ mode, auto: boolean, tab: 'zikjin'|'ably'|null, showIntake: boolean, showTabs: boolean, autoRoute: boolean, autoRun: boolean }}
+ *   tab: 기존 방식이면 고정 탭, 통합이면 null(지금 탭 그대로)
+ */
+export function modeView(mode) {
+    const m = loadMode(mode);
+    const auto = m === 'auto';
+    return { mode: m, auto, tab: auto ? null : m, showIntake: auto, showTabs: auto, autoRoute: auto, autoRun: auto };
+}
+
+/** 방식을 바꿀 때 탭 — 기존 방식이면 그 탭, 통합이면 지금 탭 그대로 */
+export const tabForMode = (mode, curTab) => modeView(mode).tab || (curTab === 'ably' ? 'ably' : 'zikjin');
+
 // ── 칸 정리(#sp-fold) ─────────────────────────────────────────
 export const TEMPLATE_OLD_DAYS = 30;   // 원본을 넣은 지 이만큼 지나면 노란 안내
 

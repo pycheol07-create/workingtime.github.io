@@ -1,18 +1,22 @@
 // === js/lib/ship-zikjin.js ===
 // 직진배송 1·2단계 계산 — Python 판(앱\플랫폼출고자동화\직진배송_자동화.py step1_generate_inventory_outbound ·
-// step2_generate_outbound_list 빠른 모드)과 같은 행을 만든다. 파일 쓰기·Firestore 는 하지 않는다(결과 객체 + 로그 줄).
-//   입력 '책'은 ship-read.readBook 결과. 출고리스트 원본은 readBook(…, { formulas: true }) 로 읽는다(Python 판도 수식 그대로 읽음).
-//   쓰기: ship-write.zikjinListBytes(시트1·2·3 행) · ship-picking(ZG) · ship-write.stockXlsBytes(1단계).
+// step2_generate_outbound_list 빠른 모드)에서 옮겼다. 파일 쓰기·Firestore 는 하지 않는다(결과 객체 + 로그 줄).
+//   입력 '책'은 ship-read.readBook 결과.
+//   쓰기: ship-write.zikjinListBytes(시트1·2·3 행 — 양식은 앱 Storage ship/templates/zikjin.xlsx) · ship-picking(ZG) · ship-write.stockXlsBytes(1단계).
 // 풀 모드는 없앴다(2026-11-10 사용자 결정).
+// 2026-11-12 직진배송출고리스트 원본(마스터 약 2만 행)을 없앴다(사용자 결정 — 에이블리와 같은 방식):
+//   SKU번호·상품명·옵션은 출고요청에서, 상품바코드번호는 출고전표의 바코드(없으면 상품코드)에서, 검품방식은 '스탠다드' 고정, 시즌·공장상품명은 빈칸.
+//   그래서 2단계에 출고요청이 꼭 있어야 한다. 옛 방식과 같은 입력이면 수량·바코드·봉 구성이 같은지 tests/ship-zikjin-compare.test.js 가 본다.
 
 import {
     pyStr, pyStrip, pyTruthy, strip, orEmpty, toInt, isFraction, cleanProductName, sortedBy,
     zikjinSource, packDay, countPacks, checkLimit, splitAndName, overBags, kstDay, fileNames, looksLikeStockOut, STOCK_OUT_MSG,
-} from './ship-core.js?v=202611121346';
-import { headerColumns } from './ship-read.js?v=202611121346';
+} from './ship-core.js?v=202611121504';
+import { headerColumns } from './ship-read.js?v=202611121504';
 
 export const DATA_START_ROW = 8;   // 지그재그양식서: 머리글 7행, 자료 8행부터
 export const TEMPLATE_SHEETS = ['지그재그양식서', '재고로그조회리스트', '패키지번호'];
+export const INSPECTION_METHOD = '스탠다드';
 const ADMIN_REQUIRED = ['상품코드', '바코드', '상품명', '옵션', '로케이션', '수량'];
 
 const fmtN = (n) => n.toLocaleString('en-US');
@@ -84,43 +88,84 @@ export function zikjinStep1({ request, now = new Date() }) {
     };
 }
 
-/** 출고요청 → 상품코드→SKU번호 브릿지(시트 전부, 1행 머리글, 'SKU' 가 든 첫 열) */
-function requestBridge(request, log) {
+// 출고요청 상품명·옵션 열 — 머리글이 정확히 이것일 때만(앞뒤 공백·줄바꿈만 무시, 2026-11-12 리뷰·사용자 답).
+//   '포함' 으로 찾지 않는다. '공장'·'코드' 가 든 머리글은 고르지 않는다. 맞는 열이 없으면 출고전표의 상품명·옵션을 쓴다.
+export const REQ_NAME_HEADS = Object.freeze(['상품명']);
+export const REQ_OPTION_HEADS = Object.freeze(['옵션', '옵션정보']);
+const pickExact = (heads, wanted) => heads.find(x => wanted.includes(x.raw) && !/공장|코드/.test(x.raw)) || null;
+
+/** SKU번호 칸 — 숫자처럼 보이는 글자('100000033')는 숫자로(옛 원본 마스터의 SKU 칸이 숫자였다). 앞자리 0·15자리 넘는 것은 글자 그대로 */
+export function skuCell(v) {
+    if (typeof v !== 'string') return v;
+    const s = pyStrip(v);
+    return /^[1-9]\d{0,14}$/.test(s) ? Number(s) : s;
+}
+
+/**
+ * 출고요청 → 상품코드별 { sku, name, option, hasName, hasOption } (2026-11-12 — 옛 원본 마스터 대신).
+ *   시트: 파일 순서대로 전부. 1행 머리글에 '상품코드'와 'SKU' 가 든 열이 있는 시트만(옛 브릿지와 같은 머리글 읽기 — headerColumns).
+ *   같은 코드가 여러 줄(여러 시트)이면 **마지막 줄**(옛 브릿지 map.set 덮어쓰기와 같음). SKU 가 빈 줄은 건너뜀.
+ *   상품명·옵션 열은 REQ_NAME_HEADS·REQ_OPTION_HEADS 와 정확히 같을 때만(없으면 출고전표 값).
+ * @returns {Map<string, object>}
+ */
+export function readZikjinRequestInfo(book, log = []) {
+    const names = [...book.sheetNames];
     const map = new Map();
-    if (!request) return map;
-    try {
-        const book = typeof request === 'function' ? request() : request;
-        for (const sn of book.sheetNames) {
-            const ws = book.sheet(sn);
-            const hdr = headerColumns(ws, 1);
-            const codeCol = hdr.get('상품코드');
-            let skuCol = null;
-            for (const [h, c] of hdr) if (h.toUpperCase().includes('SKU')) { skuCol = c; break; }
-            if (!codeCol || !skuCol) continue;
-            for (let r = 2; r <= ws.maxRow; r++) {
-                const code = ws.cell(r, codeCol), sku = ws.cell(r, skuCol);
-                if (pyTruthy(code) && pyTruthy(sku)) map.set(strip(code), strip(sku));
-            }
+    const used = [];
+    let conflicts = 0;
+    for (const sn of names) {
+        const ws = book.sheet(sn);
+        const hdr = headerColumns(ws, 1);
+        const codeCol = hdr.get('상품코드');
+        let skuHead = null;
+        for (const [h] of hdr) if (h.toUpperCase().includes('SKU')) { skuHead = h; break; }
+        if (!codeCol || !skuHead) continue;
+        const skuCol = hdr.get(skuHead);
+        const heads = [];
+        for (let c = 1; c <= ws.maxCol; c++) {
+            const v = ws.cell(1, c);
+            if (v !== null && v !== undefined && v !== '' && c !== codeCol && c !== skuCol) heads.push({ raw: pyStrip(pyStr(v)), c });
         }
-        log.push(`  출고요청 브릿지(상품코드→SKU번호): ${fmtN(map.size)}건`);
-    } catch (e) {
-        log.push(`  ⚠ 출고요청 브릿지 로드 실패 (무시하고 계속): ${e && e.message ? e.message : e}`);
+        const name = pickExact(heads, REQ_NAME_HEADS);
+        const opt = pickExact(heads.filter(x => x !== name), REQ_OPTION_HEADS);
+        let n = 0;
+        for (let r = 2; r <= ws.maxRow; r++) {
+            const cv = ws.cell(r, codeCol), sv = ws.cell(r, skuCol);
+            if (!pyTruthy(cv) || !pyTruthy(sv)) continue;
+            const k = strip(cv);
+            if (map.has(k) && strip(map.get(k).sku) !== strip(sv)) conflicts++;
+            map.set(k, {
+                sku: skuCell(sv),
+                name: name ? ws.cell(r, name.c) : null,
+                option: opt ? ws.cell(r, opt.c) : null,
+                hasName: !!name, hasOption: !!opt,
+            });
+            n++;
+        }
+        used.push(`'${sn}' ${fmtN(n)}줄 (SKU '${skuHead}' · 상품명 ${name ? `'${name.raw}'` : '없음 → 전표'} · 옵션 ${opt ? `'${opt.raw}'` : '없음 → 전표'})`);
     }
+    if (!used.length) {
+        throw new Error("출고요청에 '상품코드'와 SKU번호 열이 함께 있는 시트가 없습니다 — 출고리스트의 SKU번호를 채울 수 없습니다.\n"
+            + `파일 내 시트: ${listStr(names)}`);
+    }
+    log.push(`  출고요청 SKU·상품명·옵션: ${fmtN(map.size)}건 — ${used.join(' / ')}`);
+    if (conflicts) log.push(`  ⚠ 같은 상품코드에 SKU번호가 다른 줄 ${fmtN(conflicts)}건 — 마지막 줄 SKU번호를 씁니다(옛 방식과 같음)`);
     return map;
 }
 
 /**
- * 2단계: 어드민 출고전표 + 출고리스트 원본(+ 출고요청) → 시트1·2·3 행, 피킹 항목, 로케이션 전송 행, 봉 수.
+ * 2단계: 어드민 출고전표 + 출고요청 → 시트1·2·3 행, 피킹 항목, 로케이션 전송 행, 봉 수.
+ *   (2026-11-12 원본 없앰) SKU번호·상품명·옵션 = 출고요청, 상품바코드번호 = 출고전표 바코드(상품코드와 다르면 바코드, 없으면 상품코드),
+ *   검품방식 '스탠다드', 시즌·공장상품명 빈칸. 출고요청에 없는 상품코드는 출고리스트에서 빠진다(로케이션 전송에는 들어감).
  * @param {object} p
  * @param {object} p.admin      어드민 출고전표 책(활성 시트, 1행 머리글)
- * @param {object} p.template   출고리스트 원본 책(readBook formulas:true — 지그재그양식서 값만 쓴다)
- * @param {object|function|null} p.request  출고요청 책(선택 — 바코드 미등록 상품 SKU 브릿지). 함수면 불러서 쓴다(실패해도 계속)
+ * @param {object} p.request    출고요청 책(필수)
  * @param {string|null} p.requestName  출고요청 파일 이름(일반 'ZG' / 즉시출고 'ZGF'). 없으면 봉 수·로케이션 전송 안 함
  * @param {string} p.packageBase  패키지명 베이스(YYMMDD)
  * @param {number} p.packageLimit 봉투당 한도
  * @param {Array<{name,limit}>} p.specialRules 지정상품 규칙(limit 0 은 꺼짐)
  */
-export function zikjinStep2({ admin, template, request = null, requestName = null, packageBase, packageLimit, specialRules = [], now = new Date() }) {
+export function zikjinStep2({ admin, request = null, requestName = null, packageBase, packageLimit, specialRules = [], now = new Date() }) {
     const log = [];
     const limit = checkLimit(packageLimit);
     const base = pyStrip(String(packageBase ?? ''));
@@ -153,71 +198,47 @@ export function zikjinStep2({ admin, template, request = null, requestName = nul
     log.push(`  총 출고 수량: ${fmtN(adminTotal)}개`);
     if (fixedCodes) log.push(`  바코드 불일치 자동 보정: ${fixedCodes}건`);
 
-    // (b) 원본 시트 확인
-    for (const s of TEMPLATE_SHEETS) if (!template.sheet(s)) throw new Error(`템플릿에 '${s}' 시트가 없습니다.`);
-    const sh1 = template.sheet('지그재그양식서');
-    const sh2 = template.sheet('재고로그조회리스트');
-    const sh3 = template.sheet('패키지번호');
+    // (b) 출고요청은 꼭 있어야 한다(SKU번호·상품명·옵션) — 전표 검사(1단계 결과를 넣었나 등) 뒤에 본다
+    if (!request) throw new Error('출고요청 파일이 없습니다 — 출고리스트의 SKU번호·상품명·옵션을 출고요청에서 가져옵니다.');
 
-    // (c) 시트2 재고로그조회리스트 — 2행부터 새로 (G·H 수식)
-    log.push(`  재고로그조회리스트 초기화 (기존 ${sh2.maxRow - 1}건 → 신규 ${adminData.length}건)`);
+    // (c) 시트2 재고로그조회리스트 — 2행부터 새로 (G·H 수식 — G 는 시트1 D:H 에서 입고예정수량을 찾는다)
+    log.push(`  재고로그조회리스트: 신규 ${adminData.length}건`);
     const sheet2 = adminData.map((d, k) => {
         const i = k + 2;
         return [d['상품코드'], d['바코드'], d['상품명'], d['옵션'], d['로케이션'], d['수량'],
             { f: `VLOOKUP(A${i},지그재그양식서!D:H,5,FALSE)` }, { f: `IF(A${i}=B${i},"같음","다름")` }];
     });
 
-    // (d) 마스터 — 바코드(D)·SKU번호(C) 두 가지로 찾기
-    const byBarcode = new Map(), bySku = new Map();
-    for (let r = DATA_START_ROW; r <= sh1.maxRow; r++) {
-        const skuno = sh1.cell(r, 3), barcode = sh1.cell(r, 4);
-        const info = {
-            sku: skuno, name: sh1.cell(r, 5), option: sh1.cell(r, 6), inspect: sh1.cell(r, 2),
-            barcode_master: barcode, season: sh1.cell(r, 7), factory_name: sh1.cell(r, 9), row: r,
-        };
-        if (skuno !== null) {
-            const s = strip(skuno);
-            if (s && !bySku.has(s)) bySku.set(s, info);
-        }
-        if (barcode !== null) {
-            const bc = strip(barcode);
-            if (bc && bc !== '-') byBarcode.set(bc, info);
-        }
-    }
-    log.push(`  마스터: 바코드 ${fmtN(byBarcode.size)}건, SKU번호 ${fmtN(bySku.size)}건`);
+    // (d) 출고요청 — 상품코드 → SKU번호·상품명·옵션 (옛 원본 마스터 대신)
+    const book = typeof request === 'function' ? request() : request;
+    const infoByCode = readZikjinRequestInfo(book, log);
 
-    // (d-2) 출고요청 브릿지
-    const codeToSku = requestBridge(request, log);
-
-    // (e) 패키지 행
+    // (e) 패키지 행 — 1단계로 올린 코드(보정 전)로 찾고, 없으면 보정한 코드(바코드)로
     let pkg = [];
     const notFound = [];
-    let recovered = 0;
+    let nameFromAdmin = 0, optionFromAdmin = 0;
     for (const d of adminData) {
         const code = strip(d['상품코드']);
-        let info = byBarcode.get(code);
-        if (!info) {
-            const skuno = codeToSku.get(code);
-            if (skuno) {
-                info = bySku.get(skuno);
-                if (info) recovered++;
-            }
-        }
-        if (!info) { notFound.push(code); continue; }
+        const info = infoByCode.get(d['원본상품코드']) || infoByCode.get(code);
+        if (!info) { notFound.push(d['원본상품코드']); continue; }
+        let nameRaw = info.name;
+        if (!pyTruthy(nameRaw)) { nameRaw = d['상품명']; nameFromAdmin++; }
+        let option = info.option;
+        if (!info.hasOption) { option = d['옵션']; optionFromAdmin++; }
         pkg.push({
             sku: info.sku,
-            name: cleanProductName(info.name),
-            name_raw: info.name,
-            option: info.option,
+            name: cleanProductName(nameRaw),
+            name_raw: nameRaw,
+            option,
             qty: d['수량'],
             location: orEmpty(d['로케이션']),
-            admin_code: pyTruthy(d['상품코드']) ? strip(d['상품코드']) : '',
+            admin_code: code,                     // 상품바코드번호(D) — 전표 바코드(상품코드와 다르면 바코드)
         });
     }
-    if (recovered) log.push(`  ✓ 바코드 미등록 상품 ${recovered}건을 SKU번호로 복구 (출고요청 브릿지)`);
+    if (nameFromAdmin) log.push(`  ℹ 출고요청에 상품명이 없어 출고전표 상품명을 쓴 줄: ${fmtN(nameFromAdmin)}건`);
+    if (optionFromAdmin) log.push(`  ℹ 출고요청에 옵션 열이 없어 출고전표 옵션을 쓴 줄: ${fmtN(optionFromAdmin)}건`);
     if (notFound.length) {
-        const hint = codeToSku.size ? '' : ' (출고요청 파일 미지정 시 복구 불가)';
-        log.push(`  ⚠ 마스터에서 미발견 상품코드: ${notFound.length}건${hint} (예: ${notFound.slice(0, 5).join(', ')})`);
+        log.push(`  ⚠ 출고요청에서 못 찾은 상품코드(SKU번호 없음): ${notFound.length}건 — 출고리스트에서 빠집니다 (예: ${notFound.slice(0, 5).join(', ')})`);
     }
     pkg = sortedBy(pkg, r => pyStr(r.location));
     const pkgTotal = pkg.reduce((s, r) => s + r.qty, 0);
@@ -261,31 +282,15 @@ export function zikjinStep2({ admin, template, request = null, requestName = nul
     }
 
     // (h) 시트3 패키지번호 — 분할된 봉 순서 그대로
-    log.push(`  패키지번호 시트 초기화 (기존 ${sh3.maxRow - 1}건 → 신규 ${pkg.length}건)`);
+    log.push(`  패키지번호: 신규 ${pkg.length}건`);
     const sheet3 = pkg.map(r => [r.sku, r.package, r.name, r.option, r.qty]);
 
-    // (i) 시트1 — 8행 아래를 지우고 봉마다 1행(패키지명순)
+    // (i) 시트1 — 8행 아래는 비운 양식에 봉마다 1행(패키지명순). A 패키지명 · B 검품방식 · C SKU번호 · D 상품바코드번호 ·
+    //     E 상품명 · F 옵션정보 · G 시즌(빈칸) · H 입고예정수량 · I 공장상품명(빈칸) · J 로케이션. 글자는 '=' 로 시작해도 글자(ship-write.cellXml)
     const sorted = sortedBy(pkg, r => pyStr(r.package));
-    let barcodeRecovered = 0;
-    const sheet1 = sorted.map(pr => {
-        const m = bySku.get(strip(pr.sku)) || {};
-        const mbc = m.barcode_master !== undefined ? m.barcode_master : null;
-        const mbcS = mbc !== null ? strip(mbc) : '';
-        let bc;
-        if (!mbcS || mbcS === '-') {
-            bc = pyTruthy(pr.admin_code) ? pr.admin_code : mbc;
-            if (pyTruthy(bc) && !['', '-'].includes(strip(bc))) barcodeRecovered++;
-        } else {
-            bc = mbc;
-        }
-        const g = (k) => (m[k] !== undefined ? m[k] : null);
-        return [pr.package, g('inspect'), pr.sku, bc,
-            pyTruthy(g('name')) ? g('name') : pr.name_raw,
-            pyTruthy(g('option')) ? g('option') : pr.option,
-            g('season'), pr.qty, g('factory_name'), pr.location];
-    });
+    const sheet1 = sorted.map(pr => [pr.package, INSPECTION_METHOD, pr.sku, pr.admin_code, pr.name_raw, pr.option,
+        null, pr.qty, null, pr.location]);
     log.push(`  지그재그양식서: ${sorted.length}행 작성 완료 (각 봉별 1행)`);
-    if (barcodeRecovered) log.push(`  ✓ 마스터 바코드 미등록 행 ${barcodeRecovered}건의 상품바코드번호(D)를 어드민 상품코드로 채움`);
 
     // (k) 피킹 항목(ZG)
     const pickItems = pkg.map(pr => ({ ...pr, code: pyTruthy(pr.admin_code) ? pr.admin_code : '', pick_name: pyTruthy(pr.name) ? pr.name : '' }));

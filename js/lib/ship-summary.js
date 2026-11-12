@@ -9,10 +9,10 @@
 //   에이블리 2단계: rows(대량입고 행 — 5번 칸 수량) · pickItems[].code · location.rows · packageCount
 //   에이블리 요청 총량: ship-ably.readAblyRequest 의 qty 합(부르는 쪽이 넘긴다)
 
-import { overBags, baseDateWarning, pyTruthy, toInt } from './ship-core.js?v=202611121346';
-import { headerColumns } from './ship-read.js?v=202611121346';
-import { zikjinStep1 } from './ship-zikjin.js?v=202611121346';
-import { readAblyRequest } from './ship-ably.js?v=202611121346';
+import { overBags, baseDateWarning, pyTruthy, toInt } from './ship-core.js?v=202611121504';
+import { headerColumns } from './ship-read.js?v=202611121504';
+import { zikjinStep1 } from './ship-zikjin.js?v=202611121504';
+import { readAblyRequest } from './ship-ably.js?v=202611121504';
 
 export const SUMMARY_MAX_BYTES = 3 * 1024 * 1024;   // 이보다 큰 파일은 칸 요약을 건너뜀(두 번 읽지 않게)
 
@@ -86,7 +86,7 @@ export function summarizeRun({ tab, step, result, base = '', limit = 0, now = ne
         qty = sum(pkg, x => x.qty);
         bags = Number(r.packageCount) || 0;
         const sent = sum(r.location && r.location.rows, x => x[2]);
-        if (sent > qty) warns.push(`마스터(원본)에서 못 찾은 상품 ${fmt(sent - qty)}개가 출고리스트에서 빠졌습니다 — 원본이 최신인지 확인하세요.`);
+        if (sent > qty) warns.push(`출고요청에서 못 찾은 상품 ${fmt(sent - qty)}개가 출고리스트에서 빠졌습니다 — 출고요청과 전표가 같은 묶음인지 확인하세요.`);
         if (!(r.location && r.location.source)) warns.push('출고요청 파일이 없어 로케이션 전송·봉 수 기록을 하지 않았습니다(일반/즉시출고를 가릴 수 없음).');
     } else {
         const rows = r.rows || [];

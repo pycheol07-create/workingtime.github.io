@@ -1,7 +1,8 @@
 // === js/lib/ship-file-store.js ===
-// 플랫폼 출고 — 이 PC(브라우저)에만 남기는 작은 저장소(IndexedDB). 2026-11-10 사용자 결정:
-//   직진배송출고리스트 원본은 PC 별로 기억한다(서버·Storage·공개 배포본에 올리지 않는다 — 마스터 상품 정보가 들어 있다).
-//   결과 저장 폴더 핸들(js/lib/save-file.js)도 같은 곳에 둔다(폴더를 한 번만 고르게).
+// 플랫폼 출고 — 이 PC(브라우저)에만 남기는 작은 저장소(IndexedDB).
+//   결과 저장 폴더 핸들(js/lib/save-file.js)을 둔다(폴더를 한 번만 고르게).
+//   KEY_TEMPLATE: 옛 '직진배송출고리스트 원본 PC 기억'(2026-11-10~11-12) 자리 — 원본을 없앤 뒤(2026-11-12) 새로 쓰지 않는다.
+//     화면이 열릴 때 앱 양식(Storage)을 쓸 수 있으면 지우고, 아직 못 쓰면(저장소 규칙 게시 전 임시 길) 원본(임시) 칸에 넣어 준다(js/ship.js restoreFromPc).
 //   다른 화면의 IndexedDB(상품 관리 등)와 이름을 나눠 쓴다.
 // indexedDB 는 넘겨받을 수 있다(시험). 기본은 globalThis.indexedDB. 테스트: tests/ship-file-store.test.js(이름·설명) · tools/ship-check.py(실제 브라우저)
 

@@ -8,8 +8,8 @@
 //   금액·직원 이름 없음(업무명·원인만).
 // ※ 순수 모듈(DOM·Firebase 없음). 테스트: tests/plan-year.test.js
 
-import { taskDays, uphOf, MIN_COMPARE_DAYS, addDays } from './task-owner.js?v=202611121346';
-import { periodMetrics } from './ops-metrics.js?v=202611121346';
+import { taskDays, uphOf, MIN_COMPARE_DAYS, addDays } from './task-owner.js?v=202611121504';
+import { periodMetrics } from './ops-metrics.js?v=202611121504';
 
 export const ROADMAP_LEVELS = Object.freeze({ perQuarter: 3, window: 14, minDays: MIN_COMPARE_DAYS, topTasks: 3 });
 /** 회복 비율 — 손실 시간 중 과제로 줄일 수 있다고 보는 몫(어림, 템플릿 고정) */

@@ -4,7 +4,7 @@
 //   서식(글꼴·채움·테두리·열 너비 등)은 견주지 않는다 — 화면에 그렇게 안내한다.
 //   결과에는 위치·개수만 담는다(값은 보여 주지 않는다 — 실제 출고 파일). 순수 모듈(SheetJS 는 넘겨받음). 테스트: tests/ship-compare.test.js
 
-import { pyStr } from './ship-core.js?v=202611121346';
+import { pyStr } from './ship-core.js?v=202611121504';
 
 const DIGITS = /^-?\d+$/;
 

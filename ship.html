@@ -2,17 +2,17 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <script src="js/theme-boot.js?v=202611121346"></script>
+    <script src="js/theme-boot.js?v=202611121504"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>플랫폼 출고</title>
     <!-- 플랫폼 출고(2026-11-10 웹 이식) — 옛 출고자동화통합.exe(직진배송·에이블리 1·2단계)를 브라우저로.
-         엑셀 파일은 이 PC 브라우저 안에서만 읽고 만든다(서버로 올리지 않음). 계산은 js/lib/ship-*.js(옛 Python 판과 같은 결과).
+         엑셀 파일은 이 PC 브라우저 안에서만 읽고 만든다(서버로 올리지 않음). 예외: 직진 출고리스트 빈 양식(관리자가 올림, 머리글만 — Storage ship/templates/zikjin.xlsx). 계산은 js/lib/ship-*.js(옛 Python 판과 같은 결과).
          Firestore 쓰기(로케이션 실적·봉 수)는 공용 설정 '전송 켬'(관리자만)일 때만 — js/ship-store.js. 화면 틀은 products.html 과 같다. -->
-    <link rel="stylesheet" href="css/suit.css?v=202611121346">
-    <link rel="stylesheet" href="css/d-theme.css?v=202611121346">
-    <link rel="stylesheet" href="css/products-d.css?v=202611121346">
-    <link rel="stylesheet" href="css/ship-d.css?v=202611121346">
-    <link rel="stylesheet" href="css/app-shell.css?v=202611121346">
+    <link rel="stylesheet" href="css/suit.css?v=202611121504">
+    <link rel="stylesheet" href="css/d-theme.css?v=202611121504">
+    <link rel="stylesheet" href="css/products-d.css?v=202611121504">
+    <link rel="stylesheet" href="css/ship-d.css?v=202611121504">
+    <link rel="stylesheet" href="css/app-shell.css?v=202611121504">
 </head>
 <body data-shell="ship">
     <div id="pd-loading" class="pd-loading">
@@ -24,7 +24,7 @@
         <header class="pd-head">
             <div class="pd-head-title">
                 <h1>플랫폼 출고</h1>
-                <div class="pd-sub pd-head-sub">직진배송·에이블리 출고 파일을 만듭니다. 엑셀은 이 PC 안에서만 처리되고 서버에 올라가지 않습니다.</div>
+                <div class="pd-sub pd-head-sub">직진배송·에이블리 출고 파일을 만듭니다. 출고 엑셀은 이 PC 안에서만 처리되고 서버에 올라가지 않습니다(관리자가 올리는 빈 출고리스트 양식만 앱에 저장).</div>
             </div>
             <div class="pd-head-actions">
                 <button id="sp-folder" class="d-btn" title="결과 파일을 저장할 폴더">저장 폴더 고르기</button>
@@ -33,6 +33,15 @@
         </header>
 
         <main id="pd-main" class="pd-main">
+            <!-- 화면 방식(2026-11-12) — 통합(자동 인식, 기본) · 기존 방식(직진·에이블리 따로, 사람이 직접 진행). js/lib/ship-flow.js modeView -->
+            <div class="sp-mode-row">
+                <nav id="sp-mode" class="d-seg sp-mode" aria-label="화면 방식">
+                    <button class="d-seg-btn is-on" data-mode="auto" title="파일을 놓으면 직진·에이블리와 단계를 알아서 고르고 바로 만듭니다">통합</button>
+                    <button class="d-seg-btn" data-mode="zikjin" title="기존 방식 — 직진배송 1·2단계 칸만, 직접 진행">직진배송</button>
+                    <button class="d-seg-btn" data-mode="ably" title="기존 방식 — 에이블리 1·2단계 칸만, 직접 진행">에이블리</button>
+                </nav>
+                <span id="sp-mode-note" class="pd-note"></span>
+            </div>
             <div id="sp-transmit" class="pd-alert info" role="status"></div>
             <div id="sp-quick" class="sp-quick" role="status" hidden></div>
 
@@ -41,7 +50,7 @@
                 <div id="sp-intake" class="sp-intake">
                     <div id="sp-intake-default" class="sp-intake-default">
                         <div class="sp-intake-title">출고 파일을 여기에 끌어다 놓으세요</div>
-                        <div class="sp-intake-sub">출고요청 · 이지어드민 출고전표 · 원본 양식 — 직진배송인지 에이블리인지, 몇 단계인지 알아서 고르고, 필요한 파일이 다 있으면 바로 만듭니다. 여러 개를 한꺼번에 놓아도 됩니다.</div>
+                        <div class="sp-intake-sub">출고요청 · 이지어드민 출고전표 — 직진배송인지 에이블리인지, 몇 단계인지 알아서 고르고, 필요한 파일이 다 있으면 바로 만듭니다. 여러 개를 한꺼번에 놓아도 됩니다.</div>
                     </div>
                     <!-- 인식 결과 · 처리 중 단계(읽는 중 → 계산 중 → 저장 중 → 전송 중) -->
                     <div id="sp-intake-status" class="sp-intake-status" aria-live="polite" hidden>
@@ -87,7 +96,8 @@
                     <div id="sp-slots" class="sp-slots"></div>
                     <div id="sp-drop-hint" class="sp-drop-hint">칸 하나에 직접 놓거나 [파일 선택]으로 넣으면 그 칸에만 들어가고, [만들기]를 눌러 시작합니다.</div>
                 </div>
-                <div id="sp-tmpl-old" class="pd-alert warn" hidden></div>
+                <!-- 직진 출고리스트 양식(앱 Storage ship/templates/zikjin.xlsx) 상태 — 없으면 관리자 [양식 올리기] · 직원은 요청 안내 (js/ship.js renderZgTemplate) -->
+                <div id="sp-zg-tmpl" class="pd-alert info" role="status" hidden></div>
 
                 <div id="sp-opts" class="sp-opts"></div>
 
@@ -145,12 +155,14 @@
             <details class="pd-card pd-card-pad sp-help">
                 <summary>도움말 — 순서와 자주 묻는 질문</summary>
                 <div class="sp-help-body">
+                    <p>맨 위 [통합]·[직진배송]·[에이블리]로 화면 방식을 고릅니다. [통합](기본)은 아래 설명처럼 파일을 알아보고 저절로 진행하고, [직진배송]·[에이블리](기존 방식)는 고른 쪽의 1·2단계 칸만 보여 주고 파일을 놓으면 칸에 넣기만 합니다 — 단계는 직접 고르고 [만들기]를 직접 누릅니다. 다른 쪽 파일을 넣으면 경고만 나옵니다. 마지막으로 고른 방식은 이 PC 가 기억합니다. 전송·봉 수·오늘 묶음 합산·[묶음 빼기]는 두 방식이 똑같습니다.</p>
                     <p>보통은 위쪽 상자에 파일을 놓기만 하면 됩니다. 출고요청을 놓으면 1단계가, 이지어드민 출고전표를 놓으면 방금 1단계를 한 쪽의 2단계가 바로 만들어집니다. 어느 쪽인지 애매하거나(출고전표만 놓았는데 1단계를 한 쪽이 없음) 패키지명 날짜가 오늘이 아니면 칸만 채우고 [만들기]를 기다립니다. 다른 탭·단계로 가려면 '직접 고르기'를 펼치세요.</p>
                     <h3>직진배송</h3>
                     <ol>
                         <li><b>1단계</b>: GPM 출고요청 엑셀을 넣고 [만들기] → <code>재고출고용_YYMMDD.xls</code>(이지어드민 업로드용). 이름에 '직진배송'이 든 시트를 모두 합치고, 같은 상품코드는 더합니다. 끝나면 출고요청 파일이 2단계 칸에 저절로 들어갑니다.</li>
                         <li>이지어드민에 올리고 출고전표를 받습니다.</li>
-                        <li><b>2단계</b>: ① 이지어드민 출고전표 ② 직진배송출고리스트 원본(이 PC 가 기억 — 한 번 넣으면 다음부터 자동) ③ 출고요청(1단계에서 자동, 신상 코드 복구·일반/즉시출고 구분용) → <code>직진배송출고리스트_YYMMDD.xlsx</code> + <code>ZG_피킹작업지시서_YYMMDD.xlsx</code>.</li>
+                        <li><b>2단계</b>: ① 이지어드민 출고전표 ② 출고요청(1단계에서 자동) → <code>직진배송출고리스트_YYMMDD.xlsx</code> + <code>ZG_피킹작업지시서_YYMMDD.xlsx</code>. SKU번호·상품명·옵션은 출고요청에서, 상품바코드번호는 전표의 '바코드' 열에서 가져오고, 검품방식은 '스탠다드', 시즌·공장상품명은 빈칸입니다. 출고요청에 없는 상품은 출고리스트에서 빠집니다.</li>
+                        <li>출고리스트 양식(빈 서식)은 앱에 저장되어 있습니다 — 직진배송출고리스트 원본은 넣지 않습니다. 카카오스타일 양식이 바뀌었을 때만 관리자가 [양식 다시 올리기]로 새 원본을 올리면, 머리글만 남기고 상품 자료는 이 PC 에서 지운 뒤 저장합니다. 양식이 아직 준비되지 않았으면('양식 준비 중') 2단계에 '원본(임시)' 칸이 생기니, 그때는 예전처럼 원본을 넣으면 됩니다(이 PC 안에서만 쓰고 저장하지 않음).</li>
                     </ol>
                     <h3>에이블리</h3>
                     <ol>
@@ -190,11 +202,12 @@
     <input id="sp-file-input" type="file" accept=".xlsx,.xlsm,.xls" hidden>
     <input id="sp-files-input" type="file" accept=".xlsx,.xlsm,.xls" multiple hidden>
     <input id="sp-cmp-input" type="file" accept=".xlsx,.xlsm,.xls" multiple hidden>
+    <input id="sp-tmpl-input" type="file" accept=".xlsx" hidden>
 
-    <script src="js/connection-banner.js?v=202611121346"></script>
-    <script src="js/modal-esc.js?v=202611121346"></script>
-    <script type="module" src="js/ship.js?v=202611121346"></script>
-    <script type="module" src="js/page-gate.js?v=202611121346" data-perm-page="ship.platform"></script>
-    <script type="module" src="js/app-shell.js?v=202611121346"></script>
+    <script src="js/connection-banner.js?v=202611121504"></script>
+    <script src="js/modal-esc.js?v=202611121504"></script>
+    <script type="module" src="js/ship.js?v=202611121504"></script>
+    <script type="module" src="js/page-gate.js?v=202611121504" data-perm-page="ship.platform"></script>
+    <script type="module" src="js/app-shell.js?v=202611121504"></script>
 </body>
 </html>

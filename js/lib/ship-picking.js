@@ -6,7 +6,7 @@
 //   쓸 수 없는 글자(제어 문자·DEL 등)가 있으면 파일을 만들지 않고 경고만(Python 판: 피킹 실패 경고, 출고 파일은 정상).
 // ExcelJS 는 넘겨받은 것으로만 쓴다(브라우저 CDN · node 공용). 쓰기 결과는 1단계 시제품에서 openpyxl 판과 0차이.
 
-import { pyStr, pyRstrip, pyTruthy, orEmpty, cleanPickName, cleanPickOption, sortedBy } from './ship-core.js?v=202611121346';
+import { pyStr, pyRstrip, pyTruthy, orEmpty, cleanPickName, cleanPickOption, sortedBy } from './ship-core.js?v=202611121504';
 
 // 피킹 시트에 쓸 수 없는 글자: 제어 문자·DEL·U+FFFE/FFFF·짝 없는 서로게이트(ship-write.ILLEGAL + DEL)
 export const PICK_ILLEGAL = /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F￾￿]|[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/;
@@ -77,9 +77,9 @@ export function pickingLayout(items, prefix = 'AB') {
     return { headers, aligns: specs.map(s => s[2]), rows, widths, pkgCount };
 }
 
-/** openpyxl 은 '=' 로 시작하는 글자(2자 이상)를 수식으로 쓴다 — 같은 결과를 내려고 흉내 */
+/** 칸 값 그대로 — 글자는 '=' 로 시작해도 글자로 쓴다(2026-11-12 보안: 상품명 등이 수식으로 열리지 않게.
+ *  openpyxl 판은 '=' 로 시작하는 2자 이상 글자를 수식으로 썼다 — 의도한 차이) */
 export function excelValue(v) {
-    if (typeof v === 'string' && v.length > 1 && v.startsWith('=')) return { formula: v.slice(1) };
     return v;
 }
 
