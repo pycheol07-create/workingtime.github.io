@@ -235,10 +235,29 @@ export function kstIso(now = new Date()) {
 
 export const PACK_BASE_MAX_DIFF = 7;   // 패키지명 베이스가 오늘과 이보다 멀면 오타로 보고 오늘을 쓴다
 
-/** pack_day — 출고 기준일 'YYYY-MM-DD'(KST). 베이스(YYMMDD)가 오늘 7일 안이면 그날, 아니면 오늘 */
+// 패키지명 플랫폼 접두(2026-11-13 웹판만 — exe 는 접두 없이 YYMMDD-NN). 화면의 베이스 칸은 날짜(YYMMDD) 그대로 두고,
+//   [만들기] 때 화면(js/ship.js)이 packageNameBase 로 접두를 붙여 2단계 계산에 넘긴다 → ZG261113-01 · AB261113-01.
+//   계산(zikjinStep2·ablyStep2·splitAndName)은 받은 앞부분 그대로 쓴다 — 같은 입력이면 exe 와 같은 답(앱/플랫폼출고자동화/tests/test_웹판비교.py).
+//   베이스를 날짜로 읽는 곳(packDay = zabPacks days 키 · baseDateWarning · 화면 '오늘과 다름')은 baseDatePart 로 접두를 떼고 읽는다.
+export const PACK_PREFIX = { zikjin: 'ZG', ably: 'AB' };
+const PACK_PREFIX_RE = /^\s*(ZG|AB)/i;
+
+/** 베이스에서 플랫폼 접두(ZG·AB, 대소문자 무관)를 뗀 나머지(앞뒤 공백 없이) — 사람이 칸에 접두를 넣었어도 날짜만 */
+export function baseDatePart(packageBase) {
+    return pyStrip(pyStr(orEmpty(packageBase)).replace(PACK_PREFIX_RE, ''));
+}
+
+/** 패키지명 앞부분 = 플랫폼 접두 + 날짜. 이미 접두가 있으면(다른 플랫폼 것이어도) 떼고 그 플랫폼 접두를 한 번만 단다 */
+export function packageNameBase(tab, packageBase) {
+    const pre = PACK_PREFIX[tab];
+    if (!pre) throw new Error(`알 수 없는 플랫폼 ${tab}`);
+    return `${pre}${baseDatePart(packageBase)}`;
+}
+
+/** pack_day — 출고 기준일 'YYYY-MM-DD'(KST). 베이스(YYMMDD, 앞 ZG·AB 는 뗌)가 오늘 7일 안이면 그날, 아니면 오늘 */
 export function packDay(packageBase, now = new Date()) {
     const today = kstDay(now);
-    const base = pyStrip(pyStr(orEmpty(packageBase)));
+    const base = baseDatePart(packageBase);
     if (/^\d{6}$/.test(base)) {
         const yy = Number(base.slice(0, 2)), mm = Number(base.slice(2, 4)), dd = Number(base.slice(4, 6));
         const y = yy <= 68 ? 2000 + yy : 1900 + yy;   // strptime %y
@@ -263,7 +282,7 @@ export function countPacks(rows) {
 /** 패키지명 날짜가 오늘과 다를 때 안내(로케이션에는 오늘 출고로 들어간다). 같으면 '' */
 export function baseDateWarning(packageBase, now = new Date()) {
     const today = kstDay(now).yymmdd;
-    if (pyStrip(pyStr(orEmpty(packageBase))) === today) return '';
+    if (baseDatePart(packageBase) === today) return '';
     return `⚠ 패키지명 날짜(${pyStr(packageBase)})가 오늘(${today})과 다릅니다. 로케이션에는 오늘 출고로 들어갑니다.`;
 }
 
@@ -298,7 +317,8 @@ export function checkLimit(limit) {
 }
 
 /**
- * 봉투 한도 분할 + 패키지명(YYMMDD-NN, 누적합 기준) — 직진·에이블리 같은 규칙.
+ * 봉투 한도 분할 + 패키지명(`<packageBase>-NN`, 누적합 기준) — 직진·에이블리 같은 규칙.
+ * packageBase 는 받은 그대로 앞부분(화면은 packageNameBase — ZG261113 · AB261113, exe 비교 시험은 YYMMDD).
  * rows 는 이미 로케이션순. 새 배열(행 복사)을 돌려준다.
  */
 export function splitAndName(rows, packageBase, limit) {

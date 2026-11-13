@@ -26,28 +26,28 @@
 import { onAuthStateChanged, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { doc, getDocFromServer } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getStorage, ref as sRef, uploadBytes, getBlob, getMetadata } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
-import { initializeFirebase } from './config.js?v=202611121915';
-import { emulatorEnabled, connectStorageEmulatorIfEnabled } from './firebase-emulator.js?v=202611121915';
-import { setShellContext, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202611121915';
-import { memberNameFor } from './app-shell-data.js?v=202611121915';
-import { friendlyFirebaseError } from './utils.js?v=202611121915';
-import { resolve, can } from './lib/perm.js?v=202611121915';
-import { readBook } from './lib/ship-read.js?v=202611121915';
-import { zikjinStep1, zikjinStep2 } from './lib/ship-zikjin.js?v=202611121915';
-import { ablyStep1, ablyStep2, readAblyRequest } from './lib/ship-ably.js?v=202611121915';
-import { zikjinListBytes, ablyBulkBytes, stockXlsBytes, cleanZikjinTemplate, zikjinTemplateProblem, cleanAblyTemplate, ablyTemplateProblem } from './lib/ship-write.js?v=202611121915';
-import { pickingBytes } from './lib/ship-picking.js?v=202611121915';
-import { kstDay, baseDateWarning, targetArea, STOCK_OUT_MSG } from './lib/ship-core.js?v=202611121915';
-import { peekBook, classifyPeek, assignFiles, routeFiles, SLOTS, KIND, KIND_LABEL } from './lib/ship-assign.js?v=202611121915';
-import { openShipStore, isFileRecord, sizeText, savedText, KEY_TEMPLATE, KEY_OUT_DIR } from './lib/ship-file-store.js?v=202611121915';
-import { createSaver, mimeOf } from './lib/save-file.js?v=202611121915';
-import { normalizeSettings, validateEdit, settingsWrite, parseLimit, activeRuleCount, MAX_RULES } from './lib/ship-settings.js?v=202611121915';
-import { flowState, foldState, modeView, loadMode, tabForMode, MODE_STORE_KEY, MODE_LABEL } from './lib/ship-flow.js?v=202611121915';
-import { summarizeRun, fileSummary, SUMMARY_MAX_BYTES } from './lib/ship-summary.js?v=202611121915';
-import { madeKey, loadMade, findMade, recordMade, madeConfirmText, MADE_STORE_KEY } from './lib/ship-made.js?v=202611121915';
-import { gridOf, comparePairs } from './lib/ship-compare.js?v=202611121915';
-import { batchKeyOf, codeTotals, freshKey, sha256Hex, LEGACY } from './lib/ship-batch.js?v=202611121915';
-import { loadSettings, saveSettings, sendBatch, previewBatches, removeBatch } from './ship-store.js?v=202611121915';
+import { initializeFirebase } from './config.js?v=202611130915';
+import { emulatorEnabled, connectStorageEmulatorIfEnabled } from './firebase-emulator.js?v=202611130915';
+import { setShellContext, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202611130915';
+import { memberNameFor } from './app-shell-data.js?v=202611130915';
+import { friendlyFirebaseError } from './utils.js?v=202611130915';
+import { resolve, can } from './lib/perm.js?v=202611130915';
+import { readBook } from './lib/ship-read.js?v=202611130915';
+import { zikjinStep1, zikjinStep2 } from './lib/ship-zikjin.js?v=202611130915';
+import { ablyStep1, ablyStep2, readAblyRequest } from './lib/ship-ably.js?v=202611130915';
+import { zikjinListBytes, ablyBulkBytes, stockXlsBytes, cleanZikjinTemplate, zikjinTemplateProblem, cleanAblyTemplate, ablyTemplateProblem } from './lib/ship-write.js?v=202611130915';
+import { pickingBytes } from './lib/ship-picking.js?v=202611130915';
+import { kstDay, baseDateWarning, targetArea, STOCK_OUT_MSG, PACK_PREFIX, baseDatePart, packageNameBase } from './lib/ship-core.js?v=202611130915';
+import { peekBook, classifyPeek, assignFiles, routeFiles, SLOTS, KIND, KIND_LABEL } from './lib/ship-assign.js?v=202611130915';
+import { openShipStore, isFileRecord, sizeText, savedText, KEY_TEMPLATE, KEY_OUT_DIR } from './lib/ship-file-store.js?v=202611130915';
+import { createSaver, mimeOf } from './lib/save-file.js?v=202611130915';
+import { normalizeSettings, validateEdit, settingsWrite, parseLimit, activeRuleCount, MAX_RULES } from './lib/ship-settings.js?v=202611130915';
+import { flowState, foldState, modeView, loadMode, tabForMode, MODE_STORE_KEY, MODE_LABEL } from './lib/ship-flow.js?v=202611130915';
+import { summarizeRun, fileSummary, SUMMARY_MAX_BYTES } from './lib/ship-summary.js?v=202611130915';
+import { madeKey, loadMade, findMade, recordMade, madeConfirmText, MADE_STORE_KEY } from './lib/ship-made.js?v=202611130915';
+import { gridOf, comparePairs } from './lib/ship-compare.js?v=202611130915';
+import { batchKeyOf, codeTotals, freshKey, sha256Hex, LEGACY } from './lib/ship-batch.js?v=202611130915';
+import { loadSettings, saveSettings, sendBatch, previewBatches, removeBatch } from './ship-store.js?v=202611130915';
 
 const $ = (id) => document.getElementById(id);
 const APP_BASE = 'artifacts/team-work-logger-v2';
@@ -121,6 +121,8 @@ const STEP_DESC = {
     },
 };
 const STEP2_LABEL = { zikjin: '2단계 · 출고리스트', ably: '2단계 · 대량입고' };
+// [exe 결과와 비교하기] 의도된 차이 이름 → 화면 글(js/lib/ship-compare.js intended·intendedAt)
+const CMP_WHY = { INT_FLOAT: '정수 표기', HTML_ZERO: '앞자리 0', PACK_PREFIX: '패키지명 앞 ZG·AB', NO_MASTER: '시즌·공장상품명 빈칸(원본 없이 만들기)' };
 
 const emptyFiles = () => ({ 1: { request: null }, 2: { admin: null, template: null, request: null } });
 const emptySession = () => ({ step1Result: null, step1For: null, step1Req: null, step2For: null });
@@ -142,7 +144,7 @@ const S = {
     session: { zikjin: emptySession(), ably: emptySession() },   // 흐름 표시용 — 이번에(새로고침 전) 마친 단계
     last: null,          // 결과 카드 { tab, step, failed, summary, warns, transmit: { source, packDay, key, today } | null }
     recog: '', phase: '', phases: [], why: '',
-    foldOpen: false, advOpen: false,
+    foldOpen: false, advOpen: false, optsKey: '',
     runLog: null, runWarns: [],
     cmp: { left: [], right: [], side: 'left' },
 };
@@ -375,28 +377,51 @@ function renderTemplateRows() {
         + (S.isAdmin ? '' : '<div class="pd-note">양식은 관리자만 올립니다 — 양식이 바뀌었으면 관리자에게 알려 주세요.</div>');
 }
 
+/** 고급(2단계 패키지명 베이스·봉투당 수량) — 단계와 상관없이 늘 보인다(2026-11-13).
+ *  통합에서 아직 파일을 안 넣었으면 어느 플랫폼인지 몰라 두 쪽(ZG·AB)을 다 보이고, 알아본 뒤(또는 개별 선택)엔 그 쪽만.
+ *  칸에는 날짜(YYMMDD)를 넣고, 접두(ZG·AB)는 [만들기] 때 run() 이 붙여 계산에 넘긴다(ship-core.packageNameBase — 칸에 접두를 넣어도 한 번만). */
+function optsTabs() {
+    return modeView(S.mode).auto && !autoHasWork() ? ['zikjin', 'ably'] : [S.tab];
+}
 function renderOpts() {
-    const tab = S.tab, step = S.step[tab];
     const box = $('sp-opts');
-    if (step !== 2) { box.innerHTML = ''; return; }
-    const setLimit = tab === 'zikjin' ? S.settings.zikjinLimit : S.settings.ablyLimit;
-    if (!S.base[tab]) S.base[tab] = kstDay().yymmdd;
-    if (!S.limitText[tab]) S.limitText[tab] = String(setLimit);
-    const rules = tab === 'zikjin' ? activeRuleCount(S.settings.specialRules) : 0;
-    const differs = String(S.base[tab]).trim() !== kstDay().yymmdd || String(S.limitText[tab]).trim() !== String(setLimit);
-    box.innerHTML = `<details id="sp-adv" class="sp-adv"${(S.advOpen || differs) ? ' open' : ''}>
-        <summary>고급 — 패키지명 ${esc(S.base[tab])} · 봉투당 ${esc(S.limitText[tab])}개${differs ? ' <span class="pd-pill warn">오늘·공용값과 다름</span>' : ''}</summary>
-        <div class="sp-adv-body">
+    const tabs = optsTabs();
+    S.optsKey = tabs.join(',');
+    const today = kstDay().yymmdd;
+    const setLimitOf = (t) => (t === 'zikjin' ? S.settings.zikjinLimit : S.settings.ablyLimit);
+    for (const t of tabs) {
+        if (!S.base[t]) S.base[t] = today;
+        if (!S.limitText[t]) S.limitText[t] = String(setLimitOf(t));
+    }
+    const differsOf = (t) => baseDatePart(S.base[t]) !== today || String(S.limitText[t]).trim() !== String(setLimitOf(t));
+    const differs = tabs.some(differsOf);
+    const names = tabs.map(t => packageNameBase(t, S.base[t])).join(' / ');
+    const limits = tabs.map(t => String(S.limitText[t]).trim()).join('·');
+    const fields = tabs.map(t => {
+        const rules = t === 'zikjin' ? activeRuleCount(S.settings.specialRules) : 0;
+        const head = tabs.length > 1 ? `<b class="sp-adv-tab">${esc(TAB_LABEL[t])}</b>` : '';
+        return `<div class="sp-adv-row" data-tab="${t}">${head}
         <label class="sp-field">패키지명 베이스
-            <input id="sp-base" class="pd-in num" value="${esc(S.base[tab])}" maxlength="12" inputmode="numeric">
-            <small>오늘 ${esc(kstDay().yymmdd)} · YYMMDD</small></label>
+            <span class="sp-base-wrap"><span class="sp-base-pre">${esc(PACK_PREFIX[t])}</span>
+            <input class="pd-in num" data-opt="base" data-tab="${t}" value="${esc(baseDatePart(S.base[t]))}" maxlength="12" inputmode="numeric"></span>
+            <small>오늘 ${esc(today)} · YYMMDD — 패키지명 <span data-opt-name="${t}">${esc(packageNameBase(t, S.base[t]))}</span>-01 부터</small></label>
         <label class="sp-field">봉투당 최대 수량
-            <input id="sp-limit" class="pd-in num" value="${esc(S.limitText[tab])}" maxlength="4" inputmode="numeric">
-            <small>공용 설정 ${esc(setLimit)}${esc(tab === 'zikjin' ? ` · 지정상품 규칙 ${rules ? `${rules}개 켬` : '꺼짐'}` : '')}</small></label>
-        </div></details>`;
+            <input class="pd-in num" data-opt="limit" data-tab="${t}" value="${esc(S.limitText[t])}" maxlength="4" inputmode="numeric">
+            <small>공용 설정 ${esc(setLimitOf(t))}${esc(t === 'zikjin' ? ` · 지정상품 규칙 ${rules ? `${rules}개 켬` : '꺼짐'}` : '')}</small></label>
+        </div>`;
+    }).join('');
+    box.innerHTML = `<details id="sp-adv" class="sp-adv"${(S.advOpen || differs) ? ' open' : ''}>
+        <summary>고급 — 패키지명 ${esc(names)} · 봉투당 ${esc(limits)}개${differs ? ' <span class="pd-pill warn">오늘·공용값과 다름</span>' : ''} <span class="sp-adv-edit">바꾸기</span></summary>
+        <div class="sp-adv-body">${fields}</div></details>`;
     $('sp-adv').addEventListener('toggle', (e) => { S.advOpen = e.target.open; });
-    $('sp-base').addEventListener('input', (e) => { S.base[tab] = e.target.value; });
-    $('sp-limit').addEventListener('input', (e) => { S.limitText[tab] = e.target.value; });
+    box.querySelectorAll('input[data-opt]').forEach(inp => inp.addEventListener('input', (e) => {
+        const t = e.target.dataset.tab;
+        if (e.target.dataset.opt === 'base') {
+            S.base[t] = e.target.value;
+            const nm = box.querySelector(`[data-opt-name="${t}"]`);
+            if (nm) nm.textContent = packageNameBase(t, S.base[t]);
+        } else S.limitText[t] = e.target.value;
+    }));
 }
 
 function renderTransmit() {
@@ -476,6 +501,7 @@ function renderAutoIdle() {
     const auto = modeView(S.mode).auto;
     card.classList.toggle('is-auto', auto);
     card.classList.toggle('is-auto-idle', auto && !autoHasWork());
+    if (S.optsKey !== optsTabs().join(',')) renderOpts();   // 파일을 넣어 플랫폼을 알아봤다(두 쪽 → 그 쪽) · 다시 비었다
     // 통합: [만들기]는 저절로 시작하지 않았을 때만(이유 있음·파일 모자람·아직 안 만듦). 방금 마친 단계면 숨김
     card.classList.toggle('is-auto-done', auto && !S.busy && !S.why && stepDoneNow() && !S.foldOpen);
 }
@@ -742,7 +768,7 @@ async function dropMany(fileList) {
         const gotTrigger = route.step !== null && judged.some(f => f.kind === trigger && Object.values(assign).includes(f));
         if (gotTrigger) {
             const missing = missingOf(tab, step);
-            const stale = step === 2 && S.base[tab] && S.base[tab].trim() !== kstDay().yymmdd;
+            const stale = step === 2 && S.base[tab] && baseDatePart(S.base[tab]) !== kstDay().yymmdd;   // 앞 ZG·AB 는 떼고 날짜만
             let why = '';
             let made = null;
             if (!missing.length && !route.note && !rest.length && !stale) {
@@ -1083,7 +1109,8 @@ async function runCompare() {
         if (r.missing) s = `짝 없음(${r.missing === 'right' ? 'exe' : '웹'} 쪽에만 있음)`;
         else if (!r.bad.length) s = '차이 없음';
         else s = `그 밖의 차이 ${r.bad.length}곳`;
-        const good = r.good.length ? ` · 의도된 차이 ${r.good.length}곳(정수 표기·앞자리 0 — 웹판이 고친 것)` : '';
+        const why = [...new Set(r.good.map(g => CMP_WHY[g.why] || g.why))].join('·');
+        const good = r.good.length ? ` · 의도된 차이 ${r.good.length}곳(${why})` : '';
         return `<div class="sp-cmp-pair"><b>${esc(r.key)}</b> — ${esc(s)}${esc(good)}${r.lines.length ? `<ul>${r.lines.map(l => `<li>${esc(l)}</li>`).join('')}</ul>` : ''}</div>`;
     }).join('');
     out.innerHTML = head + body;
@@ -1460,8 +1487,11 @@ async function run(opts = {}) {
     if (step === 2) {
         base = String(S.base[tab] || '').trim();
         limit = parseLimit(S.limitText[tab]);
-        if (!base) { toast('패키지명 베이스를 넣어 주세요.'); return; }
+        if (!baseDatePart(base)) { toast('패키지명 베이스를 넣어 주세요.'); return; }
         if (limit === null) { toast('봉투당 최대 수량은 1~999 정수입니다.'); return; }
+        // 패키지명 앞에 플랫폼 접두(ZG·AB, 2026-11-13). 계산(zikjinStep2·ablyStep2)은 받은 앞부분 그대로 쓰므로 exe 와 같은 계산을 그대로 두고
+        //   여기서만 붙인다(칸에 이미 접두가 있으면 한 번만). 날짜를 읽는 packDay·baseDateWarning 은 접두를 떼고 읽는다.
+        base = packageNameBase(tab, base);
     }
     setBusy(true, '저장 폴더 확인 중…');   // 두 번 눌러도 한 번만(바쁨 표시는 클릭 권한을 쓰지 않는다)
     const now = new Date();

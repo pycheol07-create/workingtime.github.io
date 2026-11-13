@@ -1,10 +1,11 @@
 // === js/lib/ship-compare.js ===
 // 'exe 결과와 비교하기'(ship.html #sp-compare, 2026-11-12) — exe 결과 파일과 웹 결과 파일을 칸 값으로 견준다.
 //   앱\플랫폼출고자동화\tests\결과비교.py(값·자료형·크기·시트) · test_웹판비교.py intended()·split_diffs() 와 같은 판정.
+//   + 자리에 따른 의도된 차이(intendedAt — 패키지명 접두 PACK_PREFIX · drop_no_master 와 같은 NO_MASTER, 2026-11-13).
 //   서식(글꼴·채움·테두리·열 너비 등)은 견주지 않는다 — 화면에 그렇게 안내한다.
 //   결과에는 위치·개수만 담는다(값은 보여 주지 않는다 — 실제 출고 파일). 순수 모듈(SheetJS 는 넘겨받음). 테스트: tests/ship-compare.test.js
 
-import { pyStr } from './ship-core.js?v=202611121915';
+import { pyStr, PACK_PREFIX } from './ship-core.js?v=202611130915';
 
 const DIGITS = /^-?\d+$/;
 
@@ -89,12 +90,35 @@ export function intended(a, b) {
     return null;
 }
 
-/** (의도된 차이 [{why, where}], 그 밖의 차이) — 같은 칸의 자료형 차이는 값 차이를 따라간다(split_diffs) */
-export function splitDiffs(diffs) {
+// 자리에 따른 의도된 차이(파일 짝 키 = pairKey) — 2026-11-13
+//   PACK_PREFIX: 웹판은 패키지명 앞에 플랫폼 접두(직진 ZG · 에이블리 AB, ship-core.packageNameBase). exe 는 YYMMDD-NN.
+//     칸: 직진 출고리스트 지그재그양식서 A 8행~ · 패키지번호 B 2행~ · 피킹작업지시서 A 2행~(ZG·AB) · 에이블리 대량입고 A 6행~.
+//     웹 값 = 그 파일 플랫폼 접두 + exe 값일 때만.
+//   NO_MASTER: 웹판은 직진 출고리스트 원본 없이(출고요청으로) 만든다 — 지그재그양식서 8행~ G(시즌)·I(공장상품명)가 빈칸.
+//     test_웹판비교.py drop_no_master 와 같은 조건(웹 값이 빈칸일 때만).
+const PREFIX_CELLS = {
+    '직진배송출고리스트.xlsx': { pre: PACK_PREFIX.zikjin, at: (d) => (d.sheet === '지그재그양식서' && d.col === 1 && d.row >= 8) || (d.sheet === '패키지번호' && d.col === 2 && d.row >= 2) },
+    'ZG_피킹작업지시서.xlsx': { pre: PACK_PREFIX.zikjin, at: (d) => d.sheet === '피킹작업지시서' && d.col === 1 && d.row >= 2 },
+    'AB_피킹작업지시서.xlsx': { pre: PACK_PREFIX.ably, at: (d) => d.sheet === '피킹작업지시서' && d.col === 1 && d.row >= 2 },
+    '에이블리_대량입고.xlsx': { pre: PACK_PREFIX.ably, at: (d) => d.col === 1 && d.row >= 6 },   // 대량입고는 양식의 활성 시트(이름은 양식마다)
+};
+
+/** 이 파일(key)의 이 칸(d) 차이가 자리 때문에 의도된 것이면 그 이름 */
+export function intendedAt(key, d) {
+    const rule = PREFIX_CELLS[key];
+    if (rule && rule.at(d) && typeof d.a === 'string' && d.a !== '' && d.b === rule.pre + d.a) return 'PACK_PREFIX';
+    if (key === '직진배송출고리스트.xlsx' && d.sheet === '지그재그양식서' && d.row >= 8 && (d.col === 7 || d.col === 9)
+        && d.b === null && d.a !== null && d.a !== undefined) return 'NO_MASTER';
+    return null;
+}
+
+/** (의도된 차이 [{why, where}], 그 밖의 차이) — 같은 칸의 자료형 차이는 값 차이를 따라간다(split_diffs).
+ *  key(파일 짝 키, pairKey)를 주면 자리에 따른 의도된 차이(intendedAt)도 본다 */
+export function splitDiffs(diffs, key = '') {
     const ok = new Map();
     for (const d of diffs) {
         if (d.cat === '값' && d.row && d.col) {
-            const why = intended(d.a, d.b);
+            const why = intended(d.a, d.b) || intendedAt(key, d);
             if (why) ok.set(`${d.sheet}\u0000${d.row}\u0000${d.col}`, why);
         }
     }
@@ -148,7 +172,7 @@ export function comparePairs(left, right) {
     return keys.map(key => {
         const a = L.get(key), b = Rm.get(key);
         if (!a || !b) return { key, left: a && a.name, right: b && b.name, missing: a ? 'right' : 'left', good: [], bad: [], lines: [] };
-        const { good, bad } = splitDiffs(compareGrids(a.grid, b.grid));
+        const { good, bad } = splitDiffs(compareGrids(a.grid, b.grid), key);
         return { key, left: a.name, right: b.name, good, bad, lines: summarizeDiffs(bad) };
     });
 }

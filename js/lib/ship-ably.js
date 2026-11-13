@@ -8,8 +8,8 @@
 import {
     pyStr, pyStrip, pyTruthy, strip, orEmpty, toInt, isFraction, cleanProductName, sortedBy,
     ablySource, packDay, countPacks, checkLimit, splitAndName, overBags, kstDay, fileNames, looksLikeStockOut, STOCK_OUT_MSG,
-} from './ship-core.js?v=202611121915';
-import { headerColumns } from './ship-read.js?v=202611121915';
+} from './ship-core.js?v=202611130915';
+import { headerColumns } from './ship-read.js?v=202611130915';
 
 export const REQ_HEADER_ROW = 2;
 export const REQ_DATA_ROW = 3;
@@ -103,6 +103,7 @@ export function checkAblyTemplate(templateBook) {
  * @param {object} p.request  도착보장출고요청 책
  * @param {object} p.template 대량입고 양식 책(머리글 검사용)
  * @param {string} p.requestName  출고요청 파일 이름('즉시출고' 면 ABF)
+ * @param {string} p.packageBase  패키지명 앞부분 — 그대로 '<앞부분>-NN'. 화면은 접두를 붙여 넘긴다(AB261113 — ship-core.packageNameBase)
  */
 export function ablyStep2({ admin, request, template, requestName = '', packageBase, packageLimit, now = new Date() }) {
     const log = [];

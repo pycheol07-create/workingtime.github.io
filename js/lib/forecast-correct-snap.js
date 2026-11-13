@@ -15,9 +15,9 @@
 //
 //  순수 모듈(DOM·State·Firebase 없음). 테스트: tests/forecast-correct-snap.test.js
 
-import { correctPlan } from './forecast-correct.js?v=202611121915';
-import { excludeTasksForAccuracy } from '../forecast-accuracy.js?v=202611121915';
-import { aliasSnapshot } from './task-alias-view.js?v=202611121915';
+import { correctPlan } from './forecast-correct.js?v=202611130915';
+import { excludeTasksForAccuracy } from '../forecast-accuracy.js?v=202611130915';
+import { aliasSnapshot } from './task-alias-view.js?v=202611130915';
 
 export const NOTE_SNAP_FETCH_FAILED = 'snap-fetch-failed';
 export const NOTE_CALC_FAILED = 'calc-failed';

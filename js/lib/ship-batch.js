@@ -14,8 +14,8 @@
 // 묶음키: 이번 location.rows 를 코드별로 더해 코드순 `소스\n코드\t수량…` 의 SHA-256 앞 12자. 같은 전표를 다시 보내면 같은 키.
 // 순수 모듈(해시만 crypto.subtle — 브라우저·node 둘 다). 행 내용은 로그에 남기지 않는다. 테스트: tests/ship-batch.test.js
 
-import { pyStr, pyStrip, pyTruthy, kstIso } from './ship-core.js?v=202611121915';
-import { toNum, PACK_CHANNEL_BY_SOURCE } from './ship-merge.js?v=202611121915';
+import { pyStr, pyStrip, pyTruthy, kstIso } from './ship-core.js?v=202611130915';
+import { toNum, PACK_CHANNEL_BY_SOURCE } from './ship-merge.js?v=202611130915';
 
 export const LEGACY = '_';          // 옛 몫(exe 가 쓴 것·_qb 없는 행)
 export const KEY_LEN = 12;

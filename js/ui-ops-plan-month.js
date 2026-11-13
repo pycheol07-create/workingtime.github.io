@@ -3,16 +3,16 @@
 //   추세 = 물량 추세 예측(analysis-logic predictFutureTrends trend.deliveryFactor), 공급 = 업무 예상 가용 인원(수만).
 //   금액·직원 이름 없음(담당 변경 과제도 업무 이름만). ⚠️ role=dialog·data-act 금지.
 
-import * as State from './state.js?v=202611121915';
-import { aliasHistoryView } from './lib/task-alias-view.js?v=202611121915';
-import { buildOpsModel } from './lib/ops-view-model.js?v=202611121915';
-import { baselineSpeeds, normalizedUtilization } from './lib/ops-metrics.js?v=202611121915';
-import { taskNameOf, TASK } from './lib/task-ids.js?v=202611121915';
-import { buildMonthPlan, ownerDropsOf, nextMonthRange } from './lib/plan-month.js?v=202611121915';
-import { planSettingsOf, addDaysStr, OVERTIME_LAW_NOTE } from './lib/plan-week.js?v=202611121915';
-import { predictFutureTrends } from './analysis-logic.js?v=202611121915';
-import { availableStaffOf } from './ui-history-prediction.js?v=202611121915';
-import { esc, n0, n1, pct0, fmtDay, card, kpi } from './ui-ops-plan-parts.js?v=202611121915';
+import * as State from './state.js?v=202611130915';
+import { aliasHistoryView } from './lib/task-alias-view.js?v=202611130915';
+import { buildOpsModel } from './lib/ops-view-model.js?v=202611130915';
+import { baselineSpeeds, normalizedUtilization } from './lib/ops-metrics.js?v=202611130915';
+import { taskNameOf, TASK } from './lib/task-ids.js?v=202611130915';
+import { buildMonthPlan, ownerDropsOf, nextMonthRange } from './lib/plan-month.js?v=202611130915';
+import { planSettingsOf, addDaysStr, OVERTIME_LAW_NOTE } from './lib/plan-week.js?v=202611130915';
+import { predictFutureTrends } from './analysis-logic.js?v=202611130915';
+import { availableStaffOf } from './ui-history-prediction.js?v=202611130915';
+import { esc, n0, n1, pct0, fmtDay, card, kpi } from './ui-ops-plan-parts.js?v=202611130915';
 
 /** 월간 계획 입력 모으기 → buildMonthPlan. models = { recentModel, prevModel, baseModel } (주간 쪽과 같이 씀), confirmedErrs = 지난 확정본 대비 오차(plan-compare monthErrsOf) */
 export function computeMonthPlan(today, models, cfgPlan = null, confirmedErrs = []) {

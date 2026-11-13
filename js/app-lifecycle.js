@@ -1,13 +1,13 @@
 // === js/app-lifecycle.js ===
-import * as State from './state.js?v=202611121915';
-import { getCurrentTime, displayCurrentDate, getTodayDateString, isWeekday, calcElapsedMinutes, formatDuration, showToast } from './utils.js?v=202611121915';
-import { saveProgress, isDayClosedOnServer, clearLocalCache, isClosingInProgress } from './history-data-manager.js?v=202611121915';
-import { saveStateToFirestore } from './app-data.js?v=202611121915';
+import * as State from './state.js?v=202611130915';
+import { getCurrentTime, displayCurrentDate, getTodayDateString, isWeekday, calcElapsedMinutes, formatDuration, showToast } from './utils.js?v=202611130915';
+import { saveProgress, isDayClosedOnServer, clearLocalCache, isClosingInProgress } from './history-data-manager.js?v=202611130915';
+import { saveStateToFirestore } from './app-data.js?v=202611130915';
 import { collection, doc, writeBatch, getDoc, setDoc, waitForPendingWrites } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { getSubscribedDate } from './app-sync.js?v=202611121915';
-import { findOpenModal } from './lib/noti-popup.js?v=202611121915';
-import { emulatorEnabled } from './firebase-emulator.js?v=202611121915';
-import { applyDueLeaves, activeLeaveSignature } from './leave-auto-apply.js?v=202611121915';
+import { getSubscribedDate } from './app-sync.js?v=202611130915';
+import { findOpenModal } from './lib/noti-popup.js?v=202611130915';
+import { emulatorEnabled } from './firebase-emulator.js?v=202611130915';
+import { applyDueLeaves, activeLeaveSignature } from './leave-auto-apply.js?v=202611130915';
 
 // ⏰ 예약 근태 — 마지막으로 본 분(HH:MM)과 그때 근태 중이던 사람 집합
 let lastLeaveMinute = null;
@@ -222,7 +222,7 @@ let eodFlushCooldownUntil = 0;   // 종료시각 이후 이력 확정 저장 재
 
 // 업무일 종료시각. 이력의 열린 기록 상한도 같은 값을 써야 하므로 단일 출처에서 가져온다
 // (예전엔 두 파일에 따로 박혀 있어, 한쪽만 고치면 조용히 갈라졌다).
-import { AUTO_END_TIME } from './lib/record-close.js?v=202611121915';
+import { AUTO_END_TIME } from './lib/record-close.js?v=202611130915';
 
 // 진행/일시정지 기록을 지정 시각으로 마감(Firestore 배치 + 로컬 미러 갱신)
 async function closeRecordsAt(records, endTime, dayKey) {
@@ -406,7 +406,7 @@ export const updateElapsedTimes = async () => {
         applyDueLeaves(now).catch(e => console.warn('[예약 근태] 적용 실패:', e));
         const sig = activeLeaveSignature(now);
         if (lastLeaveSig !== null && sig !== lastLeaveSig) {
-            import('./app.js?v=202611121915').then(m => m.render()).catch(e => console.warn('[예약 근태] 다시 그리기 실패:', e));
+            import('./app.js?v=202611130915').then(m => m.render()).catch(e => console.warn('[예약 근태] 다시 그리기 실패:', e));
         }
         lastLeaveSig = sig;
     }

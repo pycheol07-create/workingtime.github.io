@@ -9,7 +9,7 @@
 //   외출은 endTime 이 있으면 이미 복귀, 지각은 이벤트성 기록이라 '근태 중' 이 아니다.
 //   시각 판정은 ./leave-timing.js isLeaveActiveAt 한 곳(예약 외출·조퇴, 2026-11-12).
 
-import { isLeaveActiveAt } from './leave-timing.js?v=202611121915';
+import { isLeaveActiveAt } from './leave-timing.js?v=202611130915';
 
 /** 지금 근태 중인 기록(외출 복귀·지각 제외). 없으면 null.
  *  now('HH:MM')를 주면 아직 시각이 안 된 예약 외출·조퇴와 복귀 시각이 지난 외출도 뺀다(js/lib/leave-timing.js).

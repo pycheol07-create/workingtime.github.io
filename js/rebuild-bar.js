@@ -15,10 +15,10 @@
 // ⚠️ Firebase 를 여기서 초기화하지 않는다 — location.js 가 만든 db·auth 를 받아 쓴다.
 // ⚠️ 요청에 남기는 이름은 getMemberName()(= memberNameFor, 직원 이름)만. 없으면 '이름 없음' — 이메일은 쓰지 않는다.
 import { doc, onSnapshot, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { getHolidayName } from './utils.js?v=202611121915';
-import { tsMs, dayKey, runDay, reqUi } from './lib/refill-view.js?v=202611121915';
-import { recReqUi } from './lib/locrec-view.js?v=202611121915';
-import { combinedReqUi, confirmText, requestPathOf, laterMs, doneCounts, REFILL_REQUEST, LOCREC_REQUEST } from './lib/rebuild-view.js?v=202611121915';
+import { getHolidayName } from './utils.js?v=202611130915';
+import { tsMs, dayKey, runDay, reqUi } from './lib/refill-view.js?v=202611130915';
+import { recReqUi } from './lib/locrec-view.js?v=202611130915';
+import { combinedReqUi, confirmText, requestPathOf, laterMs, doneCounts, REFILL_REQUEST, LOCREC_REQUEST } from './lib/rebuild-view.js?v=202611130915';
 
 const APP = 'artifacts/team-work-logger-v2';
 const REFILL_LATEST = `${APP}/integrations/refillLatest`;
@@ -38,13 +38,35 @@ export function initRebuildBar({ db, auth, getMemberName }) {
     const barEl = document.getElementById('rebuild-progress');
     if (!btn || !db || !auth) return null;
     // 문구 = 요약(읽어 줌) + 경과(1초마다 바뀜 — 화면 읽기 프로그램이 매초 읽지 않게 aria-hidden)
-    let noteMain = null, noteTick = null;
+    // 칸보다 길면 같은 폭 안에서 오른쪽 → 왼쪽으로 계속 흘려 보인다(2026-11-13 사용자 요청 — 예전엔 … 로 잘림).
+    //   track = [요약 · 경과] + 복사본(aria-hidden, 이어 붙여 끊김 없이 돈다). 마우스를 올리면 멈춘다. 움직임 줄이기 설정이면 예전처럼 … .
+    let noteMain = null, noteTick = null, noteClone = null;
     if (noteEl) {
         noteEl.textContent = '';
-        noteMain = noteEl.appendChild(document.createElement('span'));
-        noteTick = noteEl.appendChild(document.createElement('span'));
+        const track = noteEl.appendChild(document.createElement('span'));
+        track.className = 'rebuild-note-track';
+        noteMain = track.appendChild(document.createElement('span'));
+        noteTick = track.appendChild(document.createElement('span'));
         noteTick.setAttribute('aria-hidden', 'true');
+        noteClone = track.appendChild(document.createElement('span'));
+        noteClone.className = 'rebuild-note-clone';
+        noteClone.setAttribute('aria-hidden', 'true');
     }
+    const MARQUEE_GAP = 48, MARQUEE_SPEED = 45;   // px 간격 · 초당 px
+    let lastLoop = 0;
+    function fitNote() {
+        if (!noteEl || noteEl.hidden) return;
+        const full = noteMain.offsetWidth + noteTick.offsetWidth;
+        const over = full > noteEl.clientWidth + 1;
+        noteEl.classList.toggle('is-scroll', over);
+        if (!over) { lastLoop = 0; return; }
+        const loop = Math.round(full + MARQUEE_GAP);
+        if (Math.abs(loop - lastLoop) < 8) return;   // 경과 숫자가 1초마다 바뀌어도 움직임을 처음부터 다시 시작하지 않게
+        lastLoop = loop;
+        noteEl.style.setProperty('--rb-loop', `${loop}px`);
+        noteEl.style.setProperty('--rb-dur', `${Math.max(6, loop / MARQUEE_SPEED).toFixed(1)}s`);
+    }
+    window.addEventListener('resize', () => { lastLoop = 0; fitNote(); });
 
     const S = { signedIn: false, perms: { canRefill: false, canLocrec: false },
                 refill: null, locrec: null, refillReq: null, locrecReq: null, lastDataMs: 0 };
@@ -127,9 +149,11 @@ export function initRebuildBar({ db, auth, getMemberName }) {
             noteEl.hidden = !(ui.show && ui.note);
             noteMain.textContent = ui.note || '';
             noteTick.textContent = ui.tick ? ` · ${ui.tick}` : '';
+            noteClone.textContent = noteMain.textContent + noteTick.textContent;
             noteEl.title = ui.title || ui.note || '';   // 두 쪽 세부 문구(한 줄로 잘려 보일 때도 전체)
             noteEl.classList.toggle('is-warn', ui.tone === 'warn');
             noteEl.classList.toggle('is-accent', ui.tone === 'accent');
+            fitNote();
         }
         if (barEl) {
             const bar = ui.show ? ui.bar : '';

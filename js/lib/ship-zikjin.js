@@ -11,8 +11,8 @@
 import {
     pyStr, pyStrip, pyTruthy, strip, orEmpty, toInt, isFraction, cleanProductName, sortedBy,
     zikjinSource, packDay, countPacks, checkLimit, splitAndName, overBags, kstDay, fileNames, looksLikeStockOut, STOCK_OUT_MSG,
-} from './ship-core.js?v=202611121915';
-import { headerColumns } from './ship-read.js?v=202611121915';
+} from './ship-core.js?v=202611130915';
+import { headerColumns } from './ship-read.js?v=202611130915';
 
 export const DATA_START_ROW = 8;   // 지그재그양식서: 머리글 7행, 자료 8행부터
 export const TEMPLATE_SHEETS = ['지그재그양식서', '재고로그조회리스트', '패키지번호'];
@@ -161,7 +161,7 @@ export function readZikjinRequestInfo(book, log = []) {
  * @param {object} p.admin      어드민 출고전표 책(활성 시트, 1행 머리글)
  * @param {object} p.request    출고요청 책(필수)
  * @param {string|null} p.requestName  출고요청 파일 이름(일반 'ZG' / 즉시출고 'ZGF'). 없으면 봉 수·로케이션 전송 안 함
- * @param {string} p.packageBase  패키지명 베이스(YYMMDD)
+ * @param {string} p.packageBase  패키지명 앞부분 — 그대로 '<앞부분>-NN'. 화면은 접두를 붙여 넘긴다(ZG261113 — ship-core.packageNameBase), exe 비교 시험은 YYMMDD
  * @param {number} p.packageLimit 봉투당 한도
  * @param {Array<{name,limit}>} p.specialRules 지정상품 규칙(limit 0 은 꺼짐)
  */
