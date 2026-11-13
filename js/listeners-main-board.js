@@ -1,14 +1,14 @@
 // === js/listeners-main-board.js ===
 // 설명: 메인 화면의 '실시간 현황판'(업무 카드, 팀원 현황) 관련 리스너를 담당합니다.
 
-import * as DOM from './dom-elements.js?v=202611131118';
-import * as State from './state.js?v=202611131118';
-import { render } from './app.js?v=202611131118';
-import { showToast, formatTimeTo24H, showConfirm, getCurrentTime } from './utils.js?v=202611131118';
-import { isLeaveActiveAt } from './lib/leave-timing.js?v=202611131118';
-import { renderLeaveTypeModalOptions } from './ui.js?v=202611131118';
-import { nameWithRankPosition } from './lib/member-title.js?v=202611131118';
-import { openTeamSelectForTask } from './listeners-form-team.js?v=202611131118';
+import * as DOM from './dom-elements.js?v=202611131136';
+import * as State from './state.js?v=202611131136';
+import { render } from './app.js?v=202611131136';
+import { showToast, formatTimeTo24H, showConfirm, getCurrentTime } from './utils.js?v=202611131136';
+import { isLeaveActiveAt } from './lib/leave-timing.js?v=202611131136';
+import { renderLeaveTypeModalOptions } from './ui.js?v=202611131136';
+import { nameWithRankPosition } from './lib/member-title.js?v=202611131136';
+import { openTeamSelectForTask } from './listeners-form-team.js?v=202611131136';
 import {
     stopWorkIndividual, pauseWorkGroup, resumeWorkGroup,
     pauseWorkIndividual, resumeWorkIndividual,
@@ -16,13 +16,13 @@ import {
     startWorkGroup,
     addMembersToWorkGroup,
     pauseWorkByTask, resumeWorkByTask
-} from './app-logic.js?v=202611131118';
+} from './app-logic.js?v=202611131136';
 
-import { renderTodayInspectionList, initializeInspectionSession } from './inspection-logic.js?v=202611131118';
-import { searchTotalInspection } from './total-inspection-logic.js?v=202611131118';
-import { isRefillTask, refillAllowed, openRefillFromDash } from './refill-dash.js?v=202611131118';
-import { openLocRecFromDash } from './locrec-dash.js?v=202611131118';
-import { TASK, isT } from './task-names.js?v=202611131118';
+import { renderTodayInspectionList, initializeInspectionSession } from './inspection-logic.js?v=202611131136';
+import { searchTotalInspection } from './total-inspection-logic.js?v=202611131136';
+import { isRefillTask, refillAllowed, openRefillFromDash } from './refill-dash.js?v=202611131136';
+import { openLocRecFromDash } from './locrec-dash.js?v=202611131136';
+import { TASK, isT } from './task-names.js?v=202611131136';
 
 // 근태 설정 모달 열기 헬퍼 함수
 const openLeaveModal = (memberName) => {

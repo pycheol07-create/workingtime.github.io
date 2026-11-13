@@ -21,8 +21,8 @@
 //   grantable false = 관리자 전용(역할·예외로 줘도 무시)
 //   legacyAdminOnly  옛 ADMIN_ONLY_* 범위 — 옛 권한을 끌어올 때 일반 직원에게 주지 않는다(예전에도 화면이 막고 있었다)
 
-import { MIBAL2_LIVE, MIBAL2_MENU_NAME, MIBAL2_TRIAL_MENU_NAME, MIBAL2_LIVE_MENU_NAME, MIBAL2_OLD_MENU_NAME, MIBAL2_OLD_PLAIN_MENU_NAME, MIBAL2_OLD_RETIRED_MENU_NAME } from './mibal2-mode.js?v=202611131118';
-import { TASK } from './task-ids.js?v=202611131118';
+import { MIBAL2_LIVE, MIBAL2_MENU_NAME, MIBAL2_TRIAL_MENU_NAME, MIBAL2_LIVE_MENU_NAME, MIBAL2_OLD_MENU_NAME, MIBAL2_OLD_PLAIN_MENU_NAME, MIBAL2_OLD_RETIRED_MENU_NAME } from './mibal2-mode.js?v=202611131136';
+import { TASK } from './task-ids.js?v=202611131136';
 
 export const FEATURE_GROUPS = [
     { id: 'dash',       label: '대시보드' },
@@ -106,6 +106,10 @@ export const FEATURES = [
 // 대시보드 사이드바의 '동작' 메뉴 이름(menu-catalog.js MENU_TARGETS kind 'action' 과 같아야 한다 — 테스트가 지킨다).
 // 이 이름의 메뉴는 링크와 상관없이 **이름으로** 기능에 잇는다(셸도 이 이름이면 링크 대신 ACTION_LINKS 로 간다).
 export const ACTION_MENU_NAMES = ['대시보드', '오늘 처리량 입력', '데이터 관리', '내 연차관리', '업무 마감'];
+
+// 메뉴·권한 화면에서 없앤 기능(2026-11-13 사용자 지시) — 기능 id 는 남겨 저장된 권한·되돌리기가 깨지지 않게 하고, 보이는 곳에서만 뺀다.
+//   기존 부족수량관리(china.mibal): 단독 운영(live)이면 메뉴(js/menu-catalog.js)·권한 표(js/admin-perm.js)에서 안 보인다. 화면 파일은 되돌리기용으로 남김
+export const RETIRED_FEATURE_IDS = MIBAL2_LIVE ? ['china.mibal'] : [];
 
 export const FEATURE_BY_ID = Object.fromEntries(FEATURES.map(f => [f.id, f]));
 export const ALL_FEATURE_IDS = FEATURES.map(f => f.id);

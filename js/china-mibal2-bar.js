@@ -4,7 +4,7 @@
 //   · 기본 배치 = 화면(HTML·decorate)이 처음 줄에 둔 버튼. 나머지는 [파일·기록 ▾] 메뉴 안에 있다
 //   · 진짜 버튼(id 그대로, 하나뿐)을 줄 또는 메뉴로 옮길 뿐 — 거는 코드·버튼 끄기(마감된 작업 보기 등)는 그대로 따른다
 //   · [⚙ 버튼 설정(줄 편집)…]은 [관리 ▾] 메뉴 안. 줄 구성·순서는 그 PC localStorage(js/lib/mibal2-bar.js — 2026-11-13 새 키, 옛 배치는 읽지 않음)
-import { BAR_KEY, rowFromStorage, serializeRow, toggleRow, moveRow, editList, menuIds } from './lib/mibal2-bar.js?v=202611131118';
+import { BAR_KEY, rowFromStorage, serializeRow, toggleRow, moveRow, editList, menuIds } from './lib/mibal2-bar.js?v=202611131136';
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));

@@ -4,14 +4,16 @@
 // admin-logic.collectConfigFromDOM 이 getPermModel() 로 권한 칸을 만든다(DOM 을 긁지 않는다).
 // ※ 봇이 읽는 div[role=dialog]·data-act 는 쓰지 않는다(관리자 페이지라 봇이 열지는 않지만 같은 규칙을 지킨다).
 
-import { FEATURES, FEATURE_GROUPS, FEATURE_BY_ID } from './lib/feature-catalog.js?v=202611131118';
-import { roleFeatures, visibleMenuGroups } from './lib/perm.js?v=202611131118';
+import { FEATURES as ALL_FEATURES, FEATURE_GROUPS, FEATURE_BY_ID, RETIRED_FEATURE_IDS } from './lib/feature-catalog.js?v=202611131136';
+// 권한 화면에는 없앤 기능(RETIRED_FEATURE_IDS — 기존 부족수량관리 등)을 안 보인다. 저장된 권한은 그대로 둔다(모델이 지우지 않음)
+const FEATURES = ALL_FEATURES.filter(f => !RETIRED_FEATURE_IDS.includes(f.id));
+import { roleFeatures, visibleMenuGroups } from './lib/perm.js?v=202611131136';
 import {
     createPermModel, autoAssignedCount, effectiveSet, resolvedOf, setAdmin, setRole, setFeature, resetToRole,
     usersOfRole, holdersOf, adminCount, addRole, renameRole, deleteRole, setRoleFeature, setDefaultRole, setEnforce
-} from './lib/perm-model.js?v=202611131118';
-import { withBuiltinMenus, SHELL_EXCLUDED_ACTIONS } from './menu-catalog.js?v=202611131118';
-import { isAdminOnlyNow, DATA_ADMIN_ONLY_NOTE, lastDayKeys, sumHits, HIT_COLLECTION } from './lib/perm-gate.js?v=202611131118';
+} from './lib/perm-model.js?v=202611131136';
+import { withBuiltinMenus, SHELL_EXCLUDED_ACTIONS } from './menu-catalog.js?v=202611131136';
+import { isAdminOnlyNow, DATA_ADMIN_ONLY_NOTE, lastDayKeys, sumHits, HIT_COLLECTION } from './lib/perm-gate.js?v=202611131136';
 
 let model = null;
 let config = null;
@@ -171,7 +173,8 @@ function drawPeople() {
     const rows = people.map(u => {
         const p = model.persons[u.email];
         if (!p) return '';
-        const ex = p.admin ? '' : `${p.allow.length ? `<span class="text-green-600 dark:text-green-400 font-bold">+${p.allow.length}</span>` : ''} ${p.deny.length ? `<span class="text-red-600 dark:text-red-400 font-bold">-${p.deny.length}</span>` : ''}`.trim();
+        const nAllow = p.allow.filter(id => !RETIRED_FEATURE_IDS.includes(id)).length, nDeny = p.deny.filter(id => !RETIRED_FEATURE_IDS.includes(id)).length;   // 펼친 칸에 없는 기능은 세지 않는다
+        const ex = p.admin ? '' : `${nAllow ? `<span class="text-green-600 dark:text-green-400 font-bold">+${nAllow}</span>` : ''} ${nDeny ? `<span class="text-red-600 dark:text-red-400 font-bold">-${nDeny}</span>` : ''}`.trim();
         const roleCell = p.admin
             ? '<span class="text-sm font-bold text-blue-700 dark:text-blue-300">관리자(전체)</span>'
             : `<select class="pm-role-select w-full p-2 border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 rounded-md text-sm font-bold dark:text-white" data-pm-act="role" data-email="${esc(u.email)}">${roleOptions(p.roleId || '')}</select>`;
@@ -233,8 +236,8 @@ function drawPreview(email) {
         .flatMap(g => g.items.map(i => i.name))
         .filter(n => surface !== 'shell' || !SHELL_EXCLUDED_ACTIONS.includes(n));
     const list = (arr, empty = '없음') => arr.length ? arr.map(x => `<span class="inline-block mr-1.5 mb-1 px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-700">${esc(x)}</span>`).join('') : `<span class="text-gray-400">${empty}</span>`;
-    const pages = FEATURES.filter(f => f.kind === 'page' && r.set.has(f.id))
-        .map(f => f.label + (!r.isAdmin && isAdminOnlyNow(f.id) ? ' (지금은 관리자만 입장)' : ''));
+    const pages = ALL_FEATURES.filter(f => f.kind === 'page' && r.set.has(f.id))   // 실제 입장 범위 — 메뉴에서 없앤 화면도 주소로는 들어간다
+        .map(f => f.label + (RETIRED_FEATURE_IDS.includes(f.id) ? ' (메뉴 없음 · 주소로만)' : '') + (!r.isAdmin && isAdminOnlyNow(f.id) ? ' (지금은 관리자만 입장)' : ''));
     const danger = FEATURES.filter(f => f.kind !== 'page' && f.danger >= 1 && r.set.has(f.id)).map(f => f.label + (f.danger >= 2 ? ' (!!)' : ''));
     const noRule = FEATURES.filter(f => f.danger >= 1 && f.rule === 'no' && r.set.has(f.id)).map(f => f.label);
     return `<div class="pm-preview mt-3 p-3 rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50/60 dark:bg-blue-900/20 text-xs text-gray-700 dark:text-gray-200 space-y-2">

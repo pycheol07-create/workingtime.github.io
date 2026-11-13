@@ -10,16 +10,17 @@
 // ※ 순수 모듈로 둘 것(의존은 js/lib 의 기능 카탈로그·권한 계산뿐). 관리자 페이지(admin-ui.js)가 대시보드 전용
 //    모듈(ui.js/state.js)을 끌어오지 않도록 하기 위함이다.
 
-import { FEATURES, renamedMenuName } from './lib/feature-catalog.js?v=202611131118';
-import { resolve, visibleMenuGroups, linkPath } from './lib/perm.js?v=202611131118';
-import { MIBAL2_LIVE, MIBAL2_MENU_NAME, MIBAL2_OLD_MENU_NAME } from './lib/mibal2-mode.js?v=202611131118';
+import { FEATURES, renamedMenuName } from './lib/feature-catalog.js?v=202611131136';
+import { resolve, visibleMenuGroups, linkPath } from './lib/perm.js?v=202611131136';
+import { MIBAL2_LIVE, MIBAL2_MENU_NAME, MIBAL2_OLD_MENU_NAME } from './lib/mibal2-mode.js?v=202611131136';
 
 // 코드로 추가된 신규 메뉴 — 저장된 dashboardMenu 에 없으면 자동으로 끼워 넣는다.
 // (관리자 설정을 손대지 않아도 메뉴가 바로 보이게 하기 위함)
 export const BUILTIN_MENU_ITEMS = [
     { name: '비품 관리', link: 'supplies.html', category: '관리 및 조회' },
     // 로케이션 관리 바로 아래에 (비품 관리 앞) — 신규 단독 운영(live, js/lib/mibal2-mode.js) 때는 이름이 '(미사용)'이고 신규와 자리를 바꾼다(아래 arrangeMibal2Menu)
-    { name: MIBAL2_OLD_MENU_NAME, link: 'china-stock-goods.html', category: '관리 및 조회', before: '비품 관리' },
+    //   단독 운영(live)이면 아예 넣지 않는다(2026-11-13 사용자 지시 — 기존 화면은 메뉴에서 없앰, 파일은 되돌리기용으로 남김)
+    ...(MIBAL2_LIVE ? [] : [{ name: MIBAL2_OLD_MENU_NAME, link: 'china-stock-goods.html', category: '관리 및 조회', before: '비품 관리' }]),
     // 신규 미발계산기(병행 비교 시험, 2026-10-07) — 위 항목 다음에 처리되므로 '중국제작 부족수량 관리' 바로 아래(비품 관리 앞)에 붙는다.
     // 관리자 외에는 memberMenuAccess 에 넣어 주지 않는 한 보이지 않는다(ui-main-dashboard.js applyDynamicSidebar). live 면 이름에서 '시험' 을 뺀다.
     { name: MIBAL2_MENU_NAME, link: 'china-mibal2.html', category: '관리 및 조회', before: '비품 관리' },
@@ -49,7 +50,7 @@ export const MENU_TARGETS = [
     { kind: 'action', name: '내 연차관리',      link: '#',            icon: '🏖️' },
     { kind: 'action', name: '업무 마감',        link: '#',            icon: '🏁' },
     { kind: 'page', name: '로케이션 관리',       link: 'location.html',          icon: '📍' },
-    { kind: 'page', name: MIBAL2_OLD_MENU_NAME, link: 'china-stock-goods.html', icon: '🧮' },
+    ...(MIBAL2_LIVE ? [] : [{ kind: 'page', name: MIBAL2_OLD_MENU_NAME, link: 'china-stock-goods.html', icon: '🧮' }]),
     { kind: 'page', name: MIBAL2_MENU_NAME, link: 'china-mibal2.html', icon: MIBAL2_LIVE ? '🧮' : '🧪' },
     { kind: 'page', name: '비품 관리',           link: 'supplies.html',          icon: '📦' },
     { kind: 'page', name: '상품 관리',           link: 'products.html',          icon: '🏷️' },
@@ -66,7 +67,8 @@ export const isActionMenuName = (name) =>
     MENU_TARGETS.some(t => t.kind === 'action' && t.name === name);
 
 // 메뉴에 걸 페이지가 아닌 것 — pages.json 에 있어도 선택 목록에 띄우지 않는다.
-export const HIDDEN_MENU_PAGES = ['china-stock-migrate.html'];   // 1회용 데이터 이관 도구
+export const HIDDEN_MENU_PAGES = ['china-stock-migrate.html',   // 1회용 데이터 이관 도구
+    ...(MIBAL2_LIVE ? ['china-stock-goods.html'] : [])];        // 기존 부족수량관리 — 단독 운영(live)이면 메뉴에서 없앰(2026-11-13)
 
 // 없어진 기능 — 저장된 dashboardMenu 에 남아 있어도 메뉴에서 걷어낸다.
 // (관리자 설정을 손대지 않아도 사라지도록. 눌러도 아무 일 없는 항목이 남지 않게)
@@ -113,7 +115,7 @@ export const withBuiltinMenus = (dashboardMenu) => {
         .map(g => ({
             ...g,
             items: Array.isArray(g.items)
-                ? g.items.filter(i => !RETIRED_MENU_ITEMS.includes(i && i.name)).map(renameOldItem)
+                ? g.items.filter(i => !RETIRED_MENU_ITEMS.includes(i && i.name) && !(MIBAL2_LIVE && i && i.link && linkPath(i.link) === 'china-stock-goods.html')).map(renameOldItem)
                 : []
         }));
     BUILTIN_MENU_ITEMS.forEach(entry => {

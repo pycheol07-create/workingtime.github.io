@@ -236,7 +236,7 @@ export function packsProgressText(forecastDoc) {
 const ALERT_KINDS = [
     ['order',    { label: '발주 필요', tone: 'danger' }],
     ['late',     { label: '입고 지연', tone: 'danger' }],
-    ['due',      { label: '입고 예정일', tone: 'warn' }],   // 2026-11-12 예정일이 됐는데 입고 기록 없음 — 들어왔는지 확인
+    ['due',      { label: '입고예정일 초과', tone: 'warn' }],   // 2026-11-12 예정일이 됐는데 입고 기록 없음 — 들어왔는지 확인
     ['spike',    { label: '사용 급증', tone: 'warn' }],
     ['watch',    { label: '주의',      tone: 'warn' }],
     ['received', { label: '입고 확인', tone: 'ok' }]
@@ -296,7 +296,7 @@ export function alertReasons(item, fc, order, ordersKnown, today = kstToday()) {
 }
 
 /** 발주 상태를 못 읽었을 때 안내 줄에 늘 붙이는 경고(사유 건수와 상관없이) */
-export const ALERT_ORDERS_UNKNOWN = '발주 상태를 읽지 못해 발주 필요·주의·입고 지연·입고 예정일은 빠져 있습니다';
+export const ALERT_ORDERS_UNKNOWN = '발주 상태를 읽지 못해 발주 필요·주의·입고 지연·입고예정일 초과는 빠져 있습니다';
 
 /** 앱 알림(#alerts)으로 왔는데 보일 사유가 0건일 때 안내.
  *  forecastOk = 이번에 예측을 읽었나 · reloadSkipped = 상세 창이 열려 있어 다시 읽기를 건너뛰었나 */

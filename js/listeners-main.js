@@ -1,31 +1,31 @@
 // === js/listeners-main.js ===
 // 설명: 메인 화면의 리스너 (실시간 현황판 제외)
 
-import * as DOM from './dom-elements.js?v=202611131118';
-import * as State from './state.js?v=202611131118';
+import * as DOM from './dom-elements.js?v=202611131136';
+import * as State from './state.js?v=202611131136';
 
 // app.js에서는 'render'만, app-data.js에서는 'updateDailyData'를 가져옵니다.
-import { render } from './app.js?v=202611131118';
-import { updateDailyData } from './app-data.js?v=202611131118';
+import { render } from './app.js?v=202611131136';
+import { updateDailyData } from './app-data.js?v=202611131136';
 
-import { calcElapsedMinutes, showToast, showConfirm, getTodayDateString, getCurrentTime, formatTimeTo24H, escapeHtml } from './utils.js?v=202611131118';
-import { AUTO_END_TIME } from './lib/record-close.js?v=202611131118';
-import { applyDueLeaves } from './leave-auto-apply.js?v=202611131118';
+import { calcElapsedMinutes, showToast, showConfirm, getTodayDateString, getCurrentTime, formatTimeTo24H, escapeHtml } from './utils.js?v=202611131136';
+import { AUTO_END_TIME } from './lib/record-close.js?v=202611131136';
+import { applyDueLeaves } from './leave-auto-apply.js?v=202611131136';
 import {
     renderPersonalAnalysis,
     renderQuantityModalInputs,
     applyPlannedPrefill,
     renderManualAddModalDatalists,
     renderLeaveTypeModalOptions 
-} from './ui.js?v=202611131118';
+} from './ui.js?v=202611131136';
 import {
     processClockIn, processClockOut, cancelClockOut
-} from './app-logic.js?v=202611131118';
-import { saveProgress, saveDayDataToHistory, previewDayClose, getPlannedQuantitiesForDate, isDayClosedOnServer } from './history-data-manager.js?v=202611131118';
-import { changedQuantities, changedZeroList } from './lib/history-merge.js?v=202611131118';
-import { plannedPrefill, doneTasksOf } from './lib/planned-prefill.js?v=202611131118';
-import { aliasNameMap, aliasTaskName } from './lib/task-alias-view.js?v=202611131118';
-import { checkMissingQuantities } from './analysis-logic.js?v=202611131118';
+} from './app-logic.js?v=202611131136';
+import { saveProgress, saveDayDataToHistory, previewDayClose, getPlannedQuantitiesForDate, isDayClosedOnServer } from './history-data-manager.js?v=202611131136';
+import { changedQuantities, changedZeroList } from './lib/history-merge.js?v=202611131136';
+import { plannedPrefill, doneTasksOf } from './lib/planned-prefill.js?v=202611131136';
+import { aliasNameMap, aliasTaskName } from './lib/task-alias-view.js?v=202611131136';
+import { checkMissingQuantities } from './analysis-logic.js?v=202611131136';
 
 import { 
     doc, updateDoc, collection, query, where, getDocs, setDoc 
