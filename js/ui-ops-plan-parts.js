@@ -2,7 +2,7 @@
 // 📋 운영 계획 탭 — 주간·월간·목표 화면이 같이 쓰는 그리기 조각(숫자 표시·카드·과제 목록·계획 대비 실적 카드).
 //   그리기만 한다(숫자는 js/lib/plan-*.js). 금액·직원 이름 없음. ⚠️ role=dialog·data-act 금지.
 
-import { escapeHtml as esc } from './utils.js?v=202611131006';
+import { escapeHtml as esc } from './utils.js?v=202611131027';
 
 export { esc };
 export const ok = (v) => v != null && isFinite(v);

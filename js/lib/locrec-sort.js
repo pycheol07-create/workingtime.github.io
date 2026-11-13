@@ -43,8 +43,8 @@ export function sortValue(x, key, { qtyWithReserve = false, lines } = {}) {
         case 'daily': return sum(l => n(l.daily));
         case 'gain': return n(r.gain);
         case 'score': return r.routeOut ? null : n(r.scoreGain);
-        // 화면 글자와 같게 — 다른 추천으로 이미 옮긴 줄(other·표시 없음)은 '처리함 표시'(js/locrec-table.js rowHtml stLabel)
-        case 'state': { const st = x.st || {}; return String(st.other && !st.mark ? '처리함 표시' : (st.label || '')); }
+        // 화면 글자와 같게 — 다른 추천으로 이미 옮긴 줄(other·표시 없음)은 '변경완료'(js/locrec-table.js rowHtml stLabel)
+        case 'state': { const st = x.st || {}; return String(st.other && !st.mark ? '변경완료' : (st.label || '')); }
         default: return null;
     }
 }

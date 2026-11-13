@@ -34,8 +34,8 @@
 //                                     이월 행은 띠 건수·요약·엑셀·[전체 처리함]에서 뺀다(표에는 흐리게 보인다).
 // import 는 같은 lib 의 refill-view.js(날짜·시각, KST)·loc-recommend.js(엑셀 5열) 만 — 같은 규칙을 두 벌 두지 않는다.
 
-import { tsMs, dayKey, keyMs, lastDays, dayLabel, fmtHM, kstParts, waitInfo } from './refill-view.js?v=202611131006';
-import { excelRows, EXCEL_COLS } from './loc-recommend.js?v=202611131006';
+import { tsMs, dayKey, keyMs, lastDays, dayLabel, fmtHM, kstParts, waitInfo } from './refill-view.js?v=202611131027';
+import { excelRows, EXCEL_COLS } from './loc-recommend.js?v=202611131027';
 
 export { tsMs, dayKey, keyMs, lastDays, dayLabel, fmtHM, excelRows, EXCEL_COLS };
 
@@ -603,7 +603,7 @@ export function rowState({ row, open, mark, viewDay, todayKey, nowMs, moved }) {
     if (o && (o.state === 'partial' || o.state === 'progress')) return { label: '진행 중', tone: 'warn', hidden: false, mark: m };
     if (m && m.state === 'done') {
         if (tsMs(m.at) && markAgeDays > MARK_STALE_DAYS) return { label: '표시는 됐지만 위치 미반영', tone: 'warn', hidden: false, mark: m };
-        return { label: '처리함 표시', tone: 'ok', hidden: false, mark: m };
+        return { label: '변경완료', tone: 'ok', hidden: false, mark: m };
     }
     if (o && o.state === 'expired') return { label: '만료', tone: 'muted', hidden: false, mark: m };
     if (o && o.state === 'stale') return { label: '자리 바뀜', tone: 'muted', hidden: false, mark: m };
@@ -709,7 +709,7 @@ export function pickRecDay(latest, targetKey, todayKey) {
 }
 
 /** 이월 행 중 그날 일한 몫으로 세는 상태(서버 done·progress · 직원 처리함 표시) — recCount */
-const CARRIED_WORK_LABELS = new Set(['처리됨', '진행 중', '처리함 표시', '표시는 됐지만 위치 미반영']);
+const CARRIED_WORK_LABELS = new Set(['처리됨', '진행 중', '변경완료', '표시는 됐지만 위치 미반영']);
 
 /**
  * 그날 추천 건수 — 접힌 띠 'N건'(stripRows)과 같은 기준('안 함' 숨김 제외, 세 탭 합). 표 자료가 없거나 깨졌으면 null
@@ -817,7 +817,7 @@ export function tabMeta(tab, items) {
     const list = Array.isArray(items) ? items : [];
     const cnt = (f) => list.filter(x => x && x.st && f(x.st)).length;
     const done = cnt(s => s.label === '처리됨');
-    const marked = cnt(s => s.label === '처리함 표시' || s.label === '표시는 됐지만 위치 미반영' || s.label === OTHER_MOVED_LABEL);
+    const marked = cnt(s => s.label === '변경완료' || s.label === '표시는 됐지만 위치 미반영' || s.label === OTHER_MOVED_LABEL);
     const blocked = cnt(s => s.hidden && s.blocked);
     const hidden = cnt(s => s.hidden && !s.blocked);
     const parts = [`${TAB_LABEL[tab] || TAB_LABEL.single} ${list.length}행`];

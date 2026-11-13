@@ -2,7 +2,7 @@
 // 신규 부족수량관리(live) — [지금 갱신] 끝나면 자동 [스캐너에 반영](2026-11-10 사용자 요구). 순수 함수만(시험 tests/mibal2-auto-apply.test.js).
 //   · 자동 반영은 이 PC 에서 직접 누른 [지금 갱신] 요청(pending.manual)이 성공으로 끝났을 때만 — 다른 PC 갱신·07:30 자동 수집·자동 요청은 아님
 //   · 확인창이 필요한 경우는 전부 반영하지 않고 이유만 알린다(직원이 [스캐너에 반영]을 직접 누름)
-import { RECENT_SCAN_MIN, isoDay } from './mibal2-live.js?v=202611131006';
+import { RECENT_SCAN_MIN, isoDay } from './mibal2-live.js?v=202611131027';
 
 export const AUTO_TOAST_MS = 8000;   // 자동 반영 결과 토스트(성공·중단 이유) 보이는 시간
 export const AUTO_MANUAL_TAIL = '[스캐너에 반영]을 직접 누르세요';
