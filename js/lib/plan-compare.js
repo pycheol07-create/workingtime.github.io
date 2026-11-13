@@ -7,7 +7,7 @@
 //   금액·직원 이름 칸은 만들지 않는다(입력에 있어도 골라 담지 않음 — 시험이 JSON 으로 확인).
 // ※ 순수 모듈(DOM·Firebase 없음). 테스트: tests/plan-month.test.js
 
-import { finishedMonths } from './plan-monthly.js?v=202611131153';
+import { finishedMonths } from './plan-monthly.js?v=202611131345';
 
 // actions·risks 10 — 규칙이 항목 칸을 하나씩 보는데 20개면 규칙 계산 한도에 걸린다(firestore.rules OpsPlan, 에뮬레이터 실측). 과제·리스크는 점수 순 앞 10개.
 export const CONFIRM_LIMITS = Object.freeze({ actions: 10, risks: 10, days: 31, basis: 10, done: 40, text: 300 });

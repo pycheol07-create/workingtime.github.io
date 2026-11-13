@@ -24,7 +24,7 @@
 // 2026-11-12 기본 결재선: ApprovalSettings/defaults.line(명단 이름 1~3명, 관리자가 양식 관리에서 정함) → autoLine 이
 //   결재자 후보로 바꾸고, 기안하는 날 날짜 근태가 있는 사람은 참조로 옮긴다(참조 후보 = 관리자만). 결재선이 비게 되면 옮기지 않고 안내만.
 
-import { positionOf } from './member-title.js?v=202611131153';
+import { positionOf } from './member-title.js?v=202611131345';
 
 export const FIELD_TYPES = ['text', 'textarea', 'date', 'time', 'select', 'file'];
 export const BOX_ROLES = ['author', 'approver', 'blank'];
@@ -660,6 +660,30 @@ export const docTitle = (d) => {
     const sub = d && d.values && d.values.title ? String(d.values.title) : '';
     return sub ? `${t} — ${sub}` : t;
 };
+
+/** 목록 검색(2026-11-13) — 종류(양식 제목)·제목·작성자·결재자·참조자·상태·내용(모든 칸 값)·첨부 이름·반려/승인 의견에서 찾는다.
+ *  띄어쓰기로 나눈 낱말이 전부 들어 있어야 맞음(대소문자·띄어쓰기 무시). 빈 검색어면 전부 맞음. */
+export function docSearchText(d) {
+    if (!d || typeof d !== 'object') return '';
+    const form = d.form || {};
+    const v = d.values && typeof d.values === 'object' ? d.values : {};
+    const parts = [form.title, d.authorName, STATUS[d.status]];
+    ((form.fields) || []).forEach(f => { if (f.type !== 'file') parts.push(fieldText(form, f, v)); });
+    Object.values(v).forEach(x => parts.push(x));   // 양식이 바뀌어 칸이 빠진 옛 값도
+    approversOf(d).forEach(a => parts.push(a.name));
+    ccsOf(d).forEach(a => parts.push(a.name));
+    (Array.isArray(d.attachments) ? d.attachments : []).forEach(a => a && parts.push(a.name));
+    stampsOf(d).forEach(s => { if (s && typeof s === 'object') parts.push(s.comment, s.name); });   // 단계마다 의견·결재한 사람(대결 포함)
+    if (d.decision && typeof d.decision === 'object') parts.push(d.decision.comment, d.decision.byName);
+    // 칸마다 띄어쓰기를 지우고 칸 사이는 \u0001 로 — 앞 칸 끝과 다음 칸 앞이 이어져 잘못 맞지 않게
+    return parts.filter(x => x != null && x !== '').map(x => String(x).toLowerCase().replace(/\s+/g, '')).join('\u0001');
+}
+export function matchesSearch(d, q) {
+    const words = String(q == null ? '' : q).toLowerCase().split(/\s+/).filter(Boolean);
+    if (!words.length) return true;
+    const hay = docSearchText(d);
+    return words.every(w => hay.includes(w));
+}
 
 /** 새 양식 id — 기존 id 와 안 겹치게 'form_2' 처럼. */
 export function newFormId(existingIds, base = 'form') {

@@ -7,7 +7,7 @@
 //   금액·이름 없음. 확정 문서 OpsPlan/quarter_YYYY-Qn(plan-compare confirmDocOf horizon 'quarter').
 // ※ 순수 모듈(DOM·Firebase 없음). 테스트: tests/plan-season.test.js
 
-import { quarterList } from './plan-automation.js?v=202611131153';
+import { quarterList } from './plan-automation.js?v=202611131345';
 
 export const QUARTER_METRICS = Object.freeze([
     { metric: 'qtyPerDay', label: '처리량(하루)', unit: '개' },

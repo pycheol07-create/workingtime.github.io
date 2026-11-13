@@ -6,7 +6,7 @@
 //   - 봇(업무마감봇·업무예상알림 — Playwright)은 navigator.webdriver 가 true 다. 그때는 자동으로 띄우지 않는다
 //     (가운데 창이 버튼을 가려 봇이 멈춘다).
 // ※ 의존성은 순수 파일(approval-noti.js)뿐 — node --test 로 시험한다(tests/noti-popup.test.js).
-import { NOTI_TYPE as APPROVAL_TYPE, MSG_TO_APPROVER, MSG_TO_CC, MSG_TO_AUTHOR, MSG_RESUBMITTED } from './approval-noti.js?v=202611131153';
+import { NOTI_TYPE as APPROVAL_TYPE, MSG_TO_APPROVER, MSG_TO_CC, MSG_TO_AUTHOR, MSG_RESUBMITTED } from './approval-noti.js?v=202611131345';
 
 export const DISMISS_KEY = 'noti.dismissed.v1';
 export const DISMISS_MAX = 100;

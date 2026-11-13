@@ -6,6 +6,8 @@
 
 /* ── 목록 ── */
 .ap-pills { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 18px 24px 14px; }
+.ap-search { margin-left: auto; width: 300px; }
+.ap-chips { padding-top: 0; }
 .ap-list-empty { padding: 40px 20px; text-align: center; color: var(--c-text-3); font-size: 14px; line-height: 1.8; }
 .ap-t td.ap-title-cell { white-space: normal; min-width: 180px; overflow-wrap: anywhere; }
 .ap-self { font-size: 11.5px; margin-left: 6px; }
@@ -135,6 +137,8 @@
 }
 @media (max-width: 768px) {
     .ap-pills { padding: 12px 14px 10px; }
+    .ap-search { margin-left: 0; width: 100%; }
+    .ap-chips { padding-top: 0; }
     .ap-toolbar { padding: 12px 14px; }
     /* 목록은 좁은 화면에서 카드처럼 — 행 버튼이 가로 스크롤 밖으로 숨지 않게 */
     .ap-t thead { display: none; }

@@ -12,9 +12,9 @@
 //   — ship-tx 도 enabled !== true 면 멈춘다(두 겹).
 import { doc, getDoc, getDocs, collection, runTransaction, setDoc, updateDoc, onSnapshot, Timestamp, FieldPath, deleteField }
     from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { pushLocationWith, recordPacksWith, previewBatchesWith, removeBatchWith, sendBatchWith } from './lib/ship-tx.js?v=202611131153';
-import { SETTINGS_PATH, normalizeSettings } from './lib/ship-settings.js?v=202611131153';
-import { ACTIVITY_PATH, applyRunPatch } from './lib/ship-activity.js?v=202611131153';
+import { pushLocationWith, recordPacksWith, previewBatchesWith, removeBatchWith, sendBatchWith } from './lib/ship-tx.js?v=202611131345';
+import { SETTINGS_PATH, normalizeSettings } from './lib/ship-settings.js?v=202611131345';
+import { ACTIVITY_PATH, applyRunPatch } from './lib/ship-activity.js?v=202611131345';
 
 const FS = { doc, getDoc, getDocs, collection, runTransaction, Timestamp, FieldPath, deleteField };
 const settingsRef = (db) => doc(db, ...SETTINGS_PATH);

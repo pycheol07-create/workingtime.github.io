@@ -2,10 +2,10 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <script src="js/theme-boot.js?v=202611131153"></script>
-    <link rel="stylesheet" href="css/suit.css?v=202611131153">
-    <link rel="stylesheet" href="css/d-theme.css?v=202611131153">
-    <link rel="stylesheet" href="css/app-shell.css?v=202611131153">
+    <script src="js/theme-boot.js?v=202611131345"></script>
+    <link rel="stylesheet" href="css/suit.css?v=202611131345">
+    <link rel="stylesheet" href="css/d-theme.css?v=202611131345">
+    <link rel="stylesheet" href="css/app-shell.css?v=202611131345">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <title>입고 스캐너</title>
@@ -233,18 +233,18 @@
     <div id="undo-toast" role="status" aria-live="polite"><span id="undo-toast-msg"></span><button type="button" id="undo-toast-btn">되돌리기</button></div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js" integrity="sha384-c9d8RFSL+u3exBOJ4Yp3HUJXS4znl9f+z66d1y54ig+ea249SpqR+w1wyvXz/lk+" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-    <script src="js/location-map.js?v=202611131153"></script>
+    <script src="js/location-map.js?v=202611131345"></script>
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
         import { getFirestore, doc, getDoc, setDoc, updateDoc, collection, writeBatch, increment, serverTimestamp, onSnapshot, runTransaction, deleteField } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
         import { getAuth, onAuthStateChanged, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-        import { firebaseConfig } from './js/china-stock-config.js?v=202611131153'; // china-stock 전용 설정(work-tool-e2943)
-        import { setShellContext } from './js/app-shell-bridge.js?v=202611131153';   // 공통 상단바(uid 만 — 메뉴는 캐시)
-        import { checkProductCode } from './js/lib/product-code.js?v=202611131153';  // 위치지정 상품코드 'S+숫자6자리' 판정
-        import { availWithMine, myHoldsOf, heldByOthers, planTake, allocOf, staleHoldIds, floor2Step, isSplitItem, newHoldId, pendingExpired, HOLD_PENDING_MAX_MS } from './js/lib/scan-hold.js?v=202611131153'; // [Ver 10.7] 미발 동시 스캔 방지
-        import { LOC_SCAN_COLL, buildLocScanDocs } from './js/lib/loc-scan-log.js?v=202611131153'; // 위치지정 건별 기록(문서 모양)
-        import { connectEmulatorsIfEnabled } from './js/firebase-emulator.js?v=202611131153'; // 🧪 localhost + ?emu=1 일 때만 에뮬레이터(운영에서는 아무 일 안 함)
-        import { escapeHtml } from './js/utils.js?v=202611131153';   // 대기열·배너에 상품명·바코드 등 넣을 때(2026-11-12 보안 점검)
+        import { firebaseConfig } from './js/china-stock-config.js?v=202611131345'; // china-stock 전용 설정(work-tool-e2943)
+        import { setShellContext } from './js/app-shell-bridge.js?v=202611131345';   // 공통 상단바(uid 만 — 메뉴는 캐시)
+        import { checkProductCode } from './js/lib/product-code.js?v=202611131345';  // 위치지정 상품코드 'S+숫자6자리' 판정
+        import { availWithMine, myHoldsOf, heldByOthers, planTake, allocOf, staleHoldIds, floor2Step, isSplitItem, newHoldId, pendingExpired, HOLD_PENDING_MAX_MS } from './js/lib/scan-hold.js?v=202611131345'; // [Ver 10.7] 미발 동시 스캔 방지
+        import { LOC_SCAN_COLL, buildLocScanDocs } from './js/lib/loc-scan-log.js?v=202611131345'; // 위치지정 건별 기록(문서 모양)
+        import { connectEmulatorsIfEnabled } from './js/firebase-emulator.js?v=202611131345'; // 🧪 localhost + ?emu=1 일 때만 에뮬레이터(운영에서는 아무 일 안 함)
+        import { escapeHtml } from './js/utils.js?v=202611131345';   // 대기열·배너에 상품명·바코드 등 넣을 때(2026-11-12 보안 점검)
 
         const SCAN_VERSION = '10.9'; // 웹 배포 버전과 함께 올림 (china-stock-version.json의 web)
 
@@ -292,7 +292,7 @@
             if (scanWorkerLoading) return;
             scanWorkerLoading = true;
             try {
-                const { memberNameFor } = await import('./js/app-shell-data.js?v=202611131153');
+                const { memberNameFor } = await import('./js/app-shell-data.js?v=202611131345');
                 const snap = await getDoc(doc(db, 'artifacts/team-work-logger-v2/config/mainConfig'));
                 const cu = getAuth(app).currentUser;
                 if (cu && cu.uid === user.uid) { scanWorkerName = memberNameFor(snap.exists() ? snap.data().memberEmails : null, user.email) || ''; scanWorkerRead = true; }
@@ -1540,7 +1540,7 @@
         window.addEventListener('focus', checkVersion);
         setInterval(checkVersion, 10 * 60 * 1000);
     </script>
-    <script type="module" src="js/page-gate.js?v=202611131153" data-perm-page="scan.view" data-perm-app="scanApp"></script>
-    <script type="module" src="js/app-shell.js?v=202611131153"></script>
+    <script type="module" src="js/page-gate.js?v=202611131345" data-perm-page="scan.view" data-perm-app="scanApp"></script>
+    <script type="module" src="js/app-shell.js?v=202611131345"></script>
 </body>
 </html>

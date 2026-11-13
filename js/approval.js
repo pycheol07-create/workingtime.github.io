@@ -23,14 +23,14 @@
 import { onAuthStateChanged, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { doc, getDoc, getDocs, getDocFromServer, collection, query, where, orderBy, limit, addDoc, setDoc, deleteDoc,
     runTransaction, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { initializeFirebase, updateLeaveSchedule } from './config.js?v=202611131153';
-import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=202611131153';
-import { isPersistentLeaveType, OTHER_LEAVE_TYPE } from './state.js?v=202611131153';   // state.js 는 import 가 없어 이 화면에서 써도 앱 전체를 끌어오지 않는다
-import { leaveIntentOf, dailyWant, planDailySync, planScheduleSync, planCleanup, tidyDrop, pastCutWarning, addedText, apKeyFrom } from './lib/approval-leave.js?v=202611131153';
+import { initializeFirebase, updateLeaveSchedule } from './config.js?v=202611131345';
+import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=202611131345';
+import { isPersistentLeaveType, OTHER_LEAVE_TYPE } from './state.js?v=202611131345';   // state.js 는 import 가 없어 이 화면에서 써도 앱 전체를 끌어오지 않는다
+import { leaveIntentOf, dailyWant, planDailySync, planScheduleSync, planCleanup, tidyDrop, pastCutWarning, addedText, apKeyFrom } from './lib/approval-leave.js?v=202611131345';
 import { getStorage, ref as sRef, uploadBytes, getBlob, deleteObject } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
-import { emulatorEnabled, connectStorageEmulatorIfEnabled } from './firebase-emulator.js?v=202611131153';
-import { setShellContext, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202611131153';
-import { memberNameFor } from './app-shell-data.js?v=202611131153';
+import { emulatorEnabled, connectStorageEmulatorIfEnabled } from './firebase-emulator.js?v=202611131345';
+import { setShellContext, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202611131345';
+import { memberNameFor } from './app-shell-data.js?v=202611131345';
 import { DEFAULT_FORMS, STATUS, FIELD_TYPES, BOX_ROLES, MAX_FIELDS, MAX_BOXES, COMMENT_MAX, mergeForms, normalizeForm, validateForm,
     validateValues, cleanValues, actionsFor, buildCreate, buildSave, buildSubmit, buildWithdraw, buildDecision,
     tardyPrefill, printFitLevel, rangeFields, rangeTimeField, fieldText, END_SUFFIX, RANGE_KIND, stampTime, sortDocs, docTitle, newFormId, lower, approverCandidates, whyNot,
@@ -39,8 +39,8 @@ import { DEFAULT_FORMS, STATUS, FIELD_TYPES, BOX_ROLES, MAX_FIELDS, MAX_BOXES, C
     CC_MAX, ccsOf, inCc, checkCcs, ccCandidates,
     approversOf, stepOf, stampsOf, currentApprover, inLine, isTurn, checkApprovers, APPROVERS_MAX, buildDecisionStep, decisionNoti, sheetBoxes,
     inTodoList, waitingForMe, buildEditSubmit, stampsToClear, lastActIsEdit, decideGuard, DECIDE_GUARD_TEXT, seenAtFor,
-    autoLine, isDefaultShape, sameLine, cleanDefaultLine, DEFAULT_LINE_MAX } from './lib/approval-logic.js?v=202611131153';
-import { sendApprovalNoti, MSG_TO_APPROVER, MSG_TO_AUTHOR, MSG_TO_CC, MSG_RESUBMITTED } from './lib/approval-noti.js?v=202611131153';
+    autoLine, isDefaultShape, sameLine, cleanDefaultLine, DEFAULT_LINE_MAX, matchesSearch } from './lib/approval-logic.js?v=202611131345';
+import { sendApprovalNoti, MSG_TO_APPROVER, MSG_TO_AUTHOR, MSG_TO_CC, MSG_RESUBMITTED } from './lib/approval-noti.js?v=202611131345';
 
 const $ = (id) => document.getElementById(id);
 const APP_BASE = 'artifacts/team-work-logger-v2';
@@ -50,7 +50,7 @@ const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<'
 const tsMs = (t) => (t && typeof t.toMillis === 'function' ? t.toMillis() : (t instanceof Date ? t.getTime() : 0));
 // apDefaults = 기본 결재선 이름 목록(ApprovalSettings/defaults.line, 2026-11-12) — 못 읽으면 [](apDefaultsDenied)
 const S = { app: null, db: null, auth: null, storage: null, email: '', name: null, nameIssue: '', printHtml: null, isAdmin: false, cfg: {}, forms: [], docs: [],
-    filter: null, scope: null, dirty: false, formsDenied: false, apDefaults: [], apDefaultsDenied: false, listOk: false, listAt: 0 };
+    filter: null, scope: null, q: '', dirty: false, formsDenied: false, apDefaults: [], apDefaultsDenied: false, listOk: false, listAt: 0 };
 // Storage — 처음 쓸 때 만든다(에뮬레이터면 첫 업로드 전에 붙인다. 연결 실패면 던져서 운영으로 안 올린다)
 const storage = () => {
     if (!S.storage) { const st = getStorage(S.app); connectStorageEmulatorIfEnabled(st); S.storage = st; }
@@ -475,19 +475,29 @@ function renderList(main) {
     const showTodo = S.isAdmin || todo.length > 0 || approverCandidates(S.cfg, '', '').some(c => c.email === S.email);
     if (S.scope === 'todo' && !showTodo) S.scope = 'mine';   // 알림 링크(#todo)로 왔는데 결재 권한이 없어진 경우
     const base = S.scope === 'all' ? S.docs : S.scope === 'todo' ? todo : S.scope === 'cc' ? ccList : mine;
-    const count = (st) => base.filter(d => st === 'all' || d.status === st).length;
-    const rows = base.filter(d => S.filter === 'all' || d.status === S.filter);
-    const chip = (st, label) => `<button class="pd-chip${S.filter === st ? ' is-on' : ''}" data-filter="${st}">${esc(label)}<span class="num">${count(st)}</span></button>`;
     const seg = (sc, label, n) => `<button class="d-seg-btn${S.scope === sc ? ' is-on' : ''}" data-scope="${esc(sc)}">${label}${n ? ` <span class="d-pill-warn ap-seg-n">${n}</span>` : ''}</button>`;
     const nameWarn = !S.name ? `<div class="pd-alert warn" style="margin:0 24px 14px;">${esc(nameWarnText())}</div>` : '';
     const showAuthor = S.scope !== 'mine';
+    // 검색칸은 한 번만 그리고 아래(상태 칩·표)만 다시 그린다 — 칸을 새로 만들면 한글 입력이 끊긴다(2026-11-13)
     main.innerHTML = `
         <section class="pd-card">
             <div class="ap-pills">
-                <div class="d-seg" style="display:inline-flex;">${seg('mine', '내 기안')}${showTodo ? seg('todo', '결재할 문서', waiting) : ''}${ccList.length ? seg('cc', '참조') : ''}${S.isAdmin ? seg('all', '전체') : ''}</div><span class="pd-sep"></span>
-                ${chip('all', '전체')}${chip('submitted', '결재 대기')}${S.scope === 'mine' || S.scope === 'all' ? chip('draft', '임시저장') : ''}${chip('rejected', '반려')}${chip('approved', '승인')}
+                <div class="d-seg" style="display:inline-flex;">${seg('mine', '내 기안')}${showTodo ? seg('todo', '결재할 문서', waiting) : ''}${ccList.length ? seg('cc', '참조') : ''}${S.isAdmin ? seg('all', '전체') : ''}</div>
+                <input type="search" class="pd-search ap-search" id="ap-q" placeholder="검색 — 작성자·종류·제목·내용" aria-label="기안서 검색 (작성자·종류·제목·내용·결재자)" autocomplete="off" value="${esc(S.q)}">
             </div>
             ${nameWarn}
+            <div id="ap-list-body"></div>
+        </section>`;
+    const body = main.querySelector('#ap-list-body');
+    const paint = () => {
+        const hit = S.q.trim() ? base.filter(d => matchesSearch(d, S.q)) : base;
+        const count = (st) => hit.filter(d => st === 'all' || d.status === st).length;
+        const rows = hit.filter(d => S.filter === 'all' || d.status === S.filter);
+        const chip = (st, label) => `<button class="pd-chip${S.filter === st ? ' is-on' : ''}" data-filter="${st}">${esc(label)}<span class="num">${count(st)}</span></button>`;
+        const empty = S.q.trim() && !hit.length ? `'${esc(S.q.trim())}' 에 맞는 기안서가 없습니다.`
+            : base.length ? '이 상태의 기안서가 없습니다.' : S.scope === 'todo' ? '결재할 기안서가 없습니다.' : '아직 작성한 기안서가 없습니다.<br>위의 [새 기안] 으로 시작하세요.';
+        body.innerHTML = `
+            <div class="ap-pills ap-chips">${chip('all', '전체')}${chip('submitted', '결재 대기')}${S.scope === 'mine' || S.scope === 'all' ? chip('draft', '임시저장') : ''}${chip('rejected', '반려')}${chip('approved', '승인')}</div>
             ${rows.length ? `<div class="pd-scroll"><table class="pd-t ap-t">
                 <thead><tr><th>상태</th><th>종류·제목</th>${showAuthor ? '<th>작성자</th>' : ''}<th>결재자</th><th>제출</th><th>최근 변경</th><th></th></tr></thead>
                 <tbody>${rows.map(d => `<tr class="pd-click" data-id="${esc(d.id)}">
@@ -498,15 +508,19 @@ function renderList(main) {
                     <td class="num" data-label="제출">${esc(dayText(tsMs(d.submittedAt)))}</td>
                     <td class="num" data-label="최근 변경">${esc(stampTime(d._ms))}</td>
                     <td class="ap-row-btns"><button class="d-btn d-btn-sm" data-row-act="view" data-id="${esc(d.id)}">보기</button>${ownBtns(d)}${actionsFor(d, S.email, S.isAdmin).includes('approve') ? `<button class="d-btn d-btn-sm d-btn-primary" data-row-act="view" data-id="${esc(d.id)}">${myTurn(d) || !currentApprover(d) ? '결재' : '대결'}</button>` : ''}</td></tr>`).join('')}</tbody></table></div>`
-            : `<div class="ap-list-empty">${base.length ? '이 상태의 기안서가 없습니다.' : S.scope === 'todo' ? '결재할 기안서가 없습니다.' : '아직 작성한 기안서가 없습니다.<br>위의 [새 기안] 으로 시작하세요.'}</div>`}
-            ${S.isAdmin && S.docs.length >= ADMIN_LIST_LIMIT ? `<div class="pd-note" style="padding:0 24px 16px;">최근 ${esc(ADMIN_LIST_LIMIT)}건과 결재 대기 전부가 보입니다.</div>` : ''}
-        </section>`;
-    main.querySelectorAll('[data-filter]').forEach(b => b.addEventListener('click', () => { S.filter = b.dataset.filter; renderList(main); }));
+            : `<div class="ap-list-empty">${empty}</div>`}
+            ${S.isAdmin && S.docs.length >= ADMIN_LIST_LIMIT ? `<div class="pd-note" style="padding:0 24px 16px;">최근 ${esc(ADMIN_LIST_LIMIT)}건과 결재 대기 전부가 보입니다(검색도 이 안에서).</div>` : ''}`;
+        body.querySelectorAll('[data-filter]').forEach(b => b.addEventListener('click', () => { S.filter = b.dataset.filter; paint(); }));
+        body.querySelectorAll('tr[data-id]').forEach(tr => tr.addEventListener('click', () => { location.hash = 'd=' + encodeURIComponent(tr.dataset.id); }));
+        bindRowActs(body);
+    };
+    paint();
+    const qIn = main.querySelector('#ap-q');
+    qIn.addEventListener('input', () => { S.q = qIn.value; paint(); });   // 칸은 그대로라 한글 조합 중에도 그려도 된다
+    qIn.addEventListener('keydown', (e) => { if (e.isComposing) return; if (e.key === 'Escape' && qIn.value) { e.preventDefault(); qIn.value = ''; S.q = ''; paint(); } });
     main.querySelectorAll('[data-scope]').forEach(b => b.addEventListener('click', () => {
         S.scope = b.dataset.scope; S.filter = S.scope === 'todo' ? 'submitted' : 'all'; renderList(main);
     }));
-    main.querySelectorAll('tr[data-id]').forEach(tr => tr.addEventListener('click', () => { location.hash = 'd=' + encodeURIComponent(tr.dataset.id); }));
-    bindRowActs(main);
 }
 
 function renderPick(main) {
