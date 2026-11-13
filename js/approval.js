@@ -23,14 +23,14 @@
 import { onAuthStateChanged, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { doc, getDoc, getDocs, getDocFromServer, collection, query, where, orderBy, limit, addDoc, setDoc, deleteDoc,
     runTransaction, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { initializeFirebase, updateLeaveSchedule } from './config.js?v=202611131027';
-import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=202611131027';
-import { isPersistentLeaveType, OTHER_LEAVE_TYPE } from './state.js?v=202611131027';   // state.js 는 import 가 없어 이 화면에서 써도 앱 전체를 끌어오지 않는다
-import { leaveIntentOf, dailyWant, planDailySync, planScheduleSync, planCleanup, tidyDrop, pastCutWarning, addedText, apKeyFrom } from './lib/approval-leave.js?v=202611131027';
+import { initializeFirebase, updateLeaveSchedule } from './config.js?v=202611131118';
+import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=202611131118';
+import { isPersistentLeaveType, OTHER_LEAVE_TYPE } from './state.js?v=202611131118';   // state.js 는 import 가 없어 이 화면에서 써도 앱 전체를 끌어오지 않는다
+import { leaveIntentOf, dailyWant, planDailySync, planScheduleSync, planCleanup, tidyDrop, pastCutWarning, addedText, apKeyFrom } from './lib/approval-leave.js?v=202611131118';
 import { getStorage, ref as sRef, uploadBytes, getBlob, deleteObject } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
-import { emulatorEnabled, connectStorageEmulatorIfEnabled } from './firebase-emulator.js?v=202611131027';
-import { setShellContext, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202611131027';
-import { memberNameFor } from './app-shell-data.js?v=202611131027';
+import { emulatorEnabled, connectStorageEmulatorIfEnabled } from './firebase-emulator.js?v=202611131118';
+import { setShellContext, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202611131118';
+import { memberNameFor } from './app-shell-data.js?v=202611131118';
 import { DEFAULT_FORMS, STATUS, FIELD_TYPES, BOX_ROLES, MAX_FIELDS, MAX_BOXES, COMMENT_MAX, mergeForms, normalizeForm, validateForm,
     validateValues, cleanValues, actionsFor, buildCreate, buildSave, buildSubmit, buildWithdraw, buildDecision,
     tardyPrefill, printFitLevel, rangeFields, rangeTimeField, fieldText, END_SUFFIX, RANGE_KIND, stampTime, sortDocs, docTitle, newFormId, lower, approverCandidates, whyNot,
@@ -39,8 +39,8 @@ import { DEFAULT_FORMS, STATUS, FIELD_TYPES, BOX_ROLES, MAX_FIELDS, MAX_BOXES, C
     CC_MAX, ccsOf, inCc, checkCcs, ccCandidates,
     approversOf, stepOf, stampsOf, currentApprover, inLine, isTurn, checkApprovers, APPROVERS_MAX, buildDecisionStep, decisionNoti, sheetBoxes,
     inTodoList, waitingForMe, buildEditSubmit, stampsToClear, lastActIsEdit, decideGuard, DECIDE_GUARD_TEXT, seenAtFor,
-    autoLine, isDefaultShape, sameLine, cleanDefaultLine, DEFAULT_LINE_MAX } from './lib/approval-logic.js?v=202611131027';
-import { sendApprovalNoti, MSG_TO_APPROVER, MSG_TO_AUTHOR, MSG_TO_CC, MSG_RESUBMITTED } from './lib/approval-noti.js?v=202611131027';
+    autoLine, isDefaultShape, sameLine, cleanDefaultLine, DEFAULT_LINE_MAX } from './lib/approval-logic.js?v=202611131118';
+import { sendApprovalNoti, MSG_TO_APPROVER, MSG_TO_AUTHOR, MSG_TO_CC, MSG_RESUBMITTED } from './lib/approval-noti.js?v=202611131118';
 
 const $ = (id) => document.getElementById(id);
 const APP_BASE = 'artifacts/team-work-logger-v2';

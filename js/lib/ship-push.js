@@ -7,9 +7,9 @@
 // 다른 점: 트랜잭션이라 두 PC 가 동시에 보내도 한쪽이 지워지지 않는다.
 // 순수 모듈. 테스트: tests/ship-push.test.js
 
-import { mergeRows, chunkDocs, rowsFromChunks, buildPackPatch, packPatchForSdk, packDaysFromData, PACK_CHANNEL_BY_SOURCE } from './ship-merge.js?v=202611131027';
-import { mergeRowsBatched, packBatchPatch } from './ship-batch.js?v=202611131027';
-import { kstDay } from './ship-core.js?v=202611131027';
+import { mergeRows, chunkDocs, rowsFromChunks, buildPackPatch, packPatchForSdk, packDaysFromData, PACK_CHANNEL_BY_SOURCE } from './ship-merge.js?v=202611131118';
+import { mergeRowsBatched, packBatchPatch } from './ship-batch.js?v=202611131118';
+import { kstDay } from './ship-core.js?v=202611131118';
 
 export const CHUNK_RE = /^CHUNK_(\d{1,4})$/;
 export const TX_WRITE_MAX = 500;   // Firestore 트랜잭션 한 번의 쓰기 한도

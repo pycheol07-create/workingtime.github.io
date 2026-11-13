@@ -6,7 +6,7 @@
 //   쓸 수 없는 글자(제어 문자·DEL 등)가 있으면 파일을 만들지 않고 경고만(Python 판: 피킹 실패 경고, 출고 파일은 정상).
 // ExcelJS 는 넘겨받은 것으로만 쓴다(브라우저 CDN · node 공용). 쓰기 결과는 1단계 시제품에서 openpyxl 판과 0차이.
 
-import { pyStr, pyRstrip, pyTruthy, orEmpty, cleanPickName, cleanPickOption, sortedBy } from './ship-core.js?v=202611131027';
+import { pyStr, pyRstrip, pyTruthy, orEmpty, cleanPickName, cleanPickOption, sortedBy } from './ship-core.js?v=202611131118';
 
 // 피킹 시트에 쓸 수 없는 글자: 제어 문자·DEL·U+FFFE/FFFF·짝 없는 서로게이트(ship-write.ILLEGAL + DEL)
 export const PICK_ILLEGAL = /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F￾￿]|[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/;

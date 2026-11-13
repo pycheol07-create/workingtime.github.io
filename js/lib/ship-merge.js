@@ -7,7 +7,7 @@
 // ⚠️ mergeRows · buildPackPatch 는 'exe 호환판'이다(같은 날·같은 소스를 덮어씀 — Python 판 비교 시험이 이것을 본다).
 //   웹판 전송은 같은 날 여러 묶음을 더하는 js/lib/ship-batch.js(mergeRowsBatched · packBatchPatch)를 쓴다(2026-11-12).
 
-import { pyStr, pyStrip, pyFloat, pyTruthy, kstDay, kstIso } from './ship-core.js?v=202611131027';
+import { pyStr, pyStrip, pyFloat, pyTruthy, kstDay, kstIso } from './ship-core.js?v=202611131118';
 
 export const CHUNK_SIZE = 200;
 export const PACKS_DOC_PATH = 'artifacts/team-work-logger-v2/integrations/zabPacks';

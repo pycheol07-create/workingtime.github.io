@@ -158,6 +158,59 @@
 .sp-cmp-out:empty { display: none; }
 .sp-cmp-pair ul { margin: 4px 0 0; padding-left: 20px; color: var(--c-text-2); }
 .sp-log-box summary { cursor: pointer; font-size: 13px; color: var(--c-text-2); margin-bottom: 8px; }
+/* 진행 기록(2026-11-13) — 묶음(details) + 줄 목록. 줄 앞 표시로 색·아이콘(js/lib/ship-log.js classifyLine), 들여쓰기는 --lv */
+.sp-log[hidden] { display: none; }
+.sp-log-list { display: flex; flex-direction: column; gap: 8px; max-height: 560px; overflow: auto; }
+.sp-lg-empty { font-size: 13px; color: var(--c-text-3); padding: 12px 4px; }
+.sp-lg { border: 1px solid var(--c-line); border-radius: var(--r-inner); background: var(--c-surface); }
+.sp-lg.is-fail, .sp-lg.is-error { border-color: var(--c-risk); }
+.sp-lg-head { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; padding: 8px 12px; cursor: pointer; font-size: 13px; list-style: none; }
+.sp-lg-head::-webkit-details-marker { display: none; }
+.sp-lg-head::before { content: '▸'; color: var(--c-text-3); width: 10px; }
+.sp-lg[open] > .sp-lg-head::before { content: '▾'; }
+.sp-lg[open] > .sp-lg-head { border-bottom: 1px solid var(--c-line-soft); }
+.sp-lg-time { font-variant-numeric: tabular-nums; color: var(--c-text-3); font-size: 12.5px; }
+.sp-lg-title { font-weight: 700; color: var(--c-text); }
+.sp-lg-grow { flex: 1 1 auto; }
+.sp-lg-head .pd-pill { margin-right: 0; }
+.sp-lg-count { font-size: 12px; color: var(--c-text-3); }
+.sp-lg-rows { list-style: none; margin: 0; padding: 6px 0; font-size: 13px; line-height: 1.55; }
+.sp-lg-row { display: flex; gap: 6px; align-items: baseline; padding: 2px 12px 2px calc(12px + var(--lv, 0) * 18px); color: var(--c-text); }
+.sp-lg-ic { flex: 0 0 14px; text-align: center; font-weight: 700; color: var(--c-text-3); }
+.sp-lg-tx { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+.sp-lg-num { font-weight: 700; font-variant-numeric: tabular-nums; }
+.sp-lg-row.k-warn, .sp-lg-row.t-warn { color: var(--c-warn-text); }
+.sp-lg-row.k-warn, .sp-lg-row.k-warn2 { background: var(--c-warn-bg); }
+.sp-lg-row.k-warn .sp-lg-ic, .sp-lg-row.k-warn2 .sp-lg-ic { color: var(--c-warn-text); }
+.sp-lg-row.k-warn2, .sp-lg-row.t-warn2 { color: var(--c-warn-text); font-weight: 700; }
+.sp-lg-row.k-warn2 { background: var(--c-warn-soft); }
+.sp-lg-row.k-fail, .sp-lg-row.t-fail { color: var(--c-risk-text); }
+.sp-lg-row.k-fail { background: var(--c-risk-row); font-weight: 600; }
+.sp-lg-row.k-fail .sp-lg-ic { color: var(--c-risk-text); }
+.sp-lg-row.k-info, .sp-lg-row.t-info { color: var(--c-accent-deep); }
+.sp-lg-row.k-info .sp-lg-ic { color: var(--c-accent); }
+.sp-lg-row.k-ok .sp-lg-ic { color: var(--c-ok-text); }
+.sp-lg-row.k-ok { color: var(--c-ok-text); }
+.sp-lg-row.k-auto { color: var(--c-accent-deep); font-weight: 700; background: var(--c-accent-row); }
+.sp-lg-row.k-auto .sp-lg-ic, .sp-lg-row.k-move .sp-lg-ic, .sp-lg-row.k-save .sp-lg-ic { color: var(--c-accent); }
+.sp-lg-row.k-section { font-weight: 700; color: var(--c-text-2); }
+.sp-lg-row.k-start { justify-content: center; margin: 4px 12px; padding: 2px 0; border-top: 1px dashed var(--c-line); font-size: 12px; color: var(--c-text-3); }
+.sp-lg-row.k-start span { background: var(--c-surface); padding: 0 8px; margin-top: -11px; }
+.sp-queue { display: flex; flex-direction: column; gap: 8px; }
+.sp-queue[hidden] { display: none; }
+.sp-q-title { font-size: 15px; font-weight: 700; color: var(--c-text); }
+.sp-q-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.sp-q-row { border: 1px solid var(--c-line); border-radius: var(--r-inner); padding: 8px 12px; display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+.sp-q-row.is-fail { border-color: var(--c-risk); }
+.sp-q-row.is-skip { background: var(--c-warn-bg); }
+.sp-q-row.is-view { border-color: var(--c-accent); background: var(--c-accent-row); }
+.sp-q-head { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; }
+.sp-q-head .pd-pill { margin-right: 0; }
+.sp-q-detail { color: var(--c-text-2); overflow-wrap: anywhere; }
+.sp-q-files { display: flex; flex-wrap: wrap; gap: 6px; }
+.sp-result-note { display: flex; flex-direction: column; gap: 8px; }
+.sp-result-note[hidden] { display: none; }
+.sp-note-date { font-weight: 600; border: 1px solid var(--c-warn); }
 
 .sp-modal-box { max-width: 640px; }
 .sp-rules { width: 100%; border-collapse: collapse; }

@@ -20,10 +20,10 @@
 // 근태 종류 이름('지각')을 여기서 쓰는 이유: 시각 근태 중 지각만 '도착 시각'이라 규칙이 다르다 — js/lib/leave-timing.js·attendance-guard.js 와
 //   같은 근거의 고정 예외. 외출·조퇴는 leave-timing.js SCHEDULED_LEAVE_TYPES, 날짜 근태 판정은 부르는 쪽이 state.js isPersistentLeaveType 을 넘긴다.
 
-import { SCHEDULED_LEAVE_TYPES } from './leave-timing.js?v=202611131027';
-import { findDailyLeaveDup } from './attendance-guard.js?v=202611131027';
-import { normalizeClock } from './clock-in-out.js?v=202611131027';
-import { END_SUFFIX } from './approval-logic.js?v=202611131027';
+import { SCHEDULED_LEAVE_TYPES } from './leave-timing.js?v=202611131118';
+import { findDailyLeaveDup } from './attendance-guard.js?v=202611131118';
+import { normalizeClock } from './clock-in-out.js?v=202611131118';
+import { END_SUFFIX } from './approval-logic.js?v=202611131118';
 
 const 지각 = '지각';
 const 외출 = '외출';

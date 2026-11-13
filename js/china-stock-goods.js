@@ -1,28 +1,28 @@
 // === js/china-stock-goods.js ===
 // 중국제작 미발계산기 Ver 10.3 (위치지정 당일입고: 목록=비축 입고분+당일 위치전송분 전부, 자리 미지정 줄은 항상 빨강·맨 위(마감 버튼 없음), '파일에 없던 상품'=비축 입고파일 기준)
 
-import { initializeFirebase } from './china-stock-config.js?v=202611131027'; // [Ver 9.9] 관리자 공유 config.js와 충돌 방지 — china-stock 전용 설정
+import { initializeFirebase } from './china-stock-config.js?v=202611131118'; // [Ver 9.9] 관리자 공유 config.js와 충돌 방지 — china-stock 전용 설정
 import { getFirestore, doc, setDoc as _setDoc, getDoc, getDocFromServer, updateDoc as _updateDoc, deleteField, collection, getDocs, writeBatch as _writeBatch, deleteDoc as _deleteDoc, onSnapshot, query, where, documentId, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { cleanRows } from './lib/sensitive-cols.js?v=202611131027';
-import { isSafeMibalFormula } from './lib/mibal-formula-guard.js?v=202611131027';
-import { mibalSendSummary, mibalSendConfirmText, MIBAL_SEND_BASIS } from './lib/mibal-send.js?v=202611131027';
-import { computeAvgRise as computeAvgRiseLib } from './lib/mibal-forecast.js?v=202611131027'; // 업무 예상과 같은 상승률 규칙(2026-10-20)
-import { datesPatch, emptyTableText, sortMark } from './lib/china-stock-view.js?v=202611131027';
-import { diffOf, buildDiffRecord, shouldAutoSave, mergeRev, shrinkIfLarge, diffSummaryText, summarizeByShip, monthlyTrend, topCodes, bySupplier, statsAoa, STATS_TAB_LABEL, overallSummary, queryRange, shiftIso, overlapping } from './lib/inbound-diff.js?v=202611131027'; // 입고 오차(2026-10-27)
-import { initPageNav } from './page-nav.js?v=202611131027';
-import { emptyFillOk, emptyFillOf } from './lib/mibal2-calc.js?v=202611131027'; // 빈 칸 넘침 규칙(2026-11-04) — 신규 계산기와 한 벌
+import { cleanRows } from './lib/sensitive-cols.js?v=202611131118';
+import { isSafeMibalFormula } from './lib/mibal-formula-guard.js?v=202611131118';
+import { mibalSendSummary, mibalSendConfirmText, MIBAL_SEND_BASIS } from './lib/mibal-send.js?v=202611131118';
+import { computeAvgRise as computeAvgRiseLib } from './lib/mibal-forecast.js?v=202611131118'; // 업무 예상과 같은 상승률 규칙(2026-10-20)
+import { datesPatch, emptyTableText, sortMark } from './lib/china-stock-view.js?v=202611131118';
+import { diffOf, buildDiffRecord, shouldAutoSave, mergeRev, shrinkIfLarge, diffSummaryText, summarizeByShip, monthlyTrend, topCodes, bySupplier, statsAoa, STATS_TAB_LABEL, overallSummary, queryRange, shiftIso, overlapping } from './lib/inbound-diff.js?v=202611131118'; // 입고 오차(2026-10-27)
+import { initPageNav } from './page-nav.js?v=202611131118';
+import { emptyFillOk, emptyFillOf } from './lib/mibal2-calc.js?v=202611131118'; // 빈 칸 넘침 규칙(2026-11-04) — 신규 계산기와 한 벌
 let emptyFill = emptyFillOf(null);   // CONFIG.emptyFill(관리자가 [미발수량 공식 설정]에서 바꿈) — 없으면 기본 10%/50%
-import { confirmedOf } from './lib/scan-link.js?v=202611131027'; // 입고확인 규칙(2026-11-04) — 신규 계산기와 한 벌
-import { inboundSplitOf, fixTipOf, pendingSet, batchRowsOf, batchConfirmText, runBatch, pendingAfterBatch, batchResultText, failReasonText, failLinesOf } from './lib/inbound-fix.js?v=202611131027'; // 입고확인 수동 수정(2026-11-04)
-import { readServerInboundMany, writeInboundFix as _writeInboundFix } from './inbound-fix-write.js?v=202611131027';
-import { isMibal2Live } from './lib/mibal2-mode.js?v=202611131027';
-import { createFixBar, afterClick } from './inbound-fix-bar.js?v=202611131027';
-import { friendlyFirebaseError } from './utils.js?v=202611131027';
-import { readHash, writeHash, onHashNav } from './hash-state.js?v=202611131027';
-import { setShellContext } from './app-shell-bridge.js?v=202611131027';
-import { memberNameFor } from './app-shell-data.js?v=202611131027';
-import { createUploadStatus } from './busy-banner.js?v=202611131027';
+import { confirmedOf } from './lib/scan-link.js?v=202611131118'; // 입고확인 규칙(2026-11-04) — 신규 계산기와 한 벌
+import { inboundSplitOf, fixTipOf, pendingSet, batchRowsOf, batchConfirmText, runBatch, pendingAfterBatch, batchResultText, failReasonText, failLinesOf } from './lib/inbound-fix.js?v=202611131118'; // 입고확인 수동 수정(2026-11-04)
+import { readServerInboundMany, writeInboundFix as _writeInboundFix } from './inbound-fix-write.js?v=202611131118';
+import { isMibal2Live } from './lib/mibal2-mode.js?v=202611131118';
+import { createFixBar, afterClick } from './inbound-fix-bar.js?v=202611131118';
+import { friendlyFirebaseError } from './utils.js?v=202611131118';
+import { readHash, writeHash, onHashNav } from './hash-state.js?v=202611131118';
+import { setShellContext } from './app-shell-bridge.js?v=202611131118';
+import { memberNameFor } from './app-shell-data.js?v=202611131118';
+import { createUploadStatus } from './busy-banner.js?v=202611131118';
 
 const { db, auth } = initializeFirebase();
 // [2026-11-09] 신규 부족수량관리 단독 운영(live) 때 이 화면은 조회 전용 — 조회·필터·정렬·엑셀 받기만 된다(시험 때는 아무것도 바뀌지 않음).

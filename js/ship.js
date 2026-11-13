@@ -9,7 +9,10 @@
 //   같은 날 여러 묶음 합산(js/lib/ship-batch.js — 전송 전 미리보기로 같은 묶음·고친 전표를 묻고, 결과 카드에서 묶음 빼기).
 //   진행 기록 문장은 그대로 두고(시험 tools/ship-check.py 가 기댄다) 새 정보는 화면 요소로 보여 준다.
 // 2026-11-12 화면 방식: 늘 통합으로 연다(위 자동 인식·저절로 시작 — 지금 단계·칸 안내는 숨기고 넣은 파일은 한 줄 요약).
-//   머리줄 [개별 선택] › 직진배송·에이블리 = 기존 방식(고른 쪽 1·2단계 칸만, 놓으면 지금 단계 칸에만 넣고 저절로 시작 안 함 — dropLegacy),
+//   머리줄 [개별 선택] › 직진배송·에이블리 = 기존 방식(고른 쪽 1·2단계 칸만, 놓으면 지금 단계 칸에만 넣음 — dropLegacy. 2026-11-13 칸이 다 차면 저절로 시작),
+// 2026-11-13 '올리면 자동': 통합·개별 선택·칸에 직접 넣기 모두 같은 표(js/lib/ship-auto.js autoDecision)로 저절로 시작 — 저장 폴더는 묻지 않고(다운로드 + 결과 카드 안내),
+//   날짜가 오늘이 아니면(7일 안) 만들고 경고, 멈추는 것은 어느 플랫폼인지 모름·같은 종류 둘·날짜 이상함. 오늘 만든 묶음은 확인창.
+//   진행 기록은 묶음 + 줄 목록(js/lib/ship-log.js, #sp-log-list). 글상자 #sp-log 값은 숨긴 채 옛 글자 그대로.
 //   그 위에 '개별 선택: … · [통합으로 돌아가기]' 띠. 방식은 화면만 바꾼다: 만들기·저장·전송·봉 수·묶음 합산·[묶음 빼기]는 같은 run()·transmit().
 //   방식은 기억하지 않는다 — 예전 기억(localStorage js/lib/ship-flow.js MODE_STORE_KEY)은 열 때 지운다.
 // 2026-11-12 기본 양식(직진 출고리스트·에이블리 대량입고)은 [설정] › 기본 양식에서 관리자가 올린다(Storage ship/templates/zikjin.xlsx·ably.xlsx).
@@ -26,28 +29,31 @@
 import { onAuthStateChanged, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { doc, getDocFromServer } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getStorage, ref as sRef, uploadBytes, getBlob, getMetadata } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
-import { initializeFirebase } from './config.js?v=202611131027';
-import { emulatorEnabled, connectStorageEmulatorIfEnabled } from './firebase-emulator.js?v=202611131027';
-import { setShellContext, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202611131027';
-import { memberNameFor } from './app-shell-data.js?v=202611131027';
-import { friendlyFirebaseError } from './utils.js?v=202611131027';
-import { resolve, can } from './lib/perm.js?v=202611131027';
-import { readBook } from './lib/ship-read.js?v=202611131027';
-import { zikjinStep1, zikjinStep2 } from './lib/ship-zikjin.js?v=202611131027';
-import { ablyStep1, ablyStep2, readAblyRequest } from './lib/ship-ably.js?v=202611131027';
-import { zikjinListBytes, ablyBulkBytes, stockXlsBytes, cleanZikjinTemplate, zikjinTemplateProblem, cleanAblyTemplate, ablyTemplateProblem } from './lib/ship-write.js?v=202611131027';
-import { pickingBytes } from './lib/ship-picking.js?v=202611131027';
-import { kstDay, baseDateWarning, targetArea, STOCK_OUT_MSG, PACK_PREFIX, baseDatePart, packageNameBase } from './lib/ship-core.js?v=202611131027';
-import { peekBook, classifyPeek, assignFiles, routeFiles, SLOTS, KIND, KIND_LABEL } from './lib/ship-assign.js?v=202611131027';
-import { openShipStore, isFileRecord, sizeText, savedText, KEY_TEMPLATE, KEY_OUT_DIR } from './lib/ship-file-store.js?v=202611131027';
-import { createSaver, mimeOf } from './lib/save-file.js?v=202611131027';
-import { normalizeSettings, validateEdit, settingsWrite, parseLimit, activeRuleCount, MAX_RULES } from './lib/ship-settings.js?v=202611131027';
-import { flowState, foldState, modeView, loadMode, tabForMode, MODE_STORE_KEY, MODE_LABEL } from './lib/ship-flow.js?v=202611131027';
-import { summarizeRun, fileSummary, SUMMARY_MAX_BYTES } from './lib/ship-summary.js?v=202611131027';
-import { madeKey, loadMade, findMade, recordMade, madeConfirmText, MADE_STORE_KEY } from './lib/ship-made.js?v=202611131027';
-import { gridOf, comparePairs } from './lib/ship-compare.js?v=202611131027';
-import { batchKeyOf, codeTotals, freshKey, sha256Hex, LEGACY } from './lib/ship-batch.js?v=202611131027';
-import { loadSettings, saveSettings, sendBatch, previewBatches, removeBatch } from './ship-store.js?v=202611131027';
+import { initializeFirebase } from './config.js?v=202611131118';
+import { emulatorEnabled, connectStorageEmulatorIfEnabled } from './firebase-emulator.js?v=202611131118';
+import { setShellContext, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202611131118';
+import { memberNameFor } from './app-shell-data.js?v=202611131118';
+import { friendlyFirebaseError } from './utils.js?v=202611131118';
+import { resolve, can } from './lib/perm.js?v=202611131118';
+import { readBook, headerColumns } from './lib/ship-read.js?v=202611131118';
+import { zikjinStep1, zikjinStep2 } from './lib/ship-zikjin.js?v=202611131118';
+import { ablyStep1, ablyStep2, readAblyRequest } from './lib/ship-ably.js?v=202611131118';
+import { zikjinListBytes, ablyBulkBytes, stockXlsBytes, cleanZikjinTemplate, zikjinTemplateProblem, cleanAblyTemplate, ablyTemplateProblem } from './lib/ship-write.js?v=202611131118';
+import { pickingBytes } from './lib/ship-picking.js?v=202611131118';
+import { kstDay, baseDateWarning, targetArea, STOCK_OUT_MSG, PACK_PREFIX, baseDatePart, packageNameBase } from './lib/ship-core.js?v=202611131118';
+import { peekBook, classifyPeek, assignFiles, routeFiles, SLOTS, KIND, KIND_LABEL, ZIKJIN_TEMPLATE_NOTE } from './lib/ship-assign.js?v=202611131118';
+import { openShipStore, isFileRecord, sizeText, savedText, KEY_TEMPLATE, KEY_OUT_DIR } from './lib/ship-file-store.js?v=202611131118';
+import { createSaver, mimeOf } from './lib/save-file.js?v=202611131118';
+import { normalizeSettings, validateEdit, settingsWrite, parseLimit, activeRuleCount, MAX_RULES } from './lib/ship-settings.js?v=202611131118';
+import { flowState, foldState, modeView, loadMode, tabForMode, MODE_STORE_KEY, MODE_LABEL } from './lib/ship-flow.js?v=202611131118';
+import { summarizeRun, fileSummary, SUMMARY_MAX_BYTES } from './lib/ship-summary.js?v=202611131118';
+import { madeKey, loadMade, findMade, recordMade, madeConfirmText, MADE_STORE_KEY } from './lib/ship-made.js?v=202611131118';
+import { gridOf, comparePairs } from './lib/ship-compare.js?v=202611131118';
+import { batchKeyOf, codeTotals, freshKey, sha256Hex, LEGACY } from './lib/ship-batch.js?v=202611131118';
+import { loadSettings, saveSettings, sendBatch, previewBatches, removeBatch } from './ship-store.js?v=202611131118';
+import { logHtml, logText, AUTO_MARK } from './lib/ship-log.js?v=202611131118';
+import { autoDecision, autoStartText } from './lib/ship-auto.js?v=202611131118';
+import { isMixed, planMixed, jobLabel, runJobs, queueCounts, pairWaitPlan } from './lib/ship-mixed.js?v=202611131118';
 
 const $ = (id) => document.getElementById(id);
 const APP_BASE = 'artifacts/team-work-logger-v2';
@@ -147,6 +153,12 @@ const S = {
     foldOpen: false, advOpen: false, optsKey: '',
     runLog: null, runWarns: [],
     cmp: { left: [], right: [], side: 'left' },
+    // 진행 기록 묶음(2026-11-13, js/lib/ship-log.js) — 사용자가 한 번 한 일마다 하나. 글상자 #sp-log 값은 옛 글자 그대로 따로 쌓는다
+    log: [], logSeq: 0, logOpen: {},
+    baseTouched: { zikjin: false, ably: false },   // 패키지명 베이스를 사람이 고쳤나 — 안 고쳤으면 날짜가 바뀌면 오늘로 다시 채운다
+    baseTouchedDay: { zikjin: '', ably: '' },      // 고친 날(KST YYMMDD) — 날짜가 바뀌면 '고침'을 풀고 오늘로(2026-11-13 리뷰)
+    queue: null, queueRunning: false,   // 섞어 올리기(2026-11-13) — { jobs: [{ label, tab, step, status, why, last, results, warns }], view }
+    runSaves: null,   // 이번 실행에서 저장한 방식들('folder'|'download') — 결과 카드 '폴더를 고르면 다음부터' 안내
 };
 
 // ── 작은 도우미 ────────────────────────────────────────────
@@ -162,22 +174,76 @@ function setLoading(on, text) {
     $('pd-loading').style.display = on ? 'flex' : 'none';
     if (text) $('pd-loading-text').textContent = text;
 }
-/** 진행 기록 한 줄(화면 글상자에만) */
+/** 진행 기록 한 줄(화면에만) — 글상자 #sp-log 값(옛 글자 그대로, 시험·복사용)과 지금 묶음(줄 목록 #sp-log-list)에 같이 */
 function logLine(s) {
     const el = $('sp-log');
     el.value += (el.value ? '\n' : '') + String(s);
-    el.scrollTop = el.scrollHeight;
     if (S.runLog) S.runLog.push(String(s));
+    if (!S.log.length) newLogGroup({ kind: 'other' });
+    S.log[S.log.length - 1].entries.push({ t: Date.now(), s: String(s) });
+    scheduleLog();
 }
+const LOG_MAX_GROUPS = 40;   // 오래된 묶음은 화면에서 뺀다(글상자 #sp-log 값은 그대로)
+/** 진행 기록 새 묶음 — 사용자가 한 번 한 일(파일 넣기 · [만들기] · 묶음 빼기 · 양식 올리기) 시작에 */
+function newLogGroup(meta = {}) {
+    S.logSeq += 1;
+    S.log.push({ id: String(S.logSeq), kind: meta.kind || 'other', title: meta.title || '', tab: meta.tab || null, step: meta.step || null, entries: [] });
+    if (S.log.length > LOG_MAX_GROUPS) S.log.splice(0, S.log.length - LOG_MAX_GROUPS);
+}
+/** 지금 묶음 머리 줄에 쓸 플랫폼·단계(파일을 알아본 뒤) */
+function logMeta(meta) {
+    const g = S.log[S.log.length - 1];
+    if (g) Object.assign(g, meta);
+}
+let logPending = false;
+function scheduleLog() {
+    if (logPending) return;
+    logPending = true;
+    const go = () => { logPending = false; renderLog(); };
+    if (typeof requestAnimationFrame === 'function') requestAnimationFrame(go); else setTimeout(go, 0);
+}
+function renderLog() {
+    const box = $('sp-log-list');
+    if (!box) return;
+    const html = logHtml(S.log, { open: S.logOpen });
+    box.innerHTML = html || `<div class="sp-lg-empty">${esc('파일을 넣으면 여기에 진행 상황이 나옵니다.')}</div>`;
+    $('sp-log-copy').disabled = !html;
+}
+function bindLog() {
+    $('sp-log-clear').addEventListener('click', () => {
+        $('sp-log').value = '';
+        S.log = []; S.logOpen = {};
+        renderLog();
+    });
+    $('sp-log-copy').addEventListener('click', async () => {
+        const text = logText(S.log);
+        if (!text) return;
+        try {
+            await navigator.clipboard.writeText(text);
+            toast('진행 기록을 복사했습니다');
+        } catch (_) {
+            toast('복사하지 못했습니다 — 브라우저가 클립보드 쓰기를 막았습니다', 5000);
+        }
+    });
+    // 묶음 접기·펼치기는 사용자가 누른 대로 기억(다시 그려도 유지). toggle 이벤트는 다시 그릴 때도 나서 쓰지 않는다 — 머리 줄 누름(키보드 Enter·Space 포함)만
+    $('sp-log-list').addEventListener('click', (e) => {
+        const head = e.target.closest('summary.sp-lg-head');
+        const d = head && head.parentElement;
+        if (d && d.classList.contains('sp-lg')) S.logOpen[d.dataset.g] = !d.open;   // 누른 뒤 바뀔 상태
+    });
+}
+/** 화면 잠금 — 처리 중이거나 섞어 올리기 묶음이 도는 동안(묶음 사이 포함, 2026-11-13 리뷰) 사람이 누르는 것은 받지 않는다 */
+const locked = () => S.busy || S.queueRunning;
 function setBusy(on, text = '처리 중…') {
     S.busy = on;
-    $('sp-busy').hidden = !on;
-    $('sp-busy-text').textContent = text;
-    $('sp-run').disabled = on;
-    document.querySelectorAll('#sp-slots button, #sp-tabs button, #sp-steps button, #sp-settings-btn, #sp-folder, #sp-pick-many, #sp-fold button, #sp-batches button, #sp-compare button, #sp-pick-mode, #sp-mode-menu button, #sp-mode-back, #sp-s-tmpl button')
-        .forEach(b => { b.disabled = on; });
-    if (on) closeModeMenu();
-    if (!on) renderTemplateRows();   // 설정 창 양식 칸 — 잠금(올리기 꺼짐)·관리자 여부는 다시 그려서 맞춘다
+    const lock = on || S.queueRunning;
+    $('sp-busy').hidden = !lock;
+    $('sp-busy-text').textContent = on ? text : '섞어 올린 묶음을 차례로 만드는 중…';
+    $('sp-run').disabled = lock;
+    document.querySelectorAll('#sp-slots button, #sp-tabs button, #sp-steps button, #sp-settings-btn, #sp-folder, #sp-pick-many, #sp-fold button, #sp-batches button, #sp-compare button, #sp-pick-mode, #sp-mode-menu button, #sp-mode-back, #sp-s-tmpl button, #sp-queue button')
+        .forEach(b => { b.disabled = lock; });
+    if (lock) closeModeMenu();
+    if (!lock) renderTemplateRows();   // 설정 창 양식 칸 — 잠금(올리기 꺼짐)·관리자 여부는 다시 그려서 맞춘다
     renderWhy();
 }
 const errText = (e) => (e && e.code ? friendlyFirebaseError(e) : String((e && e.message) || e || '알 수 없는 오류'));
@@ -287,7 +353,7 @@ function renderSlots() {
             </div>
         </div>`;
     }).join('');
-    if (S.busy) box.querySelectorAll('button').forEach(b => { b.disabled = true; });
+    if (locked()) box.querySelectorAll('button').forEach(b => { b.disabled = true; });
 }
 
 /** 칸이 모두 찼거나 기본값이면 접는다(#sp-fold) */
@@ -363,11 +429,11 @@ function renderTemplateRows() {
     box.innerHTML = ['zikjin', 'ably'].map(kind => {
         const T = kind === 'ably' ? S.abTmpl : S.zgTmpl;
         const st = templateStateText(kind);
-        let btns = `<button class="d-btn d-btn-sm" data-tmpl="reload" data-kind="${kind}"${S.busy ? ' disabled' : ''}>다시 확인</button>`;
+        let btns = `<button class="d-btn d-btn-sm" data-tmpl="reload" data-kind="${kind}"${locked() ? ' disabled' : ''}>다시 확인</button>`;
         if (S.isAdmin) {
             const label = T.state === 'ok' ? '다시 올리기' : '양식 올리기';
             btns += ZG_TEMPLATE_UPLOAD_ON
-                ? ` <button class="d-btn d-btn-sm" data-tmpl="upload" data-kind="${kind}"${S.busy ? ' disabled' : ''}>${esc(label)}</button>`
+                ? ` <button class="d-btn d-btn-sm" data-tmpl="upload" data-kind="${kind}"${locked() ? ' disabled' : ''}>${esc(label)}</button>`
                 : ` <button class="d-btn d-btn-sm" data-tmpl="upload" data-kind="${kind}" disabled title="${esc(ZG_UPLOAD_OFF_TEXT)}">${esc(label)}</button>`;
         }
         return `<div class="sp-tmpl-row" data-kind="${kind}"><b>${esc(TMPL_NAME[kind])}</b>
@@ -380,6 +446,12 @@ function renderTemplateRows() {
 /** 고급(2단계 패키지명 베이스·봉투당 수량) — 단계와 상관없이 늘 보인다(2026-11-13).
  *  통합에서 아직 파일을 안 넣었으면 어느 플랫폼인지 몰라 두 쪽(ZG·AB)을 다 보이고, 알아본 뒤(또는 개별 선택)엔 그 쪽만.
  *  칸에는 날짜(YYMMDD)를 넣고, 접두(ZG·AB)는 [만들기] 때 run() 이 붙여 계산에 넘긴다(ship-core.packageNameBase — 칸에 접두를 넣어도 한 번만). */
+/** 패키지명 베이스 기본값 = 오늘. 사람이 고치지 않았는데 날짜가 지났으면(화면을 밤새 열어 둠) 오늘로 다시 채운다(2026-11-13 — 저절로 시작이 어제 날짜로 만들지 않게) */
+function freshBase(t) {
+    const today = kstDay().yymmdd;
+    if (S.baseTouched[t] && S.baseTouchedDay[t] !== today) S.baseTouched[t] = false;   // 어제 고친 값은 오늘 다시 오늘로
+    if (!S.base[t] || (!S.baseTouched[t] && baseDatePart(S.base[t]) !== today)) S.base[t] = today;
+}
 function optsTabs() {
     return modeView(S.mode).auto && !autoHasWork() ? ['zikjin', 'ably'] : [S.tab];
 }
@@ -390,7 +462,7 @@ function renderOpts() {
     const today = kstDay().yymmdd;
     const setLimitOf = (t) => (t === 'zikjin' ? S.settings.zikjinLimit : S.settings.ablyLimit);
     for (const t of tabs) {
-        if (!S.base[t]) S.base[t] = today;
+        freshBase(t);
         if (!S.limitText[t]) S.limitText[t] = String(setLimitOf(t));
     }
     const differsOf = (t) => baseDatePart(S.base[t]) !== today || String(S.limitText[t]).trim() !== String(setLimitOf(t));
@@ -418,6 +490,8 @@ function renderOpts() {
         const t = e.target.dataset.tab;
         if (e.target.dataset.opt === 'base') {
             S.base[t] = e.target.value;
+            S.baseTouched[t] = true;
+            S.baseTouchedDay[t] = kstDay().yymmdd;
             const nm = box.querySelector(`[data-opt-name="${t}"]`);
             if (nm) nm.textContent = packageNameBase(t, S.base[t]);
         } else S.limitText[t] = e.target.value;
@@ -511,8 +585,8 @@ function setPhase(p) { S.phase = p; renderIntake(); }
 function renderWhy() {
     const el = $('sp-run-why');
     if (!el) return;
-    el.textContent = S.why && !S.busy ? `저절로 시작하지 않았습니다 — ${S.why} [만들기]를 눌러 주세요.` : '';
-    $('sp-run').classList.toggle('is-attention', !!S.why && !S.busy);
+    el.textContent = S.why && !locked() ? `저절로 시작하지 않았습니다 — ${S.why} [만들기]를 눌러 주세요.` : '';
+    $('sp-run').classList.toggle('is-attention', !!S.why && !locked());
 }
 
 /** 화면 방식 — 통합이면 큰 상자(지금 단계·칸 안내는 CSS is-auto 로 숨김), 개별 선택이면 띠 + 고른 쪽 단계 고르기만(펼쳐 둠) */
@@ -531,12 +605,12 @@ function renderMode() {
         b.classList.toggle('is-on', b.dataset.mode === v.mode);
         if (b.dataset.mode === 'auto') b.hidden = v.auto;   // 통합으로 돌아가기는 개별 선택 중일 때만
     });
-    $('sp-drop-hint').textContent = '여기(또는 칸)에 파일을 놓으면 지금 단계 칸에 넣기만 합니다(저절로 시작하지 않음). 다 넣고 [만들기]를 누르세요.';
+    $('sp-drop-hint').textContent = '여기(또는 칸)에 파일을 놓으면 지금 단계 칸에 넣고, 그 단계 파일이 다 차면 저절로 만듭니다.';
 }
 
 /** [개별 선택] 작은 메뉴 */
 function openModeMenu() {
-    if (S.busy) return;
+    if (locked()) return;
     $('sp-mode-menu').hidden = false;
     $('sp-pick-mode').setAttribute('aria-expanded', 'true');
     const first = document.querySelector('#sp-mode-menu .sp-mode-item:not([hidden])');
@@ -555,7 +629,7 @@ function bindModeMenu() {
     });
     $('sp-mode-menu').addEventListener('click', (e) => {
         const b = e.target.closest('.sp-mode-item[data-mode]');
-        if (!b || S.busy) return;
+        if (!b || locked()) return;
         closeModeMenu();
         setMode(b.dataset.mode);
         $('sp-pick-mode').focus();
@@ -633,12 +707,15 @@ async function putSlot(tab, step, slot, f) {
 async function dropOnSlot(slot, fileList) {
     const tab = S.tab, step = S.step[tab];
     const file = fileList[0];
-    if (!file || S.busy) return;
+    if (!file || S.busy || S.queueRunning) return;
     S.why = '';
+    newLogGroup({ kind: 'drop', tab, step });
+    let autoRun = null;
     setBusy(true, '파일 종류를 보는 중…');   // 읽는 동안 다른 놓기(저절로 시작)가 끼어들지 않게
     try {
         const f = await fileOf(file);
         const want = SLOTS[tab][step][slot] || (slot === 'template' ? KIND.ZIKJIN_TEMPLATE : KIND.UNKNOWN);   // 직진 원본(임시) 칸은 SLOTS 밖
+        let mismatch = false;
         try {
             const { X } = await loadLibs();
             const kind = classifyPeek(peekBook(X, f.bytes, f.name));
@@ -647,17 +724,27 @@ async function dropOnSlot(slot, fileList) {
                 toast(STOCK_OUT_MSG, 5000);
                 return;
             }
-            if (kind !== want) logLine(`⚠ '${f.name}' 은 ${KIND_LABEL[kind]} 처럼 보입니다(이 칸은 ${KIND_LABEL[want]}). 맞는지 확인하세요.`);
+            if (kind !== want) {
+                mismatch = true;
+                logLine(`⚠ '${f.name}' 은 ${KIND_LABEL[kind]} 처럼 보입니다(이 칸은 ${KIND_LABEL[want]}). 맞는지 확인하세요.`);
+            }
         } catch (e) {
+            mismatch = true;
             logLine(`⚠ '${f.name}' 앞부분을 읽지 못했습니다: ${errText(e)}`);
         }
+        const wasMissing = missingOf(tab, step);
         await putSlot(tab, step, slot, f);
+        logLine(`✓ '${f.name}' → ${(slotsOf(tab, step).find(m => m.id === slot) || { title: slot }).title}`);
+        // 2026-11-13 칸에 직접 넣어도 이 단계 파일이 다 차면 저절로 시작(주 파일을 넣었거나 이번에 빈 칸이 다 참). 모양이 칸과 다르면 멈춘다
+        const put = slot === (step === 1 ? 'request' : 'admin') || wasMissing.length > 0;
+        autoRun = await autoGate(tab, step, { put, mismatch, n: 1 });
     } catch (e) {
         logLine(`✗ 파일을 넣지 못했습니다: ${errText(e)}`);
     } finally {
         setBusy(false);
         render();
     }
+    await afterGate(autoRun);
 }
 
 /** 1단계를 마치고 2단계(출고전표)를 기다리는 탭 */
@@ -710,10 +797,20 @@ function saveMade(k, tab, step) {
  */
 async function dropMany(fileList) {
     if (!modeView(S.mode).autoRoute) return dropLegacy(fileList);
+    const r = await dropManyFiles(fileList);
+    if (!r) return;
+    if (r.mixedPlan) await runQueue(r.mixedPlan);
+    else await afterGate(r.autoRun);
+}
+/** dropMany 본체 — 칸을 채우고 { autoRun(autoGate 결과) | mixedPlan(섞어 올리기 계획) } 을 돌려준다(시작은 바쁨을 푼 뒤 dropMany 가) */
+async function dropManyFiles(fileList) {
     const files = [...fileList];
     if (!files.length) return;
-    let autoRun = false;
+    if (S.queueRunning) { toast('섞어 올린 묶음을 만드는 중입니다 — 끝난 뒤 다시 넣어 주세요.'); return; }
+    let autoRun = null;
+    let mixedPlan = null;
     S.why = '';
+    newLogGroup({ kind: 'drop' });
     setBusy(true, '파일 종류를 보는 중…');
     try {
         const { X } = await loadLibs();
@@ -723,6 +820,11 @@ async function dropMany(fileList) {
             let kind = 'unknown';
             try { kind = classifyPeek(peekBook(X, f.bytes, f.name)); } catch (_) { /* 알 수 없음 */ }
             judged.push({ ...f, kind });
+        }
+        // 직진·에이블리가 섞였으면(2026-11-13 섞어 올리기) 플랫폼·단계 묶음으로 나눠 차례로 — 한 플랫폼만이면 아래 옛 길 그대로
+        if (isMixed(judged)) {
+            mixedPlan = await planDrop(X, judged);
+            return { mixedPlan };
         }
         const route = routeFiles(judged, { tab: S.tab, pending: pendingTabs() });
         if (route.error) {
@@ -739,22 +841,29 @@ async function dropMany(fileList) {
         }
         if (moved) S.foldOpen = false;
         const tab = S.tab, step = S.step[tab];
+        if (route.step !== null) logMeta({ tab, step });
         if (moved) logLine(`→ ${TAB_LABEL[tab]} ${step}단계로 옮겼습니다(올린 파일로 알아봄).`);
         if (route.note) logLine('⚠ ' + route.note);
+        const wasMissing = missingOf(tab, step);
         const { assign, notes } = assignFiles(judged, tab, step);
+        let nPut = 0;
         for (const [slot, f] of Object.entries(assign)) {
             const { kind, ...file } = f;
             await putSlot(tab, step, slot, file);
+            nPut++;
             logLine(`✓ '${file.name}' → ${slotsOf(tab, step).find(m => m.id === slot).title}`);
         }
         // 1단계로 갈 때 같이 넣은 양식(원본)은 2단계 칸에 — '1단계에 쓰지 않습니다' 안내는 뺀다
         let rest = await takeZgTemp(judged, notes, tab, step);
+        if (rest.length < notes.length) nPut++;   // 직진 원본(임시)을 2단계 칸에 넣음
+        let nSeen = nPut;                          // '파일 n개 인식' — 다른 단계 칸에 넣은 것도 센다
         if (step === 1 && SLOTS[tab][2].template) {
             const tmplKind = SLOTS[tab][2].template;
             const tmpl = judged.find(f => f.kind === tmplKind);
             if (tmpl) {
                 const { kind, ...file } = tmpl;
                 await putSlot(tab, 2, 'template', file);
+                nSeen++;
                 logLine(`✓ '${file.name}' → 2단계 ${SLOT_META[tab][2].find(m => m.id === 'template').title}`);
                 rest = rest.filter(n => !n.startsWith(`'${tmpl.name}'`));
             }
@@ -762,39 +871,256 @@ async function dropMany(fileList) {
         rest.forEach(n => logLine('⚠ ' + n));
         if (rest.length) toast(rest[0], 5000);
         else if (route.note) toast(route.note, 5000);
-        // 저절로 시작하는 것은 '이번에 그 단계의 주 파일(1단계 출고요청 · 2단계 출고전표)을 넣었고, 판단이 확실할 때'만.
-        //   탭을 추정했거나(route.note) 안내가 있었거나(파일 둘·모르는 파일) 패키지명 날짜가 오늘이 아니면 [만들기]를 누르게 한다.
+        // 저절로 시작(2026-11-13 '올리면 자동') — 이번에 그 단계의 주 파일(1단계 출고요청 · 2단계 출고전표)을 넣었거나 이번에 빈 칸이 다 찼을 때,
+        //   js/lib/ship-auto.js autoDecision 표대로. 멈추는 것은 어느 플랫폼인지 모름·같은 종류 둘·패키지명 날짜가 이상함, 오늘 만든 묶음은 확인창
         const trigger = SLOTS[tab][step][step === 1 ? 'request' : 'admin'];
         const gotTrigger = route.step !== null && judged.some(f => f.kind === trigger && Object.values(assign).includes(f));
-        if (gotTrigger) {
-            const missing = missingOf(tab, step);
-            const stale = step === 2 && S.base[tab] && baseDatePart(S.base[tab]) !== kstDay().yymmdd;   // 앞 ZG·AB 는 떼고 날짜만
-            let why = '';
-            let made = null;
-            if (!missing.length && !route.note && !rest.length && !stale) {
-                try { made = findMade(madeState(), await madeKeyOf(tab, step, S.files[tab][step])); } catch (_) { made = null; }
-            }
-            if (missing.length) logLine(`  더 넣을 파일: ${missing.join(', ')}`);
-            else if (route.note || rest.length) why = '위 안내를 확인한 뒤';
-            else if (stale) why = `패키지명 베이스(${S.base[tab].trim()})가 오늘 날짜가 아니라 확인한 뒤`;
-            else if (made) why = `${made.at} 에 이미 만든 묶음이라 확인한 뒤`;
-            else if (!(await S.saver.ready())) why = '저장 폴더 확인이 필요해';
-            else autoRun = true;
-            if (why) {
-                logLine(`  파일이 다 들어왔습니다 — ${why} [만들기]를 눌러 주세요(저절로 시작하지 않았습니다).`);
-                if (!rest.length && !route.note) toast('파일이 다 들어왔습니다 — [만들기]를 눌러 주세요', 5000);
-                S.why = why;
-            }
-        }
+        const put = gotTrigger || (wasMissing.length > 0 && nPut > 0);
+        autoRun = await autoGate(tab, step, { put, ambiguous: route.note, dupes: dupesOf(judged, tab, step), extraWarns: rest, n: nSeen });
     } catch (e) {
         logLine(`✗ 파일을 넣지 못했습니다: ${errText(e)}`);
     } finally {
         setBusy(false);
         render();
     }
-    if (autoRun) {
-        logLine(`  필요한 파일이 다 있어 ${TAB_LABEL[S.tab]} ${S.step[S.tab]}단계를 바로 시작합니다.`);
-        await run({ auto: true });
+    return { autoRun };
+}
+
+// ── 섞어 올리기(2026-11-13) — 직진·에이블리 파일을 한꺼번에 ─────────────
+const REQ_KIND = { zikjin: KIND.ZIKJIN_REQUEST, ably: KIND.ABLY_REQUEST };
+/** 출고요청·출고전표의 상품코드(출고전표를 어느 쪽 출고요청과 짝지을지 — js/lib/ship-mixed.js). 못 읽으면 null. 화면에만, 남기지 않는다 */
+function codesOf(X, f) {
+    try {
+        const book = readBook(X, f.bytes, f.name);
+        if (f.kind === KIND.ZIKJIN_REQUEST) return zikjinStep1({ request: book }).items.map(x => String(x[0]).trim());
+        if (f.kind === KIND.ABLY_REQUEST) return readAblyRequest(book, []).map(r => String(r.code).trim());
+        if (f.kind === KIND.ADMIN) {
+            const ws = book.active();
+            const cc = headerColumns(ws, 1).get('상품코드');
+            if (!cc) return null;
+            const out = [];
+            for (let r = 2; r <= ws.maxRow; r++) {
+                const v = ws.cell(r, cc);
+                if (v !== null && v !== undefined && String(v).trim()) out.push(String(v).trim());
+            }
+            return out;
+        }
+    } catch (_) { /* 못 읽으면 짝을 못 지음 → 그 출고전표는 건너뜀 */ }
+    return null;
+}
+/** 섞인 파일 → 묶음 계획(진행 기록에 인식·건너뜀 안내) */
+async function planDrop(X, judged) {
+    for (const f of judged) if (f.kind === KIND.ZIKJIN_REQUEST || f.kind === KIND.ABLY_REQUEST || f.kind === KIND.ADMIN) f.codes = codesOf(X, f);
+    const pend = pendingTabs();
+    const pending = {};
+    for (const t of ['zikjin', 'ably']) {
+        const r = S.files[t][2].request;
+        pending[t] = pend[t] && r ? codesOf(X, { ...r, kind: REQ_KIND[t] }) : null;
+    }
+    const plan = planMixed(judged, { pending });
+    logLine(`→ 직진·에이블리 파일이 섞여 있어 묶음으로 나눕니다 — 파일 ${judged.length}개 · 만들 묶음 ${plan.jobs.length}개${plan.jobs.length ? `(${plan.jobs.map(j => jobLabel(j, TAB_LABEL)).join(' → ')})` : ''}`);
+    plan.skipped.forEach(s => logLine(`⚠ ${s.note ? '' : '건너뜀 — '}${s.names.map(n => `'${n}'`).join(', ')}: ${s.why}`));
+    return plan;
+}
+const stripKind = (f) => { const { kind, codes, ...file } = f; return file; };
+/**
+ * 묶음을 하나씩 — 칸을 채우고 같은 결정표(autoGate)로 저절로 만든다. 앞 묶음이 실패해도 다음 묶음은 한다.
+ * 같은 묶음 다시 만들기·전송 겹침 확인창이 뜨면 그 묶음에서 멈춰 묻고(확인창은 기다린다), 대답 뒤 이어 간다.
+ */
+async function runQueue(plan) {
+    S.queueRunning = true;
+    S.queue = null;   // 지난 섞어 올리기 목록은 지운다(이번 것이 끝나면 새로)
+    setBusy(false);   // 화면 잠금(locked) — 묶음 사이에도 단추·칸·[만들기]를 막는다
+    const t0 = plan.jobs.length;
+    let done = [];
+    try {
+        done = await runJobs(plan.jobs, async (j, idx) => {
+            const tab = j.tab, step = j.step;
+            const label = jobLabel(j, TAB_LABEL);
+            S.tab = tab; S.step[tab] = step; S.why = ''; S.foldOpen = false;
+            writeHash();
+            newLogGroup({ kind: 'run', tab, step });
+            let n = 0;
+            const put = async (st, slot, f) => {
+                await putSlot(tab, st, slot, stripKind(f));
+                n++;
+                logLine(`✓ '${f.name}' → ${st !== step ? `${st}단계 ` : ''}${(slotsOf(tab, st).find(m => m.id === slot) || { title: slot }).title}`);
+            };
+            if (step === 1 && j.pairWait) {
+                // 짝 없는 출고전표가 같이 들어온 드롭 — 이 출고요청으로 오늘 이미 1단계를 만들었으면 다시 만들지 않고 2단계 칸에서 짝을 기다린다(리뷰 높음 1)
+                let made = null;
+                try { made = findMade(madeState(), await madeKeyOf(tab, 1, { request: j.request })); } catch (_) { made = null; }
+                const cur = S.files[tab][2].request;
+                const waiting = pendingTabs()[tab];
+                let same = false;
+                if (waiting && made) { try { same = (await hashOf(cur)) === (await hashOf(j.request)); } catch (_) { same = false; } }
+                const plan = pairWaitPlan({ made: !!made, waiting, sameAsWaiting: same });
+                if (plan === 'keep') {
+                    // 2단계 칸에 다른 묶음이 기다리는 중 — 덮지 않는다(재리뷰 보통 2)
+                    const note = `${TAB_LABEL[tab]} 2단계 칸에 기다리는 출고요청('${cur.name}')이 있어 '${j.request.name}' 은 두지 않았습니다`;
+                    logLine(`⚠ ${note} — 1단계는 ${made.at} 에 이미 만들어 다시 만들지 않습니다(2단계 짝 대기).`);
+                    toast(note, 6000);
+                    render();
+                    return { label, tab, step, status: 'skip', why: `2단계 짝 대기 — ${note}. 1단계(재고출고용)는 ${made.at} 에 이미 만들었습니다. 기다리는 묶음을 마친 뒤 이 출고요청과 출고전표를 같이 놓아 주세요.`, last: null, results: [] };
+                }
+                if (plan === 'place') {
+                    S.step[tab] = 2;
+                    writeHash();
+                    S.files[tab][2].request = { ...stripKind(j.request), from: 'step1' };
+                    S.files[tab][2].admin = null;
+                    await summarizeSlot(tab, 'request', S.files[tab][2].request);
+                    logLine(`✓ '${j.request.name}' → 2단계 출고요청(2단계 짝 대기) — 1단계는 ${made.at} 에 이미 만들어 다시 만들지 않습니다.`);
+                    render();
+                    return { label, tab, step, status: 'skip', why: `2단계 짝 대기 — 1단계(재고출고용)는 ${made.at} 에 이미 만들어 다시 만들지 않았습니다. 맞는 출고전표를 놓으면 2단계를 만듭니다.`, last: null, results: [] };
+                }
+            }
+            if (step === 1) {
+                await put(1, 'request', j.request);
+                if (j.template && tab === 'ably') await put(2, 'template', j.template);
+            } else {
+                if (j.request) await put(2, 'request', j.request);
+                else logLine(`  출고요청: 1단계를 마치고 기다리던 '${S.files[tab][2].request.name}' 을 씁니다.`);
+                await put(2, 'admin', j.admin);
+                if (j.template && tab === 'ably') await put(2, 'template', j.template);
+                else if (j.template && tab === 'zikjin') {
+                    if (zgFallback()) { S.files.zikjin[2].template = stripKind(j.template); n++; logLine(`✓ '${j.template.name}' → ${ZG_TEMP_SLOT.title}`); }
+                    else logLine(`⚠ '${j.template.name}' — ${ZIKJIN_TEMPLATE_NOTE}`);
+                }
+            }
+            render();
+            const g = await autoGate(tab, step, { put: true, n, notInRequest: j.missing || 0, cover: step === 2 ? (j.cover ?? null) : null });
+            if (!g) {
+                logLine(`  ⚠ ${label} 은 건너뛰고 다음 묶음으로 갑니다.`);
+                return { label, tab, step, status: 'skip', why: S.why || '필요한 파일이 모자라 건너뛰었습니다', last: null, results: [] };
+            }
+            const text = autoStartText(g.n, TAB_LABEL[tab], step);
+            logLine(`${AUTO_MARK} ${text} — 섞어 올리기 ${idx + 1}/${t0}번째 묶음을 바로 시작합니다.`);
+            S.recog = text;
+            S.last = null;   // 이 묶음 결과만 보게(run 이 일찍 끝나도 앞 묶음 결과를 이 묶음 것으로 세지 않게)
+            await run({ auto: true, madeOk: g.madeOk, warns: g.warns, dateWarn: g.dateWarn, queue: true });
+            const L = S.last;
+            const ok = !!(L && !L.failed);
+            return { label, tab, step, status: ok ? 'ok' : 'fail', why: '', last: L, results: S.results.slice(),
+                warns: ok ? L.summary.warns.length + L.warns.length + (L.dateWarn ? 1 : 0) : 0 };
+        });
+    } finally {
+        S.queueRunning = false;
+        setBusy(false);   // 잠금 풀기
+    }
+    // runJobs 가 잡은 예외(칸 넣기 실패 등)는 label 이 없다 — 묶음 이름을 채운다
+    done = done.map(x => ({ label: jobLabel(x.job, TAB_LABEL), tab: x.job.tab, step: x.job.step, last: null, results: [], ...x }));
+    for (const s of plan.skipped.filter(x => !x.note)) done.push({ label: s.tab ? `${TAB_LABEL[s.tab]}${s.step ? ` ${s.step}단계` : ''}` : '플랫폼 모름', tab: s.tab, step: s.step,
+        status: 'skip', why: `${s.names.map(x => `'${x}'`).join(', ')} — ${s.why}`, last: null, results: [] });
+    const shown = done.map(x => x.last).lastIndexOf(S.last);
+    S.queue = { jobs: done, view: shown >= 0 && S.last ? shown : -1 };
+    if (S.queue.view < 0) { S.last = null; S.results = []; }
+    // 끝 요약 — 진행 기록 따로 한 묶음 + 알림
+    newLogGroup({ kind: 'other', title: '섞어 올리기 결과' });
+    logLine(`섞어 올리기 결과 — 묶음 ${done.length}개 · ${queueCounts(done).text}`);
+    const mark = { ok: '✓', fail: '✗', skip: '⚠' };
+    const word = { ok: '완료', fail: '실패', skip: '건너뜀' };
+    done.forEach(x => logLine(`${mark[x.status]} ${x.label} — ${word[x.status]}${x.status === 'ok' && x.warns ? ` · 확인할 것 ${x.warns}개` : ''}${x.why ? ` · ${x.why}` : ''}`));
+    toast(`섞어 올리기 끝 — ${queueCounts(done).text}`, 6000);
+    render();
+}
+
+/** 결과 카드 맨 위 — 섞어 올리기 묶음별 결과(고르면 아래 카드가 그 묶음으로) · 묶음마다 [받기] */
+function renderQueue() {
+    const box = $('sp-queue');
+    const Q = S.queue;
+    if (!Q || !Q.jobs.length) { box.hidden = true; box.innerHTML = ''; return; }
+    box.hidden = false;
+    const pill = { ok: ['ok', '완료'], fail: ['risk', '실패'], skip: ['warn', '건너뜀'] };
+    const rows = Q.jobs.map((x, i) => {
+        const [cls, word] = pill[x.status];
+        const detail = x.status === 'ok' ? (x.last.summary.title.split(' — ')[1] || '') : x.status === 'fail' ? '진행 기록을 확인하세요' : x.why;
+        const files = x.results.map((r, k) => `<button class="d-btn d-btn-sm" data-qagain="${i}:${k}" title="${esc(r.name)}">${esc(r.name)} 받기</button>`).join('');
+        const view = x.last ? `<button class="d-btn d-btn-sm" data-qview="${i}"${i === Q.view ? ' aria-pressed="true"' : ''}>${i === Q.view ? '보는 중' : '자세히'}</button>` : '';
+        return `<li class="sp-q-row is-${x.status}${i === Q.view ? ' is-view' : ''}"><div class="sp-q-head"><span class="pd-pill ${cls}">${word}</span><b>${esc(x.label)}</b>
+            <span class="sp-q-detail">${esc(detail)}</span>${x.warns ? `<span class="pd-pill warn">확인할 것 ${esc(x.warns)}</span>` : ''}<span class="sp-lg-grow"></span>${view}</div>
+            ${files ? `<div class="sp-q-files">${files}</div>` : ''}</li>`;
+    }).join('');
+    box.innerHTML = `<div class="sp-q-title">섞어 올리기 — 묶음 ${esc(Q.jobs.length)}개 · ${esc(queueCounts(Q.jobs).text)}</div><ol class="sp-q-list">${rows}</ol>`;
+}
+function bindQueue() {
+    $('sp-queue').addEventListener('click', (e) => {
+        const Q = S.queue;
+        if (!Q || locked()) return;
+        const v = e.target.closest('button[data-qview]');
+        if (v) {
+            const x = Q.jobs[Number(v.dataset.qview)];
+            if (!x || !x.last) return;
+            Q.view = Number(v.dataset.qview);
+            S.last = x.last; S.results = x.results.slice();
+            S.cmp.right = S.results.map(r => ({ name: r.name, bytes: r.bytes, size: r.bytes.byteLength, from: 'web' }));
+            $('sp-cmp-out').innerHTML = '';
+            renderResults();   // 아래 파일 목록도 그 묶음 것으로
+            render();
+            return;
+        }
+        const b = e.target.closest('button[data-qagain]');
+        if (!b) return;
+        const [i, k] = b.dataset.qagain.split(':').map(Number);
+        const r = Q.jobs[i] && Q.jobs[i].results[k];
+        if (r) downloadAgain(r);
+    });
+}
+
+/** 같은 칸에 갈 파일이 둘 이상(앞의 것만 넣음) — 어느 것을 쓸지 몰라 저절로 시작하지 않는다 */
+function dupesOf(judged, tab, step) {
+    const kinds = Object.values((SLOTS[tab] || {})[step] || {});
+    const seen = new Set();
+    let n = 0;
+    for (const f of judged) {
+        if (!kinds.includes(f.kind)) continue;
+        if (seen.has(f.kind)) n++; else seen.add(f.kind);
+    }
+    return n;
+}
+
+/** 저절로 시작하지 않은 이유를 남기고 [만들기]를 강조 */
+function stopWhy(why) {
+    logLine(`  파일이 다 들어왔습니다 — ${why} [만들기]를 눌러 주세요(저절로 시작하지 않았습니다).`);
+    toast('파일이 다 들어왔습니다 — 확인한 뒤 [만들기]를 눌러 주세요', 5000);
+    S.why = why;
+}
+
+/**
+ * 파일을 넣은 뒤(통합·개별 선택 공통) — 저절로 시작할지 정한다(js/lib/ship-auto.js autoDecision).
+ *   오늘 이미 만든 묶음이면 확인창으로 묻는다(데이터가 두 번 들어갈 수 있는 확인은 남긴다 — [만들기]와 같은 문구).
+ *   저장 폴더는 묻지 않는다: 폴더를 아직 안 골랐거나 권한을 다시 받아야 하면 run 이 다운로드로 받고 결과 카드에 안내한다
+ *   (끌어다 놓기는 클릭이 아니라 브라우저가 폴더 권한을 물을 수 없다).
+ * @returns {Promise<null|{ tab, step, madeOk: boolean, dateWarn: string, warns: string[], n: number }>}  null = 시작 안 함
+ */
+async function autoGate(tab, step, { put, ambiguous = null, dupes = 0, mismatch = false, notInRequest = 0, cover = null, extraWarns = [], n = 0 }) {
+    freshBase(tab);
+    const missing = missingOf(tab, step);
+    const d = autoDecision({ put, step, missing, ambiguous, dupes, mismatch, notInRequest, cover, base: S.base[tab], touched: S.baseTouched[tab], now: new Date() });
+    if (d.action === 'none') return null;
+    if (d.action === 'wait') { logLine(`  더 넣을 파일: ${missing.join(', ')}`); return null; }
+    if (d.action === 'stop') { stopWhy(d.why); return null; }
+    let made = null;
+    try { made = findMade(madeState(), await madeKeyOf(tab, step, S.files[tab][step])); } catch (_) { made = null; }
+    let madeOk = false;
+    if (made) {
+        if (!confirm(madeConfirmText(made, { step, transmit: transmitOn() }))) {
+            logLine('  다시 만들지 않았습니다(확인창에서 취소).');
+            S.why = `${made.at} 에 이미 만든 묶음이라 확인한 뒤`;
+            return null;
+        }
+        madeOk = step === 2;   // [만들기]에서 확인한 것과 같게 — 전송 때 같은 묶음 확인을 다시 묻지 않는다
+    }
+    return { tab, step, madeOk, dateWarn: d.warn, warns: extraWarns.filter(Boolean), n };
+}
+
+/** autoGate 가 시작하라면 '자동 시작' 을 남기고 run, 아니면 [만들기]에 초점 */
+async function afterGate(g) {
+    if (g && !S.busy && S.tab === g.tab && S.step[g.tab] === g.step) {
+        const text = autoStartText(g.n, TAB_LABEL[g.tab], g.step);
+        logLine(`${AUTO_MARK} ${text} — 필요한 파일이 다 있어 바로 시작합니다.`);
+        S.recog = text;
+        toast(text);
+        await run({ auto: true, madeOk: g.madeOk, warns: g.warns, dateWarn: g.dateWarn });
     } else if (!S.busy) {
         $('sp-run').focus();
     }
@@ -807,8 +1133,10 @@ async function dropMany(fileList) {
 async function dropLegacy(fileList) {
     const tab = S.tab, step = S.step[tab];
     const files = [...fileList];
-    if (!files.length) return;
+    if (!files.length || S.queueRunning) return;
     S.why = '';
+    newLogGroup({ kind: 'drop', tab, step });
+    let autoRun = null;
     setBusy(true, '파일 종류를 보는 중…');
     try {
         const { X } = await loadLibs();
@@ -819,29 +1147,36 @@ async function dropLegacy(fileList) {
             try { kind = classifyPeek(peekBook(X, f.bytes, f.name)); } catch (_) { /* 알 수 없음 */ }
             judged.push({ ...f, kind });
         }
+        const wasMissing = missingOf(tab, step);
         const { assign, notes: notes0 } = assignFiles(judged, tab, step, { screen: true });
+        let nPut = 0;
         for (const [slot, f] of Object.entries(assign)) {
             const { kind, ...file } = f;
             await putSlot(tab, step, slot, file);
+            nPut++;
             logLine(`✓ '${file.name}' → ${slotsOf(tab, step).find(m => m.id === slot).title}`);
         }
         const notes = await takeZgTemp(judged, notes0, tab, step);
+        if (notes.length < notes0.length) nPut++;
         notes.forEach(n => logLine('⚠ ' + n));
         if (notes.length) toast(notes[0], 6000);
-        const missing = missingOf(tab, step);
-        if (Object.keys(assign).length || notes.length < notes0.length) logLine(missing.length ? `  더 넣을 파일: ${missing.join(', ')}` : '  파일이 다 들어왔습니다 — [만들기]를 눌러 주세요.');
+        // 2026-11-13 개별 선택도 지금 단계 파일이 다 차면 저절로 시작(통합과 같은 표 — js/lib/ship-auto.js). 다른 쪽 파일 안내는 넣지 않은 것이라 멈추지 않는다
+        const trigger = SLOTS[tab][step][step === 1 ? 'request' : 'admin'];
+        const gotTrigger = Object.values(assign).some(f => f.kind === trigger);
+        const put = gotTrigger || (wasMissing.length > 0 && nPut > 0);
+        autoRun = await autoGate(tab, step, { put, dupes: dupesOf(judged, tab, step), extraWarns: notes, n: nPut });
     } catch (e) {
         logLine(`✗ 파일을 넣지 못했습니다: ${errText(e)}`);
     } finally {
         setBusy(false);
         render();
     }
-    if (!S.busy) $('sp-run').focus();
+    await afterGate(autoRun);
 }
 
 /** 화면 방식 바꾸기([개별 선택] › 직진배송·에이블리 · [통합으로 돌아가기]) — 기억하지 않는다(다시 열면 통합) */
 function setMode(mode) {
-    if (S.busy) return;
+    if (locked()) return;
     S.mode = loadMode(mode);
     S.tab = tabForMode(S.mode, S.tab);
     resetView();
@@ -854,7 +1189,7 @@ function bindDrop() {
     const cmp = $('sp-compare');
     const isFiles = (e) => e.dataTransfer && Array.from(e.dataTransfer.types || []).includes('Files');
     area.addEventListener('dragover', (e) => {
-        if (!isFiles(e) || S.busy) return;
+        if (!isFiles(e) || locked()) return;
         e.preventDefault();
         const slot = e.target.closest('.sp-slot');
         area.classList.toggle('is-over', !slot);
@@ -867,7 +1202,7 @@ function bindDrop() {
         }
     });
     area.addEventListener('drop', (e) => {
-        if (!isFiles(e) || S.busy) return;
+        if (!isFiles(e) || locked()) return;
         e.preventDefault();
         area.classList.remove('is-over');
         document.querySelectorAll('.sp-slot').forEach(s => s.classList.remove('is-over'));
@@ -882,7 +1217,7 @@ function bindDrop() {
     window.addEventListener('dragover', (e) => {
         if (!isFiles(e)) return;
         e.preventDefault();
-        intake.classList.toggle('is-over', !S.busy && !area.contains(e.target) && !cmp.contains(e.target));
+        intake.classList.toggle('is-over', !locked() && !area.contains(e.target) && !cmp.contains(e.target));
     });
     window.addEventListener('dragleave', (e) => { if (!e.relatedTarget) intake.classList.remove('is-over'); });
     window.addEventListener('drop', (e) => {
@@ -890,24 +1225,24 @@ function bindDrop() {
         if (!isFiles(e) || area.contains(e.target)) return;
         e.preventDefault();               // 바쁠 때도 브라우저가 파일을 열지 않게 막기는 한다
         if (cmp.contains(e.target)) return;   // 비교 칸이 받는다(bindCompare)
-        if (S.busy) { toast('처리 중입니다 — 끝난 뒤 다시 넣어 주세요.'); return; }
+        if (locked()) { toast('처리 중입니다 — 끝난 뒤 다시 넣어 주세요.'); return; }
         dropMany(e.dataTransfer.files);
     });
     // [파일 고르기](여러 개) — 놓기와 같이 알아보고 진행
     $('sp-pick-many').addEventListener('click', () => {
-        if (S.busy) return;
+        if (locked()) return;
         const inp = $('sp-files-input');
         inp.value = '';
         inp.click();
     });
     $('sp-files-input').addEventListener('change', (e) => {
         const files = e.target.files;
-        if (files && files.length && !S.busy) dropMany(files);
+        if (files && files.length && !locked()) dropMany(files);
     });
 
     $('sp-slots').addEventListener('click', async (e) => {
         const b = e.target.closest('button[data-sp]');
-        if (!b || S.busy) return;
+        if (!b || locked()) return;
         const slot = b.closest('.sp-slot').dataset.slot;
         const tab = S.tab, step = S.step[tab];
         if (b.dataset.sp === 'pick') {
@@ -924,7 +1259,7 @@ function bindDrop() {
     // 기본 양식 — [설정] › 기본 양식의 [양식 올리기](관리자) · [다시 확인] (설정 창 본문은 열 때마다 새로 그려서 위임으로 받는다)
     $('sp-modal-body').addEventListener('click', async (e) => {
         const b = e.target.closest('button[data-tmpl]');
-        if (!b || S.busy) return;
+        if (!b || locked()) return;
         const kind = b.dataset.kind === 'ably' ? 'ably' : 'zikjin';
         if (b.dataset.tmpl === 'reload') {
             b.disabled = true;
@@ -941,7 +1276,7 @@ function bindDrop() {
     });
     $('sp-tmpl-input').addEventListener('change', (e) => {
         const file = e.target.files && e.target.files[0];
-        if (!file || S.busy) return;
+        if (!file || locked()) return;
         if (S.tmplPick === 'ably') uploadAbTemplate(file);
         else if (S.tmplPick === 'zikjin') uploadZgTemplate(file);
         S.tmplPick = null;
@@ -950,16 +1285,24 @@ function bindDrop() {
         const files = e.target.files;
         if (files && files.length && S.pickSlot) dropOnSlot(S.pickSlot, files);
     });
-    $('sp-fold-open').addEventListener('click', () => { if (S.busy) return; S.foldOpen = true; render(); });
+    $('sp-fold-open').addEventListener('click', () => { if (locked()) return; S.foldOpen = true; render(); });
 }
 
 // ── 결과 저장 ──────────────────────────────────────────────
 async function saveOut(name, bytes) {
     const res = await S.saver.save(name, bytes, mimeOf(name));
     S.results.push({ name, bytes });
+    if (S.runSaves) S.runSaves.push(res.how);
     logLine(`  저장: ${name}${res.how === 'folder' ? ` → 폴더 '${res.folder}'` : ' → 다운로드'}`);
     renderResults();
     renderFolder();
+}
+/** 폴더에 쓸 수 있는 브라우저인데 다운로드로 받았으면(폴더를 아직 안 골랐거나 권한을 다시 받아야 함) 결과 카드 안내 */
+function saveNoteOf(hows) {
+    if (!S.saver || !S.saver.supportsFolder() || !Array.isArray(hows) || !hows.includes('download')) return '';
+    return S.saver.folderName
+        ? `저장 폴더 '${S.saver.folderName}' 에 쓸 권한을 다시 받아야 해 이번에는 다운로드로 받았습니다 — 위 [저장 폴더] 단추로 폴더를 다시 고르면 다음부터 그 폴더에 저장합니다.`
+        : '저장 폴더를 아직 고르지 않아 다운로드로 받았습니다 — 위 [저장 폴더 고르기]로 폴더를 고르면 다음부터 그 폴더에 저장합니다.';
 }
 function renderResults() {
     $('sp-results').innerHTML = S.results.map((r, i) => `<div class="sp-result"><span class="pd-pill ok">완료</span><b>${esc(r.name)}</b>
@@ -972,13 +1315,17 @@ function bindResults() {
         const b = e.target.closest('button[data-again]');
         if (!b) return;
         const r = S.results[Number(b.dataset.again)];
-        if (!r) return;
-        const url = URL.createObjectURL(new Blob([r.bytes], { type: mimeOf(r.name) }));
-        const a = document.createElement('a');
-        a.href = url; a.download = r.name; a.style.display = 'none';
-        document.body.appendChild(a); a.click(); a.remove();
-        setTimeout(() => URL.revokeObjectURL(url), 60000);
+        if (r) downloadAgain(r);
     });
+    bindQueue();
+}
+/** 만든 파일 다시 받기(다운로드) */
+function downloadAgain(r) {
+    const url = URL.createObjectURL(new Blob([r.bytes], { type: mimeOf(r.name) }));
+    const a = document.createElement('a');
+    a.href = url; a.download = r.name; a.style.display = 'none';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
 }
 
 // ── 결과 카드 ──────────────────────────────────────────────
@@ -990,7 +1337,8 @@ const recentTransmit = () => {
 function renderResultCard() {
     const card = $('sp-result-card');
     const L = S.last;
-    card.hidden = !L && !S.results.length;
+    card.hidden = !L && !S.results.length && !(S.queue && S.queue.jobs.length);
+    renderQueue();
     const title = $('sp-result-title');
     if (!L) { title.textContent = S.results.length ? '만든 파일' : ''; title.className = 'sp-result-title'; }
     else if (L.failed) { title.textContent = `✗ ${TAB_LABEL[L.tab]} ${L.step}단계 실패 — 아래 진행 기록을 확인하세요`; title.className = 'sp-result-title is-fail'; }
@@ -999,8 +1347,15 @@ function renderResultCard() {
     const exe = $('sp-result-exe');
     exe.hidden = !(L && !L.failed && L.step === 2 && L.transmit && L.transmit.key && transmitOn() && recentTransmit());
     exe.textContent = exe.hidden ? '' : '전송 켬 — 이 묶음은 이 화면이 로케이션 관리·봉 수에 보냈습니다. exe 로 또 보내지 마세요(두 번 들어갑니다).';
-    // 노란 경고
-    const warns = L && !L.failed ? [...L.summary.warns, ...L.warns] : [];
+    // 맨 위 띠(2026-11-13) — 날짜가 오늘이 아닌데 저절로 만듦(노랑) · 폴더를 못 써 다운로드로 받음(파랑)
+    const note = $('sp-result-note');
+    const dateWarn = L && !L.failed ? (L.dateWarn || '') : '';
+    const saveNote = L && !L.failed ? (L.saveNote || '') : '';
+    note.hidden = !dateWarn && !saveNote;
+    note.innerHTML = [dateWarn ? `<div class="pd-alert warn sp-note-date"><b>날짜 확인</b> — ${esc(dateWarn)}</div>` : '',
+        saveNote ? `<div class="pd-alert info sp-note-save">${esc(saveNote)}</div>` : ''].join('');
+    // 노란 경고 — 날짜 띠가 있으면 같은 날짜 경고(ship-summary)는 목록에서 뺀다
+    const warns = L && !L.failed ? [...L.summary.warns.filter(x => !(dateWarn && x.startsWith('패키지명 날짜'))), ...L.warns] : [];
     const w = $('sp-warn');
     w.hidden = !warns.length;
     w.innerHTML = warns.length ? `<b>확인할 것</b><ul>${warns.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : '';
@@ -1017,7 +1372,7 @@ function renderBatches() {
     const rows = T.today.map(t => {
         const mine = t.key === T.key;
         const who = t.key === LEGACY ? 'exe·옛 방식 몫' : (hhmm(t.at) || '시각 없음');
-        const btn = t.key === LEGACY ? '' : `<button class="d-btn d-btn-sm" data-rm="${esc(t.key)}"${S.busy ? ' disabled' : ''}>묶음 빼기</button>`;
+        const btn = t.key === LEGACY ? '' : `<button class="d-btn d-btn-sm" data-rm="${esc(t.key)}"${locked() ? ' disabled' : ''}>묶음 빼기</button>`;
         return `<tr${mine ? ' class="is-mine"' : ''}><td>${esc(who)}${mine ? ' <span class="pd-pill accent">이번 묶음</span>' : ''}</td>
             <td class="n">${t.k ? fmt(t.k) : '-'}</td><td class="n">${fmt(t.q)}</td><td class="n">${t.n === null || t.n === undefined ? '-' : fmt(t.n)}</td><td class="x">${btn}</td></tr>`;
     }).join('');
@@ -1040,17 +1395,19 @@ async function refreshBatches(T, rows, now = new Date()) {
 function bindBatches() {
     $('sp-batches').addEventListener('click', async (e) => {
         const b = e.target.closest('button[data-rm]');
-        if (!b || S.busy || !S.last || !S.last.transmit) return;
+        if (!b || locked() || !S.last || !S.last.transmit) return;
         const T = S.last.transmit;
         const t = (T.today || []).find(x => x.key === b.dataset.rm);
         if (!t || !transmitOn()) return;
         if (T.day8 && T.day8 !== kstDay().ymd8) {   // 자정이 지났다 — 로케이션에는 오늘 행만 남아 그날 몫을 뺄 수 없다
             toast('보낸 날이 지나 이 묶음을 뺄 수 없습니다 — 로케이션 관리에서 직접 확인하세요.', 6000);
+            newLogGroup({ kind: 'other', title: '묶음 빼기' });
             logLine(`  ⚠ 묶음 빼기 안 함: 보낸 날(${T.day8})이 지났습니다 — 로케이션에는 오늘 행만 남습니다.`);
             return;
         }
         const what =`${hhmm(t.at) || '오늘'} 에 보낸 묶음(품목 ${fmt(t.k)} · 수량 ${fmt(t.q)}${t.n !== null && t.n !== undefined ? ` · ${fmt(t.n)}봉` : ''})`;
         if (!confirm(`${what}을 오늘 실적에서 뺄까요?\n로케이션 관리·봉 수에서 이 묶음 몫만 빠집니다(다른 묶음은 그대로). 만든 파일은 지우지 않습니다.`)) return;
+        newLogGroup({ kind: 'other', title: '묶음 빼기' });
         setBusy(true, '묶음 빼는 중…');
         try {
             const r = await removeBatch(S.db, { source: T.source, key: t.key, packDay: T.packDay, day8: T.day8 || null }, { enabled: true, now: new Date() });
@@ -1119,7 +1476,7 @@ function bindCompare() {
     const cmp = $('sp-compare');
     cmp.addEventListener('click', (e) => {
         const b = e.target.closest('button[data-cmp]');
-        if (!b || S.busy) return;
+        if (!b || locked()) return;
         const act = b.dataset.cmp;
         if (act === 'pick') {
             S.cmp.side = b.dataset.side;
@@ -1354,6 +1711,7 @@ async function zgTemplateBytes() {
 async function uploadZgTemplate(file) {
     if (!S.isAdmin) return;
     if (!ZG_TEMPLATE_UPLOAD_ON) { toast(ZG_UPLOAD_OFF_TEXT, 5000); return; }
+    newLogGroup({ kind: 'other', title: '양식 올리기' });
     setBusy(true, '양식 정리 중…');
     try {
         const { JSZip } = await loadLibs();
@@ -1428,6 +1786,7 @@ async function ablyAppTemplate() {
 async function uploadAbTemplate(file) {
     if (!S.isAdmin) return;
     if (!ZG_TEMPLATE_UPLOAD_ON) { toast(ZG_UPLOAD_OFF_TEXT, 5000); return; }
+    newLogGroup({ kind: 'other', title: '양식 올리기' });
     setBusy(true, '양식 정리 중…');
     try {
         const { X, JSZip } = await loadLibs();
@@ -1470,11 +1829,20 @@ async function refreshSettings() {
     }
 }
 
-/** @param {{auto?: boolean}} opts  auto = 파일을 놓아 저절로 시작(같은 묶음 확인은 dropMany 가 이미 했다 — 묻지 않는다) */
+/**
+ * @param {{auto?: boolean, madeOk?: boolean, warns?: string[], dateWarn?: string, queue?: boolean}} opts
+ *   auto = 파일을 넣어 저절로 시작(같은 묶음 확인은 autoGate 가 이미 했다 — 묻지 않는다. 클릭이 아니라 저장 폴더를 묻지 않고, 못 쓰면 다운로드)
+ *   madeOk = autoGate 확인창에서 '이미 만든 묶음 — 다시 만들기'에 확인함 · warns = 결과 카드 '확인할 것'에 더할 글(넣지 않은 파일 등)
+ *   dateWarn = 패키지명 날짜가 오늘이 아닌데 저절로 시작함 — 진행 기록 ⚠⚠ 줄 + 결과 카드 맨 위 노란 띠
+ *   queue = 섞어 올리기 묶음 하나(runQueue) — 결과 카드 묶음 목록(S.queue)을 지우지 않는다
+ */
 async function run(opts = {}) {
-    if (S.busy) return;
+    if (S.busy || (S.queueRunning && opts.queue !== true)) return;   // 섞어 올리기 중에는 큐에서 온 호출만
     const auto = opts.auto === true;
     const tab = S.tab, step = S.step[tab];
+    if (!auto) newLogGroup({ kind: 'run', tab, step });
+    if (step === 2) freshBase(tab);
+    if (!opts.queue) S.queue = null;   // 섞어 올리기 묶음 목록은 그 다음 한 묶음 실행 때 지운다
     const f = { ...S.files[tab][step] };   // 실행 중에 칸이 바뀌어도 이번 실행은 누른 순간의 파일로
     const missing = missingOf(tab, step);
     if (missing.length) {
@@ -1502,12 +1870,14 @@ async function run(opts = {}) {
     let T = null;
     let mk = null;
     try {
-        try { await S.saver.prepare(); } catch (_) { /* 못 하면 다운로드로 받는다 */ }   // 클릭 안에서 — 폴더를 한 번 묻거나 권한을 받는다
+        // 클릭 안에서 — 폴더를 한 번 묻거나 권한을 받는다. 저절로 시작은 클릭이 아니라 묻지 못한다(물으면 브라우저가 거절하고 이 창은 다운로드로 굳는다) —
+        //   묻지 않고, 폴더를 못 쓰면 save 가 다운로드로 받는다(결과 카드에 '폴더를 고르면 다음부터' 안내)
+        if (!auto) { try { await S.saver.prepare(); } catch (_) { /* 못 하면 다운로드로 받는다 */ } }
         renderFolder();
         // 같은 날 같은 묶음 — 폴더 권한을 받은 뒤에 묻는다(확인창이 클릭 권한을 쓰지 않게)
         try { mk = await madeKeyOf(tab, step, f); } catch (_) { mk = null; }
         const prev = mk ? findMade(madeState(), mk) : null;
-        let madeOk = false;
+        let madeOk = auto && opts.madeOk === true;
         if (prev && !auto) {
             if (!confirm(madeConfirmText(prev, { step, transmit: transmitOn() }))) {
                 toast('다시 만들지 않았습니다.');
@@ -1519,9 +1889,11 @@ async function run(opts = {}) {
         S.results = [];
         S.last = null;
         S.runLog = [];
-        S.runWarns = [];
+        S.runWarns = Array.isArray(opts.warns) ? [...opts.warns] : [];
+        S.runSaves = [];
         renderResults();
         logLine(`===== ${TAB_LABEL[tab]} ${step}단계 시작 =====`);
+        if (auto && opts.dateWarn) logLine(`  ⚠⚠ ${opts.dateWarn}`);
         const { X, JSZip, ExcelJS } = await loadLibs();
         if (step === 2) await refreshSettings();   // 전송 켬·지정상품 규칙은 실행 직전 값으로
         renderTransmit();
@@ -1619,13 +1991,14 @@ async function run(opts = {}) {
                 console.warn('[플랫폼 출고] 결과 요약 실패:', (e && e.name) || 'Error');
                 summary = { title: `✅ ${TAB_LABEL[tab]} ${step}단계 완료`, warns: [] };
             }
-            S.last = { tab, step, failed: false, transmit: T, warns: [...S.runWarns], summary };
+            S.last = { tab, step, failed: false, transmit: T, warns: [...S.runWarns], summary, auto, saveNote: saveNoteOf(S.runSaves), dateWarn: auto ? (opts.dateWarn || '') : '' };
             if (mk) saveMade(mk, tab, step);   // 성공했을 때만 기록
             if (step === 2) S.session[tab].step2For = f.admin;
             S.cmp.right = S.results.map(x => ({ name: x.name, bytes: x.bytes, size: x.bytes.byteLength, from: 'web' }));
             $('sp-cmp-out').innerHTML = '';
         }
         S.runLog = null;
+        S.runSaves = null;
         S.phase = '';
         S.recog = '';
         setBusy(false);
@@ -1764,21 +2137,22 @@ async function start(user) {
 
     bindModeMenu();
     $('sp-tabs').addEventListener('click', (e) => {
-        const b = e.target.closest('.d-seg-btn'); if (!b || S.busy) return;
+        const b = e.target.closest('.d-seg-btn'); if (!b || locked()) return;
         if (!modeView(S.mode).showTabs) return;   // 기존 방식은 탭 고정(숨김)
         S.tab = b.dataset.tab; resetView(); writeHash(); render();
     });
     $('sp-steps').addEventListener('click', (e) => {
-        const b = e.target.closest('.d-seg-btn'); if (!b || S.busy) return;
+        const b = e.target.closest('.d-seg-btn'); if (!b || locked()) return;
         S.step[S.tab] = Number(b.dataset.step); resetView(); writeHash(); render();
     });
-    window.addEventListener('hashchange', () => { if (S.busy) return; readHash(); resetView(); render(); });
+    window.addEventListener('hashchange', () => { if (locked()) return; readHash(); resetView(); render(); });
     $('sp-run').addEventListener('click', () => run());
-    $('sp-log-clear').addEventListener('click', () => { $('sp-log').value = ''; });
-    $('sp-settings-btn').addEventListener('click', () => { if (!S.busy) openSettings(); });
+    bindLog();
+    renderLog();
+    $('sp-settings-btn').addEventListener('click', () => { if (!locked()) openSettings(); });
     $('sp-modal-close').addEventListener('click', closeSettings);
     $('sp-folder').addEventListener('click', async () => {
-        if (S.busy) return;
+        if (locked()) return;
         if (!S.saver.supportsFolder()) { toast('이 브라우저는 폴더에 바로 쓸 수 없어 다운로드로 받습니다.'); return; }
         const ok = await S.saver.chooseFolder();
         renderFolder();
@@ -1793,11 +2167,11 @@ async function start(user) {
 
 // 처리 중에 떠나면 만들던 파일이 사라진다
 window.addEventListener('beforeunload', (e) => {
-    if (!S.busy || leaveAlreadyConfirmed()) return;
+    if (!locked() || leaveAlreadyConfirmed()) return;
     e.preventDefault();
     e.returnValue = '';
 });
-onBeforeLeave(() => !S.busy || confirm('파일을 만드는 중입니다. 지금 나가면 만들던 결과가 사라집니다. 나갈까요?'));
+onBeforeLeave(() => !locked() || confirm('파일을 만드는 중입니다. 지금 나가면 만들던 결과가 사라집니다. 나갈까요?'));
 
 const { app, db, auth } = initializeFirebase();
 S.app = app; S.db = db; S.auth = auth;
