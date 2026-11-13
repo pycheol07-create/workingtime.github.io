@@ -4,16 +4,16 @@
 // admin-logic.collectConfigFromDOM 이 getPermModel() 로 권한 칸을 만든다(DOM 을 긁지 않는다).
 // ※ 봇이 읽는 div[role=dialog]·data-act 는 쓰지 않는다(관리자 페이지라 봇이 열지는 않지만 같은 규칙을 지킨다).
 
-import { FEATURES as ALL_FEATURES, FEATURE_GROUPS, FEATURE_BY_ID, RETIRED_FEATURE_IDS } from './lib/feature-catalog.js?v=202611131136';
+import { FEATURES as ALL_FEATURES, FEATURE_GROUPS, FEATURE_BY_ID, RETIRED_FEATURE_IDS } from './lib/feature-catalog.js?v=202611131153';
 // 권한 화면에는 없앤 기능(RETIRED_FEATURE_IDS — 기존 부족수량관리 등)을 안 보인다. 저장된 권한은 그대로 둔다(모델이 지우지 않음)
 const FEATURES = ALL_FEATURES.filter(f => !RETIRED_FEATURE_IDS.includes(f.id));
-import { roleFeatures, visibleMenuGroups } from './lib/perm.js?v=202611131136';
+import { roleFeatures, visibleMenuGroups } from './lib/perm.js?v=202611131153';
 import {
     createPermModel, autoAssignedCount, effectiveSet, resolvedOf, setAdmin, setRole, setFeature, resetToRole,
     usersOfRole, holdersOf, adminCount, addRole, renameRole, deleteRole, setRoleFeature, setDefaultRole, setEnforce
-} from './lib/perm-model.js?v=202611131136';
-import { withBuiltinMenus, SHELL_EXCLUDED_ACTIONS } from './menu-catalog.js?v=202611131136';
-import { isAdminOnlyNow, DATA_ADMIN_ONLY_NOTE, lastDayKeys, sumHits, HIT_COLLECTION } from './lib/perm-gate.js?v=202611131136';
+} from './lib/perm-model.js?v=202611131153';
+import { withBuiltinMenus, SHELL_EXCLUDED_ACTIONS } from './menu-catalog.js?v=202611131153';
+import { isAdminOnlyNow, DATA_ADMIN_ONLY_NOTE, lastDayKeys, sumHits, HIT_COLLECTION } from './lib/perm-gate.js?v=202611131153';
 
 let model = null;
 let config = null;

@@ -6,12 +6,15 @@
 //   integrations/zabPacks — 봉 수(옛 record_pack_count). 트랜잭션: 읽고 필드 경로만 갱신 + 90일 지난 날 지우기, 없으면 새로.
 //   같은 날 여러 묶음(2026-11-12): opts.batch 를 넘기면 묶음별로 더한다(js/lib/ship-batch.js). 미리보기·묶음 빼기도 여기서.
 //   persistent_data/shipPlatformSettings — 공용 설정(js/lib/ship-settings.js).
+//   persistent_data/shipActivity — 여러 자리 같이 보기(누가 만드는 중·오늘 만든 묶음, js/lib/ship-activity.js, 2026-11-13).
+//                         전송 켬과 상관없이 쓴다(출고 숫자가 아니라 진행 표시뿐). 규칙은 범용 쓰기(등록 직원).
 // 규칙: firestore.rules 의 ship.platform 블록. ⚠️ 전송(transmit)이 꺼져 있으면 부르는 쪽(js/ship.js)이 이 함수들을 부르지 않는다
 //   — ship-tx 도 enabled !== true 면 멈춘다(두 겹).
-import { doc, getDoc, getDocs, collection, runTransaction, setDoc, Timestamp, FieldPath, deleteField }
+import { doc, getDoc, getDocs, collection, runTransaction, setDoc, updateDoc, onSnapshot, Timestamp, FieldPath, deleteField }
     from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { pushLocationWith, recordPacksWith, previewBatchesWith, removeBatchWith, sendBatchWith } from './lib/ship-tx.js?v=202611131136';
-import { SETTINGS_PATH, normalizeSettings } from './lib/ship-settings.js?v=202611131136';
+import { pushLocationWith, recordPacksWith, previewBatchesWith, removeBatchWith, sendBatchWith } from './lib/ship-tx.js?v=202611131153';
+import { SETTINGS_PATH, normalizeSettings } from './lib/ship-settings.js?v=202611131153';
+import { ACTIVITY_PATH, applyRunPatch } from './lib/ship-activity.js?v=202611131153';
 
 const FS = { doc, getDoc, getDocs, collection, runTransaction, Timestamp, FieldPath, deleteField };
 const settingsRef = (db) => doc(db, ...SETTINGS_PATH);
@@ -41,3 +44,25 @@ export const previewBatches = (db, p, opts) => previewBatchesWith(FS, db, p, opt
 
 /** 묶음 빼기(로케이션 행 + 봉 수) → { location, packs } */
 export const removeBatch = (db, p, opts) => removeBatchWith(FS, db, p, opts);
+
+// ── 여러 자리 같이 보기(persistent_data/shipActivity) ──
+const activityRef = (db) => doc(db, ...ACTIVITY_PATH);
+
+/** 실행 하나 넣기·고치기(시작·끝) — 트랜잭션(날짜가 바뀌면 비우고, 40개 넘으면 정리) */
+export async function writeActivity(db, patch) {
+    await runTransaction(db, async (tx) => {
+        const snap = await tx.get(activityRef(db));
+        tx.set(activityRef(db), applyRunPatch(snap.exists() ? snap.data() : null, patch, new Date()));
+    });
+}
+
+/** 진행 중 표시만 고치기(읽지 않고 필드 한 칸). 문서가 없거나 날짜가 바뀌어 비워졌어도 화면은 start 없는 실행을 버린다 */
+export async function beatActivity(db, runId, at) {
+    await updateDoc(activityRef(db), { [`runs.${runId}.beat`]: at });
+}
+
+/** 구독 → 해제 함수. onData(문서 값 또는 null), onError(코드) */
+export function watchActivity(db, onData, onError) {
+    return onSnapshot(activityRef(db), (snap) => onData(snap.exists() ? snap.data() : null),
+        (e) => { if (onError) onError((e && e.code) || 'unknown'); });
+}

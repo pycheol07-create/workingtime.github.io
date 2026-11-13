@@ -29,31 +29,32 @@
 import { onAuthStateChanged, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { doc, getDocFromServer } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getStorage, ref as sRef, uploadBytes, getBlob, getMetadata } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
-import { initializeFirebase } from './config.js?v=202611131136';
-import { emulatorEnabled, connectStorageEmulatorIfEnabled } from './firebase-emulator.js?v=202611131136';
-import { setShellContext, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202611131136';
-import { memberNameFor } from './app-shell-data.js?v=202611131136';
-import { friendlyFirebaseError } from './utils.js?v=202611131136';
-import { resolve, can } from './lib/perm.js?v=202611131136';
-import { readBook, headerColumns } from './lib/ship-read.js?v=202611131136';
-import { zikjinStep1, zikjinStep2 } from './lib/ship-zikjin.js?v=202611131136';
-import { ablyStep1, ablyStep2, readAblyRequest } from './lib/ship-ably.js?v=202611131136';
-import { zikjinListBytes, ablyBulkBytes, stockXlsBytes, cleanZikjinTemplate, zikjinTemplateProblem, cleanAblyTemplate, ablyTemplateProblem } from './lib/ship-write.js?v=202611131136';
-import { pickingBytes } from './lib/ship-picking.js?v=202611131136';
-import { kstDay, baseDateWarning, targetArea, STOCK_OUT_MSG, PACK_PREFIX, baseDatePart, packageNameBase } from './lib/ship-core.js?v=202611131136';
-import { peekBook, classifyPeek, assignFiles, routeFiles, SLOTS, KIND, KIND_LABEL, ZIKJIN_TEMPLATE_NOTE } from './lib/ship-assign.js?v=202611131136';
-import { openShipStore, isFileRecord, sizeText, savedText, KEY_TEMPLATE, KEY_OUT_DIR } from './lib/ship-file-store.js?v=202611131136';
-import { createSaver, mimeOf } from './lib/save-file.js?v=202611131136';
-import { normalizeSettings, validateEdit, settingsWrite, parseLimit, activeRuleCount, MAX_RULES } from './lib/ship-settings.js?v=202611131136';
-import { flowState, foldState, modeView, loadMode, tabForMode, MODE_STORE_KEY, MODE_LABEL } from './lib/ship-flow.js?v=202611131136';
-import { summarizeRun, fileSummary, SUMMARY_MAX_BYTES } from './lib/ship-summary.js?v=202611131136';
-import { madeKey, loadMade, findMade, recordMade, madeConfirmText, MADE_STORE_KEY } from './lib/ship-made.js?v=202611131136';
-import { gridOf, comparePairs } from './lib/ship-compare.js?v=202611131136';
-import { batchKeyOf, codeTotals, freshKey, sha256Hex, LEGACY } from './lib/ship-batch.js?v=202611131136';
-import { loadSettings, saveSettings, sendBatch, previewBatches, removeBatch } from './ship-store.js?v=202611131136';
-import { logHtml, logText, AUTO_MARK } from './lib/ship-log.js?v=202611131136';
-import { autoDecision, autoStartText } from './lib/ship-auto.js?v=202611131136';
-import { isMixed, planMixed, jobLabel, runJobs, queueCounts, pairWaitPlan } from './lib/ship-mixed.js?v=202611131136';
+import { initializeFirebase } from './config.js?v=202611131153';
+import { emulatorEnabled, connectStorageEmulatorIfEnabled } from './firebase-emulator.js?v=202611131153';
+import { setShellContext, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202611131153';
+import { memberNameFor } from './app-shell-data.js?v=202611131153';
+import { friendlyFirebaseError } from './utils.js?v=202611131153';
+import { resolve, can } from './lib/perm.js?v=202611131153';
+import { readBook, headerColumns } from './lib/ship-read.js?v=202611131153';
+import { zikjinStep1, zikjinStep2 } from './lib/ship-zikjin.js?v=202611131153';
+import { ablyStep1, ablyStep2, readAblyRequest } from './lib/ship-ably.js?v=202611131153';
+import { zikjinListBytes, ablyBulkBytes, stockXlsBytes, cleanZikjinTemplate, zikjinTemplateProblem, cleanAblyTemplate, ablyTemplateProblem } from './lib/ship-write.js?v=202611131153';
+import { pickingBytes } from './lib/ship-picking.js?v=202611131153';
+import { kstDay, baseDateWarning, targetArea, STOCK_OUT_MSG, PACK_PREFIX, baseDatePart, packageNameBase } from './lib/ship-core.js?v=202611131153';
+import { peekBook, classifyPeek, assignFiles, routeFiles, SLOTS, KIND, KIND_LABEL, ZIKJIN_TEMPLATE_NOTE } from './lib/ship-assign.js?v=202611131153';
+import { openShipStore, isFileRecord, sizeText, savedText, KEY_TEMPLATE, KEY_OUT_DIR } from './lib/ship-file-store.js?v=202611131153';
+import { createSaver, mimeOf } from './lib/save-file.js?v=202611131153';
+import { normalizeSettings, validateEdit, settingsWrite, parseLimit, activeRuleCount, MAX_RULES } from './lib/ship-settings.js?v=202611131153';
+import { flowState, foldState, modeView, loadMode, tabForMode, MODE_STORE_KEY, MODE_LABEL } from './lib/ship-flow.js?v=202611131153';
+import { summarizeRun, fileSummary, SUMMARY_MAX_BYTES } from './lib/ship-summary.js?v=202611131153';
+import { madeKey, loadMade, findMade, recordMade, madeConfirmText, MADE_STORE_KEY } from './lib/ship-made.js?v=202611131153';
+import { gridOf, comparePairs } from './lib/ship-compare.js?v=202611131153';
+import { batchKeyOf, codeTotals, freshKey, sha256Hex, LEGACY } from './lib/ship-batch.js?v=202611131153';
+import { loadSettings, saveSettings, sendBatch, previewBatches, removeBatch, writeActivity, beatActivity, watchActivity } from './ship-store.js?v=202611131153';
+import { normalizeActivity, findSharedMade, activityBanner, newRunId, BEAT_MS } from './lib/ship-activity.js?v=202611131153';
+import { logHtml, logText, AUTO_MARK } from './lib/ship-log.js?v=202611131153';
+import { autoDecision, autoStartText } from './lib/ship-auto.js?v=202611131153';
+import { isMixed, planMixed, jobLabel, runJobs, queueCounts, pairWaitPlan } from './lib/ship-mixed.js?v=202611131153';
 
 const $ = (id) => document.getElementById(id);
 const APP_BASE = 'artifacts/team-work-logger-v2';
@@ -159,6 +160,8 @@ const S = {
     baseTouchedDay: { zikjin: '', ably: '' },      // 고친 날(KST YYMMDD) — 날짜가 바뀌면 '고침'을 풀고 오늘로(2026-11-13 리뷰)
     queue: null, queueRunning: false,   // 섞어 올리기(2026-11-13) — { jobs: [{ label, tab, step, status, why, last, results, warns }], view }
     runSaves: null,   // 이번 실행에서 저장한 방식들('folder'|'download') — 결과 카드 '폴더를 고르면 다음부터' 안내
+    // 여러 자리 같이 보기(2026-11-13, js/lib/ship-activity.js) — 문서 값·이 창에서 시작한 실행 id·직원 이름
+    actRaw: null, actMine: [], memberName: null,
 };
 
 // ── 작은 도우미 ────────────────────────────────────────────
@@ -784,9 +787,52 @@ async function madeKeyOf(tab, step, files) {
     const main = step === 1 ? files.request : files.admin;
     return madeKey(tab, step, await hashOf(main), await hashOf(files.request));
 }
+/** 오늘 같은 묶음 — 이 PC 기록 먼저, 없으면 다른 자리 기록(by 이름이 붙음 → 확인 문구 'OO 님이') */
+function findMadeAny(k) {
+    return findMade(madeState(), k) || findSharedMade(normalizeActivity(S.actRaw), k, S.actMine);
+}
 function saveMade(k, tab, step) {
     try { localStorage.setItem(MADE_STORE_KEY, JSON.stringify(recordMade(madeState(), { k, tab, step }))); }
     catch (_) { /* 저장공간이 막혀도 만들기는 된다 */ }
+}
+
+// ── 여러 자리 같이 보기(persistent_data/shipActivity) ─────────
+// 쓰기 실패는 만들기를 막지 않는다(콘솔에 코드만). 시작 기록이 끝나기 전에 끝 기록이 가지 않게 한 줄로 잇는다.
+function actStart(fields) {
+    if (!S.canShip || !S.db) return null;
+    const id = newRunId();
+    S.actMine.push(id);
+    const at = Date.now();
+    const a = { id, chain: null, timer: null };
+    a.chain = writeActivity(S.db, { id, by: S.memberName || '이름 없음', start: at, beat: at, end: 0, ok: null, ...fields })
+        .then(() => true, (e) => { console.warn('[플랫폼 출고] 진행 표시 쓰기 실패:', (e && e.code) || 'unknown'); return false; });
+    a.timer = setInterval(() => {
+        a.chain.then(okStart => { if (okStart) beatActivity(S.db, id, Date.now()).catch(() => { /* 다음 번에 */ }); });
+    }, BEAT_MS);
+    return a;
+}
+function actEnd(a, ok) {
+    if (!a) return;
+    clearInterval(a.timer);
+    const at = Date.now();
+    a.chain.then(okStart => okStart && writeActivity(S.db, { id: a.id, end: at, ok: !!ok }))
+        .catch((e) => console.warn('[플랫폼 출고] 진행 표시 끝 쓰기 실패:', (e && e.code) || 'unknown'));
+}
+function renderActivity() {
+    const el = $('sp-activity');
+    if (!el) return;
+    const b = activityBanner(normalizeActivity(S.actRaw), S.actMine, Date.now());
+    el.hidden = !b;
+    if (!b) return;
+    el.className = `pd-alert ${b.tone === 'busy' ? 'warn' : (b.tone === 'fail' ? 'risk' : 'info')} sp-activity`;
+    el.textContent = (b.tone === 'busy' ? '🔄 ' : '🕘 ') + b.text;
+}
+function startActivityWatch() {
+    try {
+        watchActivity(S.db, (raw) => { S.actRaw = raw; renderActivity(); },
+            (code) => console.warn('[플랫폼 출고] 진행 표시 구독 실패:', code));
+    } catch (e) { console.warn('[플랫폼 출고] 진행 표시 구독을 시작하지 못했습니다:', (e && e.code) || 'unknown'); }
+    setInterval(renderActivity, 30 * 1000);   // 멈춘 실행(3분)·날짜 바뀜을 다시 그린다
 }
 
 /**
@@ -949,7 +995,7 @@ async function runQueue(plan) {
             if (step === 1 && j.pairWait) {
                 // 짝 없는 출고전표가 같이 들어온 드롭 — 이 출고요청으로 오늘 이미 1단계를 만들었으면 다시 만들지 않고 2단계 칸에서 짝을 기다린다(리뷰 높음 1)
                 let made = null;
-                try { made = findMade(madeState(), await madeKeyOf(tab, 1, { request: j.request })); } catch (_) { made = null; }
+                try { made = findMadeAny(await madeKeyOf(tab, 1, { request: j.request })); } catch (_) { made = null; }
                 const cur = S.files[tab][2].request;
                 const waiting = pendingTabs()[tab];
                 let same = false;
@@ -1100,7 +1146,7 @@ async function autoGate(tab, step, { put, ambiguous = null, dupes = 0, mismatch 
     if (d.action === 'wait') { logLine(`  더 넣을 파일: ${missing.join(', ')}`); return null; }
     if (d.action === 'stop') { stopWhy(d.why); return null; }
     let made = null;
-    try { made = findMade(madeState(), await madeKeyOf(tab, step, S.files[tab][step])); } catch (_) { made = null; }
+    try { made = findMadeAny(await madeKeyOf(tab, step, S.files[tab][step])); } catch (_) { made = null; }
     let madeOk = false;
     if (made) {
         if (!confirm(madeConfirmText(made, { step, transmit: transmitOn() }))) {
@@ -1869,6 +1915,7 @@ async function run(opts = {}) {
     let summaryIn = null;
     let T = null;
     let mk = null;
+    let act = null;   // 여러 자리 같이 보기 기록(actStart)
     try {
         // 클릭 안에서 — 폴더를 한 번 묻거나 권한을 받는다. 저절로 시작은 클릭이 아니라 묻지 못한다(물으면 브라우저가 거절하고 이 창은 다운로드로 굳는다) —
         //   묻지 않고, 폴더를 못 쓰면 save 가 다운로드로 받는다(결과 카드에 '폴더를 고르면 다음부터' 안내)
@@ -1876,7 +1923,7 @@ async function run(opts = {}) {
         renderFolder();
         // 같은 날 같은 묶음 — 폴더 권한을 받은 뒤에 묻는다(확인창이 클릭 권한을 쓰지 않게)
         try { mk = await madeKeyOf(tab, step, f); } catch (_) { mk = null; }
-        const prev = mk ? findMade(madeState(), mk) : null;
+        const prev = mk ? findMadeAny(mk) : null;
         let madeOk = auto && opts.madeOk === true;
         if (prev && !auto) {
             if (!confirm(madeConfirmText(prev, { step, transmit: transmitOn() }))) {
@@ -1885,6 +1932,7 @@ async function run(opts = {}) {
             }
             madeOk = step === 2;
         }
+        act = actStart({ tab, step, pkg: step === 2 ? base : '', k: mk || '' });   // 확인창을 지난 뒤에만(취소하면 기록 없음)
         setBusy(true, '라이브러리 불러오는 중…');
         S.results = [];
         S.last = null;
@@ -1983,6 +2031,7 @@ async function run(opts = {}) {
         $('sp-log-box').open = true;   // 실패하면 진행 기록을 펼친다
         if (S.runLog) S.last = { tab, step, failed: true, summary: null, warns: [], transmit: null };
     } finally {
+        actEnd(act, ok);
         if (ok && summaryIn) {
             let summary;
             try {
@@ -2091,7 +2140,7 @@ async function checkPerm(user) {
     const memberName = memberNameFor(cfg.memberEmails, user.email);
     if (memberName && S.auth.currentUser && S.auth.currentUser.uid === user.uid) setShellContext({ signedIn: true, uid: user.uid, memberName });
     const r = resolve(cfg, user.email);
-    return { isAdmin: r.isAdmin, canShip: can(r, 'ship.platform') };
+    return { isAdmin: r.isAdmin, canShip: can(r, 'ship.platform'), memberName: memberName || null };
 }
 
 async function restoreFromPc() {
@@ -2124,6 +2173,7 @@ async function start(user) {
     setLoading(true, '권한 확인 중…');
     try { Object.assign(S, await checkPerm(user)); }
     catch (e) { console.warn('[플랫폼 출고] 권한 확인 실패:', (e && e.code) || 'unknown'); S.isAdmin = false; S.canShip = false; }
+    startActivityWatch();
     await refreshSettings();
     // 직진 양식 먼저 — restoreFromPc 가 옛 원본 기억을 지울지(앱 양식 있음) 임시 칸에 넣을지 정한다. 에이블리 양식은 정보만(빈 칸 안내·설정 창)
     await Promise.all([refreshZgTemplate(), refreshTemplate('ably')]);

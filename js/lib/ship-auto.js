@@ -18,8 +18,8 @@
 //   저장 폴더를 안 골랐거나 권한을 다시 받아야 함   → 시작(다운로드로 받고 결과 카드에 안내) — 화면이 처리
 //   그 밖의 안내(모르는 파일·쓰지 않는 파일)        → 시작(안내는 진행 기록·결과 카드에)
 
-import { kstDay, baseDatePart, PACK_BASE_MAX_DIFF } from './ship-core.js?v=202611131136';
-import { COVER_OK } from './ship-mixed.js?v=202611131136';
+import { kstDay, baseDatePart, PACK_BASE_MAX_DIFF } from './ship-core.js?v=202611131153';
+import { COVER_OK } from './ship-mixed.js?v=202611131153';
 
 export const MAX_GAP = PACK_BASE_MAX_DIFF;
 

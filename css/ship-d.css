@@ -116,6 +116,9 @@
 .sp-slot-sum { font-size: 12.5px; font-weight: 600; color: var(--c-accent-deep); }
 .sp-quick { padding: 8px 14px; border-radius: var(--r-sm); background: var(--c-warn-soft); color: var(--c-warn-text); font-size: 13px; font-weight: 700; }
 .sp-quick[hidden] { display: none; }
+/* 여러 자리 같이 보기 안내 줄(2026-11-13) */
+.sp-activity { margin-top: 8px; }
+.sp-activity[hidden] { display: none; }
 .pd-alert.sp-chip { display: inline-block; width: fit-content; max-width: 100%; padding: 4px 12px; border-radius: 999px; font-size: 12px; line-height: 1.5; }
 
 .sp-adv summary { cursor: pointer; font-size: 13px; color: var(--c-text-2); }

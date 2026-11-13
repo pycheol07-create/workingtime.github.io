@@ -4,7 +4,7 @@
 //   k = tab|step|hash(주 파일) 앞 16자|hash(출고요청) 앞 16자 — 파일 내용 대신 해시만(상품 정보 없음).
 //   성공했을 때만 기록한다(부르는 쪽 js/ship.js). 순수 모듈. 테스트: tests/ship-made.test.js
 
-import { kstDay } from './ship-core.js?v=202611131136';
+import { kstDay } from './ship-core.js?v=202611131153';
 
 export const MADE_STORE_KEY = 'ggsShipMade.v1';
 export const MADE_MAX = 40;
@@ -50,7 +50,10 @@ export function recordMade(state, { k, tab, step }, now = new Date()) {
 
 /** [만들기] 확인 문구 */
 export function madeConfirmText(item, { step, transmit } = {}) {
-    let s = `${item.at} 에 이미 만든 묶음입니다 — 다시 만들까요?`;
+    // by 가 있으면 다른 자리(js/lib/ship-activity.js findSharedMade)에서 만든 것
+    let s = item.busy
+        ? `${item.by} 님이 ${item.at} 부터 지금 만드는 중인 묶음입니다 — 그래도 만들까요?`
+        : `${item.by ? `${item.by} 님이 ` : ''}${item.at} 에 이미 만든 묶음입니다 — 다시 만들까요?`;
     if (step === 2 && transmit) s += '\n전송이 켜져 있어 이 묶음 몫만 다시 바꿉니다(두 번 더해지지 않음).';
     return s;
 }
