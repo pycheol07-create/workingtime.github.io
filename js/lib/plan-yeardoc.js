@@ -6,7 +6,7 @@
 //   금액 없음(목표에 금액 칸 없음 — 인건비율·원가 목표는 관리자 adminPrivate 쪽).
 // ※ 순수 모듈(DOM·Firebase 없음). 테스트: tests/plan-season.test.js
 
-import { namesLeak } from './plan-skills.js?v=202611131002';
+import { namesLeak } from './plan-skills.js?v=202611131006';
 
 export const YEARDOC_SECTIONS = Object.freeze([
     { id: 's01', title: '작년 돌아보기' }, { id: 's02', title: '시즌 캘린더' }, { id: 's03', title: '수요 전망' },

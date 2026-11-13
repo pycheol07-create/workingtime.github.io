@@ -9,10 +9,10 @@
 //   에이블리 2단계: rows(대량입고 행 — 5번 칸 수량) · pickItems[].code · location.rows · packageCount
 //   에이블리 요청 총량: ship-ably.readAblyRequest 의 qty 합(부르는 쪽이 넘긴다)
 
-import { overBags, baseDateWarning, pyTruthy, toInt } from './ship-core.js?v=202611131002';
-import { headerColumns } from './ship-read.js?v=202611131002';
-import { zikjinStep1 } from './ship-zikjin.js?v=202611131002';
-import { readAblyRequest } from './ship-ably.js?v=202611131002';
+import { overBags, baseDateWarning, pyTruthy, toInt } from './ship-core.js?v=202611131006';
+import { headerColumns } from './ship-read.js?v=202611131006';
+import { zikjinStep1 } from './ship-zikjin.js?v=202611131006';
+import { readAblyRequest } from './ship-ably.js?v=202611131006';
 
 export const SUMMARY_MAX_BYTES = 3 * 1024 * 1024;   // 이보다 큰 파일은 칸 요약을 건너뜀(두 번 읽지 않게)
 

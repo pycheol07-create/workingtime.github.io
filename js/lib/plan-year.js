@@ -14,10 +14,10 @@
 //   금액·직원 이름 없음.
 // ※ 순수 모듈(DOM·Firebase 없음). 테스트: tests/plan-year.test.js
 
-import { offDayOf, addDaysStr } from './plan-week.js?v=202611131002';
-import { demandMinutes } from './ops-metrics.js?v=202611131002';
-import { dailyTaskStats } from '../task-throughput.js?v=202611131002';
-import { yearConfidence, yoyGrowth } from './plan-confidence.js?v=202611131002';
+import { offDayOf, addDaysStr } from './plan-week.js?v=202611131006';
+import { demandMinutes } from './ops-metrics.js?v=202611131006';
+import { dailyTaskStats } from '../task-throughput.js?v=202611131006';
+import { yearConfidence, yoyGrowth } from './plan-confidence.js?v=202611131006';
 
 export const YEAR_LEVELS = Object.freeze({
     minMonthDays: 15, minOpDays: 240, peak: 1.15, offpeak: 0.85, growthMin: 0.7, growthMax: 1.5,

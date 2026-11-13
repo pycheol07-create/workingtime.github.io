@@ -146,3 +146,10 @@
 #locrec-modal .locrec-table th.lc-code, #locrec-modal .locrec-table th.lc-from, #locrec-modal .locrec-table th.lc-to, #locrec-modal .locrec-table th.lc-state, #locrec-modal .locrec-table th.lc-acts, #locrec-modal .locrec-table th.lc-sf { text-align: center; }
 #locrec-modal .locrec-table th.lc-qty .locrec-qtymodes { display: flex; justify-content: flex-end; margin: 3px 0 0; }
 #locrec-modal .locrec-table td.locrec-sfcol .locrec-sf { margin-top: 0 !important; }
+/* 칸수무관 토글(js/locrec-table.js sfToggle) */
+#locrec-modal .locrec-sf-toggle { position: relative; width: 34px; height: 18px; padding: 0; border: 0; border-radius: 999px; background: var(--c-line-strong, #C9CED6); cursor: pointer; vertical-align: middle; transition: background .15s; }
+#locrec-modal .locrec-sf-toggle > span { position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: #fff; transition: left .15s; }
+#locrec-modal .locrec-sf-toggle.on { background: var(--c-accent, #2F6BEA); }
+#locrec-modal .locrec-sf-toggle.on > span { left: 18px; }
+#locrec-modal .locrec-sf-toggle:disabled { opacity: .5; cursor: default; }
+#locrec-modal .locrec-sf-toggle:focus-visible { outline: 2px solid var(--c-accent, #2F6BEA); outline-offset: 2px; }

@@ -17,14 +17,14 @@
 // 칸수 무관 허용(2026-11-13): 상품 줄마다 [칸수 무관 허용]/[끄기](지금 자리에 칸수가 있는 줄·이미 허용한 상품) — store.setSizeFree.
 //   허용한 상품은 줄에 '칸수 무관' 배지. 도구 줄 '칸수 무관 N건 보기'를 켜면 허용 목록 전체(오늘 표에 없는 상품 포함)가 표 끝에 나와 끌 수 있다.
 //   날짜·새 판 대기와 상관없이 누를 수 있다(추천 표시가 아니라 다음 계산 설정이라서).
-import { escapeHtml } from './utils.js?v=202611131002';
+import { escapeHtml } from './utils.js?v=202611131006';
 import { fmtHM, tabCounts, tabCarried, TABS, TAB_LABEL, fmtNum, canMark, tabMeta, dayLabel, rowLines, dayMessage, fmtGain, ROUTE_OUT_LABEL, ROUTE_OUT_HELP, locLabel, bulkDoneKeys, CARRIED_LABEL, qtyCellOf, PENDING_TEXT,
     shownTabs, BACK_TAB_HELP, BACK_GAIN_LABEL, BACK_SCORE_HELP, backReasonTitle, BLOCKED_LABEL, SKIP_HELP, holdRows, HOLD_ROW_LABEL, HOLD_UNDO_TEXT,
-    SIZE_FREE_LABEL, SIZE_FREE_HELP, sizeFreeShown, fmtMDHM } from './lib/locrec-view.js?v=202611131002';
-import { NO_NAME, todayKey } from './locrec-store.js?v=202611131002';
-import { higherOpenThan } from './modal-above.js?v=202611131002';
-import { undoConfirmText } from './lib/locrec-apply.js?v=202611131002';
-import { SORT_COLS, sortRows, nextSort, isLowStockRow, lineTotal } from './lib/locrec-sort.js?v=202611131002';
+    SIZE_FREE_LABEL, SIZE_FREE_HELP, sizeFreeShown, fmtMDHM } from './lib/locrec-view.js?v=202611131006';
+import { NO_NAME, todayKey } from './locrec-store.js?v=202611131006';
+import { higherOpenThan } from './modal-above.js?v=202611131006';
+import { undoConfirmText } from './lib/locrec-apply.js?v=202611131006';
+import { SORT_COLS, sortRows, nextSort, isLowStockRow, lineTotal } from './lib/locrec-sort.js?v=202611131006';
 
 // location.html 의 #locrec-modal 과 같은 마크업(바꾸면 둘 다)
 const TEMPLATE = `
@@ -160,18 +160,16 @@ export function mountLocRecTable({ store, sizeOf }) {
     // 상품명·옵션은 칸을 나눈다(2026-11-05 사용자 요청)
     const nameCell = (name) => escapeHtml(name || '');
     // 칸수 무관 허용 — 상품코드 칸 아래 배지 + 토글(지금 자리에 칸수가 있는 줄·이미 허용한 상품만). 칸수는 행 값 → 없으면 sizeOfLoc 보충
+    // 칸수무관 칸 — 켜짐/꺼짐 토글 하나(2026-11-13 사용자 요청: 배지·글자 버튼 대신)
+    const sfToggle = (code, on, busy) => `<button type="button" class="locrec-sf-toggle${on ? ' on' : ''}" role="switch" aria-checked="${on ? 'true' : 'false'}"`
+        + ` data-locrec-act="sizeFree" data-locrec-sf="${escapeHtml(code)}" data-locrec-sf-on="${on ? '0' : '1'}"${busy ? ' disabled' : ''}`
+        + ` aria-label="${escapeHtml(`${code} 칸수 무관 허용`)}" title="${escapeHtml(on ? '켜짐 — 칸수가 다른 자리로도 추천합니다. 누르면 끕니다' : SIZE_FREE_HELP)}"><span></span></button>`;
     const sizeFreeCell = (S, l, allowed) => {
         const code = String(l.code == null ? '' : l.code).trim();
         let size = l.fromSize;
         if (!size && l.from && sizeOfLoc) { try { size = sizeOfLoc(l.from) || ''; } catch (e) { size = ''; } }
         if (!sizeFreeShown(code, size, allowed)) return '';
-        const on = allowed.has(code);
-        const busy = S.saving.has(store.sizeFreeBusyKey(code));
-        return `<div class="locrec-sf" style="margin-top:2px; white-space:nowrap;">`
-            + (on ? `<span class="badge badge-accent locrec-badge" title="${escapeHtml(SIZE_FREE_HELP)}">${escapeHtml(SIZE_FREE_LABEL)}</span> ` : '')
-            + `<button type="button" class="btn btn-ghost btn-sm locrec-sf-btn" style="padding:0 6px; font-size:11px;" data-locrec-act="sizeFree"`
-            + ` data-locrec-sf="${escapeHtml(code)}" data-locrec-sf-on="${on ? '0' : '1'}"${busy ? ' disabled' : ''}`
-            + ` title="${escapeHtml(on ? '칸수 무관 허용을 끕니다 — 다음 추천부터 같은 칸수 자리로만' : SIZE_FREE_HELP)}">${escapeHtml(on ? '끄기' : '칸수 무관 허용')}</button></div>`;
+        return sfToggle(code, allowed.has(code), S.saving.has(store.sizeFreeBusyKey(code)));
     };
 
     function rowHtml(S, r, st, i, editable, pending, i0 = i, allowed = new Set()) {
@@ -276,8 +274,7 @@ export function mountLocRecTable({ store, sizeOf }) {
                 + `<td class="locrec-prod" colspan="2">${escapeHtml(inDay.has(x.code) ? '오늘 추천 표에 있음' : '오늘 추천 표에 없음')}</td>`
                 + `<td colspan="6" class="locrec-opt">${escapeHtml(`${who} 허용`)}</td>`
                 + `<td class="locrec-state"><span class="locrec-st st-muted" title="${escapeHtml(SIZE_FREE_HELP)}">${escapeHtml(SIZE_FREE_LABEL)}</span></td>`
-                + `<td class="locrec-acts"><button type="button" class="btn btn-ghost btn-sm" data-locrec-act="sizeFree" data-locrec-sf="${escapeHtml(x.code)}" data-locrec-sf-on="0"${busy ? ' disabled' : ''}`
-                + ` title="칸수 무관 허용을 끕니다 — 다음 추천부터 같은 칸수 자리로만">끄기</button></td><td class="locrec-sfcol"></td></tr>`;
+                + `<td class="locrec-acts"></td><td class="locrec-sfcol">${sfToggle(x.code, true, busy)}</td></tr>`;
         }).join('');
     }
 

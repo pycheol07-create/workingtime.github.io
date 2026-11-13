@@ -16,7 +16,7 @@ export const SORT_COLS = [
     { key: 'score', label: '점수', sortable: true, num: true, title: '이 줄만 처리하면 동선 점수(0~100)가 오르는 만큼' },
     { key: 'state', label: '상태', sortable: true },
     { key: 'acts', label: '표시', sortable: false },
-    { key: 'sf', label: '칸수', sortable: false, title: '칸수 무관 허용 — 켜면 칸수가 다른 자리(4칸↔2칸)로도 추천합니다(끌 때까지 유지)' },
+    { key: 'sf', label: '칸수무관', sortable: false, title: '칸수 무관 허용 — 켜면 칸수가 다른 자리(4칸↔2칸)로도 추천합니다(끌 때까지 유지)' },
 ];
 const NUM = new Set(SORT_COLS.filter(c => c.num).map(c => c.key));
 
