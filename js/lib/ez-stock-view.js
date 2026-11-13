@@ -7,7 +7,7 @@
 //   자리 ezAt(재고 캐시 시각 ms) — 값이 바뀌어 서버가 쓴 자리에만 있다. 일일 업로드가 지운다.
 // 시각 표시는 브라우저 시간대(location.js 머리줄과 같음). 함수는 now 를 받아 자정 넘김을 시험할 수 있다.
 
-import { tsMs } from './busy-view.js?v=202611130950';
+import { tsMs } from './busy-view.js?v=202611131002';
 
 const p2 = (n) => String(n).padStart(2, '0');
 const DAY_MS = 86400000;

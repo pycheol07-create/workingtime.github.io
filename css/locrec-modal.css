@@ -139,3 +139,10 @@
     #locrec-modal .locrec-acts .btn { min-height: 36px; }
     body:has(#locrec-modal[style*="flex"]) { overflow: hidden; }
 }
+/* 2026-11-13 칸 폭 맞춤 — 글자만큼만(width:1%), 남는 폭은 상품명·옵션. 상품코드·로케이션·상태·표시·칸수는 가운데 */
+#locrec-modal .locrec-table td.locrec-loc, #locrec-modal .locrec-table td.locrec-num, #locrec-modal .locrec-table td.locrec-gain, #locrec-modal .locrec-table td.locrec-score-gain,
+#locrec-modal .locrec-table td.locrec-state, #locrec-modal .locrec-table td.locrec-acts, #locrec-modal .locrec-table td.locrec-pcode, #locrec-modal .locrec-table td.locrec-sfcol { width: 1%; }
+#locrec-modal .locrec-table td.locrec-pcode, #locrec-modal .locrec-table td.locrec-loc, #locrec-modal .locrec-table td.locrec-state, #locrec-modal .locrec-table td.locrec-acts, #locrec-modal .locrec-table td.locrec-sfcol { text-align: center; }
+#locrec-modal .locrec-table th.lc-code, #locrec-modal .locrec-table th.lc-from, #locrec-modal .locrec-table th.lc-to, #locrec-modal .locrec-table th.lc-state, #locrec-modal .locrec-table th.lc-acts, #locrec-modal .locrec-table th.lc-sf { text-align: center; }
+#locrec-modal .locrec-table th.lc-qty .locrec-qtymodes { display: flex; justify-content: flex-end; margin: 3px 0 0; }
+#locrec-modal .locrec-table td.locrec-sfcol .locrec-sf { margin-top: 0 !important; }

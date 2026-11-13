@@ -17,14 +17,14 @@
 // 칸수 무관 허용(2026-11-13): 상품 줄마다 [칸수 무관 허용]/[끄기](지금 자리에 칸수가 있는 줄·이미 허용한 상품) — store.setSizeFree.
 //   허용한 상품은 줄에 '칸수 무관' 배지. 도구 줄 '칸수 무관 N건 보기'를 켜면 허용 목록 전체(오늘 표에 없는 상품 포함)가 표 끝에 나와 끌 수 있다.
 //   날짜·새 판 대기와 상관없이 누를 수 있다(추천 표시가 아니라 다음 계산 설정이라서).
-import { escapeHtml } from './utils.js?v=202611130950';
+import { escapeHtml } from './utils.js?v=202611131002';
 import { fmtHM, tabCounts, tabCarried, TABS, TAB_LABEL, fmtNum, canMark, tabMeta, dayLabel, rowLines, dayMessage, fmtGain, ROUTE_OUT_LABEL, ROUTE_OUT_HELP, locLabel, bulkDoneKeys, CARRIED_LABEL, qtyCellOf, PENDING_TEXT,
     shownTabs, BACK_TAB_HELP, BACK_GAIN_LABEL, BACK_SCORE_HELP, backReasonTitle, BLOCKED_LABEL, SKIP_HELP, holdRows, HOLD_ROW_LABEL, HOLD_UNDO_TEXT,
-    SIZE_FREE_LABEL, SIZE_FREE_HELP, sizeFreeShown, fmtMDHM } from './lib/locrec-view.js?v=202611130950';
-import { NO_NAME, todayKey } from './locrec-store.js?v=202611130950';
-import { higherOpenThan } from './modal-above.js?v=202611130950';
-import { undoConfirmText } from './lib/locrec-apply.js?v=202611130950';
-import { SORT_COLS, sortRows, nextSort, isLowStockRow, lineTotal } from './lib/locrec-sort.js?v=202611130950';
+    SIZE_FREE_LABEL, SIZE_FREE_HELP, sizeFreeShown, fmtMDHM } from './lib/locrec-view.js?v=202611131002';
+import { NO_NAME, todayKey } from './locrec-store.js?v=202611131002';
+import { higherOpenThan } from './modal-above.js?v=202611131002';
+import { undoConfirmText } from './lib/locrec-apply.js?v=202611131002';
+import { SORT_COLS, sortRows, nextSort, isLowStockRow, lineTotal } from './lib/locrec-sort.js?v=202611131002';
 
 // location.html 의 #locrec-modal 과 같은 마크업(바꾸면 둘 다)
 const TEMPLATE = `
@@ -131,10 +131,10 @@ export function mountLocRecTable({ store, sizeOf }) {
         // 정렬 기준은 버튼 둘 — 켜진 쪽이 지금 기준(예전 한 버튼은 '+비축'이 '누르면 더함'으로 읽혀 헷갈렸다)
         const qtyMode = c.key === 'qty'
             ? ` <span class="locrec-qtymodes" title="이동수량으로 정렬할 때 기준">`
-              + `<button type="button" class="locrec-qtymode${qtyWithReserve ? '' : ' on'}" data-locrec-qtymode="pick" aria-pressed="${escapeHtml(!qtyWithReserve)}">피킹만</button>`
-              + `<button type="button" class="locrec-qtymode${qtyWithReserve ? ' on' : ''}" data-locrec-qtymode="total" aria-pressed="${escapeHtml(qtyWithReserve)}">비축 포함 합계</button></span>` : '';
-        if (!c.sortable) return `<th${c.title ? ` title="${escapeHtml(c.title)}"` : ''}>${escapeHtml(c.label)}</th>`;
-        return `<th class="locrec-sortable${on ? ' on' : ''}" data-locrec-sort="${escapeHtml(c.key)}"${c.title ? ` title="${escapeHtml(c.title + ' — 누르면 정렬')}"` : ' title="누르면 정렬"'}>${escapeHtml(c.label)}${escapeHtml(arrow)}${qtyMode}</th>`;
+              + `<button type="button" class="locrec-qtymode${qtyWithReserve ? '' : ' on'}" data-locrec-qtymode="pick" aria-pressed="${escapeHtml(!qtyWithReserve)}" title="피킹으로 옮길 수량으로 정렬">피킹</button>`
+              + `<button type="button" class="locrec-qtymode${qtyWithReserve ? ' on' : ''}" data-locrec-qtymode="total" aria-pressed="${escapeHtml(qtyWithReserve)}" title="비축까지 더한 합계로 정렬">합계</button></span>` : '';
+        if (!c.sortable) return `<th class="lc-${escapeHtml(c.key)}"${c.title ? ` title="${escapeHtml(c.title)}"` : ''}>${escapeHtml(c.label)}</th>`;
+        return `<th class="lc-${escapeHtml(c.key)} locrec-sortable${on ? ' on' : ''}" data-locrec-sort="${escapeHtml(c.key)}"${c.title ? ` title="${escapeHtml(c.title + ' — 누르면 정렬')}"` : ' title="누르면 정렬"'}>${escapeHtml(c.label)}${escapeHtml(arrow)}${qtyMode}</th>`;
     }).join('');
     const closeFns = new Set();
 
@@ -214,6 +214,7 @@ export function mountLocRecTable({ store, sizeOf }) {
         const trCls = `locrec-row tone-${ot && !mk ? 'ok' : st.tone}${st.label === '안 함' || st.blocked ? ' locrec-skipped' : ''}${i % 2 ? ' locrec-alt' : ''}${carried ? ' locrec-carried' : ''}`;
         const trAttr = carried ? ' style="opacity:.55" title="지금 기준 추천에서 빠진 행 — 오늘 손댄 것이라 남겨 둠"' : '';
         return lines.map((l, j) => {
+            const sfTd = `<td class="locrec-sfcol">${sizeFreeCell(S, l, allowed)}</td>`;   // 맨 끝 칸(2026-11-13) — 줄(A/B)마다 그 상품
             const last = j === lines.length - 1;
             // 상품코드 칸(누르면 데이터 리스트에서 그 상품 검색) · 상품 칸(상품명(옵션) + 배지)
             const moved = ot && !mk && l.code === ot.code;
@@ -222,7 +223,7 @@ export function mountLocRecTable({ store, sizeOf }) {
             const toTxt = moved ? locCell(ot.dst, '') : altHere ? locCell(altTo, '') : locCell(l.to, l.toSize);
             const toTitle = moved && ot.dst !== l.to ? ` title="${escapeHtml(`처리한 자리 — 나중에 다시 만든 추천은 ${l.to}`)}"`
                 : altHere ? ` title="${escapeHtml(`대신 자리로 처리함 — 추천 자리 ${l.to} 를 쓸 수 없었음`)}"` : '';
-            const cells = `<td class="locrec-pcode"><a class="locrec-code" href="location.html?q=${escapeHtml(encodeURIComponent(l.code || ''))}#tab=list" data-locrec-code="${escapeHtml(l.code)}" title="데이터 리스트에서 이 상품 보기">${escapeHtml(l.code)}</a>${sizeFreeCell(S, l, allowed)}</td>`
+            const cells = `<td class="locrec-pcode"><a class="locrec-code" href="location.html?q=${escapeHtml(encodeURIComponent(l.code || ''))}#tab=list" data-locrec-code="${escapeHtml(l.code)}" title="데이터 리스트에서 이 상품 보기">${escapeHtml(l.code)}</a></td>`
                 + `<td class="locrec-prod">${nameCell(l.name)}`
                 + (last && badges ? `<div class="locrec-badges">${badges}</div>` : '') + '</td>'
                 + `<td class="locrec-optcell">${escapeHtml(l.option || '')}</td>`
@@ -230,7 +231,7 @@ export function mountLocRecTable({ store, sizeOf }) {
                 + `<td class="locrec-loc"${toTitle}><b class="locrec-to">${escapeHtml(toTxt)}</b></td>`
                 + qtyCell(l)
                 + `<td class="locrec-num locrec-daily">${escapeHtml(l.daily == null ? '' : fmtNum(l.daily))}</td>`;
-            if (j > 0) return `<tr class="${trCls} locrec-sub"${trAttr}>${cells}</tr>`;
+            if (j > 0) return `<tr class="${trCls} locrec-sub"${trAttr}>${cells}${sfTd}</tr>`;
             return `<tr class="${trCls}"${trAttr}>`
                 + `<td class="locrec-rank"${span}>${escapeHtml(carried ? '' : (r.rank == null ? i0 + 1 : r.rank))}</td>`     // 이월 행은 순위 없음 · 정렬해도 원래 순위
                 + cells
@@ -240,7 +241,7 @@ export function mountLocRecTable({ store, sizeOf }) {
                     : `<td class="locrec-gain"${span}>${escapeHtml(fmtNum(r.gain))}</td>`
                       + `<td class="locrec-score-gain"${span} title="${scoreTitle(r)}">${escapeHtml(r.routeOut ? ROUTE_OUT_LABEL : fmtGain(r.scoreGain))}</td>`)
                 + `<td class="locrec-state"${span}><span class="locrec-st st-${ot && !mk ? 'ok' : st.tone}"${stTitle ? ` title="${escapeHtml(stTitle)}"` : ''}>${escapeHtml(stLabel)}</span></td>`
-                + `<td class="locrec-acts"${span}>${btns}</td></tr>`;
+                + `<td class="locrec-acts"${span}>${btns}</td>${sfTd}</tr>`;
         }).join('');
     }
 
@@ -258,13 +259,13 @@ export function mountLocRecTable({ store, sizeOf }) {
             + `<td colspan="5" class="locrec-opt">${escapeHtml(`${until} 이 자리에서 옮기라고 하지 않음`)}</td>`
             + `<td class="locrec-state"><span class="locrec-st st-muted" title="${escapeHtml(SKIP_HELP)}">${escapeHtml(HOLD_ROW_LABEL)}</span></td>`
             + `<td class="locrec-acts"><button type="button" class="btn btn-ghost btn-sm" data-locrec-act="unhold" data-locrec-key="${escapeHtml(h.recKey)}"${busy ? ' disabled' : ''}`
-            + ` title="${escapeHtml(HOLD_UNDO_TEXT)}">되돌리기</button></td></tr>`;
+            + ` title="${escapeHtml(HOLD_UNDO_TEXT)}">되돌리기</button></td><td class="locrec-sfcol"></td></tr>`;
     }
 
     /** 칸수 무관 허용 목록(표 끝, '칸수 무관 N건 보기') — 머리 한 줄 + 상품마다 한 줄 [끄기]. inDay = 오늘 판에 그 상품 줄이 있나 */
     function sizeFreeHtml(S, list, inDay) {
         if (!list.length) return '';
-        const head = `<tr class="locrec-row tone-muted locrec-sf-head"><td colspan="12" class="locrec-opt" style="font-weight:600;">`
+        const head = `<tr class="locrec-row tone-muted locrec-sf-head"><td colspan="13" class="locrec-opt" style="font-weight:600;">`
             + `${escapeHtml(`${SIZE_FREE_LABEL} 허용 ${list.length}건 — 칸수가 다른 자리로도 추천합니다(끌 때까지 유지)`)}</td></tr>`;
         return head + list.map(x => {
             const busy = S.saving.has(store.sizeFreeBusyKey(x.code));
@@ -276,7 +277,7 @@ export function mountLocRecTable({ store, sizeOf }) {
                 + `<td colspan="6" class="locrec-opt">${escapeHtml(`${who} 허용`)}</td>`
                 + `<td class="locrec-state"><span class="locrec-st st-muted" title="${escapeHtml(SIZE_FREE_HELP)}">${escapeHtml(SIZE_FREE_LABEL)}</span></td>`
                 + `<td class="locrec-acts"><button type="button" class="btn btn-ghost btn-sm" data-locrec-act="sizeFree" data-locrec-sf="${escapeHtml(x.code)}" data-locrec-sf-on="0"${busy ? ' disabled' : ''}`
-                + ` title="칸수 무관 허용을 끕니다 — 다음 추천부터 같은 칸수 자리로만">끄기</button></td></tr>`;
+                + ` title="칸수 무관 허용을 끕니다 — 다음 추천부터 같은 칸수 자리로만">끄기</button></td><td class="locrec-sfcol"></td></tr>`;
         }).join('');
     }
 
@@ -353,13 +354,13 @@ export function mountLocRecTable({ store, sizeOf }) {
             mMeta.textContent = '';
             const t = (S.latest && dayMessage(store.entryOf(S.key)))
                 || S.dayErr || (S.latestErr ? `추천 상태를 읽지 못했습니다(${S.latestErr})` : '') || '표 불러오는 중…';
-            mTbody.innerHTML = `<tr><td colspan="12" class="refill-empty">${escapeHtml(t)}</td></tr>` + sfPart;
+            mTbody.innerHTML = `<tr><td colspan="13" class="refill-empty">${escapeHtml(t)}</td></tr>` + sfPart;
             return;
         }
         mMeta.textContent = tabMeta(tab, all) + (tab === 'back' ? ` · ${BACK_TAB_HELP}` : '') + (editable ? '' : ' · 지난 날짜는 볼 수만 있습니다');
         const holdPart = showSkipped ? holds.map(h => holdHtml(S, h)).join('') : '';
         if (!rows.length && !holdPart) {
-            mTbody.innerHTML = `<tr><td colspan="12" class="refill-empty">${escapeHtml(cnt[tab] || cry[tab] || holds.length ? (blockedN ? `모두 안 함·${BLOCKED_LABEL}으로 숨겼습니다` : '모두 안 함으로 숨겼습니다') : `${TAB_LABEL[tab]} 추천이 없습니다`)}</td></tr>` + sfPart;
+            mTbody.innerHTML = `<tr><td colspan="13" class="refill-empty">${escapeHtml(cnt[tab] || cry[tab] || holds.length ? (blockedN ? `모두 안 함·${BLOCKED_LABEL}으로 숨겼습니다` : '모두 안 함으로 숨겼습니다') : `${TAB_LABEL[tab]} 추천이 없습니다`)}</td></tr>` + sfPart;
             return;
         }
         mTbody.innerHTML = rows.map((x, i) => rowHtml(S, x.r, x.st, i, editable, !!pd, x.i0, allowed)).join('') + holdPart + sfPart;

@@ -4,7 +4,7 @@
 //   k = tab|step|hash(주 파일) 앞 16자|hash(출고요청) 앞 16자 — 파일 내용 대신 해시만(상품 정보 없음).
 //   성공했을 때만 기록한다(부르는 쪽 js/ship.js). 순수 모듈. 테스트: tests/ship-made.test.js
 
-import { kstDay } from './ship-core.js?v=202611130950';
+import { kstDay } from './ship-core.js?v=202611131002';
 
 export const MADE_STORE_KEY = 'ggsShipMade.v1';
 export const MADE_MAX = 40;
