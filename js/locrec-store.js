@@ -25,23 +25,27 @@
 //   변경 추천 권한이 없는 로케이션관리(lite)는 구독하지 않는다 — 입고대기 추천·빈칸 엑셀·당일지정·업로드 경고를 쓸 때만 ensureFresh() 가
 //   색인·marks·기본 판 날짜 문서를 getDoc 으로 한 번 읽고 LITE_TTL_MS(3분) 기억한다. 권한 있는 카드가 나중에 getLocRecStore 를 부르면 전체 구독으로 바꾼다.
 // '안 함' 붙잡기(2026-11-12): 서버 색인 holds(판정.hold_list) — 붙잡혀 결과 행에서 빠진 추천도 표 '안 함도 보기'에서 [되돌리기](unhold = marks 의 skip 지우기).
+// 칸수 무관 허용(2026-11-13): locRecWork/sizeAllow 를 구독하고 표 [칸수 무관 허용]이 setSizeFree 로 쓴다(코드·시각·이름만, 문서 모양은 locrec-view.js).
+//   서버는 다음 판부터 그 상품을 칸수가 다른 자리로도 추천하고, 대신 자리(findAlt)도 같은 목록을 쓴다. 다시 만들기 요청은 보내지 않는다(사용자 결정).
 import { doc, onSnapshot, setDoc, getDoc, serverTimestamp, deleteField, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import {
     dayKey, parseRecDay, rowState, dayOptions, defaultDay, canMark, excelRows, EXCEL_COLS, SHEET_NAME, fileNameOf,
-    stripRows, fileNameAll, recReqUi, tsMs, TABS, dayVer, movedToday, PENDING_TEXT, plannedSlots, HOLD_UNDO_TEXT
-} from './lib/locrec-view.js?v=202611130931';
-import { laterMs } from './lib/rebuild-view.js?v=202611130931';
+    stripRows, fileNameAll, recReqUi, tsMs, TABS, dayVer, movedToday, PENDING_TEXT, plannedSlots, HOLD_UNDO_TEXT,
+    sizeFreeList, sizeFreeSet, sizeFreeWrite, sizeFreeCode, sizeFreeToast
+} from './lib/locrec-view.js?v=202611130950';
+import { laterMs } from './lib/rebuild-view.js?v=202611130950';
 import { docIdsForRow, docIdsForApplied, planApply, planUndo, planClearMoves, applyFailText, undoFailText, bulkSummaryText, markOnlyOk, reasonText,
          dstBlocked, altOk, altRow, blockOf, altConfirmText, bulkAltText, EZ_REMIND_TEXT, BLOCKED_STATE,
-         recentAppliedMoves } from './lib/locrec-apply.js?v=202611130931';
-import { pickAltTarget, prioritiesOf } from './lib/loc-recommend.js?v=202611130931';
-import { uploadView, uploadBlockText } from './lib/busy-view.js?v=202611130931';
+         recentAppliedMoves } from './lib/locrec-apply.js?v=202611130950';
+import { pickAltTarget, prioritiesOf } from './lib/loc-recommend.js?v=202611130950';
+import { uploadView, uploadBlockText } from './lib/busy-view.js?v=202611130950';
 
 const APP = 'artifacts/team-work-logger-v2';
 const LATEST_PATH = `${APP}/integrations/locRecLatest`;
 const DAY_PATH = (key) => `${APP}/integrations/locRec_${key}`;
 const MARKS_PATH = `${APP}/locRecWork/marks`;
 const REQUEST_PATH = `${APP}/locRecWork/request`;
+const SIZE_ALLOW_PATH = `${APP}/locRecWork/sizeAllow`;     // 칸수 무관 허용 상품 { codes: {코드: {at, by}} }
 const REFILL_REQUEST_PATH = `${APP}/refillWork/request`;    // 채우기 권한이 있는 사람의 요청 — 서버는 두 문서 중 늦은 쪽을 본다
 const INFO_PATH = 'Locations/INFO_CONFIG';               // lastDataUpdate = 오늘 재고 올린 시각(ms, location.js Date.now())
 const LOC_COLLECTION = 'Locations';
@@ -75,7 +79,8 @@ function createLocRecStore({ db, auth, getMemberName, sizeOf, altCtx, notify, li
         applying: null,                                 // [전체 처리함] 진행 { i, n } — 표 창 버튼 '반영 중 i/n'
         request: null, refillRequest: null, lastDataMs: 0,   // 다시 만들기 요청 문서 2곳 · INFO_CONFIG.lastDataUpdate
         pendingDay: null,                               // 표 창이 열려 있을 때 도착한 새 판 { key, data, parsed }
-        planDay: null                                   // 지난 날짜를 보는 동안의 기본(오늘) 판 { key, data, parsed } — 예정 자리용
+        planDay: null,                                  // 지난 날짜를 보는 동안의 기본(오늘) 판 { key, data, parsed } — 예정 자리용
+        sizeAllow: null, sizeAllowErr: ''               // 칸수 무관 허용 문서 값(locRecWork/sizeAllow) · 못 읽으면 문구
     };
     let unsubs = [], unsubDay = null, dayKeyWatching = '', unsubAuth = null, timer = null, reqTimer = null, started = false;
     let unsubPlan = null, planWatching = '';
@@ -137,6 +142,11 @@ function createLocRecStore({ db, auth, getMemberName, sizeOf, altCtx, notify, li
             S.marksErr = '';
             emit();
         }, () => { S.marksErr = '완료 표시를 읽지 못했습니다'; emit(); }));   // 표시 없이 + 주의
+        unsubs.push(onSnapshot(doc(db, SIZE_ALLOW_PATH), snap => {
+            S.sizeAllow = snap.exists() ? (snap.data({ serverTimestamps: 'estimate' }) || {}) : {};
+            S.sizeAllowErr = '';
+            emit();
+        }, () => { S.sizeAllow = null; S.sizeAllowErr = '칸수 무관 허용 목록을 읽지 못했습니다'; emit(); }));
         unsubs.push(onSnapshot(doc(db, REQUEST_PATH), snap => {
             S.request = snap.exists() ? (snap.data({ serverTimestamps: 'estimate' }) || {}) : null;
             emit();
@@ -193,7 +203,7 @@ function createLocRecStore({ db, auth, getMemberName, sizeOf, altCtx, notify, li
             S.authKnown = true;
             S.signedIn = !!user;
             if (user) startSnaps();
-            else { stopSnaps(); S.latest = null; S.day = null; S.marks = {}; S.marksErr = ''; }
+            else { stopSnaps(); S.latest = null; S.day = null; S.marks = {}; S.marksErr = ''; S.sizeAllow = null; S.sizeAllowErr = ''; }
             emit();
         });
         // 자정 넘김·'오래됨' 문구를 위해 10분마다 다시
@@ -219,6 +229,7 @@ function createLocRecStore({ db, auth, getMemberName, sizeOf, altCtx, notify, li
         S.authKnown = false; S.signedIn = false; S.latest = null; S.latestErr = ''; S.day = null; S.dayErr = ''; S.dayLoading = false;
         S.marks = {}; S.marksErr = ''; S.key = ''; S.userPicked = false;
         S.request = null; S.refillRequest = null; S.lastDataMs = 0; S.pendingDay = null;
+        S.sizeAllow = null; S.sizeAllowErr = '';
         emit();
     }
 
@@ -445,7 +456,7 @@ function createLocRecStore({ db, auth, getMemberName, sizeOf, altCtx, notify, li
         const mg = ls.minGain == null || ls.minGain === '' ? NaN : Number(ls.minGain);
         try {
             return pickAltTarget({ row, locs: ctx.locs, priorities: prioritiesOf(ctx.priorities), settings: Number.isFinite(mg) ? { minGain: mg } : {},
-                                   plannedSlots: planned, nowMs: Date.now() });
+                                   plannedSlots: planned, nowMs: Date.now(), sizeFree: [...sizeFreeCodes()] });
         } catch (e) {
             console.warn('[locrec] 대신 자리 계산 실패', (e && e.message) || e);
             return null;
@@ -607,6 +618,36 @@ function createLocRecStore({ db, auth, getMemberName, sizeOf, altCtx, notify, li
         if (await writeMarks([key], null)) say(HOLD_UNDO_TEXT);
     }
 
+    /** 칸수 무관 허용 상품코드 Set(못 읽었으면 빈 Set) */
+    const sizeFreeCodes = () => sizeFreeSet(S.sizeAllow);
+    /** 칸수 무관 허용 목록 [{code, by, at}] — 표 '칸수 무관 보기' */
+    const sizeFreeRows = () => sizeFreeList(S.sizeAllow);
+    /** 저장 중 표시 키(같은 S.saving 을 쓴다 — recKey 와 겹치지 않게 앞에 sf:) */
+    const sizeFreeBusyKey = (code) => `sf:${code}`;
+
+    /** [칸수 무관 허용] 켜기·끄기 — locRecWork/sizeAllow 에 merge 쓰기 1회(날짜·새 판 대기와 상관없이). 다시 만들기 요청은 보내지 않고 안내만.
+     *  → 저장했으면 true. 실패하면 alert 후 false */
+    async function setSizeFree(code, on) {
+        const c = sizeFreeCode(code);
+        const bk = sizeFreeBusyKey(c);
+        if (!c || S.saving.has(bk)) return false;
+        const data = sizeFreeWrite(c, !!on, { by: nameOf(), at: serverTimestamp(), del: deleteField() });
+        if (!data) return false;
+        S.saving.add(bk);
+        emit();
+        try {
+            await setDoc(doc(db, SIZE_ALLOW_PATH), data, { merge: true });
+        } catch (e) {
+            alert(`칸수 무관 허용을 저장하지 못했습니다(${errCode(e)}). 다시 눌러 주세요.`);
+            return false;
+        } finally {
+            S.saving.delete(bk);
+            emit();
+        }
+        say(sizeFreeToast(c, !!on));
+        return true;
+    }
+
     /** 여러 추천에 같은 표시 — 표 창 [전체 처리함]. 저장 중인 키는 뺀다.
      *  'done' 은 추천마다 트랜잭션 1개씩 차례로(S.applying 진행). 끝에 도착 자리 문제로 못 한 단독은 대신 자리를 하나씩 차례로 잡아
      *  (앞에서 잡은 자리는 다음 계산에서 뺌) 한 번에 묻고, 남은 도착 자리 문제는 '자리 막힘'을 한 번에 묻고, 그 밖은 '표시만 할까요?' 한 번.
@@ -731,6 +772,7 @@ function createLocRecStore({ db, auth, getMemberName, sizeOf, altCtx, notify, li
         get: () => S, on, start, stop, setDay, entryOf, loaded, visibleRows,
         mark, markMany, downloadTab, downloadAll, isStarted: () => started,
         reqState, setHold, applyPending,
-        isLite: () => liteMode, upgrade, plannedSlotMap, recentMoves, ensureFresh, unhold
+        isLite: () => liteMode, upgrade, plannedSlotMap, recentMoves, ensureFresh, unhold,
+        setSizeFree, sizeFreeCodes, sizeFreeRows, sizeFreeBusyKey
     };
 }

@@ -24,7 +24,7 @@
 // 2026-11-12 기본 결재선: ApprovalSettings/defaults.line(명단 이름 1~3명, 관리자가 양식 관리에서 정함) → autoLine 이
 //   결재자 후보로 바꾸고, 기안하는 날 날짜 근태가 있는 사람은 참조로 옮긴다(참조 후보 = 관리자만). 결재선이 비게 되면 옮기지 않고 안내만.
 
-import { positionOf } from './member-title.js?v=202611130931';
+import { positionOf } from './member-title.js?v=202611130950';
 
 export const FIELD_TYPES = ['text', 'textarea', 'date', 'time', 'select', 'file'];
 export const BOX_ROLES = ['author', 'approver', 'blank'];

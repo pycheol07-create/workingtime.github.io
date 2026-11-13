@@ -14,13 +14,17 @@
 //   같은 상품을 오늘 다른 추천으로 옮긴 줄(st.other)은 '○○(으)로 처리 · 이름 HH:MM' + 그 추천의 [되돌리기].
 // 데이터 리스트 반영(2026-10-29): [처리함]·[전체 처리함]은 데이터 리스트(Locations) 상품 칸도 추천대로 옮긴다(js/locrec-store.js).
 //   반영된 표시는 '처리함 · 이름 HH:MM · 표에 반영'. [전체 처리함] 진행 중에는 버튼이 '반영 중 n/N'.
-import { escapeHtml } from './utils.js?v=202611130931';
+// 칸수 무관 허용(2026-11-13): 상품 줄마다 [칸수 무관 허용]/[끄기](지금 자리에 칸수가 있는 줄·이미 허용한 상품) — store.setSizeFree.
+//   허용한 상품은 줄에 '칸수 무관' 배지. 도구 줄 '칸수 무관 N건 보기'를 켜면 허용 목록 전체(오늘 표에 없는 상품 포함)가 표 끝에 나와 끌 수 있다.
+//   날짜·새 판 대기와 상관없이 누를 수 있다(추천 표시가 아니라 다음 계산 설정이라서).
+import { escapeHtml } from './utils.js?v=202611130950';
 import { fmtHM, tabCounts, tabCarried, TABS, TAB_LABEL, fmtNum, canMark, tabMeta, dayLabel, rowLines, dayMessage, fmtGain, ROUTE_OUT_LABEL, ROUTE_OUT_HELP, locLabel, bulkDoneKeys, CARRIED_LABEL, qtyCellOf, PENDING_TEXT,
-    shownTabs, BACK_TAB_HELP, BACK_GAIN_LABEL, BACK_SCORE_HELP, backReasonTitle, BLOCKED_LABEL, SKIP_HELP, holdRows, HOLD_ROW_LABEL, HOLD_UNDO_TEXT } from './lib/locrec-view.js?v=202611130931';
-import { NO_NAME, todayKey } from './locrec-store.js?v=202611130931';
-import { higherOpenThan } from './modal-above.js?v=202611130931';
-import { undoConfirmText } from './lib/locrec-apply.js?v=202611130931';
-import { SORT_COLS, sortRows, nextSort, isLowStockRow, lineTotal } from './lib/locrec-sort.js?v=202611130931';
+    shownTabs, BACK_TAB_HELP, BACK_GAIN_LABEL, BACK_SCORE_HELP, backReasonTitle, BLOCKED_LABEL, SKIP_HELP, holdRows, HOLD_ROW_LABEL, HOLD_UNDO_TEXT,
+    SIZE_FREE_LABEL, SIZE_FREE_HELP, sizeFreeShown, fmtMDHM } from './lib/locrec-view.js?v=202611130950';
+import { NO_NAME, todayKey } from './locrec-store.js?v=202611130950';
+import { higherOpenThan } from './modal-above.js?v=202611130950';
+import { undoConfirmText } from './lib/locrec-apply.js?v=202611130950';
+import { SORT_COLS, sortRows, nextSort, isLowStockRow, lineTotal } from './lib/locrec-sort.js?v=202611130950';
 
 // location.html 의 #locrec-modal 과 같은 마크업(바꾸면 둘 다)
 const TEMPLATE = `
@@ -104,6 +108,22 @@ export function mountLocRecTable({ store, sizeOf }) {
         });
         mLowCnt = q('locrec-low-cnt');
     })();
+    // 칸수 무관 허용 목록 보기(2026-11-13) — '안 함도 보기' 뒤에 붙인다
+    let showSf = false, mSfWrap = null, mSfTxt = null;
+    (() => {
+        const anchor = q('locrec-skip-wrap');
+        if (!anchor || q('locrec-sf-wrap')) return;
+        const wrap = document.createElement('label');
+        wrap.className = 'refill-sub locrec-skipchk';
+        wrap.id = 'locrec-sf-wrap';
+        wrap.hidden = true;
+        wrap.title = '칸수가 다른 자리로도 추천하도록 허용한 상품 전체(오늘 표에 없는 상품 포함)를 표 끝에 보여 줍니다 — 거기서 끌 수 있습니다';
+        wrap.innerHTML = `<input type="checkbox" id="locrec-sf-show"> <span id="locrec-sf-txt" style="vertical-align:middle;"></span>`;
+        anchor.parentNode.insertBefore(wrap, anchor.nextSibling);
+        const chk = q('locrec-sf-show');
+        chk.addEventListener('change', () => { showSf = chk.checked; render(); });
+        mSfWrap = wrap; mSfTxt = q('locrec-sf-txt');
+    })();
     const thead = modal.querySelector('.locrec-table thead');
     const headHtml = () => SORT_COLS.map(c => {
         const on = sort && sort.key === c.key;
@@ -139,8 +159,22 @@ export function mountLocRecTable({ store, sizeOf }) {
     };
     // 상품명·옵션은 칸을 나눈다(2026-11-05 사용자 요청)
     const nameCell = (name) => escapeHtml(name || '');
+    // 칸수 무관 허용 — 상품코드 칸 아래 배지 + 토글(지금 자리에 칸수가 있는 줄·이미 허용한 상품만). 칸수는 행 값 → 없으면 sizeOfLoc 보충
+    const sizeFreeCell = (S, l, allowed) => {
+        const code = String(l.code == null ? '' : l.code).trim();
+        let size = l.fromSize;
+        if (!size && l.from && sizeOfLoc) { try { size = sizeOfLoc(l.from) || ''; } catch (e) { size = ''; } }
+        if (!sizeFreeShown(code, size, allowed)) return '';
+        const on = allowed.has(code);
+        const busy = S.saving.has(store.sizeFreeBusyKey(code));
+        return `<div class="locrec-sf" style="margin-top:2px; white-space:nowrap;">`
+            + (on ? `<span class="badge badge-accent locrec-badge" title="${escapeHtml(SIZE_FREE_HELP)}">${escapeHtml(SIZE_FREE_LABEL)}</span> ` : '')
+            + `<button type="button" class="btn btn-ghost btn-sm locrec-sf-btn" style="padding:0 6px; font-size:11px;" data-locrec-act="sizeFree"`
+            + ` data-locrec-sf="${escapeHtml(code)}" data-locrec-sf-on="${on ? '0' : '1'}"${busy ? ' disabled' : ''}`
+            + ` title="${escapeHtml(on ? '칸수 무관 허용을 끕니다 — 다음 추천부터 같은 칸수 자리로만' : SIZE_FREE_HELP)}">${escapeHtml(on ? '끄기' : '칸수 무관 허용')}</button></div>`;
+    };
 
-    function rowHtml(S, r, st, i, editable, pending, i0 = i) {
+    function rowHtml(S, r, st, i, editable, pending, i0 = i, allowed = new Set()) {
         const busy = S.saving.has(r.recKey) || !!S.applying || !editable;   // 지난 날짜는 볼 수만 · 전체 반영 중에는 잠금
         const busyMark = busy || pending;                                   // 새 판 대기 중 — [처리함]/[안 함]만 잠금(되돌리기는 된다)
         const k = escapeHtml(r.recKey);
@@ -188,7 +222,7 @@ export function mountLocRecTable({ store, sizeOf }) {
             const toTxt = moved ? locCell(ot.dst, '') : altHere ? locCell(altTo, '') : locCell(l.to, l.toSize);
             const toTitle = moved && ot.dst !== l.to ? ` title="${escapeHtml(`처리한 자리 — 나중에 다시 만든 추천은 ${l.to}`)}"`
                 : altHere ? ` title="${escapeHtml(`대신 자리로 처리함 — 추천 자리 ${l.to} 를 쓸 수 없었음`)}"` : '';
-            const cells = `<td class="locrec-pcode"><a class="locrec-code" href="location.html?q=${escapeHtml(encodeURIComponent(l.code || ''))}#tab=list" data-locrec-code="${escapeHtml(l.code)}" title="데이터 리스트에서 이 상품 보기">${escapeHtml(l.code)}</a></td>`
+            const cells = `<td class="locrec-pcode"><a class="locrec-code" href="location.html?q=${escapeHtml(encodeURIComponent(l.code || ''))}#tab=list" data-locrec-code="${escapeHtml(l.code)}" title="데이터 리스트에서 이 상품 보기">${escapeHtml(l.code)}</a>${sizeFreeCell(S, l, allowed)}</td>`
                 + `<td class="locrec-prod">${nameCell(l.name)}`
                 + (last && badges ? `<div class="locrec-badges">${badges}</div>` : '') + '</td>'
                 + `<td class="locrec-optcell">${escapeHtml(l.option || '')}</td>`
@@ -225,6 +259,25 @@ export function mountLocRecTable({ store, sizeOf }) {
             + `<td class="locrec-state"><span class="locrec-st st-muted" title="${escapeHtml(SKIP_HELP)}">${escapeHtml(HOLD_ROW_LABEL)}</span></td>`
             + `<td class="locrec-acts"><button type="button" class="btn btn-ghost btn-sm" data-locrec-act="unhold" data-locrec-key="${escapeHtml(h.recKey)}"${busy ? ' disabled' : ''}`
             + ` title="${escapeHtml(HOLD_UNDO_TEXT)}">되돌리기</button></td></tr>`;
+    }
+
+    /** 칸수 무관 허용 목록(표 끝, '칸수 무관 N건 보기') — 머리 한 줄 + 상품마다 한 줄 [끄기]. inDay = 오늘 판에 그 상품 줄이 있나 */
+    function sizeFreeHtml(S, list, inDay) {
+        if (!list.length) return '';
+        const head = `<tr class="locrec-row tone-muted locrec-sf-head"><td colspan="12" class="locrec-opt" style="font-weight:600;">`
+            + `${escapeHtml(`${SIZE_FREE_LABEL} 허용 ${list.length}건 — 칸수가 다른 자리로도 추천합니다(끌 때까지 유지)`)}</td></tr>`;
+        return head + list.map(x => {
+            const busy = S.saving.has(store.sizeFreeBusyKey(x.code));
+            const who = [x.by || NO_NAME, fmtMDHM(x.at)].filter(Boolean).join(' ');
+            return `<tr class="locrec-row tone-muted locrec-sf-row">`
+                + '<td class="locrec-rank"></td>'
+                + `<td class="locrec-pcode">${escapeHtml(x.code)}</td>`
+                + `<td class="locrec-prod" colspan="2">${escapeHtml(inDay.has(x.code) ? '오늘 추천 표에 있음' : '오늘 추천 표에 없음')}</td>`
+                + `<td colspan="6" class="locrec-opt">${escapeHtml(`${who} 허용`)}</td>`
+                + `<td class="locrec-state"><span class="locrec-st st-muted" title="${escapeHtml(SIZE_FREE_HELP)}">${escapeHtml(SIZE_FREE_LABEL)}</span></td>`
+                + `<td class="locrec-acts"><button type="button" class="btn btn-ghost btn-sm" data-locrec-act="sizeFree" data-locrec-sf="${escapeHtml(x.code)}" data-locrec-sf-on="0"${busy ? ' disabled' : ''}`
+                + ` title="칸수 무관 허용을 끕니다 — 다음 추천부터 같은 칸수 자리로만">끄기</button></td></tr>`;
+        }).join('');
     }
 
     // 열려 있을 때만 그린다(서버 문서·marks 가 바뀌면 store 가 알려 준다)
@@ -275,6 +328,17 @@ export function mountLocRecTable({ store, sizeOf }) {
             ? `${hiddenN > blockedN ? '안 함·' : ''}${BLOCKED_LABEL} ${hiddenN}건도 보기`
             : `안 함${hiddenN ? ` ${hiddenN}건` : ''}도 보기`;
         mDl.disabled = !rows.length;
+        // 칸수 무관 허용 — 목록 보기 체크(허용이 있거나 켜 둔 동안만 보인다)
+        const allowed = store.sizeFreeCodes();
+        const sfList = store.sizeFreeRows();
+        if (mSfWrap) {
+            mSfWrap.hidden = !(sfList.length || showSf);
+            mSfTxt.textContent = `${SIZE_FREE_LABEL} ${sfList.length}건 보기`;
+            q('locrec-sf-show').checked = showSf;
+        }
+        const inDay = new Set();
+        if (loaded) TABS.forEach(t => (S.day.parsed[t] || []).forEach(x => rowLines(x).forEach(l => inDay.add(String(l.code == null ? '' : l.code).trim()))));
+        const sfPart = showSf ? sizeFreeHtml(S, sfList, inDay) : '';
         // [전체 처리함] — 처음 보여 주는 날짜에서, 지금 탭에 아직 표시 안 한 추천이 있을 때만
         const bulk = loaded && editable ? bulkDoneKeys(all.filter(x => keepRow(x.r))) : [];   // 빼기로 숨긴 추천은 [전체 처리함]에서도 뺀다
         if (mAll) {
@@ -289,16 +353,16 @@ export function mountLocRecTable({ store, sizeOf }) {
             mMeta.textContent = '';
             const t = (S.latest && dayMessage(store.entryOf(S.key)))
                 || S.dayErr || (S.latestErr ? `추천 상태를 읽지 못했습니다(${S.latestErr})` : '') || '표 불러오는 중…';
-            mTbody.innerHTML = `<tr><td colspan="12" class="refill-empty">${escapeHtml(t)}</td></tr>`;
+            mTbody.innerHTML = `<tr><td colspan="12" class="refill-empty">${escapeHtml(t)}</td></tr>` + sfPart;
             return;
         }
         mMeta.textContent = tabMeta(tab, all) + (tab === 'back' ? ` · ${BACK_TAB_HELP}` : '') + (editable ? '' : ' · 지난 날짜는 볼 수만 있습니다');
         const holdPart = showSkipped ? holds.map(h => holdHtml(S, h)).join('') : '';
         if (!rows.length && !holdPart) {
-            mTbody.innerHTML = `<tr><td colspan="12" class="refill-empty">${escapeHtml(cnt[tab] || cry[tab] || holds.length ? (blockedN ? `모두 안 함·${BLOCKED_LABEL}으로 숨겼습니다` : '모두 안 함으로 숨겼습니다') : `${TAB_LABEL[tab]} 추천이 없습니다`)}</td></tr>`;
+            mTbody.innerHTML = `<tr><td colspan="12" class="refill-empty">${escapeHtml(cnt[tab] || cry[tab] || holds.length ? (blockedN ? `모두 안 함·${BLOCKED_LABEL}으로 숨겼습니다` : '모두 안 함으로 숨겼습니다') : `${TAB_LABEL[tab]} 추천이 없습니다`)}</td></tr>` + sfPart;
             return;
         }
-        mTbody.innerHTML = rows.map((x, i) => rowHtml(S, x.r, x.st, i, editable, !!pd, x.i0)).join('') + holdPart;
+        mTbody.innerHTML = rows.map((x, i) => rowHtml(S, x.r, x.st, i, editable, !!pd, x.i0, allowed)).join('') + holdPart + sfPart;
     }
 
     function open() { modal.style.display = 'flex'; render(); }
@@ -356,6 +420,7 @@ ${what}` : ''}
         }
         else if (act === 'skip') store.mark(key, 'skip');
         else if (act === 'unhold') store.unhold(key);
+        else if (act === 'sizeFree') store.setSizeFree(b.getAttribute('data-locrec-sf'), b.getAttribute('data-locrec-sf-on') === '1');
         else if (act === 'undo') {
             // 반영 기록이 있으면 데이터 리스트 자리도 되돌린다 — [처리함]과 같은 모양으로 묻는다(표시만이면 묻지 않음)
             const mk = store.get().marks[key];

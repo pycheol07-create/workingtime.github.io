@@ -34,8 +34,8 @@
 //                                     이월 행은 띠 건수·요약·엑셀·[전체 처리함]에서 뺀다(표에는 흐리게 보인다).
 // import 는 같은 lib 의 refill-view.js(날짜·시각, KST)·loc-recommend.js(엑셀 5열) 만 — 같은 규칙을 두 벌 두지 않는다.
 
-import { tsMs, dayKey, keyMs, lastDays, dayLabel, fmtHM, kstParts, waitInfo } from './refill-view.js?v=202611130931';
-import { excelRows, EXCEL_COLS } from './loc-recommend.js?v=202611130931';
+import { tsMs, dayKey, keyMs, lastDays, dayLabel, fmtHM, kstParts, waitInfo } from './refill-view.js?v=202611130950';
+import { excelRows, EXCEL_COLS } from './loc-recommend.js?v=202611130950';
 
 export { tsMs, dayKey, keyMs, lastDays, dayLabel, fmtHM, excelRows, EXCEL_COLS };
 
@@ -96,7 +96,57 @@ export function holdRows({ latest, marks, todayKey }) {
         }))
         .sort((a, b) => (a.recKey < b.recKey ? -1 : a.recKey > b.recKey ? 1 : 0));
 }
-export const MARK_STALE_DAYS = 7;        // '처리함' 표시 뒤 7일 안에 서버가 위치 변화를 못 보면 '위치 미반영'
+
+// ── 칸수 무관 허용(2026-11-13 사용자 요청) ──
+//   locRecWork/sizeAllow { codes: { 상품코드: {at, by(직원 이름)} } } ← 표의 [칸수 무관 허용]이 쓴다(merge, 끄면 그 키 지우기). 기한 없음.
+//   서버(로케이션추천\저장소.load_size_allow)는 코드만 읽어(at·by 는 버림) node input.sizeFree 로 넘긴다 — 그 상품은 칸수가 다른 자리로도 추천.
+//   화면 대신 자리(pickAltTarget sizeFree)도 같은 목록. 켜고 끈 것은 다음 다시 만들기·정기 계산부터 반영된다(요청은 보내지 않는다 — 사용자 결정).
+export const SIZE_FREE_LABEL = '칸수 무관';
+export const SIZE_FREE_HELP = '이 상품은 칸수가 다른 자리(4칸↔2칸 등)로도 추천합니다 — 끌 때까지 다음 추천에도 유지';
+export const SIZE_FREE_CODE_MAX = 60;       // 상품코드 길이 상한(이상한 값을 문서 키로 쓰지 않게)
+export const sizeFreeToast = (code, on) => (on
+    ? `${code} 칸수 무관 허용 — 지금 반영하려면 머리줄 [지금 재고로 다시 만들기]를 누르세요(아니면 다음 정기 추천부터).`
+    : `${code} 칸수 무관 허용을 껐습니다 — 다음 다시 만들기·정기 추천부터 같은 칸수 자리로만 추천합니다.`);
+
+/** 상품코드 정리 — 앞뒤 빈칸을 빼고, 비었거나 너무 길면 '' */
+export function sizeFreeCode(code) {
+    const c = str(code).trim();
+    return c && c.length <= SIZE_FREE_CODE_MAX ? c : '';
+}
+
+/** sizeAllow 문서 값 → [{code, by, at}] (코드 순). 값이 객체가 아닌 키·이상한 코드는 뺀다 */
+export function sizeFreeList(data) {
+    const codes = data && typeof data === 'object' && data.codes && typeof data.codes === 'object' ? data.codes : {};
+    return Object.keys(codes)
+        .filter(k => k && sizeFreeCode(k) === k && codes[k] && typeof codes[k] === 'object')
+        .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0))
+        .map(k => ({ code: k, by: str(codes[k].by), at: codes[k].at == null ? null : codes[k].at }));
+}
+
+/** sizeAllow 문서 값 → 상품코드 Set */
+export const sizeFreeSet = (data) => new Set(sizeFreeList(data).map(x => x.code));
+
+/**
+ * 토글 쓰기 값(setDoc merge 용) — 켜기 {codes:{코드:{at, by}}}, 끄기 {codes:{코드: del}}. 코드가 이상하면 null.
+ *   at·del 은 호출하는 쪽이 Firestore serverTimestamp()·deleteField() 를 넣는다(이 파일은 Firebase 를 모른다). 상품명은 넣지 않는다.
+ */
+export function sizeFreeWrite(code, on, { by, at, del } = {}) {
+    const c = sizeFreeCode(code);
+    if (!c) return null;
+    return { codes: { [c]: on ? { at, by: str(by).trim().slice(0, 20) } : del } };
+}
+
+/**
+ * 표 한 줄에 [칸수 무관 허용] 버튼을 달까 — 이미 허용이면 늘(끄기), 아니면 지금 자리에 칸수가 있을 때만(칸수가 없으면 이미 아무 자리로나 간다).
+ *   size = 줄의 fromSize(없으면 화면이 보충한 칸수). 뒤로 보내기 줄도 같다.
+ */
+export function sizeFreeShown(code, size, allowed) {
+    const c = sizeFreeCode(code);
+    if (!c) return false;
+    if (allowed && allowed.has(c)) return true;
+    return !!str(size).trim();
+}
+export const MARK_STALE_DAYS = 7;       // '처리함' 표시 뒤 7일 안에 서버가 위치 변화를 못 보면 '위치 미반영'
 export const LOC_OLD_DAYS = 3;           // 재고 자료가 3일 넘게 오래되면 경고
 const p2 = (n) => String(n).padStart(2, '0');
 
