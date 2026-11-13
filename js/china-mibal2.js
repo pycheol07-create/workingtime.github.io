@@ -29,39 +29,39 @@
 //   live 일 때만 js/china-mibal2-live.js 를 동적 import 한다(스캐너에 반영·작업 마감·보관·입고오차·미발이력·위치 쓰기·관리 창).
 //   이 파일에는 그 쓰기가 없다. live 면 출고일은 기존 계산기(CONFIG.savedDatesMibal)를 보지 않고 mibal2/settings 만 쓴다.
 //   false(지금)면 아래 동작은 예전과 같다 — tests/mibal2-readonly.test.js 가 본다.
-import { initializeFirebase } from './china-stock-config.js?v=202611130915'; // 게이트(china-stock-gate.js)와 '똑같은 주소' → 모듈 한 번만 생성
+import { initializeFirebase } from './china-stock-config.js?v=202611130931'; // 게이트(china-stock-gate.js)와 '똑같은 주소' → 모듈 한 번만 생성
 import { doc, getDoc, getDocFromServer, getDocs, getDocsFromServer, setDoc, onSnapshot, collection, query, where, orderBy, limit, documentId, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { explain } from './lib/mibal2-calc.js?v=202611130915';
-import { sortMark } from './lib/china-stock-view.js?v=202611130915';
+import { explain } from './lib/mibal2-calc.js?v=202611130931';
+import { sortMark } from './lib/china-stock-view.js?v=202611130931';
 import {
     listShipDates, buildLocIndex, computeRows, summarize, FLAG_INFO, excelAoaOf,
     graceDaysFrom, legacyDatesFrom, selectedDatesFrom, oldMapFromScan
-} from './lib/mibal2-rows.js?v=202611130915';
-import { setShellContext } from './app-shell-bridge.js?v=202611130915';
-import { memberNameFor } from './app-shell-data.js?v=202611130915';
-import { mountBusyBanner } from './busy-banner.js?v=202611130915';
-import { latestDoneView, collectorQuiet } from './lib/busy-view.js?v=202611130915';
-import { friendlyFirebaseError } from './utils.js?v=202611130915';
-import { diffOf } from './lib/inbound-diff.js?v=202611130915';
-import { confirmedOf, outsideInboundOf, byShipOf } from './lib/scan-link.js?v=202611130915';
-import { scanLogHtml } from './lib/mibal2-scanlog.js?v=202611130915';
-import { fixTipOf, liveBaseOf, pendingSet, batchRowsOf, batchConfirmText, runBatch, pendingAfterBatch, batchResultText, failReasonText, failLinesOf } from './lib/inbound-fix.js?v=202611130915';
-import { createFixBar, afterClick } from './inbound-fix-bar.js?v=202611130915';
-import { mibal2Access, MIBAL2_DENIED_MSG } from './lib/mibal2-access.js?v=202611130915';
-import { subscribeInbound, setupScanTools } from './china-mibal2-scan.js?v=202611130915';
-import { setupLocMode } from './china-mibal2-loc.js?v=202611130915';
-import { isMibal2Live } from './lib/mibal2-mode.js?v=202611130915';
-import { liveDatesFrom } from './lib/mibal2-rows.js?v=202611130915';
-import { stableSig, ARCHIVE_COLL } from './lib/mibal2-live.js?v=202611130915';
-import { bestShipOf, mismatchLine, codeListText } from './lib/ship-mismatch.js?v=202611130915';   // 출고일 불일치(2026-11-10)
-import { writeXls } from './lib/xls-limits.js?v=202611130915';
-import { readHash, writeHash, onHashNav } from './hash-state.js?v=202611130915';   // live 때만 씀(빠른 이동 #tab=mibal|location)
-import { refreshDoneAuto, claimOk, claimMine, autoStopText, serverBatchOpen, AUTO_CLAIM_KEY, AUTO_TOAST_MS } from './lib/mibal2-auto-apply.js?v=202611130915';
+} from './lib/mibal2-rows.js?v=202611130931';
+import { setShellContext } from './app-shell-bridge.js?v=202611130931';
+import { memberNameFor } from './app-shell-data.js?v=202611130931';
+import { mountBusyBanner } from './busy-banner.js?v=202611130931';
+import { latestDoneView, collectorQuiet } from './lib/busy-view.js?v=202611130931';
+import { friendlyFirebaseError } from './utils.js?v=202611130931';
+import { diffOf } from './lib/inbound-diff.js?v=202611130931';
+import { confirmedOf, outsideInboundOf, byShipOf } from './lib/scan-link.js?v=202611130931';
+import { scanLogHtml } from './lib/mibal2-scanlog.js?v=202611130931';
+import { fixTipOf, liveBaseOf, pendingSet, batchRowsOf, batchConfirmText, runBatch, pendingAfterBatch, batchResultText, failReasonText, failLinesOf } from './lib/inbound-fix.js?v=202611130931';
+import { createFixBar, afterClick } from './inbound-fix-bar.js?v=202611130931';
+import { mibal2Access, MIBAL2_DENIED_MSG } from './lib/mibal2-access.js?v=202611130931';
+import { subscribeInbound, setupScanTools } from './china-mibal2-scan.js?v=202611130931';
+import { setupLocMode } from './china-mibal2-loc.js?v=202611130931';
+import { isMibal2Live } from './lib/mibal2-mode.js?v=202611130931';
+import { liveDatesFrom } from './lib/mibal2-rows.js?v=202611130931';
+import { stableSig, ARCHIVE_COLL } from './lib/mibal2-live.js?v=202611130931';
+import { bestShipOf, mismatchLine, codeListText } from './lib/ship-mismatch.js?v=202611130931';   // 출고일 불일치(2026-11-10)
+import { writeXls } from './lib/xls-limits.js?v=202611130931';
+import { readHash, writeHash, onHashNav } from './hash-state.js?v=202611130931';   // live 때만 씀(빠른 이동 #tab=mibal|location)
+import { refreshDoneAuto, claimOk, claimMine, autoStopText, serverBatchOpen, AUTO_CLAIM_KEY, AUTO_TOAST_MS } from './lib/mibal2-auto-apply.js?v=202611130931';
 // 마감된 작업 보기(2026-11-12) — 마감한 출고일을 다시 고르면 입고확인 = 보관함 기록
-import { closedQueryDates, closedCacheKey, closedViewOf, closedNoteLines } from './lib/mibal2-closed-view.js?v=202611130915';
+import { closedQueryDates, closedCacheKey, closedViewOf, closedNoteLines } from './lib/mibal2-closed-view.js?v=202611130931';
 import { COLS_PICK_KEY, LEGACY_COLS_KEY, DEFAULT_ON, REQUIRED, pickableCols, normalizeOn, colsFromStorage, serializeCols, toggleCol,
-    hiddenCss, colsMode, visibleCount } from './lib/mibal2-cols.js?v=202611130915';
+    hiddenCss, colsMode, visibleCount } from './lib/mibal2-cols.js?v=202611130931';
 
 const { db, auth } = initializeFirebase();
 const LIVE = isMibal2Live();   // 단독 운영인가(지금은 false — 에뮬레이터 시험 주소 ?emu=1&live=1 에서만 true)
@@ -324,10 +324,16 @@ function sortKeyVal(r, key) {
     if (key === 'conf') { const n = parseInt(r.conf); return isNaN(n) ? null : n; }   // 빈칸·수동 글자 → 모름(아래로)
     return r[key];
 }
+/** 숨긴 '확인 필요만' 체크 상태 → [확인 필요 N] 눌린 모양 + 표 위 '확인 필요만 보는 중' 표시(걸러진 채 파일을 받지 않게, 2026-11-13) */
+function syncCheckOnly(on) {
+    $('btn-check-only').setAttribute('aria-pressed', on ? 'true' : 'false');
+    $('check-only-note').hidden = !on;
+}
 function applyFilters() {
     const q = ($('search-input').value || '').trim().toLowerCase();
     const diffOnly = !LIVE && $('chk-diff-only').checked;   // live 는 기존 비교값이 없어 이 거르기를 쓰지 않는다(받기 파일에서 상품이 빠지지 않게)
     const checkOnly = $('chk-check-only').checked;
+    syncCheckOnly(checkOnly);
     viewRows = allRows.filter(r => {
         // 차이 = 둘 다 있으면 값이 다를 때, 한쪽만 있으면(기존 값 없음·3층 모름) 그것도 차이로 본다. 기존에만 있는 상품은 행이 없다(10/28)
         const hasDiff = r.diff !== null ? r.diff !== 0 : (r.old !== null) !== (r.third !== null);
@@ -524,6 +530,12 @@ function renderSourceNote() {
     if (!rs) warns.push('이 수집 자료에는 비축재고 없음 → 피킹 적재·비축 적재·피킹 배정수량을 계산 못 함(확인 필요)');
     else if (rs.status !== 'ok' || Number(rs.missing) > 0) warns.push(`비축재고 수집 ${rs.status} — 비축 미응답 코드 ${num(rs.missing)}개(그 코드는 비축재고 없음 → 피킹 적재·비축 적재·피킹 배정수량을 계산 못 함(확인 필요))`);
     box.innerHTML = parts.join(' · ') + (warns.length ? `<br><span class="t-risk">⚠ ${warns.map(esc).join(' / ')}</span>` : '');
+    // 자료 출처는 머리줄 ⓘ 안에 접혀 있다(2026-11-13) — 경고가 있으면 칩에 ⚠ 를 붙여 펼쳐 보게
+    const info = $('btn-status-info');
+    if (info) {
+        info.classList.toggle('has-warn', warns.length > 0);
+        info.title = warns.length ? `⚠ 자료 경고 ${warns.length}건 — 눌러서 확인하세요` : '수집 상태 · 자료 출처를 펼치거나 접습니다';
+    }
 }
 
 // ── 스캐너 연동(시험 — 읽기 전용): 입고확인·차이(도착 − 입고확인) ──
@@ -573,8 +585,7 @@ function renderMismatch() {
         el.id = 'ship-mismatch';
         el.className = 'src-note live-only t-risk';
         el.setAttribute('role', 'status');
-        const note = $('src-note');
-        note.parentNode.insertBefore(el, note.nextSibling);
+        $('table-notes').appendChild(el);   // 표 바로 위(자료 출처 #src-note 는 머리줄 ⓘ 안에 접혀 있다 — 2026-11-13). 마감 안내(#closed-note)가 늘 앞
     }
     if (!mismatch || viewMode !== 'live') { el.hidden = true; el.textContent = ''; return; }
     el.hidden = false;
@@ -700,7 +711,7 @@ async function saveConfirmedBatch() {
         setLoading(true, `입고이력·스캐너 값 확인 중... (${codes.length}건)`);
         let mod, srvBy;
         try {
-            mod = await import('./inbound-fix-write.js?v=202611130915');
+            mod = await import('./inbound-fix-write.js?v=202611130931');
             srvBy = await mod.readServerInboundMany(db, codes, 5);
         } finally { setLoading(false); }
         // 옛 수동값만 보이던 칸(시험 화면 — 입고이력에 키 없음): 같은 값이어도 기록해 입고확인을 그 값으로 고정
@@ -827,7 +838,6 @@ function renderDateTags() {
     const box = $('date-tags-container');
     const dates = selectedDates;
     const info = dateInfo;
-    $('btn-date-dropdown').textContent = selectedDates.length ? `▼ ${selectedDates.length}개 선택됨` : '▼ 출고일 선택';
     if (!dates.length) box.innerHTML = '선택된 출고일 없음';
     else box.innerHTML = [...dates].sort((a, b) => b.localeCompare(a)).map(d => {
         const x = info[d];
@@ -840,6 +850,7 @@ function renderDateTags() {
     if (LIVE) {   // 단독 운영 — 기존 계산기 출고일과 견주지 않는다
         $('date-src').textContent = '이 화면에서 고른 출고일 · 입고확인은 출고일 구분 없이 작업 마감 이후 스캔 전체';
         setDateDiffWarn(false);
+        renderDateChip();
         if (live) live.onDates();
         return;
     }
@@ -847,10 +858,24 @@ function renderDateTags() {
         ? (same ? '이 화면에서 고른 출고일 (기존과 같음)' : '이 화면에서 고른 출고일 (기존 계산기와 다름)' + confNote)
         : '기존 계산기와 같은 출고일';
     setDateDiffWarn(legacyKnown && dateSource === 'own' && !same);   // CONFIG 를 못 읽었으면(기존 출고일 모름) 경고·버튼 숨김
+    renderDateChip();
 }
-// 출고일이 기존 계산기와 다르면 #date-src 를 경고색·굵게 + 날짜 바에 '기존 계산기 선택 따르기' 버튼
+// 출고일 칩(2026-11-13) — 단추 안에 고른 날짜를 '11/13 · 11/14 ▾' 로(3개 넘으면 '외 N'). 날짜 태그(입고일 포함)·출처 글은 출고일 창 아래와 툴팁에
+const CHIP_DATES = 3;
+const chipMD = (d) => { const p = String(d == null ? '' : d).split('-'); return p.length === 3 ? `${+p[1]}/${+p[2]}` : String(d == null ? '' : d); };
+function renderDateChip() {
+    const btn = $('btn-date-dropdown');
+    const dates = [...selectedDates].sort();
+    const shown = dates.slice(0, CHIP_DATES).map(chipMD).join(' · ') + (dates.length > CHIP_DATES ? ` 외 ${dates.length - CHIP_DATES}` : '');
+    btn.innerHTML = `<span class="date-chip-label">출고일</span> ${dates.length ? esc(shown) : '선택'} ▾`;
+    const tags = [...$('date-tags-container').querySelectorAll('.date-tag')].map(x => x.textContent.trim()).join(', ');
+    const src = ($('date-src').textContent || '').trim();
+    btn.title = [dates.length ? `선택: ${tags}` : '선택된 출고일 없음', src].filter(Boolean).join('\n') + '\n(누르면 출고일 창)';
+}
+// 출고일이 기존 계산기와 다르면 #date-src 를 경고색·굵게(출고일 칩도 경고색) + 날짜 바에 '기존 계산기 선택 따르기' 버튼
 function setDateDiffWarn(on) {
     $('date-src').classList.toggle('t-warn', on);
+    $('btn-date-dropdown').classList.toggle('warn', on);
     const btn = $('btn-date-legacy-out');
     if (btn) btn.hidden = !on;
 }
@@ -1006,7 +1031,9 @@ function renderRefreshUI() {
         setBusyMsg(l && l.active && l.kind === 'refill' ? '채우기가 이지어드민 사용 중 — 요청은 끝난 뒤 처리' : '');
     }
 }
-function clearPending(message) {
+// warn = 완료가 아닌 결과(실패·요청 무시·응답 없음) — 머리줄 안내 말고 토스트로도 알린다(2026-11-13)
+function clearPending(message, warn) {
+    if (warn && message) showToast('⚠️ ' + message, 6000);
     resultMsg = message || '';
     pending = null;
     try { sessionStorage.removeItem(PENDING_KEY); } catch (e) {}
@@ -1065,14 +1092,14 @@ function checkPending() {
     const runMs = latest ? tsMs(latest.lastRunAt) : 0;
     if (runMs && runMs !== pending.baseRun) {
         if (LIVE && refreshDoneAuto(pending, latest)) { autoApplyDue = true; autoApplyRid = pending.rid; }   // 서버 스냅샷에서 한 번 자동 반영(구독 처리부)
-        clearPending(latest.ok === false ? `갱신 실패 ${hhmm(runMs)} — 아래 오류 확인` : `갱신 완료 ${hhmm(runMs)}`);
+        clearPending(latest.ok === false ? `갱신 실패 ${hhmm(runMs)} — 아래 오류 확인` : `갱신 완료 ${hhmm(runMs)}`, latest.ok === false);
         return;
     }
     const noteAt = latest ? tsMs(latest.noteAt) : 0;
     const note = (latest && latest.note) || '';
-    if (noteAt && noteAt !== pending.baseNoteAt && note) { clearPending('요청이 처리되지 않음: ' + note); return; }
+    if (noteAt && noteAt !== pending.baseNoteAt && note) { clearPending('요청이 처리되지 않음: ' + note, true); return; }
     if (Date.now() - pending.atMs > REFRESH_TIMEOUT_MS) {
-        clearPending('15분 동안 응답 없음 — 요청이 무시됐을 수 있습니다(월~토 07~19시만 처리 · 마지막 성공 후 10분 안 요청은 무시)');
+        clearPending('15분 동안 응답 없음 — 요청이 무시됐을 수 있습니다(월~토 07~19시만 처리 · 마지막 성공 후 10분 안 요청은 무시)', true);
     }
 }
 /**
@@ -1269,6 +1296,14 @@ function setupEvents() {
     $('search-input').addEventListener('input', applyFilters);
     $('chk-diff-only').addEventListener('change', applyFilters);
     $('chk-check-only').addEventListener('change', applyFilters);
+    // [확인 필요 N](요약 작은 줄, 2026-11-13) — 예전 '확인 필요만' 체크박스(지금은 숨김)를 켜고 끈다. 켜지면 눌린 모양
+    $('btn-check-only').addEventListener('click', () => {
+        const c = $('chk-check-only');
+        c.checked = !c.checked;
+        applyFilters();
+    });
+    syncCheckOnly($('chk-check-only').checked);   // 처음 — 브라우저가 체크를 되살렸어도 단추·표시가 맞게
+    window.addEventListener('pageshow', () => syncCheckOnly($('chk-check-only').checked));   // 뒤로 가기(bfcache)로 돌아왔을 때도
     $('btn-excel').addEventListener('click', downloadExcel);
     $('btn-refresh').addEventListener('click', () => requestRefresh(false));
     $('btn-view-live').addEventListener('click', () => setView('live', true));
@@ -1389,7 +1424,7 @@ const sharedSigOf = (snaps) => stableSig(snaps.map(x => (x.exists() ? x.data() :
 async function loadLiveTools() {
     if (!LIVE) return null;
     try {
-        const mod = await import('./china-mibal2-live.js?v=202611130915');
+        const mod = await import('./china-mibal2-live.js?v=202611130931');
         return mod.startLive({
             db, showToast, setLoading, errText,
             isAdmin: () => accessIsAdmin,
@@ -1489,8 +1524,8 @@ function renderClosedNote() {
         el.className = 'src-note live-only';
         el.setAttribute('role', 'status');
         el.style.cssText = 'background:var(--c-track);font-weight:600;';
-        const note = $('src-note');
-        note.parentNode.insertBefore(el, note.nextSibling);
+        const box = $('table-notes');   // 표 바로 위, 출고일 밖 입고 경고(#ship-mismatch)보다 앞(2026-11-13 — 예전엔 #src-note 바로 뒤)
+        box.insertBefore(el, box.firstChild);
     }
     const btn = (id, text, fn) => {
         const b = document.createElement('button');

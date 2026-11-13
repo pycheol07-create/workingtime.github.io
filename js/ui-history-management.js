@@ -1,14 +1,14 @@
 // === js/ui-history-management.js ===
 // 설명: 경영 지표(재고, 매출 등)의 입력 및 기간별 분석 리포트 렌더링을 담당합니다.
 
-import { formatDuration, getWeekOfYear, isWeekday, toDateString, buildMemberHourlyWageMap, escapeHtml } from './utils.js?v=202611130915';
-import { getDiffHtmlForMetric, analyzeUnitCost } from './ui-history-reports-logic.js?v=202611130915';
-import { appConfig, context } from './state.js?v=202611130915';
+import { formatDuration, getWeekOfYear, isWeekday, toDateString, buildMemberHourlyWageMap, escapeHtml } from './utils.js?v=202611130931';
+import { getDiffHtmlForMetric, analyzeUnitCost } from './ui-history-reports-logic.js?v=202611130931';
+import { appConfig, context } from './state.js?v=202611130931';
 import {
     REVENUE_CHANNELS, CHANNEL_METRICS,
     revenueTotalOf, orderCountTotalOf, isLegacyRevenue, isLegacyOrderCount
-} from './revenue-channels.js?v=202611130915';
-import { D } from './d-chart.js?v=202611130915';
+} from './revenue-channels.js?v=202611130931';
+import { D } from './d-chart.js?v=202611130931';
 // predictFutureTrends import 제거됨
 
 // 💰 채널별 입력 블록 (일반배송(카페24) / 직진배송 / 도착보장 / 기타)

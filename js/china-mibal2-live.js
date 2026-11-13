@@ -21,19 +21,19 @@ import { doc, getDoc, getDocs, getDocFromServer, getDocsFromServer, setDoc, writ
     from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { scanApplyPlan, versionDataOf, archiveRecordOf, shrinkArchive, archiveAoa, diffRowsOf, historyGroupsOf, historyRecordsOf,
     stableSig, hasHistoryToday, mibalTotalsOf, barcodeMapOfAoa, batchIdOf, isoDay, ARCHIVE_COLL, RECENT_SCAN_MIN, partialRecordOf,
-    fileRowsOf, inboundFileAoa, mibalFileAoa, floor2FileAoa, readAllPages } from './lib/mibal2-live.js?v=202611130915';
-import { buildDiffRecord, shouldAutoSave, mergeRev, shrinkIfLarge, diffSummaryText, overlapping, queryRange } from './lib/inbound-diff.js?v=202611130915';
-import { inboundMapOf, floor2MapOf } from './lib/scan-link.js?v=202611130915';
-import { inboundSig } from './lib/inbound-fix.js?v=202611130915';
+    fileRowsOf, inboundFileAoa, mibalFileAoa, floor2FileAoa, readAllPages } from './lib/mibal2-live.js?v=202611130931';
+import { buildDiffRecord, shouldAutoSave, mergeRev, shrinkIfLarge, diffSummaryText, overlapping, queryRange } from './lib/inbound-diff.js?v=202611130931';
+import { inboundMapOf, floor2MapOf } from './lib/scan-link.js?v=202611130931';
+import { inboundSig } from './lib/inbound-fix.js?v=202611130931';
 import { buildScanLogDocs, expandScanLogDocs, checkScanLogParts, docIdOf, scanLogInputOf, scanLogListHtml, scanLogExcelRows,
-    SCANLOG_JOBS_COLL, SCANLOG_MAX_PARTS } from './lib/mibal2-scanlog.js?v=202611130915';
-import { setupLiveLoc } from './china-mibal2-live-loc.js?v=202611130915';
-import { setupLiveAdmin, readSheetRowsAOA, packMap, unpackMap } from './china-mibal2-live-admin.js?v=202611130915';
-import { shipMismatchOf, mismatchLine, mismatchBlockText } from './lib/ship-mismatch.js?v=202611130915';
-import { writeXls, xlsBytes } from './lib/xls-limits.js?v=202611130915';
-import { autoStopReason, autoStopText, serverBatchOpen, AUTO_TOAST_MS } from './lib/mibal2-auto-apply.js?v=202611130915';
-import { setupScanBar } from './china-mibal2-bar.js?v=202611130915';
-import { mdhmPad } from './lib/mibal2-closed-view.js?v=202611130915';
+    SCANLOG_JOBS_COLL, SCANLOG_MAX_PARTS } from './lib/mibal2-scanlog.js?v=202611130931';
+import { setupLiveLoc } from './china-mibal2-live-loc.js?v=202611130931';
+import { setupLiveAdmin, readSheetRowsAOA, packMap, unpackMap } from './china-mibal2-live-admin.js?v=202611130931';
+import { shipMismatchOf, mismatchLine, mismatchBlockText } from './lib/ship-mismatch.js?v=202611130931';
+import { writeXls, xlsBytes } from './lib/xls-limits.js?v=202611130931';
+import { autoStopReason, autoStopText, serverBatchOpen, AUTO_TOAST_MS } from './lib/mibal2-auto-apply.js?v=202611130931';
+import { setupScanBar } from './china-mibal2-bar.js?v=202611130931';
+import { mdhmPad } from './lib/mibal2-closed-view.js?v=202611130931';
 
 // 마감된 작업(보관함)을 보는 동안 끄는 버튼 — 고른 출고일 기준으로 쓰는 것만(js/lib/mibal2-closed-view.js). 되돌리기·바코드·위치·관리는 그대로
 const CLOSED_BTN_IDS = ['btn-scan-off-sync', 'btn-scan-off-reset', 'btn-scan-off-diffrec'];
@@ -86,35 +86,35 @@ export function startLive(ctx) {
         }
         const title = document.querySelector('.page-title');
         if (title) title.textContent = '중국제작 부족수량 관리';
-        document.title = '중국제작 부족수량 관리(신규)';
-        const badge = document.querySelector('.version-badge');
-        if (badge) badge.textContent = '신규';
+        document.title = '중국제작 부족수량 관리';
+        const badge = document.querySelector('.version-badge');   // 시험 화면의 '비교용' 배지 — 운영에서는 숨김(2026-11-13)
+        if (badge) badge.hidden = true;
         ['btn-date-legacy', 'btn-date-legacy-out'].forEach(id => { const b = $(id); if (b) { b.hidden = true; b.style.display = 'none'; } });
-        const st = document.querySelector('.scan-bar .scan-title');
-        if (st) st.textContent = '스캐너 연동';
         const on = (id, text, title) => { const b = $(id); if (!b) return null; b.disabled = false; b.textContent = text; b.title = title; return b; };
         on('btn-scan-off-sync', '스캐너에 반영', '지금 표(선택 출고일)의 피킹 배정수량·도착을 스캐너 자료에 씁니다. 직전 값은 자동 백업됩니다')
-            ?.classList.add('d-btn-primary', 'live-on');   // live-on — 꺼져도(마감된 작업 보기) 스캐너 연동 줄을 펼친 채(china-mibal2.html)
+            ?.classList.add('d-btn-primary', 'live-on');   // live-on — 단독 운영이 켠 버튼 표시(마감된 작업 보기로 꺼져도 남음)
         on('btn-scan-off-version', '직전으로 되돌리기', '마지막 [스캐너에 반영] 직전의 스캐너 자료로 되돌립니다');
         on('btn-scan-off-reset', '작업 마감', '보관함에 저장하고 입고이력·비축창고를 비웁니다(다음 작업 준비)');
         on('btn-scan-off-diffrec', '입고 오차 기록', '선택한 출고일의 도착 − 입고확인을 기록합니다');
         const lock = $('btn-scan-off-lock'); if (lock) lock.style.display = 'none';
-        const bar = document.querySelector('.scan-bar');
-        if (bar) {
-            const note = [...bar.querySelectorAll('span.t-3')].pop();
-            if (note) { note.id = 'live-batch-note'; note.textContent = ''; }
-            const add = (id, text, title) => {
-                const b = document.createElement('button');
-                b.type = 'button'; b.id = id; b.className = 'd-btn d-btn-sm'; b.textContent = text; b.title = title;
-                bar.insertBefore(b, note || null);
-                return b;
-            };
-            add('btn-live-archive', '지난 작업 보기', '작업 마감 때 저장한 보관함을 봅니다');
-            add('btn-live-barcode', '바코드 매핑 올리기', '상품코드·바코드 두 열이 있는 엑셀로 스캐너 바코드 매핑을 바꿉니다');
-            add('btn-live-admin', '관리', '위치매핑 · 오류바코드 · 구역 적재량 · 본사도착 유예 · 빈 칸 넘침 규칙');
-            add('btn-live-inbound-file', '입고용 파일 받기', '지금 표에 보이는 행의 상품코드·도착수량을 이지어드민 업로드용 파일(입고용파일.xls)로 받습니다');
-            add('btn-live-floor2-file', '비축창고 엑셀 받기', '스캐너가 쌓은 비축창고 입고분의 상품코드·작업수량을 이지어드민 업로드용 파일(비축창고재고.xls)로 받습니다');
-        }
+        // 버튼 자리(2026-11-13 고정 배치): '오늘 작업' 줄 = 입고용 파일 받기 · 스캐너에 반영 · 작업 마감
+        //   [파일·기록 ▾] = 비축창고 엑셀 받기 · 스캐너 값 미리보기 엑셀 · 직전으로 되돌리기 · 지난 작업 보기 · 입고 오차 기록 · 입고 오차 통계 · 비축창고 보기
+        //   [관리 ▾] = 관리 · 바코드 매핑 올리기 · 열 너비 원래대로 · ⚙ 버튼 설정(줄 편집)
+        const note = $('work-note');
+        if (note) { note.id = 'live-batch-note'; note.textContent = ''; }
+        const add = (id, text, title, parent, before) => {
+            if (!parent) return null;
+            const b = document.createElement('button');
+            b.type = 'button'; b.id = id; b.className = 'd-btn d-btn-sm'; b.textContent = text; b.title = title;
+            parent.insertBefore(b, (before && before.parentNode === parent) ? before : null);
+            return b;
+        };
+        const workRow = $('work-row'), files = $('menu-files-panel'), adminMenu = $('menu-admin-panel');
+        add('btn-live-inbound-file', '입고용 파일 받기', '지금 표에 보이는 행의 상품코드·도착수량을 이지어드민 업로드용 파일(입고용파일.xls)로 받습니다', workRow, workRow && workRow.firstElementChild);
+        add('btn-live-floor2-file', '비축창고 엑셀 받기', '스캐너가 쌓은 비축창고 입고분의 상품코드·작업수량을 이지어드민 업로드용 파일(비축창고재고.xls)로 받습니다', files, files && files.firstElementChild);
+        add('btn-live-archive', '지난 작업 보기', '작업 마감 때 저장한 보관함을 봅니다', files, $('btn-scan-off-diffrec'));
+        add('btn-live-admin', '관리', '위치매핑 · 오류바코드 · 구역 적재량 · 본사도착 유예 · 빈 칸 넘침 규칙', adminMenu, adminMenu && adminMenu.firstElementChild);
+        add('btn-live-barcode', '바코드 매핑 올리기', '상품코드·바코드 두 열이 있는 엑셀로 스캐너 바코드 매핑을 바꿉니다', adminMenu, $('btn-col-reset'));
         const diffChk = $('chk-diff-only'); if (diffChk) { diffChk.checked = false; diffChk.closest('label').style.display = 'none'; }
         ['sum-old', 'sum-diff'].forEach(id => { const c = $(id)?.closest('.summary-card'); if (c) c.style.display = 'none'; });
         const viewLoc = $('btn-view-loc'); if (viewLoc) viewLoc.textContent = '위치지정';
@@ -150,9 +150,9 @@ export function startLive(ctx) {
         $('btn-live-barcode').addEventListener('click', () => file.click());
         file.addEventListener('change', (e) => guard(() => uploadBarcodeMap(e)));
         renderBatchNote();
-        // [⚙ 설정] 메뉴(모든 버튼) + [줄 편집](이 PC 에서 줄 구성·순서) — 버튼을 다 만든 뒤. 지금 줄 버튼 중 관리자 전용은 없다
-        //   ([관리] 창은 직원도 열고 안의 관리자 칸만 막는다)
-        setupScanBar({ isAdmin: () => !!(ctx.isAdmin && ctx.isAdmin()), adminOnly: [], extraMenu: ['btn-open-scanner'] });
+        // [줄 편집](이 PC 에서 '오늘 작업' 줄 구성·순서, 줄에 없는 것은 [파일·기록 ▾]) — 버튼을 다 만든 뒤. 편집 항목은 [관리 ▾] 안.
+        //   지금 줄 버튼 중 관리자 전용은 없다([관리] 창은 직원도 열고 안의 관리자 칸만 막는다)
+        setupScanBar({ row: workRow, menu: files, editHost: adminMenu, isAdmin: () => !!(ctx.isAdmin && ctx.isAdmin()), adminOnly: [] });
     }
 
     async function guard(fn) {

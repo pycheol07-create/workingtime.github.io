@@ -1,31 +1,41 @@
 // === js/lib/mibal2-bar.js ===
-// 부족수량관리(신규, live) 스캐너 연동 줄 — [⚙ 설정] 메뉴(모든 버튼) + [줄 편집](각자 PC 에서 줄에 둘 버튼·순서). 2026-11-10 사용자 요청.
+// 부족수량관리(신규, live) '오늘 작업' 줄 — [줄 편집](각자 PC 에서 줄에 둘 버튼·순서). 2026-11-10 사용자 요청, 2026-11-13 고정 배치로 정리.
 // 순수 함수만(시험 tests/mibal2-bar.test.js). 화면은 js/china-mibal2-bar.js.
-//   · 버튼은 id 로만 다룬다. 고를 수 있는 버튼(available) = 화면이 그 줄에 만든 버튼(DOM 순서) — 여기에 id 를 박지 않는다
-//   · 저장은 그 PC 브라우저(localStorage BAR_KEY) — 서버에 저장하지 않는다. 못 읽으면 기본값(= 지금 줄 그대로)
-//   · 저장 뒤 새로 생긴 버튼(known 에 없던 것)은 줄 끝에 넣는다(새 기능이 숨지 않게)
+//   · 버튼은 id 로만 다룬다. 고를 수 있는 버튼(available) = 화면이 줄·[파일·기록 ▾] 메뉴에 둔 버튼(DOM 순서) — 여기에 id 를 박지 않는다
+//   · 기본 배치(defaults) = 화면이 처음 줄에 둔 버튼(입고용 파일 받기·스캐너에 반영·작업 마감). 줄에 없는 버튼은 메뉴에 있다
+//   · 저장은 그 PC 브라우저(localStorage BAR_KEY) — 서버에 저장하지 않는다. 못 읽으면 기본 배치
+//   · 2026-11-13 키를 바꿨다 — 예전 키(OLD_BAR_KEYS, 버튼 전부가 한 줄이던 때의 배치)는 읽지 않는다(새 배치를 깨뜨리지 않게)
+//   · 저장 뒤 새로 생긴 버튼(known 에 없던 것)은 기본 배치에 있는 것만 줄 끝에 넣는다(나머지는 메뉴 — 새 기능이 숨지 않게)
 //   · 관리자 전용(adminOnly)은 관리자가 아니면 줄·메뉴 어디에도 없다
 
-export const BAR_KEY = 'mibal2.scanBar';
+export const BAR_KEY = 'mibal2.workRow';
+export const OLD_BAR_KEYS = ['mibal2.scanBar'];
 
 const uniq = (a) => [...new Set((Array.isArray(a) ? a : []).map(String))];
 /** 이 사람이 볼 수 있는 버튼(순서 그대로) */
 export const visibleIds = (available, { isAdmin = false, adminOnly = [] } = {}) =>
     uniq(available).filter(id => isAdmin || !adminOnly.includes(id));
 
+/** 기본 배치 — defaults 가 없으면 볼 수 있는 버튼 전부(예전 동작) */
+export const defaultRow = (available, opt, defaults) => {
+    const vis = visibleIds(available, opt);
+    return defaults === undefined ? vis : uniq(defaults).filter(id => vis.includes(id));
+};
+
 /**
  * 저장값 → 줄에 둘 버튼(순서). raw = localStorage 글자(없으면 null)
  * 저장 모양 { v: 1, row: [id], known: [id] }
  */
-export function rowFromStorage(raw, available, opt) {
+export function rowFromStorage(raw, available, opt, defaults) {
     const vis = visibleIds(available, opt);
-    if (raw == null) return vis;
+    const def = defaultRow(available, opt, defaults);
+    if (raw == null) return def;
     let v = null;
-    try { v = JSON.parse(raw); } catch (e) { return vis; }
-    if (!v || v.v !== 1 || !Array.isArray(v.row)) return vis;
+    try { v = JSON.parse(raw); } catch (e) { return def; }
+    if (!v || v.v !== 1 || !Array.isArray(v.row)) return def;
     const known = new Set(Array.isArray(v.known) ? v.known.map(String) : []);
     const row = uniq(v.row).filter(id => vis.includes(id));
-    vis.forEach(id => { if (!known.has(id) && !row.includes(id)) row.push(id); });   // 저장 뒤 생긴 버튼
+    def.forEach(id => { if (!known.has(id) && !row.includes(id)) row.push(id); });   // 저장 뒤 생긴 버튼(기본 배치 것만)
     return row;
 }
 
@@ -60,5 +70,8 @@ export const editList = (row, available, opt) => {
     return [...r.map(id => ({ id, on: true })), ...vis.filter(id => !r.includes(id)).map(id => ({ id, on: false }))];
 };
 
-/** 메뉴 — 볼 수 있는 버튼 전부(원래 순서, 줄 구성과 상관없이) */
-export const menuIds = (available, opt) => visibleIds(available, opt);
+/** [파일·기록 ▾] 메뉴 — 볼 수 있는 버튼 중 줄에 없는 것(원래 순서) */
+export const menuIds = (row, available, opt) => {
+    const r = uniq(row);
+    return visibleIds(available, opt).filter(id => !r.includes(id));
+};

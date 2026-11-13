@@ -29,13 +29,13 @@ import { doc, onSnapshot, setDoc, getDoc, serverTimestamp, deleteField, runTrans
 import {
     dayKey, parseRecDay, rowState, dayOptions, defaultDay, canMark, excelRows, EXCEL_COLS, SHEET_NAME, fileNameOf,
     stripRows, fileNameAll, recReqUi, tsMs, TABS, dayVer, movedToday, PENDING_TEXT, plannedSlots, HOLD_UNDO_TEXT
-} from './lib/locrec-view.js?v=202611130915';
-import { laterMs } from './lib/rebuild-view.js?v=202611130915';
+} from './lib/locrec-view.js?v=202611130931';
+import { laterMs } from './lib/rebuild-view.js?v=202611130931';
 import { docIdsForRow, docIdsForApplied, planApply, planUndo, planClearMoves, applyFailText, undoFailText, bulkSummaryText, markOnlyOk, reasonText,
-         dstBlocked, altOk, altRow, blockOf, altConfirmText, blockConfirmText, bulkAltText, bulkBlockText, EZ_REMIND_TEXT, BLOCKED_STATE,
-         recentAppliedMoves } from './lib/locrec-apply.js?v=202611130915';
-import { pickAltTarget, prioritiesOf } from './lib/loc-recommend.js?v=202611130915';
-import { uploadView, uploadBlockText } from './lib/busy-view.js?v=202611130915';
+         dstBlocked, altOk, altRow, blockOf, altConfirmText, bulkAltText, EZ_REMIND_TEXT, BLOCKED_STATE,
+         recentAppliedMoves } from './lib/locrec-apply.js?v=202611130931';
+import { pickAltTarget, prioritiesOf } from './lib/loc-recommend.js?v=202611130931';
+import { uploadView, uploadBlockText } from './lib/busy-view.js?v=202611130931';
 
 const APP = 'artifacts/team-work-logger-v2';
 const LATEST_PATH = `${APP}/integrations/locRecLatest`;
@@ -420,6 +420,9 @@ function createLocRecStore({ db, auth, getMemberName, sizeOf, altCtx, notify, li
         try { (typeof notifyFn === 'function' ? notifyFn : (t) => alert(t))(EZ_REMIND_TEXT); } catch (e) { /* 무시 */ }
     }
 
+    const REBUILD_HINT = '[지금 재고로 다시 만들기]나 내일 아침 추천에서, 쓸 빈 자리가 있으면 다른 자리로 다시 나옵니다';
+    const BLOCK_AUTO_TEXT = (f) => `${reasonText(f)} — 처리하지 않고 넘겼습니다. ${REBUILD_HINT}.`;
+
     /** 짧은 안내 — location.js 는 토스트, 없으면(대시보드) alert */
     function say(t) {
         try { (typeof notifyFn === 'function' ? notifyFn : (x) => alert(x))(t); } catch (e) { /* 무시 */ }
@@ -494,8 +497,7 @@ function createLocRecStore({ db, auth, getMemberName, sizeOf, altCtx, notify, li
         if (dstBlocked(f)) {
             const fa = altOk(f, row) ? findAlt(row) : { alt: null, why: 'notSingle' };
             const alt = fa.alt;
-            let altState = fa.why;                      // blockConfirmText 문구: declined | none | noCtx | notSingle
-            if (alt) altState = 'declined';
+            let pre = '';
             if (alt && confirm(altConfirmText(f, row, alt))) {
                 const r2 = await runApply(key, altRow(row, alt), alt);
                 if (!r2) return;
@@ -503,9 +505,14 @@ function createLocRecStore({ db, auth, getMemberName, sizeOf, altCtx, notify, li
                 if (r2.status === 'blocked') { alert(r2.text); return; }
                 if (r2.status === 'stale') { alert(PENDING_TEXT); return; }
                 if (r2.status !== 'fail') return;
-                alert(`대신 자리 ${alt.to} 에도 반영하지 못했습니다(${reasonText(r2.fail)}).`);
+                // 대신 자리 실패 — 도착 자리 문제가 아니면(출발 자리가 바뀜 등) 막힘을 남기지 않고 안내만
+                if (!dstBlocked(r2.fail)) { say(`대신 자리 ${alt.to} 에도 반영하지 못했습니다(${reasonText(r2.fail)}).`); return; }
+                pre = `대신 자리 ${alt.to} 도 쓸 수 없었습니다. `;
             }
-            if (confirm(blockConfirmText(f, altState))) { await writeBlocked([{ key, block: blockOf(f, row) }]); return; }
+            // 2026-11-13 사용자 요청: 막힘은 묻지 않는다 — 그대로 '자리 막힘'으로 남겨, 다음 다시 만들기 때 서버가
+            //   그 자리를 빼고 다른 자리로 다시 추천한다. 확인창은 대신 자리 하나만(취소하면 여기서 끝, 안내는 토스트 하나).
+            if (await writeBlocked([{ key, block: blockOf(f, row) }])) say(pre + BLOCK_AUTO_TEXT(f));
+            return;
         }
         if (!markOnlyOk(f)) { if (!dstBlocked(f)) alert(`데이터 리스트에 반영하지 못했습니다(${reasonText(f)}).`); return; }
         if (confirm(applyFailText(f))) await writeMarks([key], 'done');
@@ -671,7 +678,8 @@ function createLocRecStore({ db, auth, getMemberName, sizeOf, altCtx, notify, li
             }
             // 2) 자리 막힘 — 남은 도착 자리 문제(대신 자리가 없거나 거절·실패)
             const dst = fails.filter(f => dstBlocked(f));
-            if (!stopText && !pendingNow() && dst.length && confirm(bulkBlockText(dst, undefined, noCtx ? 'noCtx' : ''))) {
+            if (!stopText && !pendingNow() && dst.length) {          // 묻지 않는다(2026-11-13) — 다음 갱신 때 다른 자리로
+                void noCtx;
                 blockedN = await writeBlocked(dst.map(f => ({ key: f.key, block: blockOf(f, f.row) })));
                 if (blockedN) { const bk = new Set(dst.map(f => f.key)); fails = fails.filter(f => !bk.has(f.key)); }
             }
@@ -679,7 +687,7 @@ function createLocRecStore({ db, auth, getMemberName, sizeOf, altCtx, notify, li
         if (ok) remind();
         if (stopText) alert(stopText);
         const clean = fails.map(({ row, ...f }) => f);           // 문구에는 코드·자리·이유만
-        const head = blockedN ? `자리 막힘 ${blockedN}건은 오늘 숨겼습니다.\n` : '';
+        const head = blockedN ? `쓸 수 없는 자리 ${blockedN}건은 처리하지 않고 넘겼습니다 — ${REBUILD_HINT}.\n` : '';
         if (!clean.length) { if (head) alert(head.trim()); return; }
         if (stopText || pendingNow()) { alert(head + bulkSummaryText(ok, clean, undefined, done, 0)); return; }
         // 표시만 할 수 있는 건(markOnlyOk)만 묻는다 — 오늘 다른 상품을 넣은 자리(dstMovedToday)는 요약에만

@@ -1,10 +1,14 @@
 // === js/app-shell-data.js ===
 // 공통 상단바(js/app-shell.js)가 쓰는 고정 데이터와 경로 계산. 순수 모듈(의존은 lib 상수 mibal2-mode.js 하나, 테스트: tests/app-shell.test.js).
-import { MIBAL2_LIVE, MIBAL2_MENU_NAME, MIBAL2_OLD_MENU_NAME } from './lib/mibal2-mode.js?v=202611130915';
+import { MIBAL2_LIVE, MIBAL2_MENU_NAME, MIBAL2_OLD_MENU_NAME } from './lib/mibal2-mode.js?v=202611130931';
 
 // 메뉴의 '보이는 이름'만 바꾼 것(2026-11-04). 저장값·권한·연결(ACTION_MENU_NAMES·memberMenuAccess·dashboardMenu)은 왼쪽 옛 이름 그대로다.
 //   사이드바(js/ui-main-dashboard.js)·공통 상단바 메뉴·검색에서 보일 때만 오른쪽 이름으로 쓴다.
-export const MENU_LABELS = Object.freeze({ '내 연차관리': '내 연차·근태관리' });
+//   부족수량관리(신규) — 단독 운영(live)이면 보이는 이름에서 '(신규)'를 뺀다(2026-11-13). 저장 이름·메뉴 id·권한 연결은 그대로
+//   (그 이름을 바꾸면 옛 화면 별칭 '중국제작 부족수량 관리'와 겹쳐 이름으로 권한을 찾을 때 옛 화면으로 이어진다). 시험(live 아님)에서는 넣지 않는다
+//   — 그때는 옛 화면이 바로 그 이름이라 거꾸로 찾기(menuNameOfLabel)가 틀어진다.
+export const MENU_LABELS = Object.freeze({ '내 연차관리': '내 연차·근태관리',
+    ...(MIBAL2_LIVE ? { [MIBAL2_MENU_NAME]: '중국제작 부족수량 관리' } : {}) });
 export const menuLabel = (name) => (Object.prototype.hasOwnProperty.call(MENU_LABELS, name) ? MENU_LABELS[name] : name);
 /** 화면 글자 → 저장 이름(사이드바가 고정 버튼 글자로 메뉴를 찾을 때). 모르는 글자는 그대로 */
 export const menuNameOfLabel = (label) => Object.keys(MENU_LABELS).find(k => MENU_LABELS[k] === label) || label;
@@ -239,7 +243,7 @@ export const buildDestinations = (groups, role) => {
             if (i.link === HOME_FILE) continue;   // '대시보드' = 위의 '홈'
             out.push({ kind: 'menu', label: menuLabel(i.name), parent: g.category || '', keywords: menuLabel(i.name) !== i.name ? [i.name] : [], url: i.link });
             const f = fileOfRel(i.link);
-            if (!i.link.includes('#') && !parents.has(f)) parents.set(f, i.name);
+            if (!i.link.includes('#') && !parents.has(f)) parents.set(f, menuLabel(i.name));   // 하위 목적지의 부모도 보이는 이름으로
         }
     }
     for (const [file, parentName] of parents) {
