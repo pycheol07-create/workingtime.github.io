@@ -10,8 +10,8 @@
 //     start·beat·end = ms(클라이언트 시계). end 0 = 진행 중. ok = 성공 true / 실패 false / 진행 중 null
 //   날짜가 바뀌면 통째로 새로 쓴다. 최대 RUNS_MAX 개(오래된 것부터 지움).
 
-import { kstDay } from './ship-core.js?v=202611131345';
-import { kstHHMM } from './ship-made.js?v=202611131345';
+import { kstDay } from './ship-core.js?v=202611131354';
+import { kstHHMM } from './ship-made.js?v=202611131354';
 
 export const ACTIVITY_PATH = ['artifacts', 'team-work-logger-v2', 'persistent_data', 'shipActivity'];
 export const RUNS_MAX = 40;

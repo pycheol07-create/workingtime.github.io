@@ -13,7 +13,7 @@
 //   출고요청, 플랫폼 상관없이)가 하나뿐이어야 한다. 짝이 정해져도 출고요청에 없는 코드가 하나라도 있으면 missing > 0 — 화면은 저절로 시작하지 않고 멈춘다.
 //   출고전표를 짝 없이 건너뛴 드롭에서는 1단계 묶음에 pairWait — 화면이 '오늘 이미 1단계를 만든 출고요청'이면 1단계를 다시 돌리지 않고 2단계 칸에서 짝을 기다리게 한다.
 
-import { KIND, KIND_LABEL } from './ship-assign.js?v=202611131345';
+import { KIND, KIND_LABEL } from './ship-assign.js?v=202611131354';
 
 export const TABS = ['zikjin', 'ably'];
 const NAME = { zikjin: '직진', ably: '에이블리' };

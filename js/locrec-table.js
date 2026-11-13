@@ -17,14 +17,14 @@
 // 칸수 무관 허용(2026-11-13): 상품 줄마다 [칸수 무관 허용]/[끄기](지금 자리에 칸수가 있는 줄·이미 허용한 상품) — store.setSizeFree.
 //   허용한 상품은 줄에 '칸수 무관' 배지. 도구 줄 '칸수 무관 N건 보기'를 켜면 허용 목록 전체(오늘 표에 없는 상품 포함)가 표 끝에 나와 끌 수 있다.
 //   날짜·새 판 대기와 상관없이 누를 수 있다(추천 표시가 아니라 다음 계산 설정이라서).
-import { escapeHtml } from './utils.js?v=202611131345';
+import { escapeHtml } from './utils.js?v=202611131354';
 import { fmtHM, tabCounts, tabCarried, TABS, TAB_LABEL, fmtNum, canMark, tabMeta, dayLabel, rowLines, dayMessage, fmtGain, ROUTE_OUT_LABEL, ROUTE_OUT_HELP, locLabel, bulkDoneKeys, CARRIED_LABEL, qtyCellOf, PENDING_TEXT,
     shownTabs, BACK_TAB_HELP, BACK_GAIN_LABEL, BACK_SCORE_HELP, backReasonTitle, BLOCKED_LABEL, SKIP_HELP, holdRows, HOLD_ROW_LABEL, HOLD_UNDO_TEXT,
-    SIZE_FREE_LABEL, SIZE_FREE_HELP, sizeFreeShown, fmtMDHM } from './lib/locrec-view.js?v=202611131345';
-import { NO_NAME, todayKey } from './locrec-store.js?v=202611131345';
-import { higherOpenThan } from './modal-above.js?v=202611131345';
-import { undoConfirmText } from './lib/locrec-apply.js?v=202611131345';
-import { SORT_COLS, sortRows, nextSort, isLowStockRow, lineTotal } from './lib/locrec-sort.js?v=202611131345';
+    SIZE_FREE_LABEL, SIZE_FREE_HELP, sizeFreeShown, fmtMDHM } from './lib/locrec-view.js?v=202611131354';
+import { NO_NAME, todayKey } from './locrec-store.js?v=202611131354';
+import { higherOpenThan } from './modal-above.js?v=202611131354';
+import { undoConfirmText } from './lib/locrec-apply.js?v=202611131354';
+import { SORT_COLS, sortRows, nextSort, isLowStockRow, lineTotal } from './lib/locrec-sort.js?v=202611131354';
 
 // location.html 의 #locrec-modal 과 같은 마크업(바꾸면 둘 다)
 const TEMPLATE = `
@@ -209,7 +209,7 @@ export function mountLocRecTable({ store, sizeOf }) {
         // 줄무늬는 추천 단위(.locrec-alt) — usage-table 의 tr:nth-child(even) 는 줄 단위라 locrec-table 에서 끈다(location.html · css/locrec-modal.css).
         const lines = rowLines(r);
         const span = lines.length > 1 ? ` rowspan="${lines.length}"` : '';
-        const trCls = `locrec-row tone-${ot && !mk ? 'ok' : st.tone}${st.label === '안 함' || st.blocked ? ' locrec-skipped' : ''}${i % 2 ? ' locrec-alt' : ''}${carried ? ' locrec-carried' : ''}`;
+        const trCls = `locrec-row tone-${ot && !mk ? 'ok' : st.tone}${st.label === '안 함' || st.blocked ? ' locrec-skipped' : ''}${(mk && mk.state === 'done') || (ot && !mk) || (st.label === '처리됨' && !mk) ? ' locrec-done' : ''}${i % 2 ? ' locrec-alt' : ''}${carried ? ' locrec-carried' : ''}`;
         const trAttr = carried ? ' style="opacity:.55" title="지금 기준 추천에서 빠진 행 — 오늘 손댄 것이라 남겨 둠"' : '';
         return lines.map((l, j) => {
             const sfTd = `<td class="locrec-sfcol">${sizeFreeCell(S, l, allowed)}</td>`;   // 맨 끝 칸(2026-11-13) — 줄(A/B)마다 그 상품

@@ -9,9 +9,9 @@
 
 import { doc, getDoc, setDoc, updateDoc, runTransaction, serverTimestamp, deleteField, FieldPath, writeBatch }
     from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import * as State from './state.js?v=202611131345';
-import { targetsDocOf } from './lib/plan-targets.js?v=202611131345';
-import { cleanDone } from './lib/plan-compare.js?v=202611131345';
+import * as State from './state.js?v=202611131354';
+import { targetsDocOf } from './lib/plan-targets.js?v=202611131354';
+import { cleanDone } from './lib/plan-compare.js?v=202611131354';
 
 export const OPS_PLAN_COL = 'OpsPlan';
 const myEmail = () => String((State.auth && State.auth.currentUser && State.auth.currentUser.email) || '').toLowerCase();

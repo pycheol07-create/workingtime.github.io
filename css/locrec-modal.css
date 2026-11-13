@@ -121,6 +121,9 @@
 #locrec-modal .locrec-st.st-muted { background: var(--c-track, #EEF0F4); color: var(--c-text-3, #69707A); }
 #locrec-modal .locrec-who { font-size: 11px; color: var(--c-text-3, #69707A); margin-top: 3px; }
 #locrec-modal .locrec-table tr.locrec-skipped td { color: var(--c-text-3, #69707A); }
+/* 변경 완료(처리함·변경완료·처리됨) 줄은 살짝 어둡게(2026-11-13 사용자 요청) — 버튼(되돌리기)은 그대로 누를 수 있게 opacity 대신 배경·글자색 */
+#locrec-modal .locrec-table tr.locrec-done td { background: var(--c-track, #EEF0F4); color: var(--c-text-3, #69707A); }
+#locrec-modal .locrec-table tr.locrec-done .locrec-to, #locrec-modal .locrec-table tr.locrec-done .locrec-code { color: var(--c-text-3, #69707A); }
 #locrec-modal .locrec-table td.refill-empty { text-align: center; color: var(--c-text-3, #69707A); padding: 20px; }
 
 /* 휴대폰: 창은 화면에 고정하고 표 상자 안에서만 가로·세로 스크롤(창·페이지가 같이 밀리지 않게) */

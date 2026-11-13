@@ -8,7 +8,7 @@
 //   직진(플랫폼 출고)은 반복성이 약해(r 0.73) 3월만, 입고는 반복이 없어(r 0.27) 2월 춘절만 '가정' 틀로 둔다.
 // ※ 순수 모듈(DOM·Firebase 없음). 테스트: tests/plan-season.test.js
 
-import { TASK } from './task-ids.js?v=202611131345';
+import { TASK } from './task-ids.js?v=202611131354';
 
 /** 업무 묶음(업무 id) — 설계 v2 '업종 맞춤'. 나머지 업무는 '지원' */
 export const SEASON_BUNDLES = Object.freeze([

@@ -1,7 +1,7 @@
 // === js/history-excel-reports.js ===
-import { formatDuration, formatTimeTo24H, showToast } from './utils.js?v=202611131345';
-import { fitToColumn } from './history-excel-utils.js?v=202611131345';
-import { csvSafeSheet } from './lib/csv-safe.js?v=202611131345';
+import { formatDuration, formatTimeTo24H, showToast } from './utils.js?v=202611131354';
+import { fitToColumn } from './history-excel-utils.js?v=202611131354';
+import { csvSafeSheet } from './lib/csv-safe.js?v=202611131354';
 
 export const downloadReportExcel = (reportData, format = 'xlsx') => {
     if (!reportData) return showToast('리포트 데이터가 없습니다.', true);
