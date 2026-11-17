@@ -108,6 +108,9 @@ const CustomsCalculator = ({ exchangeRates, onRateChange, isActive, customsInfo,
         touchedRef.current = {};
         savedCommRef.current = null;
         setCommNotice(null);
+        packUndoRef.current = null;      // [패킹 불러오기] 되돌리기 기록도 지운다
+        setPackBanner(null);
+        setPackOpen(false);
         const { calculationMode: m, ...base } = customsDefaults();
         setCalculationMode(m);
         setFormData(base);
@@ -177,6 +180,56 @@ const CustomsCalculator = ({ exchangeRates, onRateChange, isActive, customsInfo,
               setCommNotice('상품기준으로 돌아와 개당 수수료를 되살렸습니다.');
           }
       };
+      // [패킹 불러오기](PackPicker.js) — 박스기준으로 바꾸고 총 박스·총 상품 금액(제작+사입, 수수료 제외)·박스당 무게(CBM 환산)를 채운다.
+      //   수수료는 넣지 않는다(사용자 결정 2026-11-17). 박스당 무게를 채웠으면 '손댄 칸'으로 둬 늦게 온 logis 평균이 덮지 않게 한다.
+      //   되돌리기는 한 단계 — 고르기 직전의 입력·계산 기준·손댄 칸 표시·치워 둔 개당 수수료까지. [입력 초기화]가 기록을 지운다.
+      const packSt = useCalcPackings();
+      const [packOpen, setPackOpen] = React.useState(false);
+      const [packBanner, setPackBanner] = React.useState(null);
+      const packUndoRef = React.useRef(null);
+      const pickPack = (pack) => {
+          const M = window.CalcPackMap;
+          const r = M.toCustoms(pack, settings);
+          packUndoRef.current = { calculationMode, formData, touched: { ...touchedRef.current }, savedComm: savedCommRef.current };
+          const next = { ...formData, ...r.fields };
+          // 못 채운 칸(r.reset)은 처음 값으로 — 앞서 고른 패킹 값이 남지 않게. 평균 칸(박스당 무게)은 손댄 표시를 끄고 logis 평균으로
+          const base = customsDefaults();
+          (r.reset || []).forEach(k => {
+              if (k in AVG_FIELDS) { touchedRef.current[k] = false; next[k] = avgOf(k); }
+              else if (k in base) next[k] = base[k];
+          });
+          // 박스기준에는 개당 수수료가 없다(handleModeChange 와 같은 규칙)
+          if (r.mode === 'box' && calculationMode !== 'box' && formData.commissionType === 'perItem') {
+              savedCommRef.current = { commissionType: formData.commissionType, commissionValue: formData.commissionValue };
+              next.commissionType = 'percentage';
+              next.commissionValue = '0';
+              setCommNotice('박스기준에는 개당 수수료를 쓸 수 없어 수수료를 % (0%) 로 바꿨습니다. 상품기준으로 돌아가면 개당 수수료가 되돌아옵니다.');
+          }
+          if ('weightPerBox' in r.fields) touchedRef.current.weightPerBox = true;
+          setCalculationMode(r.mode);
+          setFormData(next);
+          setPackOpen(false);
+          setPackBanner({
+              name: M.packName(pack),
+              changed: r.changed.filter(c => !(calculationMode === r.mode && c.startsWith('계산 기준'))),
+              missing: r.missing,
+          });
+      };
+      const undoPack = () => {
+          const u = packUndoRef.current;
+          if (!u) return;
+          packUndoRef.current = null;
+          touchedRef.current = u.touched;
+          savedCommRef.current = u.savedComm;
+          setCommNotice(null);
+          setCalculationMode(u.calculationMode);
+          // 손대지 않은 평균 칸은 지금 평균으로(그사이 logis 평균이 새로 왔을 수 있다)
+          const restored = { ...u.formData };
+          Object.keys(AVG_FIELDS).forEach(f => { if (!u.touched[f]) restored[f] = avgOf(f); });
+          setFormData(restored);
+          setPackBanner(null);
+      };
+      const closePackBanner = () => { packUndoRef.current = null; setPackBanner(null); };
       React.useEffect(() => {
           if (!commNotice) return undefined;
           const t = setTimeout(() => setCommNotice(null), 6000);
@@ -395,15 +448,15 @@ const CustomsCalculator = ({ exchangeRates, onRateChange, isActive, customsInfo,
         lines.push(rateSummaryText(currentRates.customs, currentRates.usdKrw, rateState, customsInfo && customsInfo.source));
         lines.push('');
         if (results.costPerItem > 0) lines.push(`개당 최종 원가: ${formatCurrency(results.costPerItem)}`);
-        lines.push(`총 비용 (상품가 포함): ${formatCurrency(totalWithGoods)}`);
-        lines.push(`- 총 상품가: ${formatCurrency(results.totalProductPriceKRW)} (${formatCurrency(results.totalProductPriceUSD, 'USD')})`);
-        lines.push(`- 통관 부대비용 (상품가 제외): ${formatCurrency(results.totalCost)}`);
+        lines.push(`통관 부대비용 (상품가 제외): ${formatCurrency(results.totalCost)}`);
         lines.push(`  · 해운비: ${formatCurrency(results.oceanFreightKRW)}`);
         if (results.commissionAmountKRW > 0) lines.push(`  · 수수료: ${formatCurrency(results.commissionAmountKRW)}`);
         lines.push(`  · 관세: ${formatCurrency(results.tariffAmount)}`);
         lines.push(`  · 부가가치세: ${formatCurrency(results.vatAmount)}`);
         lines.push(`  · 서류비: ${formatCurrency(results.docsFee)}`);
         lines.push(`  · CO발급비: ${formatCurrency(results.coFee)}`);
+        lines.push(`총 상품가: ${formatCurrency(results.totalProductPriceKRW)} (${formatCurrency(results.totalProductPriceUSD, 'USD')})`);
+        lines.push(`총 비용 (상품가 포함): ${formatCurrency(totalWithGoods)}`);
         lines.push(`박스 ${formatNumber(results.totalBoxes, '박스', 0).trim()} · 총 무게 ${formatNumber(results.totalWeight, 'kg').trim()} · ${formatNumber(results.cbm, 'CBM', 3).trim()}`);
         return lines.join('\n');
       };
@@ -439,10 +492,15 @@ const CustomsCalculator = ({ exchangeRates, onRateChange, isActive, customsInfo,
                   </div>
               </div>
 
-              <div className="flex items-center justify-between gap-2 mb-6 border-b border-slate-200 pb-4">
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-6 border-b border-slate-200 pb-4">
                   <h2 className="text-2xl font-bold text-gray-800">상세 정보 입력</h2>
-                  <CalcResetButton onReset={resetInputs} note="환율 칸은 그대로 둡니다(수입가 탭과 같은 값)." />
+                  <div className="flex items-center gap-2">
+                      <CalcPackButton st={packSt} open={packOpen} onToggle={() => setPackOpen(o => !o)} />
+                      <CalcResetButton onReset={resetInputs} note="환율 칸은 그대로 둡니다(수입가 탭과 같은 값)." />
+                  </div>
               </div>
+              <CalcPackPanel st={packSt} open={packOpen} onPick={pickPack} banner={packBanner}
+                  onUndo={packBanner ? undoPack : null} onCloseBanner={closePackBanner} />
 
               <div className="space-y-6">
                 {(calculationMode === 'product' ? productModeFields : boxModeFields).map(field => (
@@ -577,8 +635,9 @@ const CustomsCalculator = ({ exchangeRates, onRateChange, isActive, customsInfo,
                         </>
                       ) : (
                         <>
-                          <p className="text-base sm:text-lg text-gray-600">총 비용 (상품가 포함)</p>
-                          <p className="text-3xl sm:text-5xl font-extrabold text-emerald-600 tracking-tight my-2 break-all"><AnimatedNumber value={totalWithGoods} formatter={formatCurrency} /></p>
+                          {/* 박스기준 메인 = 통관 부대비용(2026-11-17 사용자 요청 — 예전엔 총 비용(상품가 포함)) */}
+                          <p className="text-base sm:text-lg text-gray-600">통관 부대비용 <span className="text-sm text-gray-500">(상품가 제외)</span></p>
+                          <p className="text-3xl sm:text-5xl font-extrabold text-emerald-600 tracking-tight my-2 break-all" data-k="totalCost-main"><AnimatedNumber value={results.totalCost} formatter={formatCurrency} /></p>
                         </>
                       )}
                   </div>
@@ -586,12 +645,10 @@ const CustomsCalculator = ({ exchangeRates, onRateChange, isActive, customsInfo,
                       <AppliedRateChip customs={currentRates.customs} usdKrw={currentRates.usdKrw} state={rateState} customsSource={customsInfo && customsInfo.source} />
                   </div>
                   <div className="space-y-1 divide-y divide-slate-200">
-                    {results.costPerItem > 0 && (
-                      <div className="flex items-center justify-between gap-2 py-3" data-k="totalWithGoods">
-                          <span className="font-semibold text-gray-800">총 비용 <span className="text-xs font-normal text-gray-500">(상품가 포함)</span></span>
-                          <span className="font-bold text-gray-900 text-right whitespace-nowrap"><AnimatedNumber value={totalWithGoods} formatter={formatCurrency} /></span>
-                      </div>
-                    )}
+                    <div className="flex items-center justify-between gap-2 py-3" data-k="totalWithGoods">
+                        <span className="font-semibold text-gray-800">총 비용 <span className="text-xs font-normal text-gray-500">(상품가 포함)</span></span>
+                        <span className="font-bold text-gray-900 text-right whitespace-nowrap"><AnimatedNumber value={totalWithGoods} formatter={formatCurrency} /></span>
+                    </div>
                     <ResultItem label="총 상품가" value={<AnimatedNumber value={results.totalProductPriceKRW} formatter={formatCurrency} />} icon={Icons.Price} />
                     <div className="flex items-center justify-between gap-2 py-3" data-k="totalCost">
                         <span className="font-semibold text-gray-800">통관 부대비용 <span className="text-xs font-normal text-gray-500">(상품가 제외)</span></span>
@@ -640,12 +697,12 @@ const CustomsCalculator = ({ exchangeRates, onRateChange, isActive, customsInfo,
             {isActive && results && !resultInView && ReactDOM.createPortal(
               <button type="button" onClick={scrollToResult} data-k="mobile-summary" aria-label="결과 보기" className="sm:hidden fixed bottom-0 inset-x-0 z-40 bg-white border-t border-slate-200 px-4 py-3 flex items-center justify-between gap-3 text-left">
                   <span className="min-w-0">
-                      <span className="block text-xs text-gray-500">{results.costPerItem > 0 ? '개당 최종 원가' : '총 비용 (상품가 포함)'}</span>
-                      <span className="block text-lg font-bold text-emerald-600 truncate">{formatCurrency(results.costPerItem > 0 ? results.costPerItem : totalWithGoods)}</span>
+                      <span className="block text-xs text-gray-500">{results.costPerItem > 0 ? '개당 최종 원가' : '통관 부대비용 (상품가 제외)'}</span>
+                      <span className="block text-lg font-bold text-emerald-600 truncate">{formatCurrency(results.costPerItem > 0 ? results.costPerItem : results.totalCost)}</span>
                   </span>
                   <span className="text-right flex-shrink-0">
-                      <span className="block text-xs text-gray-500">{results.costPerItem > 0 ? '총 비용' : '부대비용'}</span>
-                      <span className="block text-sm font-semibold text-gray-800">{formatCurrency(results.costPerItem > 0 ? totalWithGoods : results.totalCost)}</span>
+                      <span className="block text-xs text-gray-500">총 비용</span>
+                      <span className="block text-sm font-semibold text-gray-800">{formatCurrency(totalWithGoods)}</span>
                   </span>
               </button>,
               document.body

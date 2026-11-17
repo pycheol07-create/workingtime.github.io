@@ -35,7 +35,7 @@ const WarehouseFeeCalculator = ({ exchangeRates, customsSource }) => {
         warehouseRate: String(settings.warehouse?.ratePerCBMPerDay ?? 1200),
         arrivalDate: today,
         clearanceDate: today,
-        freeDays: String(settings.warehouse?.freeDays ?? 7),
+        freeDays: String(settings.warehouse?.freeDays ?? 6),
 
         // 가산세 섹션
         surchargeRate: String((settings.warehouse?.surchargeRate ?? 0.03) * 100),
@@ -79,19 +79,76 @@ const WarehouseFeeCalculator = ({ exchangeRates, customsSource }) => {
         setCalculationMode('quantity');
         setUseManualBoxCbm(false);
         setManualValues({ boxes: '', cbm: '' });
+        packUndoRef.current = null;      // [패킹 불러오기] 되돌리기 기록·시트 값 고정도 지운다
+        packSetRef.current = {};
+        setPackBanner(null);
+        setPackOpen(false);
         setFormData(warehouseDefaults());
     };
 
-    // 설정관리에서 기본값 변경 시 폼에 반영
+    // [패킹 불러오기](PackPicker.js) — 상품금액 기준으로 바꾸고 상품금액(제작+사입, 수수료 제외)·상품수량·박스·CBM 수동입력·
+    //   입항일·통관일(있을 때)·창고료 단가·가산세율(있을 때)을 채운다. 무료보관일수는 건드리지 않는다.
+    //   패킹에서 채운 창고료 단가·가산세율은 늦게 온 설정관리 값이 덮지 않는다(packSetRef — [입력 초기화]·되돌리기가 푼다).
+    //   못 채운 칸(r.reset)은 처음 값으로 — 날짜는 오늘, 창고료 단가·가산세율은 지금 설정값(패킹 고정도 푼다). 앞 패킹 값이 남지 않게.
+    //   되돌리기는 한 단계 — 고르기 직전의 입력·계산 기준·박스/CBM 수동입력 값까지. 그때 설정값 그대로였던 칸은 지금 설정값으로.
+    const packSt = useCalcPackings();
+    const [packOpen, setPackOpen] = React.useState(false);
+    const [packBanner, setPackBanner] = React.useState(null);
+    const packUndoRef = React.useRef(null);
+    const packSetRef = React.useRef({});
+    // 설정관리에서 오는 칸 5개(아래 설정 반영 효과와 같은 값)
+    const settingsVals = () => ({
+        warehouseRate: String(settings.warehouse?.ratePerCBMPerDay ?? 1200),
+        freeDays: String(settings.warehouse?.freeDays ?? 6),
+        surchargeRate: String((settings.warehouse?.surchargeRate ?? 0.03) * 100),
+        paymentDueDays: String(settings.warehouse?.paymentDueDays ?? 25),
+        dailyInterestRate: String((settings.warehouse?.dailyInterestRate ?? 0.00025) * 100),
+    });
+    const pickPack = (pack) => {
+        const M = window.CalcPackMap;
+        const r = M.toWarehouse(pack, settings);
+        packUndoRef.current = { calculationMode, formData, useManualBoxCbm, manualValues, packSet: { ...packSetRef.current }, settingsAt: settingsVals() };
+        const { useManualBoxCbm: manualOn, manualBoxes, manualCbm, ...fields } = r.fields;
+        const nextSet = { ...packSetRef.current };
+        ['warehouseRate', 'surchargeRate'].forEach(k => { if (k in fields) nextSet[k] = true; });
+        const base = warehouseDefaults();
+        (r.reset || []).forEach(k => {
+            if (k in base) fields[k] = base[k];
+            delete nextSet[k];
+        });
+        packSetRef.current = nextSet;
+        setCalculationMode(r.mode);
+        setFormData(prev => ({ ...prev, ...fields }));
+        setUseManualBoxCbm(manualOn === true);
+        setManualValues({ boxes: manualBoxes ?? '', cbm: manualCbm ?? '' });
+        setPackOpen(false);
+        setPackBanner({
+            name: M.packName(pack),
+            changed: r.changed.filter(c => !(calculationMode === r.mode && c.startsWith('계산 기준'))),
+            missing: r.missing,
+        });
+    };
+    const undoPack = () => {
+        const u = packUndoRef.current;
+        if (!u) return;
+        packUndoRef.current = null;
+        packSetRef.current = u.packSet;
+        setCalculationMode(u.calculationMode);
+        const now = settingsVals();
+        const restored = { ...u.formData };
+        Object.keys(now).forEach(k => { if (!u.packSet[k] && u.formData[k] === u.settingsAt[k]) restored[k] = now[k]; });
+        setFormData(restored);
+        setUseManualBoxCbm(u.useManualBoxCbm);
+        setManualValues(u.manualValues);
+        setPackBanner(null);
+    };
+    const closePackBanner = () => { packUndoRef.current = null; setPackBanner(null); };
+
+    // 설정관리에서 기본값 변경 시 폼에 반영 — 패킹에서 채운 칸(packSetRef)은 그대로
     React.useEffect(() => {
-        setFormData(prev => ({
-            ...prev,
-            warehouseRate: String(settings.warehouse?.ratePerCBMPerDay ?? 1200),
-            freeDays: String(settings.warehouse?.freeDays ?? 7),
-            surchargeRate: String((settings.warehouse?.surchargeRate ?? 0.03) * 100),
-            paymentDueDays: String(settings.warehouse?.paymentDueDays ?? 25),
-            dailyInterestRate: String((settings.warehouse?.dailyInterestRate ?? 0.00025) * 100),
-        }));
+        const fromSettings = settingsVals();
+        Object.keys(packSetRef.current).forEach(k => { delete fromSettings[k]; });
+        setFormData(prev => ({ ...prev, ...fromSettings }));
     }, [
         settings.warehouse?.ratePerCBMPerDay,
         settings.warehouse?.freeDays,
@@ -291,10 +348,15 @@ const WarehouseFeeCalculator = ({ exchangeRates, customsSource }) => {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 mt-8">
             <div ref={formRef} className="bg-white p-6 md:p-8 rounded-2xl border border-slate-200">
                 <OptionFixNotice text={optionNotice} />
-                <div className="flex items-center justify-between gap-2 mb-6 border-b border-slate-200 pb-4">
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-6 border-b border-slate-200 pb-4">
                     <h2 className="text-2xl font-bold text-gray-800">기본 정보 입력</h2>
-                    <CalcResetButton onReset={resetInputs} note="창고료·가산세 칸은 설정관리 값으로, 날짜는 오늘로 돌아갑니다." />
+                    <div className="flex items-center gap-2">
+                        <CalcPackButton st={packSt} open={packOpen} onToggle={() => setPackOpen(o => !o)} />
+                        <CalcResetButton onReset={resetInputs} note="창고료·가산세 칸은 설정관리 값으로, 날짜는 오늘로 돌아갑니다." />
+                    </div>
                 </div>
+                <CalcPackPanel st={packSt} open={packOpen} onPick={pickPack} banner={packBanner}
+                    onUndo={packBanner ? undoPack : null} onCloseBanner={closePackBanner} />
                 <div className="space-y-6">
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">계산 기준</label>

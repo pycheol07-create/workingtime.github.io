@@ -480,7 +480,7 @@ const AdminPage = ({ onClose }) => {
                         <div>
                             <AdminSectionTitle title="창고료 & 가산세 기본값" />
                             {numRow('warehouse', 'ratePerCBMPerDay', '창고료 단가', '원/CBM/일', 1200)}
-                            {numRow('warehouse', 'freeDays', '무료보관일수', '일', 7)}
+                            {numRow('warehouse', 'freeDays', '무료보관일수', '일', 6)}
                             {numRow('warehouse', 'surchargeRate', '가산세율 (0.03 = 3%)', '', 0.03)}
                             {numRow('warehouse', 'paymentDueDays', '납부마감기한 (입항일+N)', '일', 25)}
                             {numRow('warehouse', 'dailyInterestRate', '일 지연이자율 (0.00025 = 0.025%)', '', 0.00025)}
