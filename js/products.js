@@ -13,15 +13,15 @@
 //    로그인 칸 UI 는 china-stock-gate.js 를 **복사**했다.
 import { onAuthStateChanged, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { doc, getDocFromServer } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { initializeFirebase } from './config.js?v=202611131354';
-import { emulatorEnabled } from './firebase-emulator.js?v=202611131354';
-import { S, loadAll, countRead, fmtDateTime, tsMs } from './products-store.js?v=202611131354';
-import { renderList, exportCatalog } from './products-list.js?v=202611131354';
-import { renderDetail, renderCatalogLog } from './products-detail.js?v=202611131354';
-import { loadCosts, renderSuppliers, renderCostLog } from './products-cost.js?v=202611131354';
-import { openUpload } from './products-excel.js?v=202611131354';
-import { setShellContext, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202611131354';
-import { memberNameFor } from './app-shell-data.js?v=202611131354';
+import { initializeFirebase } from './config.js?v=202611170900';
+import { emulatorEnabled } from './firebase-emulator.js?v=202611170900';
+import { S, loadAll, countRead, fmtDateTime, tsMs } from './products-store.js?v=202611170900';
+import { renderList, exportCatalog } from './products-list.js?v=202611170900';
+import { renderDetail, renderCatalogLog } from './products-detail.js?v=202611170900';
+import { loadCosts, renderSuppliers, renderCostLog } from './products-cost.js?v=202611170900';
+import { openUpload } from './products-excel.js?v=202611170900';
+import { setShellContext, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202611170900';
+import { memberNameFor } from './app-shell-data.js?v=202611170900';
 
 const $ = (id) => document.getElementById(id);
 const APP_BASE = 'artifacts/team-work-logger-v2';
@@ -182,7 +182,7 @@ async function start(user) {
     startedUid = user.uid;
     S.user = user;
     S.email = (user.email || '').toLowerCase();
-    setLoading(true, '권한 확인 중…');
+    setLoading(true, '불러오는 중…');
     try { S.isAdmin = await checkAdmin(user); }
     catch (e) { console.error('[products] 관리자 확인 실패:', e && e.code); S.isAdmin = false; toast('권한을 확인하지 못해 팀원 화면으로 엽니다'); }
     document.body.classList.toggle('is-admin', S.isAdmin);

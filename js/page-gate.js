@@ -2,13 +2,14 @@
 // 🔒 페이지 입장 가드 (권한 개편 5단계, 2026-10-19 — 설계 4.3)
 //
 // 쓰는 법 — 각 페이지에 한 줄, 공통 상단바(app-shell.js) 스크립트 바로 앞에:
-//   <script type="module" src="js/page-gate.js?v=202611131354" data-perm-page="location.view"></script>
+//   <script type="module" src="js/page-gate.js?v=202611170900" data-perm-page="location.view"></script>
 //   이름 붙은 Firebase 앱을 쓰는 페이지(scan.html)는 data-perm-app="scanApp" 을 더한다.
 //   ⚠️ 주소 뒤 ?f=… 로 넘기지 않는다 — 배포.py 가 내부 .js 주소의 ? 뒤를 ?v=빌드번호 로 갈아 끼워 값이 사라진다.
 //   data-perm-page 가 없으면 주소(파일 이름)로 기능을 찾는다(js/lib/perm-gate.js pageFeatureFromPath).
 //
 // 동작
-//   1. 곧바로 '확인 중' 가림막을 띄운다(상단바 자리는 비운다).
+//   1. 확인이 0.3초 넘게 걸리면 '확인 중' 가림막을 띄운다(상단바 자리는 비운다). 이 브라우저에서 같은 계정이
+//      이 화면을 통과한 적이 있으면 띄우지 않는다(2026-11-17 — 깜빡임 없애기).
 //   2. 페이지가 Firebase 앱을 만들 때까지 기다린다(최대 10초, 같은 firebasejs 10.12.2 주소 — 같은 인스턴스·에뮬레이터 연결을 따른다).
 //   3. 로그인 확인 → mainConfig 1회 읽기 → perm.resolve.
 //   4. window.__perm 에 결과를 두고 <html class="perm-ready"> + 'perm:ready' 이벤트(window)를 낸다 — js/feature-gate.js 가 이것을 본다.
@@ -27,10 +28,10 @@
 import { getApps } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { getFirestore, doc, getDoc, setDoc, updateDoc, increment, FieldPath } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { resolve, can } from './lib/perm.js?v=202611131354';
-import { featureLabel, isFeatureId } from './lib/feature-catalog.js?v=202611131354';
+import { resolve, can } from './lib/perm.js?v=202611170900';
+import { featureLabel, isFeatureId } from './lib/feature-catalog.js?v=202611170900';
 import { enforceModeOf, gateDecision, pageFeatureFromPath, hitDayKey, HIT_KEY_RE, HIT_COLLECTION,
-    isAdminOnlyNow, DATA_ADMIN_ONLY_NOTE } from './lib/perm-gate.js?v=202611131354';
+    isAdminOnlyNow, DATA_ADMIN_ONLY_NOTE } from './lib/perm-gate.js?v=202611170900';
 
 const APP_ID = 'team-work-logger-v2';
 const MAIN_PROJECT = 'work-tool-e2943';     // 다른 서버를 고른 스캐너(scan.html QR 설정)는 가드하지 않는다
@@ -41,6 +42,11 @@ const WAIT_APP_MS = 10000;
 // 설정 읽기가 이 시간 안에 안 끝나면 '확인 실패'로 본다. Firestore 가 내부 오류로 멈추면 getDoc 이 영영 안 끝나
 // '권한을 확인하는 중…' 이 무한히 남았다(2026-10-27, 저장공간 가득 → INTERNAL ASSERTION). 이때 [다시 시도]는 새로고침.
 const READ_TIMEOUT_MS = 15000;
+// '확인 중' 가림막은 확인이 이 시간보다 오래 걸릴 때만 띄운다 — 빨리 끝나면 깜빡임만 남았다(2026-11-17 사용자 요청).
+// 이 브라우저에서 같은 계정이 이 화면을 통과한 적이 있으면(OK_KEY) 아예 띄우지 않고 뒤에서 확인한다
+// — 그 사이 권한이 빠졌으면 판정 뒤에 막거나 안내한다. 데이터는 규칙이 지키므로 가림막은 화면 가림일 뿐이다.
+const CHECK_DELAY_MS = 300;
+const OK_KEY = 'permGate.ok.';              // + 기능 id → 마지막으로 통과한 계정 uid 의 짧은 지문(이름·이메일 아님)
 const HOME = new URL('../index.html', import.meta.url).href;
 
 const tag = document.querySelector('script[data-perm-page]');
@@ -59,7 +65,11 @@ const LINK_STYLE = `font-size:13px; color:var(--c-accent-deep,#1E4699);`;
 const BTN_STYLE = `padding:10px 18px; border:0; border-radius:999px; background:var(--c-accent,#2F62C9); color:var(--c-on-fill,#fff);
     font-size:14px; font-weight:600; font-family:inherit; cursor:pointer;`;
 
+let checkTimer = null;
+const cancelChecking = () => { if (checkTimer) { clearTimeout(checkTimer); checkTimer = null; } };
+
 const removeOverlay = () => {
+    cancelChecking();
     document.getElementById(OVERLAY_ID)?.remove();
     document.documentElement.classList.remove('perm-gate-lock');
     document.documentElement.style.overflow = '';
@@ -67,6 +77,7 @@ const removeOverlay = () => {
 const removeBanner = () => document.getElementById(BANNER_ID)?.remove();
 
 const showOverlay = (html) => {
+    cancelChecking();
     removeBanner();
     let el = document.getElementById(OVERLAY_ID);
     if (!el) {
@@ -104,6 +115,24 @@ const showBanner = (html) => {
 };
 
 const showChecking = () => showOverlay(`<div style="font-size:15px; font-weight:600;">권한을 확인하는 중…</div>`);
+
+/** 확인을 시작할 때 — 띠가 있으면 그대로, 가림막(실패 화면 등)이 있으면 바로 '확인 중'으로, 없으면 known 이 아닐 때만 잠시 뒤에 띄운다. */
+function beginChecking(known) {
+    cancelChecking();
+    if (document.getElementById(BANNER_ID)) return;
+    if (document.getElementById(OVERLAY_ID)) { showChecking(); return; }
+    if (known) return;
+    checkTimer = setTimeout(() => { checkTimer = null; showChecking(); }, CHECK_DELAY_MS);
+}
+
+/** uid 의 짧은 지문(FNV-1a 32비트) — 같은 계정인지 보는 데만 쓴다. */
+function fp(uid) {
+    let h = 0x811c9dc5;
+    for (const ch of String(uid || '')) { h ^= ch.codePointAt(0); h = Math.imul(h, 0x01000193) >>> 0; }
+    return h.toString(16);
+}
+function readOk() { try { return localStorage.getItem(OK_KEY + FEATURE) || ''; } catch (e) { return ''; } }
+function saveOk(v) { try { if (v) localStorage.setItem(OK_KEY + FEATURE, v); else localStorage.removeItem(OK_KEY + FEATURE); } catch (e) { /* 못 저장하면 다음에도 잠시 뒤 가림막 */ } }
 
 const deniedText = () => `이 화면은 「${esc(featureLabel(FEATURE))}」 권한이 필요합니다 — 관리자에게 요청하세요.`;
 
@@ -173,7 +202,7 @@ async function check(db, user) {
         removeOverlay(); removeBanner(); publish(null);
         return;
     }
-    if (!document.getElementById(BANNER_ID)) showChecking();
+    beginChecking(readOk() === fp(user.uid));
     let cfg = null, failed = false, timedOut = false;
     const read = getDoc(doc(db, 'artifacts', APP_ID, 'config', 'mainConfig'));
     try {
@@ -210,6 +239,7 @@ function applyConfig(db, user, cfg) {
     publish(resolved, mode);
 
     const d = gateDecision(resolved, FEATURE, mode);
+    saveOk(d === 'allow' ? fp(user.uid) : '');
     if (d === 'allow' && !resolved.isAdmin && isAdminOnlyNow(FEATURE)) showBanner(esc(DATA_ADMIN_ONLY_NOTE));   // history.html 이 되돌려 보낸다
     else if (d === 'allow') { removeOverlay(); removeBanner(); }
     else if (d === 'block') showBlocked();
@@ -238,7 +268,7 @@ async function main() {
         console.warn('[권한] 페이지 기능을 알 수 없어 가드를 건너뜁니다:', FEATURE);
         return;
     }
-    showChecking();
+    beginChecking(!!readOk());   // 계정은 아직 모른다 — 통과 기록이 있으면 로그인 확인까지 기다려 본다
     const app = await waitForApp();
     if (!app) {
         // 페이지가 Firebase 를 띄우지 못했다(오류·오프라인). 확인할 방법이 없으므로 '확인 실패'로 둔다 — 새로고침으로 다시.
