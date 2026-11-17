@@ -282,7 +282,11 @@ export const totalInspSelMeta = document.getElementById('total-insp-sel-meta');
 export const totalInspDoneNote = document.getElementById('total-insp-done-note');
 export const totalInspDoneBtn = document.getElementById('total-insp-done-btn');
 export const totalInspReopenBtn = document.getElementById('total-insp-reopen-btn');
-export const totalInspRemoveBtn = document.getElementById('total-insp-remove-btn');
+// 왼쪽 목록 칸·휴대폰 접기·[목록 비우기]·오른쪽 빈 안내(2026-11-17 — 옛 [목록에서 빼기]는 줄의 [×]로 합침)
+export const totalInspPanel = document.getElementById('total-insp-panel');
+export const totalInspToggle = document.getElementById('total-insp-toggle');
+export const totalInspClearBtn = document.getElementById('total-insp-clear-btn');
+export const totalInspEmptyRight = document.getElementById('total-insp-empty-right');
 export const totalInspCloseBtn = document.getElementById('total-insp-close-btn');
 export const totalInspFooterCloseBtn = document.getElementById('total-insp-footer-close-btn');
 
@@ -522,7 +526,10 @@ if (['localhost', '127.0.0.1'].includes(location.hostname)) {
                 totalInspDoneNote,
                 totalInspDoneBtn,
                 totalInspReopenBtn,
-                totalInspRemoveBtn,
+                totalInspPanel,
+                totalInspToggle,
+                totalInspClearBtn,
+                totalInspEmptyRight,
                 totalInspCloseBtn,
                 totalInspFooterCloseBtn
             };

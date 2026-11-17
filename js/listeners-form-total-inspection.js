@@ -1,7 +1,7 @@
 // === js/listeners-form-total-inspection.js ===
 // 설명: 전량검수 창(진행 목록, 2026-11-17) 리스너 + 샘플검수 [전량검수로 전환] 버튼. 동작은 js/total-inspection-logic.js.
 
-import * as DOM from './dom-elements.js?v=202611171511';
+import * as DOM from './dom-elements.js?v=202611171522';
 import {
     triggerTotalInspectionFromSample,
     closeTotalInspection,
@@ -14,8 +14,9 @@ import {
     saveTotalInspection,
     markTotalDone,
     reopenTotal,
-    removeTotal
-} from './total-inspection-logic.js?v=202611171511';
+    clearTotalList,
+    toggleTotalListCollapsed
+} from './total-inspection-logic.js?v=202611171522';
 
 export function setupTotalInspectionListeners() {
 
@@ -55,5 +56,7 @@ export function setupTotalInspectionListeners() {
     if (DOM.totalInspSaveBtn) DOM.totalInspSaveBtn.addEventListener('click', saveTotalInspection);
     if (DOM.totalInspDoneBtn) DOM.totalInspDoneBtn.addEventListener('click', markTotalDone);
     if (DOM.totalInspReopenBtn) DOM.totalInspReopenBtn.addEventListener('click', reopenTotal);
-    if (DOM.totalInspRemoveBtn) DOM.totalInspRemoveBtn.addEventListener('click', removeTotal);
+    // 목록 비우기(시작 전 줄은 삭제, 기록이 있는 줄은 완료로 내림 — 줄의 [×] 는 목록 클릭 위임이 받는다) · 휴대폰 목록 접기
+    if (DOM.totalInspClearBtn) DOM.totalInspClearBtn.addEventListener('click', clearTotalList);
+    if (DOM.totalInspToggle) DOM.totalInspToggle.addEventListener('click', toggleTotalListCollapsed);
 }

@@ -850,6 +850,41 @@ html.dark .depth-panel {
         padding-right: 0 !important;
     }
 }
+/* 전량검수 창(2026-11-17) — 샘플검수 매니저처럼 PC 는 왼쪽 진행 목록(aside)·오른쪽 입력 2열(lg),
+   휴대폰(≤768px)은 화면 가득 위아래로 쌓고 목록을 접는다(#total-insp-panel.total-insp-collapsed — js/total-inspection-logic.js). */
+@media (max-width: 768px) {
+    #total-inspection-manager-modal #total-insp-modal-content {
+        width: 100vw !important;
+        max-width: 100vw !important;
+        height: 100vh !important;
+        height: 100dvh !important;
+        max-height: 100vh !important;
+        max-height: 100dvh !important;
+        border-radius: 0 !important;
+        margin: 0 !important;
+    }
+    #total-inspection-manager-modal .total-insp-desc { display: none !important; }
+    #total-inspection-manager-modal #total-insp-body {
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 0.75rem !important;
+        padding: 0.75rem !important;
+    }
+    #total-inspection-manager-modal #total-insp-body > * {
+        flex-shrink: 0 !important;
+        min-height: auto !important;
+    }
+    #total-inspection-manager-modal aside { position: static !important; }
+    #total-inspection-manager-modal #total-insp-toggle { display: inline-flex !important; }
+    #total-inspection-manager-modal #total-insp-panel.total-insp-collapsed .total-insp-tools,
+    #total-inspection-manager-modal #total-insp-panel.total-insp-collapsed #total-insp-list-area {
+        display: none !important;
+    }
+    #total-inspection-manager-modal #total-insp-panel.total-insp-collapsed > div:first-child { border-bottom-width: 1px !important; border-radius: 0.5rem !important; }
+    /* 위 '9. 그리드 세로 정렬'(1열 !important)을 이기려고 :not(#_m) — 입력 칸은 2열·3열 그대로 */
+    #total-inspection-manager-modal .total-insp-2col:not(#_m) { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+    #total-inspection-manager-modal .total-insp-3col:not(#_m) { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
+}
 /* 검수 창이 열려 있으면 전역 오프라인 배너(js/connection-banner.js)는 숨긴다 — 창 안의 #insp-conn-band 가 대신 알리고,
    배너가 아래 바(저장 버튼)를 가리지 않게 */
 body:has(#inspection-manager-modal:not(.hidden)) #global-offline-banner { display: none !important; }

@@ -12,19 +12,19 @@
 //   · [완료 처리]·[다시 진행]·[목록에서 빼기](누적 0 인 줄만).
 // 순수 규칙은 js/lib/total-insp.js. 공급처는 코드만(supplierCode) — 이름 칸은 쓰지 않는다(CLAUDE.md 3절).
 // ⚠️ 이 창은 index.html·history.html 에 붙는다 — role="dialog"·data-act·end-shift-* 를 쓰지 않는다(업무마감봇 선택자).
-import * as DOM from './dom-elements.js?v=202611171511';
-import * as State from './state.js?v=202611171511';
-import { showToast, getTodayDateString, getCurrentTime, escapeHtml, showConfirm } from './utils.js?v=202611171511';
+import * as DOM from './dom-elements.js?v=202611171522';
+import * as State from './state.js?v=202611171522';
+import { showToast, getTodayDateString, getCurrentTime, escapeHtml, showConfirm } from './utils.js?v=202611171522';
 import {
     doc, collection, query, where, limit as fsLimit, onSnapshot, runTransaction, serverTimestamp, increment, deleteField
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { TASK, tName } from './task-names.js?v=202611171511';
-import { openManualAdd } from './inspection-manual.js?v=202611171511';
-import { getCurrentInspItem } from './inspection-logic.js?v=202611171511';
+import { TASK, tName } from './task-names.js?v=202611171522';
+import { openManualAdd } from './inspection-manual.js?v=202611171522';
+import { getCurrentInspItem } from './inspection-logic.js?v=202611171522';
 import {
-    ON, DONE, totalKey, startOrReopen, applySave, markDone, markReopen, canRemove, progressOf, todayQtyOf,
-    sortList, nextOnKey, filterRows, exactRow, logOf, fromSampleItem
-} from './lib/total-insp.js?v=202611171511';
+    ON, DONE, totalKey, startOrReopen, applySave, markDone, markReopen, progressOf, todayQtyOf,
+    sortList, nextOnKey, filterRows, exactRow, logOf, fromSampleItem, removePlan, removeCounts, removeMessage
+} from './lib/total-insp.js?v=202611171522';
 
 const APP = ['artifacts', 'team-work-logger-v2'];
 const COL = 'total_inspections_accumulated';
@@ -46,6 +46,7 @@ let saving = false;
 let acting = false;          // 완료 처리·다시 진행·빼기 중
 let filterTerm = '';
 let modalObs = null;
+let listCollapsed = false;   // 휴대폰 목록 접기(.total-insp-collapsed — css/style.css, PC 에선 접기 버튼이 숨어 있다)
 
 const colRef = () => collection(State.db, ...APP, COL);
 const docRef = (id) => doc(State.db, ...APP, COL, id);
@@ -130,7 +131,19 @@ function onClosed() {
     if (DOM.totalInspShowDone) DOM.totalInspShowDone.checked = false;
     if (DOM.totalInspProductName) DOM.totalInspProductName.value = '';
     if (DOM.totalInspContentArea) DOM.totalInspContentArea.classList.add('hidden');
+    setListCollapsed(false);
 }
+
+/** 휴대폰 목록 접기 — 샘플검수 대기 리스트 접기(js/inspection-logic.js toggleTodoCollapsed)와 같은 방식. */
+function setListCollapsed(on) {
+    listCollapsed = !!on;
+    if (DOM.totalInspPanel) DOM.totalInspPanel.classList.toggle('total-insp-collapsed', listCollapsed);
+    if (DOM.totalInspToggle) {
+        DOM.totalInspToggle.textContent = listCollapsed ? `목록 ${rowsOn.length}건 ▾` : '접기 ▴';
+        DOM.totalInspToggle.setAttribute('aria-expanded', listCollapsed ? 'false' : 'true');
+    }
+}
+export const toggleTotalListCollapsed = () => setListCollapsed(!listCollapsed);
 
 function afterRowsChanged() {
     if (pendingSelect && rowById(pendingSelect)) {
@@ -144,6 +157,7 @@ function afterRowsChanged() {
         selectedId = '';
         pendingSave = null;
         if (DOM.totalInspContentArea) DOM.totalInspContentArea.classList.add('hidden');
+        setListCollapsed(false);   // 휴대폰: 고른 줄이 없어지면 접힌 목록을 펼친다(찾기·개별 추가가 보이게)
     }
     renderList();
     renderSelected(false);
@@ -159,29 +173,34 @@ function rowHtml(r, today) {
         ? `<span class="font-bold text-gray-800">${escapeHtml(p.acc.toLocaleString())} / ${escapeHtml(p.total.toLocaleString())}</span> <span class="text-gray-500">(${escapeHtml(p.pct)}%)</span>`
         : `<span class="font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded px-1.5">총 재고 미입력</span>`;
     const tags = [
-        done ? '<span class="text-[11px] font-bold bg-sky-100 text-sky-800 rounded px-1.5 py-0.5">완료</span>' : '',
+        done ? `<span class="text-[11px] font-bold bg-sky-100 text-sky-800 rounded px-1.5 py-0.5">${r.stopped ? '완료(중단)' : '완료'}</span>` : '',
         Number(r.round) > 1 ? `<span class="text-[11px] font-bold bg-purple-50 text-purple-800 border border-purple-200 rounded px-1.5 py-0.5">${escapeHtml(r.round)}회차</span>` : '',
         r.origin === 'sample' ? '<span class="text-[11px] font-bold bg-gray-100 text-gray-600 rounded px-1.5 py-0.5">샘플에서</span>' : '',
         tq > 0 ? `<span class="text-[11px] font-bold bg-green-50 text-green-800 border border-green-200 rounded px-1.5 py-0.5">오늘 ${escapeHtml(tq.toLocaleString())}개</span>` : '',
     ].join('');
     const bar = p.pct == null ? '' : `<div class="h-1.5 bg-gray-100 rounded-full mt-1.5 overflow-hidden"><div class="h-full ${done ? 'bg-sky-500' : 'bg-purple-500'}" style="width:${Number(p.pct) || 0}%"></div></div>`;
-    return `<button type="button" data-total-key="${escapeHtml(r.id)}" aria-pressed="${sel ? 'true' : 'false'}"
-        class="w-full text-left border rounded-lg px-3 py-2 min-h-[44px] ${sel ? 'border-purple-500 bg-purple-50' : 'border-gray-200 bg-white hover:bg-gray-50'} ${done ? 'opacity-80' : ''}">
-        <div class="flex items-start justify-between gap-2">
-            <div class="min-w-0">
-                <div class="font-bold text-sm text-gray-900 break-words">${escapeHtml(r.name || '-')}</div>
-                <div class="text-xs text-gray-600 break-words">${escapeHtml(r.option || '옵션 없음')}${r.reason ? ` · ${escapeHtml(r.reason)}` : ' · <span class="text-red-600 font-bold">사유 미입력</span>'}</div>
+    const del = done ? '' : `<button type="button" data-total-del="${escapeHtml(r.id)}" title="목록에서 내리기" aria-label="목록에서 내리기"
+            class="flex-shrink-0 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded min-h-[44px] min-w-[36px] flex items-center justify-center text-lg leading-none">×</button>`;
+    return `<div class="flex items-stretch border rounded-lg ${sel ? 'border-purple-500 bg-purple-50' : 'border-gray-200 bg-white hover:bg-gray-50'} ${done ? 'opacity-80' : ''}">
+        <button type="button" data-total-key="${escapeHtml(r.id)}" aria-pressed="${sel ? 'true' : 'false'}" class="flex-1 min-w-0 text-left px-3 py-2 min-h-[44px]">
+            <div class="flex items-start justify-between gap-2">
+                <div class="min-w-0">
+                    <div class="font-bold text-sm text-gray-900 break-words">${escapeHtml(r.name || '-')}</div>
+                    <div class="text-xs text-gray-600 break-words">${escapeHtml(r.option || '옵션 없음')}${r.reason ? ` · ${escapeHtml(r.reason)}` : ' · <span class="text-red-600 font-bold">사유 미입력</span>'}</div>
+                </div>
+                <div class="text-xs text-right flex-shrink-0">${stock}</div>
             </div>
-            <div class="text-xs text-right flex-shrink-0">${stock}</div>
-        </div>
-        ${bar}
-        ${tags ? `<div class="flex flex-wrap gap-1 mt-1.5">${tags}</div>` : ''}
-    </button>`;
+            ${bar}
+            ${tags ? `<div class="flex flex-wrap gap-1 mt-1.5">${tags}</div>` : ''}
+        </button>${del}
+    </div>`;
 }
 
 function renderList() {
     const box = DOM.totalInspList;
     if (DOM.totalInspListCount) DOM.totalInspListCount.textContent = String(rowsOn.length);
+    if (DOM.totalInspClearBtn) DOM.totalInspClearBtn.disabled = acting || saving || rowsOn.length === 0;
+    if (listCollapsed) setListCollapsed(true);   // 접힘 글자의 건수
     const status = DOM.totalInspListStatus;
     if (status) {
         status.textContent = listError || (!loadedOn ? '진행 목록 불러오는 중…' : '');
@@ -204,6 +223,7 @@ function renderSelected(fill) {
     const area = DOM.totalInspContentArea;
     const r = rowById(selectedId);
     if (!area) return;
+    if (DOM.totalInspEmptyRight) DOM.totalInspEmptyRight.classList.toggle('hidden', !!r);
     if (!r) { area.classList.add('hidden'); return; }
     area.classList.remove('hidden');
     const done = r.status === DONE;
@@ -211,7 +231,7 @@ function renderSelected(fill) {
     if (DOM.totalInspSelMeta) {
         DOM.totalInspSelMeta.textContent = [
             `${Math.max(1, Number(r.round) || 1)}회차`,
-            done ? '완료' : '진행중',
+            done ? (r.stopped ? '완료(중단)' : '완료') : '진행중',
             r.supplierCode ? `공급처 ${r.supplierCode}` : '',
             r.createdBy ? `넣은 사람 ${r.createdBy}` : '',
         ].filter(Boolean).join(' · ');
@@ -238,7 +258,6 @@ function renderSelected(fill) {
     }
     if (DOM.totalInspDoneBtn) { DOM.totalInspDoneBtn.classList.toggle('hidden', done); DOM.totalInspDoneBtn.disabled = acting || saving; }
     if (DOM.totalInspReopenBtn) { DOM.totalInspReopenBtn.classList.toggle('hidden', !done); DOM.totalInspReopenBtn.disabled = acting || saving; }
-    if (DOM.totalInspRemoveBtn) { DOM.totalInspRemoveBtn.classList.toggle('hidden', !canRemove(r)); DOM.totalInspRemoveBtn.disabled = acting || saving; }
     updateTotalInspRemaining();
 }
 
@@ -261,6 +280,7 @@ function selectRow(id) {
     if (!rowById(id)) return;
     if (selectedId !== id) pendingSave = null;
     selectedId = id;
+    if (isTouch()) setListCollapsed(true);   // 휴대폰: 줄을 고르면 목록을 접어 입력 칸이 보이게(샘플검수와 같게)
     renderList();
     renderSelected(true);
     const r = rowById(id);
@@ -365,7 +385,11 @@ export function onTotalSearchEnter() {
 }
 
 export function onTotalListClick(e) {
-    const b = e.target && e.target.closest ? e.target.closest('[data-total-key]') : null;
+    const t = e.target && e.target.closest ? e.target : null;
+    if (!t) return;
+    const d = t.closest('[data-total-del]');
+    if (d) { removeRows([d.dataset.totalDel]); return; }
+    const b = t.closest('[data-total-key]');
     if (b) selectRow(b.dataset.totalKey);
 }
 
@@ -503,17 +527,59 @@ export async function reopenTotal() {
     else pendingSelect = id;   // 진행중 구독이 곧 가져온다
 }
 
-export async function removeTotal() {
-    const r = rowById(selectedId);
-    if (!r) return;
-    if (!canRemove(r)) { showToast('검수 수량이 쌓였거나 2회차 이상인 줄은 뺄 수 없습니다 — [완료 처리]를 쓰세요.', true); return; }
-    const ok = await showConfirm(`'${r.name}${r.option ? ` / ${r.option}` : ''}' 을(를) 진행 목록에서 뺄까요?`,
-        { title: '목록에서 빼기', okText: '빼기', cancelText: '취소' });
+// ── 줄 [×] · [목록 비우기] ────────────────────────────────────────────
+// 아직 시작 안 한 줄(1회차·누적 0)은 문서 삭제, 누적이 있거나 2회차 이상은 기록 보존을 위해 완료(stopped)로 내린다(lib/total-insp.js removePlan).
+// 확인창 숫자는 화면 값, 실제 판정은 트랜잭션 안에서 서버 값으로 다시 한다. 한 트랜잭션에 REMOVE_CHUNK 건씩.
+const REMOVE_CHUNK = 100;
+
+async function removeRows(ids, { all = false } = {}) {
+    if (acting || saving) return;
+    const rows = ids.map(rowById).filter(Boolean);
+    const c = removeCounts(rows);
+    if (!c.del && !c.stop) { showToast('내릴 진행 줄이 없습니다.', true); return; }
+    const one = rows.length === 1 ? rows[0] : null;
+    const head = one ? `'${one.name}${one.option ? ` / ${one.option}` : ''}' — ` : `진행 목록 ${rows.length}건 — `;
+    const ok = await showConfirm(`${head}${removeMessage(c)}.\n기록이 있는 줄은 완료 목록([완료 보기])에 남습니다.`,
+        { title: all ? '목록 비우기' : '목록에서 내리기', okText: all ? '비우기' : '내리기', cancelText: '취소', danger: true });
     if (!ok) return;
-    await act(r.id, (tx, ref, cur) => {
-        if (!cur) return { ok: false, message: '이미 목록에 없습니다.' };
-        if (!canRemove(cur)) return { ok: false, message: '그사이 검수 수량이 저장됐거나 회차가 바뀌었습니다 — 뺄 수 없습니다.' };
-        tx.delete(ref);
-        return { ok: true };
-    }, '목록에서 뺐습니다.');
+    acting = true;
+    renderList();
+    renderSelected(false);
+    const done = { del: 0, stop: 0, skip: 0 };
+    let failed = false;
+    try {
+        const by = me(), now = nowIso();
+        const list = rows.map(r => r.id);
+        for (let i = 0; i < list.length; i += REMOVE_CHUNK) {
+            const part = list.slice(i, i + REMOVE_CHUNK);
+            const res = await runTransaction(State.db, async (tx) => {
+                const snaps = await Promise.all(part.map(id => tx.get(docRef(id))));
+                return snaps.map((sn, k) => {
+                    const p = removePlan(sn.exists() ? sn.data() : null, { by, now });
+                    if (p.action === 'delete') tx.delete(docRef(part[k]));
+                    else if (p.action === 'stop') tx.update(docRef(part[k]), { ...p.patch, lastUpdated: serverTimestamp() });
+                    return p.action;
+                });
+            });
+            res.forEach(a => { if (a === 'delete') done.del++; else if (a === 'stop') done.stop++; else done.skip++; });
+        }
+    } catch (e) {
+        failed = true;
+        console.error('[전량검수] 목록에서 내리기 실패:', e && e.code ? e.code : e);
+        showToast(failMsg(e, '목록에서 내리지 못했습니다. 다시 눌러 주세요.'), true);
+    } finally {
+        acting = false;
+        afterRowsChanged();
+    }
+    if (failed && !done.del && !done.stop) return;
+    const msg = removeMessage(done) || '바뀐 것이 없습니다';
+    showToast(`${msg}${done.skip ? ` · 그사이 바뀌어 건너뜀 ${done.skip}건` : ''}`, failed);
+}
+
+/** 줄 [×] — 그 줄만. */
+export const removeTotalRow = (id) => removeRows([id]);
+
+/** [목록 비우기] — 진행 중인 줄 전부(검색칸으로 거른 것과 상관없이). */
+export function clearTotalList() {
+    return removeRows(sortList(rowsOn).map(r => r.id), { all: true });
 }

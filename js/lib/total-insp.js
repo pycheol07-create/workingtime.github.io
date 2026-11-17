@@ -176,11 +176,39 @@ export function markDone(cur, { by = '', now = '' } = {}) {
 export function markReopen(cur) {
     if (!cur) return { ok: false, message: '진행 목록에 없는 상품입니다.' };
     if (cur.status !== DONE) return { ok: false, message: '진행 중인 상품입니다.' };
-    return { ok: true, patch: { status: ON, doneAt: '', doneBy: '' } };
+    return { ok: true, patch: { status: ON, doneAt: '', doneBy: '', stopped: false } };
 }
 
 /** [목록에서 빼기] — 1회차이고 누적 0 인 줄만. 2회차 이상은 앞 회차 기록이 있으므로 빼지 않고 [완료 처리]로 닫는다(리뷰 7). */
 export const canRemove = (cur) => !!cur && int(cur.accumulatedTotal) === 0 && Math.max(1, int(cur.round) || 1) === 1;
+
+/** 줄 [×]·[목록 비우기] 판정(2026-11-17 사용자 요청) — 서버 값으로 다시 부른다.
+ *  'delete' = 아직 시작 안 한 줄(1회차·누적 0) → 문서 삭제.
+ *  'stop'   = 누적이 있거나 2회차 이상(기록 보존) → 삭제 대신 완료로 내림(stopped: true — 끝까지 못 하고 멈춤 표시).
+ *  'skip'   = 문서 없음·이미 완료. */
+export function removePlan(cur, { by = '', now = '' } = {}) {
+    if (!cur || cur.status === DONE) return { action: 'skip', patch: null };
+    if (canRemove(cur)) return { action: 'delete', patch: null };
+    return { action: 'stop', patch: { status: DONE, stopped: true, doneAt: str(now), doneBy: str(by) } };
+}
+
+/** 확인창 숫자 — rows 의 판정 건수 { del, stop, skip }. */
+export function removeCounts(rows) {
+    const c = { del: 0, stop: 0, skip: 0 };
+    (Array.isArray(rows) ? rows : []).forEach(r => {
+        const a = removePlan(r).action;
+        if (a === 'delete') c.del++; else if (a === 'stop') c.stop++; else c.skip++;
+    });
+    return c;
+}
+
+/** 확인창 문구 — 'n건 삭제, m건은 기록이 있어 완료로 내림'. 둘 다 0 이면 ''. */
+export function removeMessage({ del = 0, stop = 0 } = {}) {
+    const parts = [];
+    if (del) parts.push(`${del}건 삭제`);
+    if (stop) parts.push(`${stop}건은 기록이 있어 완료로 내림`);
+    return parts.join(', ');
+}
 
 /** 전량 기록 중 이 상품 것만 상품 이력 log 모양으로(검수이력 [상세보기] — 수정 버튼 없음, fromTotalLog). */
 export function totalHistoryLogsOf(logs, productName) {

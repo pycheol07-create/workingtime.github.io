@@ -14,16 +14,16 @@
 // 전량검수도 이 창을 쓴다(2026-11-17, openManualAdd(글자, { target: 'total', onAdd })) — 유형 대신 사유(필수, 고른 상품 공통) + 고객 정보 안내,
 //   카메라는 이 창 안의 스캐너(inspection-media.js startInlineScanner — 전량 창에는 샘플검수 스캐너가 없다).
 //   넣기(트랜잭션)·넣은 뒤 화면은 부르는 쪽이 넘기는 onAdd(items, { reason }) 가 한다 — 샘플 쪽은 아래 addToSampleList(예전 그대로).
-import * as State from './state.js?v=202611171511';
-import { showToast, getTodayDateString, escapeHtml } from './utils.js?v=202611171511';
-import { renderTodoList, selectTodoItem } from './inspection-logic.js?v=202611171511';
-import { toggleScanner, startInlineScanner } from './inspection-media.js?v=202611171511';
-import { S as PS, loadCatalog, loadLoc, locOf } from './products-store.js?v=202611171511';
-import { thicknessFromHistoryDoc } from './lib/insp-packs.js?v=202611171511';
+import * as State from './state.js?v=202611171522';
+import { showToast, getTodayDateString, escapeHtml } from './utils.js?v=202611171522';
+import { renderTodoList, selectTodoItem } from './inspection-logic.js?v=202611171522';
+import { toggleScanner, startInlineScanner } from './inspection-media.js?v=202611171522';
+import { S as PS, loadCatalog, loadLoc, locOf } from './products-store.js?v=202611171522';
+import { thicknessFromHistoryDoc } from './lib/insp-packs.js?v=202611171522';
 import {
     KINDS, findCandidates, manualItem, typedItem, addToList, historyId, historyCodes, pickHistoryByCode,
     totalItemOf, typedTotalItem
-} from './lib/insp-manual.js?v=202611171511';
+} from './lib/insp-manual.js?v=202611171522';
 import { doc, getDoc, getDocs, collection, query, where, limit as fsLimit, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const PICKER_ID = 'insp-manual-picker';
