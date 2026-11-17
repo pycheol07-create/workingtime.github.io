@@ -1,24 +1,27 @@
 // === js/inspection-logic.js ===
-import * as DOM from './dom-elements.js?v=202611171250';
-import * as State from './state.js?v=202611171250';
-import { updateDailyData } from './app-data.js?v=202611171250';
-import { showToast, getCurrentTime, getTodayDateString, escapeHtml, showConfirm } from './utils.js?v=202611171250';
+import * as DOM from './dom-elements.js?v=202611171511';
+import * as State from './state.js?v=202611171511';
+import { updateDailyData } from './app-data.js?v=202611171511';
+import { showToast, getCurrentTime, getTodayDateString, escapeHtml, showConfirm } from './utils.js?v=202611171511';
 import { doc, getDoc, setDoc, updateDoc, arrayUnion, serverTimestamp, increment, runTransaction, deleteField } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // 분리된 모듈 가져오기
-import { clearImageState, setExistingPhoto, resolvePhotoForSave, isPhotoBusy, bumpPhotoEpoch } from './inspection-media.js?v=202611171250';
-import { syncInspSegments } from './inspection-segments.js?v=202611171250';
-import { moveDoneItems } from './lib/insp-day.js?v=202611171250';
-import { TASK, tName } from './task-names.js?v=202611171250';
+import { clearImageState, setExistingPhoto, resolvePhotoForSave, isPhotoBusy, bumpPhotoEpoch } from './inspection-media.js?v=202611171511';
+import { syncInspSegments } from './inspection-segments.js?v=202611171511';
+import { moveDoneItems } from './lib/insp-day.js?v=202611171511';
+import { openManualAdd } from './inspection-manual.js?v=202611171511';   // [조회]에서 리스트에 없는 상품 → 개별 추가 창(2026-11-17)
+import { historyId } from './lib/insp-manual.js?v=202611171511';
+import { TASK, tName } from './task-names.js?v=202611171511';
 import {
     CHECK_KEYS, LABELS, judge, missingFields, nextPendingIndex, prevIndex, progress,
     logIdentity, upsertLog, findLogForItem, addDefectSummary, defectSummaryOf, uniqueInboundCount,
-    applyDoneToList, todoCardHtml, doneCardHtml, pickKey, isPicked, pickProgress, windowOrder, WINDOW_SORTS, windowSortOf
-} from './lib/insp-flow.js?v=202611171250';
+    applyDoneToList, applyDoneByKey, todoCardHtml, doneCardHtml, itemKey, relocateIndex, pickKey, isPicked, pickProgress, windowOrder, WINDOW_SORTS, windowSortOf
+} from './lib/insp-flow.js?v=202611171511';
 
 // 상태 변수
 export let todayInspectionList = [];
 export let currentTodoIndex = -1;
+let currentKey = null;       // 고른 줄의 열쇠(상품명+옵션+출고일) — 리스트가 바뀌어 칸 번호가 밀려도 같은 줄을 다시 찾는다(lib/insp-flow.js relocateIndex)
 export let editingLogIndex = -1;
 let editingIdentity = '';     // 수정 중인 기록의 logIdentity — 저장 때 index 대신 이걸로 다시 찾는다
 let pendingSave = null;       // { key, saveId, date, time, inspector } — 저장 실패 뒤 다시 저장해도 같은 기록으로 (상품이 바뀌거나 성공하면 비움)
@@ -184,6 +187,7 @@ const showSaveError = (msg, offerNoPhoto = false) => {
 const saveErrorMessage = (e) => {
     const code = String((e && e.code) || '');
     if (code === 'insp/edit-missing') return '기록이 바뀌었습니다. 다시 불러오세요';
+    if (code === 'insp/item-missing') return '리스트가 바뀌어 이 상품 줄을 찾지 못했습니다. 리스트에서 다시 골라 주세요(입력은 남아 있습니다)';
     if ((typeof navigator !== 'undefined' && navigator.onLine === false) || code === 'unavailable' || code === 'storage/retry-limit-exceeded') return OFFLINE_MSG;
     if (code === 'storage/unauthorized') return '사진을 올릴 권한이 없어 저장하지 못했습니다(입력은 남아 있습니다). 사진 빼고 저장할 수 있습니다';
     if (code.startsWith('storage/')) return '사진을 올리지 못해 저장하지 못했습니다(입력은 남아 있습니다)';
@@ -217,6 +221,7 @@ export const resetEditingState = () => {
 export const initializeInspectionSession = async () => {
     todayInspectionList = [];
     currentTodoIndex = -1;
+    currentKey = null;
     pendingSave = null;
     todoCollapsed = false;
     hideSaveError();
@@ -340,6 +345,7 @@ export const deleteInspectionList = async () => {
         if (DOM.inspThicknessRef) DOM.inspThicknessRef.textContent = '기준: -';
 
         currentTodoIndex = -1;
+        currentKey = null;
         pendingSave = null;
         hideSaveError();
         resetEditingState();
@@ -362,6 +368,11 @@ export const deleteHistoryInspectionList = async (dateKey) => {
         return false;
     }
     const todayKey = getTodayDateString();
+    // 끊긴 채로 지우면 지우기가 오프라인 대기열에 남았다가, 다시 연결될 때 그사이 다른 기기가 넣은 줄까지 지운다 — 연결됐을 때만
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+        showToast('인터넷 연결이 끊겨 리스트를 지우지 못했습니다. 연결을 확인한 뒤 다시 눌러 주세요.', true);
+        return false;
+    }
     try {
         const dayData = State.allHistoryData.find(d => d.id === dateKey);
         if (dayData) {
@@ -606,10 +617,33 @@ async function togglePicked(index) {
     }
 }
 
+/** 고른 줄의 칸 번호를 지금 리스트에 맞춘다. 개별 추가 줄이 패킹 카드로 바뀌어 출고일이 생겼으면 열쇠·출고일 칸도 따라간다.
+ *  못 찾으면 -1(저장 때 막고 안내 — saveInspectionAndNext). */
+const syncCurrentIndex = (list) => {
+    if (!currentKey) return;   // -1 이 된 뒤에도 열쇠는 남겨 둔다 — 줄이 돌아오면(다른 기기 되돌림·구독 지연) 다시 찾는다
+    const i = relocateIndex(list, currentTodoIndex, currentKey);
+    currentTodoIndex = i;
+    if (i === -1) return;
+    const k = itemKey(list[i]);
+    if (k.packingDate !== currentKey.packingDate) {
+        const pd = document.getElementById('insp-packing-date');
+        if (pd && !pd.value && editingLogIndex === -1) pd.value = k.packingDate;   // 새 검수 입력 중일 때만(수정 중 기록의 출고일은 그대로)
+    }
+    currentKey = k;
+};
+
+/** 지금 고른 대기 줄(없으면 null) — 전량검수 [전량검수로 전환]이 화면 글자 대신 이 값을 읽는다(js/total-inspection-logic.js, 2026-11-17). */
+export const getCurrentInspItem = () => {
+    const list = currentList();
+    const i = currentKey ? relocateIndex(list, currentTodoIndex, currentKey) : currentTodoIndex;
+    return i >= 0 && list[i] ? list[i] : null;
+};
+
 /** listOverride — 저장 직후 화면에만 쓰는 리스트(State 는 건드리지 않는다). 인자 없이 부르면(실시간 구독 등) State 로 돌아간다. */
 export const renderTodoList = (listOverride) => {
     shownList = Array.isArray(listOverride) ? listOverride : null;
     const list = currentList();
+    syncCurrentIndex(list);   // 패킹 카드가 끼어들거나 다른 기기에서 줄이 늘어도 고른 상품을 그대로 가리키게
     const todoArea = document.getElementById('insp-todo-list-area');
     const todoBody = document.getElementById('insp-todo-list-body');
     const placeholder = document.getElementById('insp-todo-empty-placeholder');
@@ -666,6 +700,7 @@ export const selectTodoItem = async (index, opts = {}) => {
     const seq = ++selectSeq;
 
     currentTodoIndex = index;
+    currentKey = itemKey(item);
     pendingSave = null;
     hideSaveError();
     clearMissingMarks();
@@ -728,7 +763,7 @@ export const goPrevInspectionItem = async () => {
 /** 완료 상품의 기록을 수정 모드로 불러온다. 출고일+옵션(+코드)이 맞는 기록이 없으면 false(부르는 쪽이 새 검수로 채움). */
 const loadCompletedInspectionData = async (item, seq = selectSeq) => {
     try {
-        const docRef = doc(State.db, 'product_history', item.name);
+        const docRef = doc(State.db, 'product_history', historyId(item.name));   // 저장과 같은 id(`/` → `-`)
         const docSnap = await getDoc(docRef);
         if (seq !== selectSeq) return false;   // 늦게 도착 — 지금 상품이 아니면 수정 모드를 켜지 않는다
 
@@ -803,12 +838,6 @@ export const searchProductHistory = async () => {
         showToast('상품명 또는 상품코드를 입력해주세요.', true);
         return;
     }
-    // 직접 검색으로 다른 상품을 열면 앞 상품의 수정 모드·저장 대기 기록을 버린다
-    if (editingLogIndex !== -1) resetEditingState();
-    bumpPhotoEpoch();   // 읽는 중이던 사진은 이 상품에 붙이지 않는다
-    pendingSave = null;
-    hideSaveError();
-    clearMissingMarks();
 
     const list = currentList();
     let matchedIndex = -1;
@@ -822,12 +851,26 @@ export const searchProductHistory = async () => {
         );
     }
 
+    // 리스트에 없으면 바로 열지 않고 그 글자로 개별 추가 창을 연다(2026-11-17 사용자 결정) — 지금 열린 상품·입력은 그대로 둔다
+    if (matchedIndex === -1) {
+        openManualAdd(searchTerm);
+        return;
+    }
+
+    // 직접 검색으로 다른 상품을 열면 앞 상품의 수정 모드·저장 대기 기록을 버린다
+    if (editingLogIndex !== -1) resetEditingState();
+    bumpPhotoEpoch();   // 읽는 중이던 사진은 이 상품에 붙이지 않는다
+    pendingSave = null;
+    hideSaveError();
+    clearMissingMarks();
+
     let targetProductName = searchTerm;
 
     if (matchedIndex > -1) {
         const matchedItem = list[matchedIndex];
         targetProductName = matchedItem.name;
         currentTodoIndex = matchedIndex;
+        currentKey = itemKey(matchedItem);
 
         if(DOM.inspProductNameInput) DOM.inspProductNameInput.value = targetProductName;
         if (DOM.inspOptionDisplay) DOM.inspOptionDisplay.textContent = `옵션: ${matchedItem.option || '-'}`;
@@ -851,24 +894,7 @@ export const searchProductHistory = async () => {
         if (matchedItem.status !== '완료' && qtyInput) {
              qtyInput.value = matchedItem.qty > 0 ? matchedItem.qty : '';
         }
-    } else {
-        currentTodoIndex = -1;
-        resetEditingState();
-
-        if (DOM.inspOptionDisplay) DOM.inspOptionDisplay.textContent = '옵션: -';
-        if (DOM.inspCodeDisplay) DOM.inspCodeDisplay.textContent = '코드: -';
-        if (DOM.inspSupplierDisplay) DOM.inspSupplierDisplay.textContent = '공급처: -';
-        if (DOM.inspThicknessRef) DOM.inspThicknessRef.textContent = '기준: -';
-
-        const packingDateInput = document.getElementById('insp-packing-date');
-        if (packingDateInput) packingDateInput.value = '';
-
-        const inboundDateInput = document.getElementById('insp-inbound-date');
-        if (inboundDateInput) inboundDateInput.value = getTodayDateString();
-
-        const qtyInput = document.getElementById('insp-inbound-qty');
-        if (qtyInput) qtyInput.value = '';
-    }
+    }   // 리스트에 없는 경우는 위에서 개별 추가 창으로 넘겼다
 
     if(DOM.inspHistoryReport) DOM.inspHistoryReport.classList.remove('hidden');
     if(DOM.inspCurrentInputArea) DOM.inspCurrentInputArea.classList.remove('hidden');
@@ -888,7 +914,7 @@ export const searchProductHistory = async () => {
 
     const seq = ++historySeq;
     try {
-        const docRef = doc(State.db, 'product_history', targetProductName);
+        const docRef = doc(State.db, 'product_history', historyId(targetProductName));   // 저장과 같은 id(`/` → `-`)
         const docSnap = await getDoc(docRef);
         if (seq !== historySeq) return;   // 그사이 다른 상품을 조회했다 — 이력 칸을 덮지 않는다
 
@@ -1039,6 +1065,20 @@ export const saveInspectionAndNext = async () => {
     const sampleQty = getVal('insp-sample-qty') || 1;
     const note = getVal('insp-notes');
 
+    // 고른 줄이 리스트 변화로 밀렸으면 열쇠로 다시 찾는다 — 못 찾으면 엉뚱한 줄을 완료로 찍지 않게 저장을 막는다
+    let listGone = false;   // 수정 저장인데 줄이 없어짐 — 기록만 고치고 리스트는 건드리지 않는다
+    if (currentTodoIndex >= 0 || currentKey) {
+        const at = relocateIndex(currentList(), currentTodoIndex, currentKey);
+        if (at === -1 && editingLogIndex !== -1) {
+            // 수정 저장은 줄이 없어져도(리스트를 비움 등) 기록만 고친다 — 리스트 줄은 건드리지 않는다
+            listGone = true;
+        } else if (at === -1) {
+            showToast('리스트가 바뀌어 이 상품 줄을 찾지 못했습니다. 리스트에서 다시 골라 주세요(입력은 남아 있습니다).', true);
+            return;
+        }
+        currentTodoIndex = at;
+        currentKey = itemKey(currentList()[at]);
+    }
     let currentItem = null;
     if (currentTodoIndex >= 0 && currentList()[currentTodoIndex]) {
         currentItem = currentList()[currentTodoIndex];
@@ -1052,7 +1092,8 @@ export const saveInspectionAndNext = async () => {
 
     // 저장 시도 한 번에 saveId·날짜·시각·검수자를 한 번만 정한다 — 실패 뒤 다시 저장해도 같은 saveId 라 두 번 쌓이지 않는다
     // (분 단위 logIdentity 는 옛 기록 수정 때만 쓴다)
-    const key = [productName, currentTodoIndex, editIdentity].join('#');
+    // 칸 번호 대신 줄 열쇠(상품명+옵션) — 리스트가 밀려 번호가 바뀌어도 다시 저장이 같은 saveId 를 쓰게
+    const key = [productName, currentItem ? `${currentItem.name}|${currentItem.option}` : '', editIdentity].join('#');
     if (!pendingSave || pendingSave.key !== key) {
         pendingSave = {
             key,
@@ -1092,6 +1133,8 @@ export const saveInspectionAndNext = async () => {
             supplierName: currentItem ? currentItem.supplierName : '-',
             supplierCode: currentItem ? (currentItem.supplierCode || '') : '', // 패킹에서 만든 항목의 공급처 코드(실명 대신)
             location: currentItem ? currentItem.location : '-',
+            // 개별 추가 줄이면 표시·유형(sample|request)을 남긴다 — 검수이력 '유형' 칸(js/ui-history-inspection.js · lib/insp-manual.js inspTypeLabel)
+            ...(currentItem && currentItem.origin === 'manual' ? { origin: 'manual', kind: String(currentItem.kind || 'sample') } : {}),
             checklist,
             defects: defectsFound,
             note,
@@ -1110,6 +1153,26 @@ export const saveInspectionAndNext = async () => {
             const productData = productSnap.exists() ? productSnap.data() : {};
             const logs = Array.isArray(productData.logs) ? productData.logs : [];
 
+            // 대기 리스트 완료 표시를 먼저 정한다 — 서버 리스트에서 고른 줄을 열쇠로 다시 찾는다(화면 칸 번호는 힌트만).
+            //   새 검수인데 못 찾으면 throw — 같은 트랜잭션이라 이력·처리량도 들어가지 않는다(엉뚱한 줄을 완료로 찍지 않게).
+            //   수정 저장은 기록만 고치므로 줄이 없어도(리스트를 비운 뒤 등) 막지 않는다.
+            const dailyData = dailySnap.exists() ? dailySnap.data() : {};
+            const srvList = Array.isArray(dailyData.inspectionList) ? dailyData.inspectionList : [];
+            const doneArgsTx = {
+                index: currentTodoIndex,
+                name: currentItem ? currentItem.name : rawName,
+                option: currentItem ? currentItem.option : undefined,
+                packingDate,
+                sampleQty,
+                inboundQty,
+                editing: wasEditing
+            };
+            const done = listGone ? { list: [...srvList], changed: false, index: -1, missing: true }
+                : currentKey ? applyDoneByKey(srvList, currentKey, doneArgsTx) : applyDoneToList(srvList, doneArgsTx);
+            if (done.missing && !wasEditing) {
+                throw Object.assign(new Error('리스트 줄을 찾지 못함'), { code: 'insp/item-missing' });
+            }
+
             // 수정 저장은 identity 를 옛 값으로 지키므로(upsertLog), 응답만 못 받고 다시 저장해도 같은 기록을 찾는다(차이 0)
             const r = upsertLog(logs, inspectionRecord, { editIdentity: editIdentity || undefined, today });
             if (r.mode === 'missing') {
@@ -1124,9 +1187,9 @@ export const saveInspectionAndNext = async () => {
                     updatedAt: serverTimestamp()
                 };
                 if (currentItem) {
-                    updates.lastCode = currentItem.code;
-                    updates.lastOption = currentItem.option;
-                    updates.lastSupplierCode = currentItem.supplierCode || ''; // 비면 표시가 이름 쪽으로 넘어간다
+                    if (currentItem.code) updates.lastCode = currentItem.code;          // 빈 값(직접 입력 줄 등)으로 옛 코드를 덮지 않는다
+                    if (currentItem.option) updates.lastOption = currentItem.option;
+                    if (currentItem.supplierCode) updates.lastSupplierCode = currentItem.supplierCode; // 빈 값(개별 추가 줄 등)으로 옛 코드를 덮지 않는다
                     if (currentItem.supplierName) updates.lastSupplierName = currentItem.supplierName; // 빈 값으로 옛 값을 덮지 않는다
                 }
                 if (defectsFound.length > 0) {
@@ -1142,16 +1205,6 @@ export const saveInspectionAndNext = async () => {
                 }, { merge: true });
             }
 
-            const dailyData = dailySnap.exists() ? dailySnap.data() : {};
-            const done = applyDoneToList(Array.isArray(dailyData.inspectionList) ? dailyData.inspectionList : [], {
-                index: currentTodoIndex,
-                name: currentItem ? currentItem.name : rawName,
-                option: currentItem ? currentItem.option : undefined,
-                packingDate,
-                sampleQty,
-                inboundQty,
-                editing: wasEditing
-            });
             const dailyUpdates = {};
             if (r.qtyDelta !== 0) dailyUpdates.taskQuantities = { [tName(TASK.sample)]: increment(r.qtyDelta) };   // 지금 이름 칸(업무 id 2단계)
             if (done.changed) dailyUpdates.inspectionList = done.list;
@@ -1171,23 +1224,30 @@ export const saveInspectionAndNext = async () => {
         const afterList = outcome.done.changed ? outcome.done.list : currentList();
 
         // 지난 날짜 리스트 갱신(기다리지 않음)
-        //   오늘 리스트와 같은 규칙(applyDoneToList — 상품명+옵션+출고일로 한 칸)으로 고치고, 배열은 새로 만들어 바꿔 끼운다.
+        //   오늘 리스트와 같은 규칙(applyDoneToList — 상품명+옵션+출고일로 한 칸)으로 고친다. 메모리 캐시로 맞을 것 같은 날만 고르고,
+        //   쓰기는 그 날 이력 문서를 runTransaction 으로 다시 읽어 그 칸만 고친다(캐시의 옛 리스트로 통째 덮지 않게, 2026-11-17).
+        const doneArgs = {
+            name: currentItem ? currentItem.name : rawName,
+            option: currentItem ? currentItem.option : undefined,
+            packingDate,
+            sampleQty,
+            inboundQty,
+            editing: wasEditing
+        };
         for (let i = 0; i < State.allHistoryData.length; i++) {
             const dayData = State.allHistoryData[i];
             if (!Array.isArray(dayData.inspectionList) || dayData.inspectionList.length === 0) continue;
-            const res = applyDoneToList(dayData.inspectionList, {
-                name: currentItem ? currentItem.name : rawName,
-                option: currentItem ? currentItem.option : undefined,
-                packingDate,
-                sampleQty,
-                inboundQty,
-                editing: wasEditing
-            });
-            if (res.changed) {
-                dayData.inspectionList = res.list;
-                const pastDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'history', dayData.id);
-                updateDoc(pastDocRef, { inspectionList: dayData.inspectionList }).catch(e => console.error("과거 리스트 갱신 실패", e));
-            }
+            const res = applyDoneToList(dayData.inspectionList, doneArgs);
+            if (!res.changed) continue;
+            dayData.inspectionList = res.list;   // 화면 캐시는 먼저
+            const pastDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'history', dayData.id);
+            runTransaction(State.db, async (tx) => {
+                const snap = await tx.get(pastDocRef);
+                const srv = snap.exists() && Array.isArray(snap.data().inspectionList) ? snap.data().inspectionList : null;
+                if (!srv) return;
+                const r2 = applyDoneToList(srv, doneArgs);
+                if (r2.changed) tx.update(pastDocRef, { inspectionList: r2.list });
+            }).catch(e => console.error("과거 리스트 갱신 실패", e && e.code ? e.code : e));
         }
 
         if (!wasEditing) {
@@ -1219,6 +1279,7 @@ export const saveInspectionAndNext = async () => {
             if (DOM.inspHistoryReport) DOM.inspHistoryReport.classList.add('hidden');
             if (DOM.inspCurrentInputArea) DOM.inspCurrentInputArea.classList.add('hidden');
             currentTodoIndex = -1;
+            currentKey = null;
             todoCollapsed = false;
             updateTodoPanel();
         }
@@ -1293,6 +1354,5 @@ export const clearTodayList = async () => {
     renderTodayInspectionList();
 };
 
-export { handleExcelUpload } from './inspection-excel.js?v=202611171250';
-export { toggleScanner, handleImageSelect, clearImageState, handleManualImageSelect, clearManualImageState } from './inspection-media.js?v=202611171250';
-export { loadAllInspectionHistory, loadInspectionLogs, prepareEditInspectionLog, updateInspectionLog, deleteInspectionLog, deleteProductHistory, savePreInspectionNote } from './inspection-editor.js?v=202611171250';
+export { toggleScanner, handleImageSelect, clearImageState, handleManualImageSelect, clearManualImageState } from './inspection-media.js?v=202611171511';
+export { loadAllInspectionHistory, loadInspectionLogs, prepareEditInspectionLog, updateInspectionLog, deleteInspectionLog, deleteProductHistory, savePreInspectionNote } from './inspection-editor.js?v=202611171511';

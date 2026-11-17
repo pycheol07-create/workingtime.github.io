@@ -3,8 +3,7 @@
 
 export const loadingSpinner = document.getElementById('loading-spinner');
 
-// [신규] 검수 리스트(엑셀) 업로드 관련
-export const inspExcelUploadInput = document.getElementById('insp-excel-upload');
+// [신규] 검수 리스트 관련(엑셀 업로드는 2026-11-17 없앰 — 개별 추가는 js/inspection-manual.js 가 직접 찾는다)
 export const inspOpenListWindowBtn = document.getElementById('insp-open-list-window-btn');
 export const inspDeleteListBtn = document.getElementById('insp-delete-list-btn');
 
@@ -269,10 +268,23 @@ export const totalInspSaveBtn = document.getElementById('total-insp-save-btn');
 export const inspSwitchToTotalBtn = document.getElementById('insp-switch-to-total-btn');
 export const totalInspCode = document.getElementById('total-insp-code');
 export const totalInspOption = document.getElementById('total-insp-option');
-export const totalInspSupplier = document.getElementById('total-insp-supplier');
 export const totalInspLocation = document.getElementById('total-insp-location');
 export const totalInspInboundDate = document.getElementById('total-insp-inbound-date');
 export const totalInspBackBtn = document.getElementById('total-insp-back-btn');
+// 진행 목록(2026-11-17) — 공급처 이름 칸(total-insp-supplier)은 없앴다(코드만)
+export const totalInspAddBtn = document.getElementById('total-insp-add-btn');
+export const totalInspList = document.getElementById('total-insp-list');
+export const totalInspListCount = document.getElementById('total-insp-list-count');
+export const totalInspListStatus = document.getElementById('total-insp-list-status');
+export const totalInspShowDone = document.getElementById('total-insp-show-done');
+export const totalInspSelName = document.getElementById('total-insp-sel-name');
+export const totalInspSelMeta = document.getElementById('total-insp-sel-meta');
+export const totalInspDoneNote = document.getElementById('total-insp-done-note');
+export const totalInspDoneBtn = document.getElementById('total-insp-done-btn');
+export const totalInspReopenBtn = document.getElementById('total-insp-reopen-btn');
+export const totalInspRemoveBtn = document.getElementById('total-insp-remove-btn');
+export const totalInspCloseBtn = document.getElementById('total-insp-close-btn');
+export const totalInspFooterCloseBtn = document.getElementById('total-insp-footer-close-btn');
 
 
 // ─────────────────────────────────────────────────────────────
@@ -291,7 +303,6 @@ if (['localhost', '127.0.0.1'].includes(location.hostname)) {
         try {
             const mod = {
                 loadingSpinner,
-                inspExcelUploadInput,
                 inspOpenListWindowBtn,
                 inspDeleteListBtn,
                 inspScanBtn,
@@ -498,10 +509,22 @@ if (['localhost', '127.0.0.1'].includes(location.hostname)) {
                 inspSwitchToTotalBtn,
                 totalInspCode,
                 totalInspOption,
-                totalInspSupplier,
                 totalInspLocation,
                 totalInspInboundDate,
-                totalInspBackBtn
+                totalInspBackBtn,
+                totalInspAddBtn,
+                totalInspList,
+                totalInspListCount,
+                totalInspListStatus,
+                totalInspShowDone,
+                totalInspSelName,
+                totalInspSelMeta,
+                totalInspDoneNote,
+                totalInspDoneBtn,
+                totalInspReopenBtn,
+                totalInspRemoveBtn,
+                totalInspCloseBtn,
+                totalInspFooterCloseBtn
             };
             const missing = Object.keys(mod).filter(k => !mod[k]);
             if (missing.length > 0) {

@@ -1,8 +1,8 @@
 // === js/app-data.js ===
-import { getTodayDateString, debounce } from './utils.js?v=202611171250';
-import * as State from './state.js?v=202611171250';
+import { getTodayDateString, debounce } from './utils.js?v=202611171511';
+import * as State from './state.js?v=202611171511';
 import { doc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { showToast } from './utils.js?v=202611171250';
+import { showToast } from './utils.js?v=202611171511';
 
 export const generateId = () => `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
@@ -67,7 +67,10 @@ export async function saveStateToFirestore({ dateKey } = {}) {
         //  출퇴근(processClockIn/Out)·퇴근취소·업무마감(saveDayDataToHistory)·알바 추가/삭제/이름변경이
         //  각자 dailyAttendance를 직접 저장한다. 1분 자동저장이 근태 전체 객체를 merge로 덮어쓰면,
         //  상태가 아직 갱신 안 된 탭/이전 상태가 마감된 '퇴근'을 다시 '출근'으로 되돌리는 문제가 있어 제외.
-        inspectionList: State.appState.inspectionList || [] // 🔥 누락 방지를 위해 추가
+        // ⚠️ inspectionList(샘플검수 대기 리스트)도 여기서 쓰지 않는다(2026-11-17) — dailyAttendance 와 같은 이유.
+        //  리스트를 바꾸는 곳(검수 저장·개별 추가·패킹에서 만들기·리스트 비우기/삭제·지난 리스트 가져오기)이 각자
+        //  runTransaction 으로 서버 값을 읽어 자기 변경만 쓴다. 여기서 화면 State 를 통째로 merge 하면
+        //  다른 기기가 방금 넣은 줄이 지워진다(오프라인 대기열에 남은 옛 리스트도 같은 사고). inspectionDone·inspPicked 도 안 쓴다.
     };
 
     // 저장 완료 후에만 상태 초기화 — 실패했는데 지우면 바뀐 내용이 다음 자동저장에서 빠진다(다음 주기에 다시 시도)

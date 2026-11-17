@@ -1,14 +1,14 @@
 // === js/listeners-main-board.js ===
 // 설명: 메인 화면의 '실시간 현황판'(업무 카드, 팀원 현황) 관련 리스너를 담당합니다.
 
-import * as DOM from './dom-elements.js?v=202611171250';
-import * as State from './state.js?v=202611171250';
-import { render } from './app.js?v=202611171250';
-import { showToast, formatTimeTo24H, showConfirm, getCurrentTime } from './utils.js?v=202611171250';
-import { isLeaveActiveAt } from './lib/leave-timing.js?v=202611171250';
-import { renderLeaveTypeModalOptions } from './ui.js?v=202611171250';
-import { nameWithRankPosition } from './lib/member-title.js?v=202611171250';
-import { openTeamSelectForTask } from './listeners-form-team.js?v=202611171250';
+import * as DOM from './dom-elements.js?v=202611171511';
+import * as State from './state.js?v=202611171511';
+import { render } from './app.js?v=202611171511';
+import { showToast, formatTimeTo24H, showConfirm, getCurrentTime } from './utils.js?v=202611171511';
+import { isLeaveActiveAt } from './lib/leave-timing.js?v=202611171511';
+import { renderLeaveTypeModalOptions } from './ui.js?v=202611171511';
+import { nameWithRankPosition } from './lib/member-title.js?v=202611171511';
+import { openTeamSelectForTask } from './listeners-form-team.js?v=202611171511';
 import {
     stopWorkIndividual, pauseWorkGroup, resumeWorkGroup,
     pauseWorkIndividual, resumeWorkIndividual,
@@ -16,13 +16,13 @@ import {
     startWorkGroup,
     addMembersToWorkGroup,
     pauseWorkByTask, resumeWorkByTask
-} from './app-logic.js?v=202611171250';
+} from './app-logic.js?v=202611171511';
 
-import { renderTodayInspectionList, initializeInspectionSession } from './inspection-logic.js?v=202611171250';
-import { searchTotalInspection } from './total-inspection-logic.js?v=202611171250';
-import { isRefillTask, refillAllowed, openRefillFromDash } from './refill-dash.js?v=202611171250';
-import { openLocRecFromDash } from './locrec-dash.js?v=202611171250';
-import { TASK, isT } from './task-names.js?v=202611171250';
+import { renderTodayInspectionList, initializeInspectionSession } from './inspection-logic.js?v=202611171511';
+import { openTotalInspection } from './total-inspection-logic.js?v=202611171511';   // 진행 목록 구독은 창이 열린 동안만(닫으면 해제)
+import { isRefillTask, refillAllowed, openRefillFromDash } from './refill-dash.js?v=202611171511';
+import { openLocRecFromDash } from './locrec-dash.js?v=202611171511';
+import { TASK, isT } from './task-names.js?v=202611171511';
 
 // 근태 설정 모달 열기 헬퍼 함수
 const openLeaveModal = (memberName) => {
@@ -136,10 +136,7 @@ export function setupMainBoardListeners() {
             if (DOM.inspProductNameInput) DOM.inspProductNameInput.focus();
         }
     };
-    const openTotalInsp = () => {
-        if (DOM.totalInspModal) DOM.totalInspModal.classList.remove('hidden');
-        if (DOM.totalInspProductName) DOM.totalInspProductName.focus();
-    };
+    const openTotalInsp = () => openTotalInspection();
     document.addEventListener('click', (e) => {
         const t = e.target;
         if (!t || !t.closest || !t.closest('#confirm-team-select-btn')) return;
@@ -276,8 +273,7 @@ export function setupMainBoardListeners() {
         const openTotalInspectionBtn = e.target.closest('button[data-action="open-total-inspection"]');
         if (openTotalInspectionBtn) {
             e.stopPropagation();
-            if (DOM.totalInspModal) DOM.totalInspModal.classList.remove('hidden');
-            if (DOM.totalInspProductName) DOM.totalInspProductName.focus();
+            openTotalInspection();
             return;
         }
 

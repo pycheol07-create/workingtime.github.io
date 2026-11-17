@@ -1,23 +1,25 @@
 // === js/listeners-history-inspection.js ===
-import * as DOM from './dom-elements.js?v=202611171250';
-import * as State from './state.js?v=202611171250';
-import { showToast, getTodayDateString } from './utils.js?v=202611171250';
-import { dayInspItems } from './lib/insp-day.js?v=202611171250';
-import { TASK, tName } from './task-names.js?v=202611171250';
+import * as DOM from './dom-elements.js?v=202611171511';
+import * as State from './state.js?v=202611171511';
+import { showToast, getTodayDateString } from './utils.js?v=202611171511';
+import { dayInspItems } from './lib/insp-day.js?v=202611171511';
+import { TASK, tName } from './task-names.js?v=202611171511';
 
 import { 
     renderInspectionHistoryTable, 
     renderInspectionLayout,
     renderInspectionListMode
-} from './ui-history.js?v=202611171250'; 
-import { clearInspResultCache, seedInspResultCache } from './ui-history-inspection.js?v=202611171250';   // 정상여부 캐시
+} from './ui-history.js?v=202611171511'; 
+import { clearInspResultCache, seedInspResultCache, fetchTotalInspLogs, totalInspLogsTruncated, TOTAL_LOG_LIMIT } from './ui-history-inspection.js?v=202611171511';   // 정상여부 캐시 · 전량 기록
+import { mergeIntoProductHistory, totalHistoryLogsOf } from './lib/total-insp.js?v=202611171511';
+import { historyRangeStart } from './lib/history-window.js?v=202611171511';
 
 import { 
     setSortState, 
     renderQCStatsMode, 
     currentInspTypeFilter, 
     setInspTypeFilter 
-} from './ui-history-inspection.js?v=202611171250';
+} from './ui-history-inspection.js?v=202611171511';
 
 import {
     loadInspectionLogs,
@@ -29,14 +31,36 @@ import {
     savePreInspectionNote,
     handleManualImageSelect, 
     clearManualImageState    
-} from './inspection-logic.js?v=202611171250';
+} from './inspection-logic.js?v=202611171511';
 
-import { collection, getDocs, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { collection, getDocs, doc, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 let cachedInspectionData = null;   // null = 아직 안 불러옴('불러오는 중'), [] = 불러왔는데 기록 없음
 // 이 화면(같은 탭)에서 검수를 저장하면 다음 보기 전환 때 새로 읽는다(js/inspection-logic.js 가 보냄).
 //   다른 PC·다른 탭에서 저장한 것은 탭에 다시 들어오거나 [새로고침] 때 보인다.
-document.addEventListener('product-history-changed', () => { cachedInspectionData = null; });
+document.addEventListener('product-history-changed', () => { cachedInspectionData = null; mergedView = null; });
+
+// 전량검수 기록(total_inspection_logs, 2026-11-17) — 보기 기간 시작일(이력과 같은 13개월 + 이번 달) 이후를 탭에 들어올 때·[새로고침] 때 한 번 읽는다.
+//   null = 아직 못 읽음(실패 포함 — 전량 없이 보이고 경고만). 상품별·품질 통계는 product_history 복사본에 합쳐 보인다(문서에는 쓰지 않는다).
+let cachedTotalLogs = null;
+let mergedView = null;        // mergeIntoProductHistory 결과 — 두 캐시가 바뀔 때만 다시 만든다
+const productView = () => {
+    if (!Array.isArray(cachedInspectionData)) return cachedInspectionData;
+    if (!mergedView) mergedView = mergeIntoProductHistory(cachedInspectionData, cachedTotalLogs || []);
+    return mergedView;
+};
+async function loadTotalLogs(force) {
+    if (!force && Array.isArray(cachedTotalLogs)) return;
+    try {
+        cachedTotalLogs = await fetchTotalInspLogs(historyRangeStart(getTodayDateString(), 13), { force: !!force });
+        if (totalInspLogsTruncated()) showToast(`전량검수 기록이 많아 최근 ${TOTAL_LOG_LIMIT}건만 보입니다.`, true);
+    } catch (e) {
+        console.warn('전량검수 기록 읽기 실패 — 전량 없이 보입니다:', e && e.code ? e.code : e);
+        cachedTotalLogs = null;
+        showToast('전량검수 기록을 읽지 못했습니다(샘플 기록만 보입니다).', true);
+    }
+    mergedView = null;
+}
 
 // 검수이력 일자별 보기 → 그 날짜의 '대기' 항목을 오늘 검수 대기 리스트에 불러와 이어서 진행.
 // (검수 매니저는 메인 앱에 있으므로, 여기선 오늘 daily_data의 inspectionList에 머지 저장만 하고
@@ -49,14 +73,18 @@ async function resumeInspectionFromDate(date) {
     try {
         const today = getTodayDateString();
         const todayRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', today);
-        const snap = await getDoc(todayRef);
-        const current = (snap.exists() && Array.isArray(snap.data().inspectionList)) ? snap.data().inspectionList : [];
+        // 서버 리스트를 읽고 붙인다(runTransaction — 그사이 다른 기기가 넣은 줄을 지우지 않게, 2026-11-17)
         const keyOf = (it) => `${it.name || ''}|${it.code || ''}|${it.packingDate || ''}`;
-        const seen = new Set(current.map(keyOf));
-        const toAdd = pending.filter(it => !seen.has(keyOf(it))).map(it => ({ ...it, status: '대기' }));
+        const { merged, toAdd } = await runTransaction(State.db, async (tx) => {
+            const snap = await tx.get(todayRef);
+            const current = (snap.exists() && Array.isArray(snap.data().inspectionList)) ? snap.data().inspectionList : [];
+            const seen = new Set(current.map(keyOf));
+            const add = pending.filter(it => !seen.has(keyOf(it))).map(it => ({ ...it, status: '대기' }));
+            const next = [...current, ...add];
+            if (add.length > 0) tx.set(todayRef, { inspectionList: next }, { merge: true });
+            return { merged: next, toAdd: add };
+        });
         if (toAdd.length === 0) { showToast('이미 오늘 검수 대기 리스트에 모두 들어 있습니다.'); return; }
-        const merged = [...current, ...toAdd];
-        await setDoc(todayRef, { inspectionList: merged }, { merge: true });
         if (State.appState) State.appState.inspectionList = merged;
         showToast(`검수 대기 리스트에 ${toAdd.length}건을 불러왔습니다. 메인 화면 '${tName(TASK.sample)}'에서 이어서 진행하세요.`);
     } catch (err) {
@@ -79,6 +107,7 @@ export const fetchAndRenderInspectionHistory = async ({ reuse = false } = {}) =>
 
     const viewMode = State.context.inspectionViewMode || 'product';
     if (!reuse) clearInspResultCache();   // 탭 진입·새로고침 때는 정상여부도 새로 읽는다
+    await loadTotalLogs(!reuse);          // 전량검수 기록 — reuse 면 읽어 둔 것(못 읽었으면 한 번 더)
 
     if (viewMode === 'product' || viewMode === 'qc') {
         try {
@@ -90,13 +119,14 @@ export const fetchAndRenderInspectionHistory = async ({ reuse = false } = {}) =>
                 snapshot.forEach(doc => {
                     cachedInspectionData.push({ id: doc.id, ...doc.data() });
                 });
+                mergedView = null;
                 seedInspResultCache(cachedInspectionData);   // 일자별 보기 정상여부가 같은 문서를 또 읽지 않게
             }
-            
+
             if (viewMode === 'product') {
-                renderInspectionHistoryTable(cachedInspectionData);
+                renderInspectionHistoryTable(productView());
             } else if (viewMode === 'qc') {
-                renderQCStatsMode(cachedInspectionData, 'month', '');
+                renderQCStatsMode(productView(), 'month', '');
             }
         } catch (e) {
             console.error("Error loading inspection history:", e);
@@ -117,14 +147,16 @@ export const fetchAndRenderInspectionHistory = async ({ reuse = false } = {}) =>
 
         dateList.sort((a, b) => b.date.localeCompare(a.date));
 
-        if (dateList.length > 0) {
+        // 전량검수 기록만 있는 날도 날짜 목록에 — renderInspectionListMode 가 totalLogs 로 넣고 표 아래 '전량검수 n건'
+        const totals = cachedTotalLogs || [];
+        if (dateList.length > 0 || totals.length > 0) {
             if (!State.context.selectedInspectionDate) {
-                State.context.selectedInspectionDate = dateList[0].date;
+                State.context.selectedInspectionDate = dateList.length ? dateList[0].date : '';
             }
             const selectedData = dateList.find(d => d.date === State.context.selectedInspectionDate);
-            renderInspectionListMode(dateList, selectedData ? selectedData.data : []);
+            renderInspectionListMode(dateList, selectedData ? selectedData.data : [], totals);
         } else {
-            renderInspectionListMode([], []);
+            renderInspectionListMode([], [], []);
         }
     }
 };
@@ -170,7 +202,7 @@ export function setupHistoryInspectionListeners() {
                 return;
             }
             if (e.target.id === 'qc-period-type') {
-                renderQCStatsMode(cachedInspectionData, e.target.value, '');
+                renderQCStatsMode(productView(), e.target.value, '');
                 return;
             }
         });
@@ -209,7 +241,7 @@ export function setupHistoryInspectionListeners() {
                 const typeSelect = document.getElementById('qc-period-type');
                 const valueSelect = document.getElementById('qc-period-value');
                 if (typeSelect && valueSelect) {
-                    renderQCStatsMode(cachedInspectionData, typeSelect.value, valueSelect.value);
+                    renderQCStatsMode(productView(), typeSelect.value, valueSelect.value);
                 }
                 return;
             }
@@ -279,8 +311,8 @@ export function setupHistoryInspectionListeners() {
             const th = e.target.closest('th[data-sort-key]');
             if (th) {
                 const key = th.dataset.sortKey;
-                setSortState(key); 
-                renderInspectionHistoryTable(cachedInspectionData);
+                setSortState(key);
+                renderInspectionHistoryTable(productView());
                 return;
             }
 
@@ -295,7 +327,8 @@ export function setupHistoryInspectionListeners() {
                     return;
                 }
 
-                loadInspectionLogs(productName, tr);
+                // 전량검수 기록도 같이 펼친다(화면용 — 수정 버튼 없음, js/inspection-editor.js)
+                loadInspectionLogs(productName, tr, totalHistoryLogsOf(cachedTotalLogs || [], productName));
                 return;
             }
         });
@@ -304,7 +337,7 @@ export function setupHistoryInspectionListeners() {
     if (DOM.inspectionHistorySearchInput) {
         DOM.inspectionHistorySearchInput.addEventListener('input', () => {
             if (State.context.inspectionViewMode === 'product') {
-                renderInspectionHistoryTable(cachedInspectionData);
+                renderInspectionHistoryTable(productView());
             }
         });
     }

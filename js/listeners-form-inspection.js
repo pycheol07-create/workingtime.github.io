@@ -1,25 +1,25 @@
 // === js/listeners-form-inspection.js ===
 // 설명: '검수 매니저(입력)' 모달 내부의 리스너를 담당합니다.
 
-import * as DOM from './dom-elements.js?v=202611171250';
+import * as DOM from './dom-elements.js?v=202611171511';
 import { 
     searchProductHistory, 
     saveInspectionAndNext, 
     toggleScanner, 
-    handleExcelUpload, 
     handleImageSelect, 
     clearImageState, 
     clearTodayList,
     deleteInspectionList,
     openInspectionListWindow
-} from './inspection-logic.js?v=202611171250';
-import { openPackPicker } from './inspection-packs.js?v=202611171250';
-import { initInspSegments } from './inspection-segments.js?v=202611171250';
+} from './inspection-logic.js?v=202611171511';
+import { openPackPicker } from './inspection-packs.js?v=202611171511';
+import { openManualAdd } from './inspection-manual.js?v=202611171511';
+import { initInspSegments } from './inspection-segments.js?v=202611171511';
 // 아래 함수들은 다른 작업 묶음에서 들어온다(goPrevInspectionItem·toggleTodoCollapsed — inspection-logic.js,
 // dropNewPhoto — inspection-media.js). 이름으로 import 하면 아직 없을 때 모듈 전체가 깨지므로 namespace 로 받고
 // typeof 로 확인한 뒤 부른다.
-import * as InspLogic from './inspection-logic.js?v=202611171250';
-import * as InspMedia from './inspection-media.js?v=202611171250';
+import * as InspLogic from './inspection-logic.js?v=202611171511';
+import * as InspMedia from './inspection-media.js?v=202611171511';
 
 const callIfFn = (mod, name, ...args) => {
     const fn = mod[name];
@@ -126,15 +126,12 @@ export function setupFormInspectionListeners() {
         updateConn();
     }
 
-    // 4. 리스트 관리 (엑셀 업로드, 새창 열기, 삭제)
-    if (DOM.inspExcelUploadInput) {
-        DOM.inspExcelUploadInput.addEventListener('change', (e) => {
-            if (e.target.files.length > 0) {
-                handleExcelUpload(e.target.files[0]);
-                e.target.value = ''; // 초기화
-            }
-        });
-    }
+    // 4. 리스트 관리 (개별 추가, 새창 열기, 삭제)
+    //    [+ 개별 추가] — 머리줄과 빈 리스트 안내 두 곳(js/inspection-manual.js)
+    ['insp-manual-open-btn', 'insp-manual-empty-btn'].forEach(id => {
+        const b = document.getElementById(id);
+        if (b) b.addEventListener('click', () => openManualAdd(''));
+    });
     // 4-1. 패킹에서 만들기 (integrations/inspPacks — js/inspection-packs.js)
     const inspPackOpenBtn = document.getElementById('insp-pack-open-btn');
     if (inspPackOpenBtn) {

@@ -6,11 +6,11 @@
 //                            badShip = 출고일 값을 읽지 못해 빠진 행 수
 //                            packsJson: '{"20261015-1":{"sd","ad","eta","part","src","it":[[code,name,option,qty,sup],…]},…}' }
 //   sup 은 공급처 '코드'(AA9999 모양 — 수집기가 거른 값을 그대로 씀)만 — 실명은 오지 않고, 만든 항목에도 supplierName 은 빈칸으로 둔다(CLAUDE.md 3절).
-// 1장 기준은 엑셀 업로드(js/inspection-excel.js)와 같다: 상품명::색상 1장(2026-11-09 사용자 결정 — 공급처는 보지 않는다), 그 묶음의 첫 품목이 대표.
+// 1장 기준은 옛 엑셀 업로드(2026-11-17 없앰)와 같다: 상품명::색상 1장(2026-11-09 사용자 결정 — 공급처는 보지 않는다), 그 묶음의 첫 품목이 대표.
 // 엑셀 한 파일 = 패킹 하나로 보고 패킹마다 따로 묶는다.
 
-import { dayInspItems } from './insp-day.js?v=202611171250';
-import { reserveLocIds, normLocId } from './multi-loc.js?v=202611171250';
+import { dayInspItems } from './insp-day.js?v=202611171511';
+import { reserveLocIds, normLocId } from './multi-loc.js?v=202611171511';
 
 export const COUNT_KEYS = ['packs', 'items', 'noSup', 'supNotCode', 'nonStd', 'dropped', 'zeroQty', 'conflicts', 'badShip'];
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -65,7 +65,7 @@ export function parseInspPacks(data) {
     return out;
 }
 
-/** 옵션 → 색상 키. inspection-excel.js 의 color/keyColor 규칙과 같다. */
+/** 옵션 → 색상 키. 옛 엑셀 업로드(inspection-excel.js, 2026-11-17 없앰)의 color/keyColor 규칙과 같다. */
 export function colorOf(option) {
     let color = String(option == null ? '' : option).trim().replace(/\[|\]/g, '').split('-')[0].trim();
     if (!color) color = 'N/A';
@@ -79,7 +79,7 @@ export function cardKey(item) {
     return (name || ('code:' + str(item && item.code))) + '::' + colorOf(item && item.option);
 }
 
-/** 샘플위치 매칭 키. inspection-excel.js getCleanKey 와 같다. */
+/** 샘플위치 매칭 키. 옛 엑셀 업로드(inspection-excel.js, 2026-11-17 없앰)의 getCleanKey 와 같다. */
 export function cleanKey(name, option) {
     const cleanName = String(name || '').replace(/\(매칭금지-제작샘플\)/g, '').replace(/\s/g, '').trim().toLowerCase();
     const cleanOption = String(option || '').replace(/촬샘-/g, '').replace(/\s/g, '').trim().toLowerCase();
@@ -238,7 +238,7 @@ const getRef = (m, k) => (m && typeof m.get === 'function' && m.has(k)) ? m.get(
 /** 샘플검수 리스트에서 빼는 상품 — 벨트 단품(2026-11-04 사용자 요청).
  *  상품명 끝의 [..]·(..) 꼬리를 떼고 '벨트'로 끝나면 뺀다('가죽 벨트 [SET]'·'벨트(2color)' 도 뺌).
  *  '… 벨트 미디 스커트' 처럼 중간에 든 것, '원피스+벨트'·'코트 & 벨트'·'셔츠/벨트' 처럼 본품에 끼운 세트는 그대로 둔다.
- *  패킹에서 만들기(buildCards — 미리보기·검수함 표시·업무 예상 장수도 같이)와 엑셀 업로드(js/inspection-excel.js)가 같이 쓴다. */
+ *  패킹에서 만들기(buildCards — 미리보기·검수함 표시·업무 예상 장수도 같이)가 쓴다(엑셀 업로드는 2026-11-17 없앰). */
 export function isExcludedInspItem(name) {
     let n = str(name);
     while (/[\])]$/.test(n)) {                         // 끝 괄호 꼬리 떼기(여러 개면 모두)
@@ -299,7 +299,7 @@ export function buildCards(packs, refs, today) {
 
 const sameItem = (a, b) => a.name === b.name && a.option === b.option;
 
-/** 기존 목록에 name+option 이 같은 항목은 뺀다(엑셀 업로드와 같은 기준). 이번에 넣은 것과도 비교한다(패킹 두 개에 같은 품목). */
+/** 기존 목록에 name+option 이 같은 항목은 뺀다(옛 엑셀 업로드와 같은 기준). 화면의 [패킹에서 만들기]는 개별 추가 줄을 다루는 js/lib/insp-manual.js mergePackCards 를 쓴다. 이번에 넣은 것과도 비교한다(패킹 두 개에 같은 품목). */
 export function mergeList(existing, items) {
     const merged = Array.isArray(existing) ? existing.slice() : [];
     let added = 0, skipped = 0;

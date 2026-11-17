@@ -1,11 +1,11 @@
 // === js/inspection-editor.js ===
-import * as DOM from './dom-elements.js?v=202611171250';
-import * as State from './state.js?v=202611171250';
-import { showToast, getCurrentTime, getTodayDateString } from './utils.js?v=202611171250';
+import * as DOM from './dom-elements.js?v=202611171511';
+import * as State from './state.js?v=202611171511';
+import { showToast, getCurrentTime, getTodayDateString } from './utils.js?v=202611171511';
 import { doc, getDoc, setDoc, updateDoc, deleteDoc, arrayUnion, serverTimestamp, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { renderInspectionHistoryTable, renderInspectionLogTable, renderExpandedInspectionLog } from './ui-history-inspection.js?v=202611171250';
-import { getUniqueInboundCount } from './inspection-logic.js?v=202611171250';
-import { manualImageBase64, clearManualImageState, uploadInspectionPhoto, dataUrlToBlob } from './inspection-media.js?v=202611171250';
+import { renderInspectionHistoryTable, renderInspectionLogTable, renderExpandedInspectionLog } from './ui-history-inspection.js?v=202611171511';
+import { getUniqueInboundCount } from './inspection-logic.js?v=202611171511';
+import { manualImageBase64, clearManualImageState, uploadInspectionPhoto, dataUrlToBlob } from './inspection-media.js?v=202611171511';
 
 export let currentProductLogs = [];
 // 수동 사전등록 사진을 올린 결과 — 저장이 실패해 다시 누를 때 같은 사진을 또 올리지 않게
@@ -34,7 +34,9 @@ export const loadAllInspectionHistory = async () => {
     }
 };
 
-export const loadInspectionLogs = async (productName, targetTr = null) => {
+// extraLogs — 화면에만 같이 보일 전량검수 기록(lib/total-insp.js totalHistoryLogsOf, fromTotalLog: true). 수정 대상(currentProductLogs)에는 넣지 않는다 —
+//   product_history 기록은 originalIndex(문서 logs 칸 번호)를 미리 달아 두고, 전량 줄은 수정 버튼을 숨긴다(js/ui-history-inspection.js).
+export const loadInspectionLogs = async (productName, targetTr = null, extraLogs = []) => {
     if (!productName) return;
     
     const managerModal = document.getElementById('inspection-log-manager-modal');
@@ -59,7 +61,11 @@ export const loadInspectionLogs = async (productName, targetTr = null) => {
         }
 
         if (targetTr) {
-            renderExpandedInspectionLog(targetTr, currentProductLogs, productName);
+            const extra = Array.isArray(extraLogs) ? extraLogs : [];
+            const shown = extra.length
+                ? [...currentProductLogs.map((l, i) => ({ ...l, originalIndex: i })), ...extra.map(l => ({ ...l, fromTotalLog: true }))]
+                : currentProductLogs;
+            renderExpandedInspectionLog(targetTr, shown, productName);
         } else {
             renderInspectionLogTable(currentProductLogs, productName);
         }

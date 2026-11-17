@@ -2,13 +2,14 @@
 // 검수 사진: 문서에 Base64 를 쌓지 않고 Firebase Storage(inspection/images/날짜/...)에 올려 URL 만 저장한다.
 //   (상품 문서 1MB 한도를 넘으면 그 상품은 저장이 영구히 실패했다)
 //   경로·메타데이터에 상품명·사람 정보를 넣지 않는다 — 경로 모양은 js/lib/insp-flow.js inspPhotoPath.
-import * as DOM from './dom-elements.js?v=202611171250';
-import { showToast, getTodayDateString } from './utils.js?v=202611171250';
-import { searchProductHistory } from './inspection-logic.js?v=202611171250';
+import * as DOM from './dom-elements.js?v=202611171511';
+import { showToast, getTodayDateString } from './utils.js?v=202611171511';
+import { searchProductHistory } from './inspection-logic.js?v=202611171511';
+import { isManualAddOpen, feedManualScan } from './inspection-manual.js?v=202611171511';
 import { getApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
-import { connectStorageEmulatorIfEnabled } from './firebase-emulator.js?v=202611171250';
-import { inspPhotoPath } from './lib/insp-flow.js?v=202611171250';
+import { connectStorageEmulatorIfEnabled } from './firebase-emulator.js?v=202611171511';
+import { inspPhotoPath } from './lib/insp-flow.js?v=202611171511';
 
 export let html5QrCode = null;
 export let manualImageBase64 = null;
@@ -122,6 +123,7 @@ export const toggleScanner = () => {
     } else {
         stopScanner();
         DOM.inspScannerContainer.classList.add('hidden');
+        feedManualScan(null);   // 개별 추가 창에서 카메라를 켰다가 그냥 닫았으면 그 창을 다시 보인다
     }
 };
 
@@ -146,6 +148,48 @@ const loadQrLib = () => {
     return qrLibP;
 };
 
+/** 다른 창 안에 붙이는 바코드 스캐너(2026-11-17 — 전량검수 개별 추가 창). 샘플검수 스캐너(#reader)와 따로 돈다.
+ *  readerId = 카메라 화면을 넣을 빈 div id. onText(글자) 는 한 번 읽으면 부르고 스스로 멈춘다. onFail() 은 켜지 못했을 때.
+ *  @returns {{ stop: () => Promise<void> }} */
+export const startInlineScanner = (readerId, onText, onFail) => {
+    let inst = null;
+    let starting = null;     // start() 가 끝나기를 기다리는 Promise — 켜지는 중 닫으면 끝난 뒤 멈추고 지운다(리뷰 4)
+    let stopped = false;
+    const stop = async () => {
+        stopped = true;
+        const q = inst;
+        inst = null;
+        if (!q) return;
+        if (starting) { try { await starting; } catch (e) { /* 못 켰으면 멈출 것도 없다 */ } }
+        try { await q.stop(); } catch (e) { /* 이미 멈춤 */ }
+        try { q.clear(); } catch (e) { /* 무시 */ }
+    };
+    (async () => {
+        try {
+            await loadQrLib();
+        } catch (e) {
+            console.error(e);
+            if (!stopped) { showToast('스캐너 도구를 불러오지 못했습니다. 네트워크를 확인한 뒤 다시 눌러 주세요.', true); if (onFail) onFail(); }
+            return;
+        }
+        if (stopped || !document.getElementById(readerId)) return;   // 받는 사이 닫았다
+        inst = new Html5Qrcode(readerId);
+        const me = inst;
+        starting = me.start({ facingMode: 'environment' }, { fps: 10, qrbox: { width: 250, height: 250 } }, (text) => {
+            if (inst !== me) return;
+            showToast(`바코드 인식: ${text}`);
+            stop().then(() => onText(text));
+        });
+        starting.then(() => { starting = null; }, () => { starting = null; });
+        starting.catch(err => {
+            console.error('Error starting inline scanner', err);
+            if (inst === me) inst = null;
+            if (!stopped) { showToast('카메라를 시작할 수 없습니다.', true); if (onFail) onFail(); }
+        });
+    })();
+    return { stop };
+};
+
 let scannerLoading = false;
 const startScanner = async () => {
     if (html5QrCode || scannerLoading) return;
@@ -156,6 +200,7 @@ const startScanner = async () => {
         console.error(e);
         showToast("스캐너 도구를 불러오지 못했습니다. 네트워크를 확인한 뒤 다시 눌러 주세요.", true);
         if (DOM.inspScannerContainer) DOM.inspScannerContainer.classList.add('hidden');
+        feedManualScan(null);
         return;
     } finally {
         scannerLoading = false;
@@ -169,6 +214,7 @@ const startScanner = async () => {
         console.error("Error starting scanner", err);
         showToast("카메라를 시작할 수 없습니다.", true);
         if(DOM.inspScannerContainer) DOM.inspScannerContainer.classList.add('hidden');
+        feedManualScan(null);
     });
 };
 
@@ -182,9 +228,12 @@ const stopScanner = () => {
 };
 
 const onScanSuccess = (decodedText, decodedResult) => {
+    const toManual = isManualAddOpen();   // 스캐너를 닫기 전에 본다(닫힌 뒤엔 '숨긴 개별 추가 창'을 열린 것으로 보지 않는다)
     showToast(`바코드 인식: ${decodedText}`);
     stopScanner(); 
     if(DOM.inspScannerContainer) DOM.inspScannerContainer.classList.add('hidden');
+    // 개별 추가 창이 열려 있으면 그 창 검색칸으로(js/inspection-manual.js), 아니면 지금처럼 [조회]로
+    if (toManual) { feedManualScan(decodedText); return; }
     if(DOM.inspProductNameInput) DOM.inspProductNameInput.value = decodedText;
     searchProductHistory();
 };

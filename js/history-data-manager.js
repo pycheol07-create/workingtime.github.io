@@ -1,22 +1,22 @@
 // === js/history-data-manager.js ===
-import * as State from './state.js?v=202611171250';
-import { getTodayDateString, toDateString, getCurrentTime, calcElapsedMinutes, showToast, friendlyFirebaseError } from './utils.js?v=202611171250';
-import { clampOpenRecords } from './lib/record-close.js?v=202611171250';
-import { decideHistoryMerge, historyHasContent } from './lib/history-merge.js?v=202611171250';
-import { validateClockInOut, normalizeClock } from './lib/clock-in-out.js?v=202611171250';
+import * as State from './state.js?v=202611171511';
+import { getTodayDateString, toDateString, getCurrentTime, calcElapsedMinutes, showToast, friendlyFirebaseError } from './utils.js?v=202611171511';
+import { clampOpenRecords } from './lib/record-close.js?v=202611171511';
+import { decideHistoryMerge, historyHasContent } from './lib/history-merge.js?v=202611171511';
+import { validateClockInOut, normalizeClock } from './lib/clock-in-out.js?v=202611171511';
 import {
     checkStartAfterClockIn, recordsBeforeClockIn, isTardyClockIn, tardyThreshold, removeTardyOf, makeEditStamp
-} from './lib/attendance-guard.js?v=202611171250';
-import { validMemberNames, systemAccountSet } from './attendance-stats.js?v=202611171250';
-import { can } from './lib/perm.js?v=202611171250';
-import { addRecord, updateRecord, removeRecord } from './lib/history-record-ops.js?v=202611171250';
-import { mergeAttendanceServerFirst } from './lib/attendance-merge.js?v=202611171250';
-import { cutoffDate, fillHistoryDays, historyRangeStart, cacheJsonOf } from './lib/history-window.js?v=202611171250';
-import { normalizeAdminWorkers, DEFAULT_ADMIN_WORKERS } from './lib/forecast-exclude.js?v=202611171250';
-import { buildPlannedDoc } from './lib/planned-fields.js?v=202611171250';
-import { sameTaskKeys, aliasTaskName } from './lib/task-alias-view.js?v=202611171250';
+} from './lib/attendance-guard.js?v=202611171511';
+import { validMemberNames, systemAccountSet } from './attendance-stats.js?v=202611171511';
+import { can } from './lib/perm.js?v=202611171511';
+import { addRecord, updateRecord, removeRecord } from './lib/history-record-ops.js?v=202611171511';
+import { mergeAttendanceServerFirst } from './lib/attendance-merge.js?v=202611171511';
+import { cutoffDate, fillHistoryDays, historyRangeStart, cacheJsonOf } from './lib/history-window.js?v=202611171511';
+import { normalizeAdminWorkers, DEFAULT_ADMIN_WORKERS } from './lib/forecast-exclude.js?v=202611171511';
+import { buildPlannedDoc } from './lib/planned-fields.js?v=202611171511';
+import { sameTaskKeys, aliasTaskName } from './lib/task-alias-view.js?v=202611171511';
 // 진행 중 기록을 끝내거나 지울 때 멤버 잠금(activeLocks)도 같이 푼다
-import { writeRecordsReleasingLocks, markLocalWorkEnded } from './app-sync.js?v=202611171250';
+import { writeRecordsReleasingLocks, markLocalWorkEnded } from './app-sync.js?v=202611171511';
 import {
     doc, setDoc, getDoc, getDocFromServer, collection, getDocs, getDocsFromServer,
     deleteDoc, deleteField,
@@ -542,7 +542,8 @@ export async function saveProgress(isAutoSave = false, isQuantityVerified = fals
             // 베이스는 아래에서 읽는 serverHistory.management 로 교체된다(메모리 캐시는 얼어붙어 있어,
             // 그걸 베이스로 쓰면 내 탭이 켜진 뒤 남이 고친 매출·재고가 옛 값으로 되돌아간다).
             management: { ...(State.appState.management || {}) },
-            inspectionList: State.appState.inspectionList || [],
+            // inspectionList 는 여기 싣지 않는다 — 아래에서 서버 daily_data 로 읽는다(처리량과 같은 이유, 2026-11-17).
+            //   탭 메모리 리스트는 낡았을 수 있어, 그걸로 이력을 쓰면 다른 기기가 넣은 줄이 이력에서 빠진다.
             // inspectionDone 은 싣지 않는다 — 매니저 비우기·삭제가 이력에 직접 쓴다(옛 탭의 메모리 값이 되살리지 않게)
             // isQuantityVerified 는 여기 두지 않는다 — decideHistoryMerge 에
             // State 값을 직접 넘기고, 그쪽이 서버 값과 OR 한다.
@@ -648,7 +649,7 @@ export async function saveProgress(isAutoSave = false, isQuantityVerified = fals
                 partTimers: dailyData.partTimers,
                 dailyAttendance: dailyData.dailyAttendance,
                 management: State.appState.management,
-                inspectionList: dailyData.inspectionList,
+                inspectionList: Array.isArray(serverDaily.inspectionList) ? serverDaily.inspectionList : [],
                 isQuantityVerified: State.appState.isQuantityVerified
             },
             isQuantityVerifiedArg: isQuantityVerified,

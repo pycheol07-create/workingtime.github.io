@@ -1,206 +1,519 @@
 // === js/total-inspection-logic.js ===
-// 설명: 전량 검수(누적 데이터) 관리 및 샘플 검수 연동 로직
+// 전량검수 '진행 목록'(2026-11-17 사용자 결정) — 끝날 때까지 남는 목록 + 고른 줄의 오늘 수량 누적 저장.
+// 읽기: artifacts/team-work-logger-v2/total_inspections_accumulated where status == '진행중' (창이 열린 동안만 onSnapshot, 닫으면 해제)
+//       + [완료 보기]를 켠 동안만 status == '완료'(최대 DONE_LIMIT).
+// 쓰기(모두 runTransaction — 서버 값을 읽고 그 위에 더한다):
+//   · 넣기(개별 추가·샘플에서 전환): 없으면 새 문서, 진행중이면 그 줄 열기, 완료면 회차 +1(누적 0).
+//   · 저장: 누적 문서 + 기록 total_inspection_logs/{saveId}(있으면 건너뜀 — 다시 눌러도 두 번 더하지 않음)
+//           + daily_data/{오늘}.taskQuantities[전량검수 이름] 같이(set+merge 중첩 맵 + increment — daily_data 는 읽지 않는다.
+//           점 경로 문자열은 쓰지 않는다 — tests/task-qty-fieldpath.test.js). 화면 처리량은 구독이 바꾼다(직접 더하지 않음).
+//           옛 문서(status 없음)는 넣을 때 진행중으로 보고 빠진 칸만 채운다(누적 유지). 같은 키에 다른 상품(옵션 원문 다름)이면 넣지 않는다.
+//           누적이 총 재고를 넘으면 막고, 닿으면 자동 완료. (예전의 daily_data/{날짜}/total_inspection_logs 하위 쓰기는 없앴다)
+//   · [완료 처리]·[다시 진행]·[목록에서 빼기](누적 0 인 줄만).
+// 순수 규칙은 js/lib/total-insp.js. 공급처는 코드만(supplierCode) — 이름 칸은 쓰지 않는다(CLAUDE.md 3절).
+// ⚠️ 이 창은 index.html·history.html 에 붙는다 — role="dialog"·data-act·end-shift-* 를 쓰지 않는다(업무마감봇 선택자).
+import * as DOM from './dom-elements.js?v=202611171511';
+import * as State from './state.js?v=202611171511';
+import { showToast, getTodayDateString, getCurrentTime, escapeHtml, showConfirm } from './utils.js?v=202611171511';
+import {
+    doc, collection, query, where, limit as fsLimit, onSnapshot, runTransaction, serverTimestamp, increment, deleteField
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { TASK, tName } from './task-names.js?v=202611171511';
+import { openManualAdd } from './inspection-manual.js?v=202611171511';
+import { getCurrentInspItem } from './inspection-logic.js?v=202611171511';
+import {
+    ON, DONE, totalKey, startOrReopen, applySave, markDone, markReopen, canRemove, progressOf, todayQtyOf,
+    sortList, nextOnKey, filterRows, exactRow, logOf, fromSampleItem
+} from './lib/total-insp.js?v=202611171511';
 
-import * as DOM from './dom-elements.js?v=202611171250';
-import * as State from './state.js?v=202611171250';
-import { showToast, getTodayDateString } from './utils.js?v=202611171250';
-import { doc, getDoc, setDoc, serverTimestamp, updateDoc, increment, FieldPath } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { TASK, tName } from './task-names.js?v=202611171250';
+const APP = ['artifacts', 'team-work-logger-v2'];
+const COL = 'total_inspections_accumulated';
+const LOG_COL = 'total_inspection_logs';
+const DONE_LIMIT = 200;
+const SAVE_LABEL = '오늘 수량 누적 저장';
 
-// 현재 조회된 상품의 누적 상태를 저장할 변수
-let currentTotalInspData = null;
-// 샘플 검수에서 전환 시 넘어온 데이터를 임시 보관
-let pendingDataFromSample = null;
+let rowsOn = [];             // 진행중 문서 [{ id, ...data }]
+let rowsDone = [];           // [완료 보기]를 켠 동안의 완료 문서
+let loadedOn = false;
+let listError = '';
+let showDone = false;
+let unsubOn = null;
+let unsubDone = null;
+let selectedId = '';
+let pendingSelect = '';      // 넣은 뒤 구독이 그 줄을 가져오면 고른다
+let pendingSave = null;      // { id, saveId, date, time } — 실패 뒤 다시 눌러도 같은 기록(중복 방지). 줄이 바뀌거나 성공하면 비움
+let saving = false;
+let acting = false;          // 완료 처리·다시 진행·빼기 중
+let filterTerm = '';
+let modalObs = null;
 
-/**
- * [신규] 샘플 검수 -> 전량 검수로 데이터 전환 실행
- */
-export async function triggerTotalInspectionFromSample() {
-    const productName = DOM.inspProductNameInput.value.trim();
-    if (!productName) {
-        showToast('검수 중인 상품이 없습니다.', true);
-        return;
-    }
+const colRef = () => collection(State.db, ...APP, COL);
+const docRef = (id) => doc(State.db, ...APP, COL, id);
+const logRef = (saveId) => doc(State.db, ...APP, LOG_COL, saveId);
+const dayRef = () => doc(State.db, ...APP, 'daily_data', getTodayDateString());
+const me = () => String((State.appState && State.appState.currentUser) || '');
+const nowIso = () => new Date().toISOString();
+const newSaveId = () => (typeof crypto !== 'undefined' && crypto.randomUUID)
+    ? crypto.randomUUID()
+    : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+const num = (el) => {
+    if (!el || String(el.value).trim() === '') return null;
+    const n = Number(el.value);
+    return Number.isFinite(n) ? Math.trunc(n) : null;
+};
+const isTouch = () => typeof matchMedia === 'function' && matchMedia('(max-width:768px), (pointer:coarse)').matches;
+const failMsg = (e, fallback) => (e && e.code === 'permission-denied' ? '권한이 없습니다.' : fallback);
 
-    // 1. 샘플 검수 UI에 표시된 상세 정보 추출
-    const code = DOM.inspCodeDisplay.textContent.replace('코드: ', '').trim();
-    const option = DOM.inspOptionDisplay.textContent.replace('옵션: ', '').trim();
-    const supplier = DOM.inspSupplierDisplay.textContent.replace('공급처: ', '').trim();
-    const inboundDate = DOM.inspInboundDateInput.value;
+const allRows = () => sortList([...rowsOn, ...(showDone ? rowsDone : [])]);
+const rowById = (id) => (id ? (rowsOn.find(r => r.id === id) || rowsDone.find(r => r.id === id) || null) : null);
+const isModalOpen = () => !!(DOM.totalInspModal && !DOM.totalInspModal.classList.contains('hidden'));
 
-    // 2. 임시 보관함에 데이터 저장 (조회 시 반영됨)
-    pendingDataFromSample = {
-        code: code !== '-' ? code : '',
-        option: option !== '-' ? option : '',
-        supplier: supplier !== '-' ? supplier : '',
-        inboundDate: inboundDate || '',
-        location: '' // 로케이션은 전량검수 창에서 입력
-    };
-
-    // 3. 전량검수 모달 표시 (샘플검수 모달은 닫지 않음)
-    if (DOM.totalInspModal) {
-        DOM.totalInspModal.classList.remove('hidden');
-        DOM.totalInspProductName.value = productName;
-        // 즉시 데이터 조회 실행
-        await searchTotalInspection();
-    }
+// ── 구독 ─────────────────────────────────────────────────────────────
+function subscribeOn() {
+    if (unsubOn || !State.db) return;
+    loadedOn = false;
+    listError = '';
+    renderList();
+    unsubOn = onSnapshot(query(colRef(), where('status', '==', ON)), (snap) => {
+        rowsOn = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        loadedOn = true;
+        listError = '';
+        afterRowsChanged();
+    }, (err) => {
+        console.error('[전량검수] 진행 목록 읽기 실패:', err && err.code ? err.code : err);
+        listError = failMsg(err, '진행 목록을 읽지 못했습니다. 창을 닫았다가 다시 열어 주세요.');
+        unsubOn = null;
+        renderList();
+    });
 }
 
-/**
- * 남은 수량 실시간 계산
- */
+function subscribeDone() {
+    if (unsubDone || !State.db) return;
+    unsubDone = onSnapshot(query(colRef(), where('status', '==', DONE), fsLimit(DONE_LIMIT)), (snap) => {
+        rowsDone = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        afterRowsChanged();
+    }, (err) => {
+        console.error('[전량검수] 완료 목록 읽기 실패:', err && err.code ? err.code : err);
+        showToast(failMsg(err, '완료 목록을 읽지 못했습니다.'), true);
+        unsubDone = null;
+    });
+}
+
+function unsubscribeDone() {
+    if (unsubDone) { unsubDone(); unsubDone = null; }
+    rowsDone = [];
+}
+
+function unsubscribeAll() {
+    if (unsubOn) { unsubOn(); unsubOn = null; }
+    unsubscribeDone();
+    rowsOn = [];
+    loadedOn = false;
+}
+
+/** 창이 닫히면(× · 닫기 · ESC · 돌아가기 — 어느 길이든) 구독을 푼다. */
+function watchModal() {
+    if (modalObs || !DOM.totalInspModal || typeof MutationObserver === 'undefined') return;
+    modalObs = new MutationObserver(() => {
+        if (!isModalOpen()) onClosed();
+    });
+    modalObs.observe(DOM.totalInspModal, { attributes: true, attributeFilter: ['class'] });
+}
+
+function onClosed() {
+    unsubscribeAll();
+    selectedId = '';
+    pendingSelect = '';
+    pendingSave = null;
+    filterTerm = '';
+    showDone = false;
+    if (DOM.totalInspShowDone) DOM.totalInspShowDone.checked = false;
+    if (DOM.totalInspProductName) DOM.totalInspProductName.value = '';
+    if (DOM.totalInspContentArea) DOM.totalInspContentArea.classList.add('hidden');
+}
+
+function afterRowsChanged() {
+    if (pendingSelect && rowById(pendingSelect)) {
+        const id = pendingSelect;
+        pendingSelect = '';
+        selectRow(id);
+        return;
+    }
+    if (selectedId && !rowById(selectedId) && !saving) {
+        // 다른 기기에서 완료·빼기 — 고른 줄이 목록에서 사라졌다
+        selectedId = '';
+        pendingSave = null;
+        if (DOM.totalInspContentArea) DOM.totalInspContentArea.classList.add('hidden');
+    }
+    renderList();
+    renderSelected(false);
+}
+
+// ── 화면 ─────────────────────────────────────────────────────────────
+function rowHtml(r, today) {
+    const p = progressOf(r);
+    const done = r.status === DONE;
+    const sel = r.id === selectedId;
+    const tq = todayQtyOf(r, today);
+    const stock = p.total > 0
+        ? `<span class="font-bold text-gray-800">${escapeHtml(p.acc.toLocaleString())} / ${escapeHtml(p.total.toLocaleString())}</span> <span class="text-gray-500">(${escapeHtml(p.pct)}%)</span>`
+        : `<span class="font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded px-1.5">총 재고 미입력</span>`;
+    const tags = [
+        done ? '<span class="text-[11px] font-bold bg-sky-100 text-sky-800 rounded px-1.5 py-0.5">완료</span>' : '',
+        Number(r.round) > 1 ? `<span class="text-[11px] font-bold bg-purple-50 text-purple-800 border border-purple-200 rounded px-1.5 py-0.5">${escapeHtml(r.round)}회차</span>` : '',
+        r.origin === 'sample' ? '<span class="text-[11px] font-bold bg-gray-100 text-gray-600 rounded px-1.5 py-0.5">샘플에서</span>' : '',
+        tq > 0 ? `<span class="text-[11px] font-bold bg-green-50 text-green-800 border border-green-200 rounded px-1.5 py-0.5">오늘 ${escapeHtml(tq.toLocaleString())}개</span>` : '',
+    ].join('');
+    const bar = p.pct == null ? '' : `<div class="h-1.5 bg-gray-100 rounded-full mt-1.5 overflow-hidden"><div class="h-full ${done ? 'bg-sky-500' : 'bg-purple-500'}" style="width:${Number(p.pct) || 0}%"></div></div>`;
+    return `<button type="button" data-total-key="${escapeHtml(r.id)}" aria-pressed="${sel ? 'true' : 'false'}"
+        class="w-full text-left border rounded-lg px-3 py-2 min-h-[44px] ${sel ? 'border-purple-500 bg-purple-50' : 'border-gray-200 bg-white hover:bg-gray-50'} ${done ? 'opacity-80' : ''}">
+        <div class="flex items-start justify-between gap-2">
+            <div class="min-w-0">
+                <div class="font-bold text-sm text-gray-900 break-words">${escapeHtml(r.name || '-')}</div>
+                <div class="text-xs text-gray-600 break-words">${escapeHtml(r.option || '옵션 없음')}${r.reason ? ` · ${escapeHtml(r.reason)}` : ' · <span class="text-red-600 font-bold">사유 미입력</span>'}</div>
+            </div>
+            <div class="text-xs text-right flex-shrink-0">${stock}</div>
+        </div>
+        ${bar}
+        ${tags ? `<div class="flex flex-wrap gap-1 mt-1.5">${tags}</div>` : ''}
+    </button>`;
+}
+
+function renderList() {
+    const box = DOM.totalInspList;
+    if (DOM.totalInspListCount) DOM.totalInspListCount.textContent = String(rowsOn.length);
+    const status = DOM.totalInspListStatus;
+    if (status) {
+        status.textContent = listError || (!loadedOn ? '진행 목록 불러오는 중…' : '');
+        status.classList.toggle('text-red-600', !!listError);
+    }
+    if (!box) return;
+    const rows = filterRows(allRows(), filterTerm);
+    if (!loadedOn && !rows.length) { box.innerHTML = ''; return; }
+    if (!rows.length) {
+        box.innerHTML = `<div class="text-sm text-gray-400 text-center border border-dashed border-gray-300 rounded-lg py-6">${
+            filterTerm ? '찾는 상품이 목록에 없습니다 — Enter 를 누르면 개별 추가 창이 열립니다.' : '진행 중인 전량검수가 없습니다. [+ 개별 추가]로 넣으세요.'}</div>`;
+        return;
+    }
+    const today = getTodayDateString();
+    box.innerHTML = rows.map(r => rowHtml(r, today)).join('');
+}
+
+/** 고른 줄 표시. fill = 입력칸도 문서 값으로 채운다(줄을 고를 때만 — 구독 갱신 때는 입력 중인 값을 지우지 않는다). */
+function renderSelected(fill) {
+    const area = DOM.totalInspContentArea;
+    const r = rowById(selectedId);
+    if (!area) return;
+    if (!r) { area.classList.add('hidden'); return; }
+    area.classList.remove('hidden');
+    const done = r.status === DONE;
+    if (DOM.totalInspSelName) DOM.totalInspSelName.textContent = r.name || '-';
+    if (DOM.totalInspSelMeta) {
+        DOM.totalInspSelMeta.textContent = [
+            `${Math.max(1, Number(r.round) || 1)}회차`,
+            done ? '완료' : '진행중',
+            r.supplierCode ? `공급처 ${r.supplierCode}` : '',
+            r.createdBy ? `넣은 사람 ${r.createdBy}` : '',
+        ].filter(Boolean).join(' · ');
+    }
+    if (DOM.totalInspCode) DOM.totalInspCode.textContent = r.code || '-';
+    if (DOM.totalInspOption) DOM.totalInspOption.textContent = r.option || '-';
+    if (DOM.totalInspAccumulated) {
+        DOM.totalInspAccumulated.textContent = `${Number(r.accumulatedTotal) || 0} (정상 ${Number(r.accumulatedNormal) || 0} · 불량 ${Number(r.accumulatedDefective) || 0})`;
+    }
+    if (fill) {
+        if (DOM.totalInspReason) DOM.totalInspReason.value = r.reason || '';
+        if (DOM.totalInspTotalStock) DOM.totalInspTotalStock.value = Number(r.totalStock) > 0 ? String(r.totalStock) : '';
+        if (DOM.totalInspLocation) DOM.totalInspLocation.value = r.location || '';
+        if (DOM.totalInspInboundDate) DOM.totalInspInboundDate.value = r.inboundDate || '';
+        if (DOM.totalInspTodayNormal) DOM.totalInspTodayNormal.value = '';
+        if (DOM.totalInspTodayDefective) DOM.totalInspTodayDefective.value = '';
+    }
+    [DOM.totalInspReason, DOM.totalInspTotalStock, DOM.totalInspLocation, DOM.totalInspInboundDate,
+        DOM.totalInspTodayNormal, DOM.totalInspTodayDefective].forEach(el => { if (el) el.disabled = done; });
+    if (DOM.totalInspDoneNote) DOM.totalInspDoneNote.classList.toggle('hidden', !done);
+    if (DOM.totalInspSaveBtn) {
+        DOM.totalInspSaveBtn.disabled = saving || done;
+        DOM.totalInspSaveBtn.textContent = saving ? '저장 중…' : SAVE_LABEL;
+    }
+    if (DOM.totalInspDoneBtn) { DOM.totalInspDoneBtn.classList.toggle('hidden', done); DOM.totalInspDoneBtn.disabled = acting || saving; }
+    if (DOM.totalInspReopenBtn) { DOM.totalInspReopenBtn.classList.toggle('hidden', !done); DOM.totalInspReopenBtn.disabled = acting || saving; }
+    if (DOM.totalInspRemoveBtn) { DOM.totalInspRemoveBtn.classList.toggle('hidden', !canRemove(r)); DOM.totalInspRemoveBtn.disabled = acting || saving; }
+    updateTotalInspRemaining();
+}
+
+/** 남은 수량 — 입력 중인 총 재고·오늘 수량으로. 넘으면 빨간 글자. */
 export function updateTotalInspRemaining() {
-    const totalStock = parseInt(DOM.totalInspTotalStock.value) || 0;
-    const accumulated = currentTotalInspData ? (currentTotalInspData.accumulatedTotal || 0) : 0;
-    const todayNormal = parseInt(DOM.totalInspTodayNormal.value) || 0;
-    const todayDefective = parseInt(DOM.totalInspTodayDefective.value) || 0;
-    
-    const totalDone = accumulated + todayNormal + todayDefective;
-    const remaining = totalStock - totalDone;
-    
-    if (DOM.totalInspRemaining) {
-        DOM.totalInspRemaining.textContent = remaining >= 0 ? remaining : 0;
-        DOM.totalInspRemaining.classList.toggle('text-red-500', remaining < 0);
+    const r = rowById(selectedId);
+    const el = DOM.totalInspRemaining;
+    if (!el) return;
+    if (!r) { el.textContent = '-'; return; }
+    const stock = num(DOM.totalInspTotalStock);
+    const today = (num(DOM.totalInspTodayNormal) || 0) + (num(DOM.totalInspTodayDefective) || 0);
+    const p = progressOf({ ...r, totalStock: stock == null ? r.totalStock : stock }, today);
+    el.textContent = p.remaining == null ? '-' : String(p.remaining);
+    el.classList.toggle('text-red-500', p.over);
+    el.classList.toggle('text-blue-700', !p.over);
+}
+
+function selectRow(id) {
+    if (saving) return;
+    if (!rowById(id)) return;
+    if (selectedId !== id) pendingSave = null;
+    selectedId = id;
+    renderList();
+    renderSelected(true);
+    const r = rowById(id);
+    if (DOM.totalInspContentArea) DOM.totalInspContentArea.scrollIntoView({ block: 'start' });
+    if (r && r.status !== DONE && !isTouch()) {
+        const first = !(Number(r.totalStock) > 0) ? DOM.totalInspTotalStock : DOM.totalInspTodayNormal;
+        if (first) first.focus();
     }
 }
 
-/**
- * 상품명 기반 데이터 조회 (기존 기록 확인)
- */
-export async function searchTotalInspection() {
-    const productName = DOM.totalInspProductName.value.trim();
-    if (!productName) {
-        showToast('상품명을 입력해주세요.', true);
-        return;
+// ── 열기 ─────────────────────────────────────────────────────────────
+/** 전량검수 창을 연다(대시보드 [전량검수 창 열기]·업무 시작·샘플에서 전환). selectId 가 있으면 그 줄을 고른다(구독이 가져오면). */
+export function openTotalInspection({ selectId = '' } = {}) {
+    if (!DOM.totalInspModal) return;
+    watchModal();
+    DOM.totalInspModal.classList.remove('hidden');
+    subscribeOn();
+    if (selectId) {
+        if (rowById(selectId)) selectRow(selectId); else pendingSelect = selectId;
     }
-
-    try {
-        const docRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'total_inspections_accumulated', productName);
-        const docSnap = await getDoc(docRef);
-
-        DOM.totalInspContentArea.classList.remove('hidden');
-
-        if (docSnap.exists()) {
-            currentTotalInspData = docSnap.data();
-            
-            // 기존 데이터 로드
-            DOM.totalInspReason.value = currentTotalInspData.reason || '';
-            DOM.totalInspTotalStock.value = currentTotalInspData.totalStock || 0;
-            DOM.totalInspAccumulated.textContent = currentTotalInspData.accumulatedTotal || 0;
-            
-            // 상세 정보 표시 (DB에 없으면 샘플검수에서 넘어온 값 사용)
-            DOM.totalInspCode.textContent = currentTotalInspData.code || (pendingDataFromSample?.code || '-');
-            DOM.totalInspOption.textContent = currentTotalInspData.option || (pendingDataFromSample?.option || '-');
-            DOM.totalInspSupplier.textContent = currentTotalInspData.supplier || (pendingDataFromSample?.supplier || '-');
-            DOM.totalInspInboundDate.value = currentTotalInspData.inboundDate || (pendingDataFromSample?.inboundDate || '');
-            DOM.totalInspLocation.value = currentTotalInspData.location || (pendingDataFromSample?.location || '');
-            
-            showToast('기존 전량검수 내역을 불러왔습니다.');
-        } else {
-            currentTotalInspData = { accumulatedTotal: 0, accumulatedNormal: 0, accumulatedDefective: 0 };
-            
-            // 신규 기록 초기화
-            DOM.totalInspReason.value = '';
-            DOM.totalInspTotalStock.value = '';
-            DOM.totalInspAccumulated.textContent = '0';
-
-            // 샘플검수에서 넘어온 정보가 있다면 자동 입력
-            DOM.totalInspCode.textContent = pendingDataFromSample?.code || '-';
-            DOM.totalInspOption.textContent = pendingDataFromSample?.option || '-';
-            DOM.totalInspSupplier.textContent = pendingDataFromSample?.supplier || '-';
-            DOM.totalInspInboundDate.value = pendingDataFromSample?.inboundDate || '';
-            DOM.totalInspLocation.value = '';
-
-            showToast('신규 전량검수 건입니다. 총 재고를 입력하세요.');
-        }
-
-        DOM.totalInspTodayNormal.value = '';
-        DOM.totalInspTodayDefective.value = '';
-        updateTotalInspRemaining();
-        
-        // 데이터 전송 완료 후 초기화
-        pendingDataFromSample = null;
-
-    } catch (error) {
-        console.error("Search error:", error);
-        showToast("데이터 조회 중 오류 발생", true);
-    }
+    renderList();
+    if (!selectId && !isTouch() && DOM.totalInspProductName) DOM.totalInspProductName.focus();
 }
 
-/**
- * 금일 검수 결과 누적 저장
- */
-export async function saveTotalInspection() {
-    const productName = DOM.totalInspProductName.value.trim();
-    const reason = DOM.totalInspReason.value.trim();
-    const totalStock = parseInt(DOM.totalInspTotalStock.value) || 0;
-    
-    // 상세 정보 필드값
-    const code = DOM.totalInspCode.textContent !== '-' ? DOM.totalInspCode.textContent : '';
-    const option = DOM.totalInspOption.textContent !== '-' ? DOM.totalInspOption.textContent : '';
-    const supplier = DOM.totalInspSupplier.textContent !== '-' ? DOM.totalInspSupplier.textContent : '';
-    const location = DOM.totalInspLocation.value.trim();
-    const inboundDate = DOM.totalInspInboundDate.value;
+export function closeTotalInspection() {
+    if (DOM.totalInspModal) DOM.totalInspModal.classList.add('hidden');
+    onClosed();   // MutationObserver 가 없는 환경 대비(두 번 불러도 같다)
+}
 
-    const todayNormal = parseInt(DOM.totalInspTodayNormal.value) || 0;
-    const todayDefective = parseInt(DOM.totalInspTodayDefective.value) || 0;
-    const todayTotal = todayNormal + todayDefective;
-
-    if (!productName || !reason || totalStock <= 0) {
-        showToast('상품 정보, 사유, 총 재고를 입력해주세요.', true);
-        return;
-    }
-    if (todayTotal <= 0) {
-        showToast('금일 검수 수량을 입력해주세요.', true);
-        return;
-    }
-
-    try {
-        const newAccumNormal = (currentTotalInspData.accumulatedNormal || 0) + todayNormal;
-        const newAccumDefect = (currentTotalInspData.accumulatedDefective || 0) + todayDefective;
-        const newAccumTotal = newAccumNormal + newAccumDefect;
-
-        // 1. 누적 데이터 마스터 저장
-        const masterRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'total_inspections_accumulated', productName);
-        await setDoc(masterRef, {
-            productName, reason, totalStock,
-            accumulatedNormal: newAccumNormal,
-            accumulatedDefective: newAccumDefect,
-            accumulatedTotal: newAccumTotal,
-            code, option, supplier, location, inboundDate,
-            lastUpdated: serverTimestamp()
-        }, { merge: true });
-
-        // 2. 금일 활동 히스토리 저장
-        const historyRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', getTodayDateString(), 'total_inspection_logs', `${productName}-${Date.now()}`);
-        await setDoc(historyRef, {
-            productName, reason, todayNormal, todayDefective,
-            code, option, supplier, location, inboundDate,
-            worker: State.auth.currentUser?.email || 'unknown',
-            timestamp: serverTimestamp()
+// ── 넣기(개별 추가·샘플에서 전환) ─────────────────────────────────────
+/** 진행 목록에 넣는다 — 개별 추가 창(onAdd)과 샘플 전환이 같이 쓴다. 창을 닫은 뒤 부를 함수를 돌려준다. */
+async function addItems(items, { reason = '' } = {}) {
+    const seen = new Set();
+    const list = (Array.isArray(items) ? items : []).map(it => ({ it, id: it ? totalKey(it.name, it.option) : '' }))
+        .filter(x => x.id && !seen.has(x.id) && seen.add(x.id));
+    if (!list.length) throw Object.assign(new Error('넣을 상품 없음'), { userMessage: '넣을 상품이 없습니다.' });
+    const by = me(), now = nowIso();
+    const res = await runTransaction(State.db, async (tx) => {
+        const snaps = await Promise.all(list.map(x => tx.get(docRef(x.id))));
+        return snaps.map((sn, i) => {
+            const d = startOrReopen(sn.exists() ? sn.data() : null, list[i].it, { reason, by, now });
+            if (d.doc) {
+                const val = { ...d.doc, lastUpdated: serverTimestamp() };
+                if (d.dropSupplier) val.supplier = deleteField();   // 옛 문서의 공급처 이름 칸은 지운다(코드만 남김)
+                if (d.merge) tx.set(docRef(list[i].id), val, { merge: true });   // 옛 문서 — 누적은 그대로, 빠진 칸만
+                else tx.set(docRef(list[i].id), val);
+            }
+            return { id: list[i].id, action: d.action };
         });
+    });
+    return () => {
+        const n = (a) => res.filter(r => r.action === a).length;
+        const parts = [];
+        if (n('create')) parts.push(`${n('create')}개 넣음`);
+        if (n('reopen')) parts.push(`완료였던 ${n('reopen')}개 새 회차로`);
+        if (n('open') + n('upgrade')) parts.push(`이미 진행 중 ${n('open') + n('upgrade')}개`);
+        if (n('conflict')) parts.push(`같은 목록 키의 다른 상품(옵션 표기 차이 등)이 있어 못 넣음 ${n('conflict')}개`);
+        showToast(parts.join(' · ') || '진행 목록에 넣었습니다.', n('conflict') > 0 && n('conflict') === res.length);
+        const first = res.find(r => r.action !== 'conflict');
+        openTotalInspection({ selectId: first ? first.id : '' });
+    };
+}
 
-        // ✨ 3. 신규: 당일 전량검수 처리량 자동 누적
-        try {
-            const dailyDocRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', getTodayDateString());
-            // 지금 이름 칸에 — 업무 이름의 점(예: '상.하차')이 하위 필드로 쪼개지지 않게 FieldPath 로 쓴다(tests/task-qty-fieldpath.test.js)
-            const fullTask = tName(TASK.full);
-            await updateDoc(dailyDocRef, new FieldPath('taskQuantities', fullTask), increment(todayTotal));
-            if (!State.appState.taskQuantities) State.appState.taskQuantities = {};
-            State.appState.taskQuantities[fullTask] = (State.appState.taskQuantities[fullTask] || 0) + todayTotal;
-        } catch(err) {
-            console.warn("전량검수 처리량 누적 실패:", err);
-        }
+/** [+ 개별 추가] · 검색칸에서 목록에 없는 글자. */
+export function openTotalManualAdd(text = '') {
+    openManualAdd(String(text || '').trim(), { target: 'total', onAdd: addItems });
+}
 
-        showToast('전량검수 내역이 누적 저장되었습니다.');
-        
-        // 창 닫기 및 초기화 (샘플검수 창은 그대로 유지됨)
-        DOM.totalInspModal.classList.add('hidden');
-        DOM.totalInspContentArea.classList.add('hidden');
-        DOM.totalInspProductName.value = '';
-
-    } catch (error) {
-        console.error("Save error:", error);
-        showToast("저장 오류 발생", true);
+/** 샘플검수 [전량검수로 전환] — 지금 고른 샘플 줄을 진행 목록에 넣고(origin 'sample') 그 줄이 고른 채 전량 창을 연다. 사유가 비면 창에서 입력. */
+export async function triggerTotalInspectionFromSample() {
+    const it = fromSampleItem(getCurrentInspItem());
+    if (!it) {
+        showToast('샘플검수 리스트에서 상품을 먼저 고르세요.', true);
+        return;
     }
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+        showToast('인터넷 연결이 끊겨 넣지 못했습니다.', true);
+        return;
+    }
+    try {
+        const after = await addItems([it], { reason: '' });
+        after();
+    } catch (e) {
+        console.error('[전량검수] 샘플에서 전환 실패:', e && e.code ? e.code : e);
+        showToast(failMsg(e, (e && e.userMessage) || '전량검수 목록에 넣지 못했습니다. 다시 눌러 주세요.'), true);
+    }
+}
+
+// ── 검색칸 ───────────────────────────────────────────────────────────
+export function onTotalSearchInput() {
+    filterTerm = DOM.totalInspProductName ? DOM.totalInspProductName.value : '';
+    renderList();
+}
+
+/** Enter·[찾기] — 목록에 딱 맞는 줄이 있으면 고르고, 없으면 그 글자로 개별 추가 창. */
+export function onTotalSearchEnter() {
+    const text = DOM.totalInspProductName ? DOM.totalInspProductName.value.trim() : '';
+    if (!text) { showToast('상품명 또는 상품코드를 입력해 주세요.', true); return; }
+    const id = exactRow(allRows(), text);
+    if (id) { selectRow(id); return; }
+    openTotalManualAdd(text);
+}
+
+export function onTotalListClick(e) {
+    const b = e.target && e.target.closest ? e.target.closest('[data-total-key]') : null;
+    if (b) selectRow(b.dataset.totalKey);
+}
+
+export function setTotalShowDone(on) {
+    showDone = !!on;
+    if (showDone) subscribeDone(); else unsubscribeDone();
+    afterRowsChanged();
+}
+
+// ── 저장 ─────────────────────────────────────────────────────────────
+export async function saveTotalInspection() {
+    if (saving) return;
+    const row = rowById(selectedId);
+    if (!row) { showToast('진행 목록에서 상품을 먼저 고르세요.', true); return; }
+    const input = {
+        normal: num(DOM.totalInspTodayNormal) || 0,
+        defective: num(DOM.totalInspTodayDefective) || 0,
+        totalStock: num(DOM.totalInspTotalStock),
+        reason: DOM.totalInspReason ? DOM.totalInspReason.value : '',
+        location: DOM.totalInspLocation ? DOM.totalInspLocation.value : '',
+        inboundDate: DOM.totalInspInboundDate ? DOM.totalInspInboundDate.value : '',
+    };
+    const pre = applySave(row, { ...input, date: getTodayDateString() });   // 화면 값으로 먼저 — 서버에서 한 번 더 본다
+    if (!pre.ok) { showToast(pre.message, true); return; }
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+        showToast('인터넷 연결이 끊겨 저장하지 못했습니다(입력은 남아 있습니다).', true);
+        return;
+    }
+    if (!pendingSave || pendingSave.id !== row.id) {
+        pendingSave = { id: row.id, saveId: newSaveId(), date: getTodayDateString(), time: getCurrentTime() };
+    }
+    const ps = pendingSave;
+    const by = me();
+    const fullTask = tName(TASK.full);
+    saving = true;
+    renderSelected(false);
+    try {
+        const out = await runTransaction(State.db, async (tx) => {
+            const ref = docRef(ps.id);
+            const lref = logRef(ps.saveId);
+            const dref = doc(State.db, ...APP, 'daily_data', ps.date);
+            const [snap, logSnap] = await Promise.all([tx.get(ref), tx.get(lref)]);   // daily_data 는 읽지 않는다(자동저장과 다툼 줄이기)
+            if (logSnap.exists()) return { dup: true };   // 앞서 누른 저장이 이미 들어갔다
+            const cur = snap.exists() ? snap.data() : null;
+            const now = nowIso();
+            const r = applySave(cur, { ...input, date: ps.date, by, now });
+            if (!r.ok) return { err: r };
+            tx.update(ref, { ...r.patch, lastUpdated: serverTimestamp() });
+            tx.set(lref, logOf({ saveId: ps.saveId, date: ps.date, time: ps.time, key: ps.id, cur, res: r, inspector: by, at: now }));
+            // 처리량 — set+merge 의 중첩 맵 키는 경로로 해석되지 않아 업무 이름의 점('상.하차' 같은)이 쪼개지지 않는다
+            //   (update 의 '점 경로 문자열'과 다르다 — tests/task-qty-fieldpath.test.js). 문서가 없어도 된다.
+            tx.set(dref, { taskQuantities: { [fullTask]: increment(r.qty) } }, { merge: true });
+            return { r };
+        });
+        if (out.err) {
+            showToast(out.err.message, true);
+            return;
+        }
+        pendingSave = null;
+        if (out.dup) {
+            showToast('이미 저장된 기록입니다(두 번 더하지 않았습니다).');
+        } else {
+            const { r } = out;
+            // 화면 처리량은 오늘 문서 구독(js/app-sync.js)이 바꾼다 — 여기서 더하지 않는다(샘플검수와 같게, 두 번 더해지지 않게)
+            showToast(r.done ? `저장 · 누적 ${r.accumAfter}개로 총 재고에 닿아 완료됐습니다.` : `저장 · 누적 ${r.accumAfter}개`);
+        }
+        if (DOM.totalInspTodayNormal) DOM.totalInspTodayNormal.value = '';
+        if (DOM.totalInspTodayDefective) DOM.totalInspTodayDefective.value = '';
+        saving = false;
+        // 다음 진행 줄로(없으면 지금 줄 그대로 — 완료로 빠졌으면 닫힌다)
+        const next = nextOnKey(sortList(rowsOn), ps.id);
+        if (next) selectRow(next);
+        else afterRowsChanged();
+    } catch (e) {
+        console.error('[전량검수] 저장 실패:', e && e.code ? e.code : e);
+        showToast(failMsg(e, '저장하지 못했습니다. 입력은 남아 있습니다 — 다시 눌러 주세요(두 번 더해지지 않습니다).'), true);
+    } finally {
+        saving = false;
+        renderSelected(false);
+    }
+}
+
+// ── 완료 처리 · 다시 진행 · 빼기 ──────────────────────────────────────
+async function act(id, fn, okMsg) {
+    if (acting || saving) return;
+    acting = true;
+    renderSelected(false);
+    try {
+        const res = await runTransaction(State.db, async (tx) => {
+            const ref = docRef(id);
+            const snap = await tx.get(ref);
+            return fn(tx, ref, snap.exists() ? snap.data() : null);
+        });
+        if (res && res.ok === false) { showToast(res.message, true); return; }
+        showToast(okMsg);
+    } catch (e) {
+        console.error('[전량검수] 처리 실패:', e && e.code ? e.code : e);
+        showToast(failMsg(e, '처리하지 못했습니다. 다시 눌러 주세요.'), true);
+    } finally {
+        acting = false;
+        afterRowsChanged();
+    }
+}
+
+export async function markTotalDone() {
+    const r = rowById(selectedId);
+    if (!r) return;
+    const p = progressOf(r);
+    const ok = await showConfirm(
+        `'${r.name}${r.option ? ` / ${r.option}` : ''}' 을(를) 완료 처리할까요?\n누적 ${p.acc}${p.total > 0 ? ` / 총 재고 ${p.total}` : ''}\n완료 목록에서 [다시 진행]으로 되돌릴 수 있습니다.`,
+        { title: '전량검수 완료 처리', okText: '완료 처리', cancelText: '취소' });
+    if (!ok) return;
+    const id = r.id;
+    await act(id, (tx, ref, cur) => {
+        const m = markDone(cur, { by: me(), now: nowIso() });
+        if (m.ok) tx.update(ref, { ...m.patch, lastUpdated: serverTimestamp() });
+        return m;
+    }, '완료 처리했습니다.');
+    if (selectedId === id && !showDone) {
+        const next = nextOnKey(sortList(rowsOn), id);
+        if (next) selectRow(next);
+    }
+}
+
+export async function reopenTotal() {
+    const r = rowById(selectedId);
+    if (!r) return;
+    const id = r.id;
+    await act(id, (tx, ref, cur) => {
+        const m = markReopen(cur);
+        if (m.ok) tx.update(ref, { ...m.patch, lastUpdated: serverTimestamp() });
+        return m;
+    }, '다시 진행 목록에 넣었습니다.');
+    if (rowById(id)) { selectedId = ''; selectRow(id); }
+    else pendingSelect = id;   // 진행중 구독이 곧 가져온다
+}
+
+export async function removeTotal() {
+    const r = rowById(selectedId);
+    if (!r) return;
+    if (!canRemove(r)) { showToast('검수 수량이 쌓였거나 2회차 이상인 줄은 뺄 수 없습니다 — [완료 처리]를 쓰세요.', true); return; }
+    const ok = await showConfirm(`'${r.name}${r.option ? ` / ${r.option}` : ''}' 을(를) 진행 목록에서 뺄까요?`,
+        { title: '목록에서 빼기', okText: '빼기', cancelText: '취소' });
+    if (!ok) return;
+    await act(r.id, (tx, ref, cur) => {
+        if (!cur) return { ok: false, message: '이미 목록에 없습니다.' };
+        if (!canRemove(cur)) return { ok: false, message: '그사이 검수 수량이 저장됐거나 회차가 바뀌었습니다 — 뺄 수 없습니다.' };
+        tx.delete(ref);
+        return { ok: true };
+    }, '목록에서 뺐습니다.');
 }

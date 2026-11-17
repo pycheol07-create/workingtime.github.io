@@ -1,52 +1,59 @@
 // === js/listeners-form-total-inspection.js ===
-// 설명: 전량 검수 매니저 및 샘플 검수 전환 버튼 리스너
+// 설명: 전량검수 창(진행 목록, 2026-11-17) 리스너 + 샘플검수 [전량검수로 전환] 버튼. 동작은 js/total-inspection-logic.js.
 
-import * as DOM from './dom-elements.js?v=202611171250';
-import { 
-    searchTotalInspection, 
-    updateTotalInspRemaining, 
-    saveTotalInspection, 
-    triggerTotalInspectionFromSample 
-} from './total-inspection-logic.js?v=202611171250';
+import * as DOM from './dom-elements.js?v=202611171511';
+import {
+    triggerTotalInspectionFromSample,
+    closeTotalInspection,
+    onTotalSearchInput,
+    onTotalSearchEnter,
+    openTotalManualAdd,
+    onTotalListClick,
+    setTotalShowDone,
+    updateTotalInspRemaining,
+    saveTotalInspection,
+    markTotalDone,
+    reopenTotal,
+    removeTotal
+} from './total-inspection-logic.js?v=202611171511';
 
 export function setupTotalInspectionListeners() {
-    
-    // [신규] 샘플 검수 -> 전량 검수로 데이터와 함께 창 전환
+
+    // 샘플검수 → 지금 고른 줄을 전량검수 진행 목록에 넣고 그 줄을 연다
     if (DOM.inspSwitchToTotalBtn) {
         DOM.inspSwitchToTotalBtn.addEventListener('click', () => {
             triggerTotalInspectionFromSample();
         });
     }
 
-    // [신규] 전량 검수 창에서 샘플 검수 창으로 돌아가기 (단순히 창만 닫음)
-    if (DOM.totalInspBackBtn) {
-        DOM.totalInspBackBtn.addEventListener('click', () => {
-            DOM.totalInspModal.classList.add('hidden');
-        });
-    }
-
-    // 상품 조회 (데이터 로드)
-    if (DOM.totalInspSearchBtn) {
-        DOM.totalInspSearchBtn.addEventListener('click', searchTotalInspection);
-    }
-
-    // 상품명 입력 후 엔터 시 자동 조회
-    if (DOM.totalInspProductName) {
-        DOM.totalInspProductName.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') searchTotalInspection();
-        });
-    }
-
-    // 수량 입력 시 실시간 '남은 수량' 계산 반영
-    const quantityInputs = [DOM.totalInspTotalStock, DOM.totalInspTodayNormal, DOM.totalInspTodayDefective];
-    quantityInputs.forEach(input => {
-        if (input) {
-            input.addEventListener('input', updateTotalInspRemaining);
-        }
+    // 닫기(× · 아래 닫기 · 샘플검수로 돌아가기) — 창을 숨기면 목록 구독도 푼다(ESC 로 닫혀도 total-inspection-logic 이 class 변화를 보고 푼다)
+    [DOM.totalInspBackBtn, DOM.totalInspCloseBtn, DOM.totalInspFooterCloseBtn].forEach(btn => {
+        if (btn) btn.addEventListener('click', closeTotalInspection);
     });
 
-    // 최종 누적 저장 버튼
-    if (DOM.totalInspSaveBtn) {
-        DOM.totalInspSaveBtn.addEventListener('click', saveTotalInspection);
+    // 검색칸 — 입력하면 목록을 거르고, Enter·[찾기]는 목록에 없으면 그 글자로 개별 추가 창
+    if (DOM.totalInspProductName) {
+        DOM.totalInspProductName.addEventListener('input', onTotalSearchInput);
+        DOM.totalInspProductName.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); onTotalSearchEnter(); }
+        });
     }
+    if (DOM.totalInspSearchBtn) DOM.totalInspSearchBtn.addEventListener('click', onTotalSearchEnter);
+    if (DOM.totalInspAddBtn) DOM.totalInspAddBtn.addEventListener('click', () => openTotalManualAdd(''));
+
+    // 목록 줄 고르기(위임 한 번) · 완료 보기
+    if (DOM.totalInspList) DOM.totalInspList.addEventListener('click', onTotalListClick);
+    if (DOM.totalInspShowDone) {
+        DOM.totalInspShowDone.addEventListener('change', () => setTotalShowDone(DOM.totalInspShowDone.checked));
+    }
+
+    // 수량 입력 시 '남은 수량' 바로 반영
+    [DOM.totalInspTotalStock, DOM.totalInspTodayNormal, DOM.totalInspTodayDefective].forEach(input => {
+        if (input) input.addEventListener('input', updateTotalInspRemaining);
+    });
+
+    if (DOM.totalInspSaveBtn) DOM.totalInspSaveBtn.addEventListener('click', saveTotalInspection);
+    if (DOM.totalInspDoneBtn) DOM.totalInspDoneBtn.addEventListener('click', markTotalDone);
+    if (DOM.totalInspReopenBtn) DOM.totalInspReopenBtn.addEventListener('click', reopenTotal);
+    if (DOM.totalInspRemoveBtn) DOM.totalInspRemoveBtn.addEventListener('click', removeTotal);
 }

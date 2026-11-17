@@ -3,17 +3,19 @@
 // 읽기: integrations/inspPacks (미발계산기2 수집기가 씀, 열 때 getDoc 1회 — 구독하지 않는다) · product_history/{상품명}(두께) · 날짜별 이력(샘플위치)
 //       · Locations ZONE_* (샘플위치·피킹/비축 로케이션, [만들기] 때 getDocs 1회 — 이름·옵션·대분류·id·상품코드와
 //         rawDataStr 안의 '옵션추가항목1'(비축 위치) 하나만 꺼내고 나머지는 버린다)
-// 쓰기: updateDailyData({inspectionList}) — 엑셀 업로드(js/inspection-excel.js)와 같은 경로. 순수 규칙은 js/lib/insp-packs.js.
+// 쓰기: daily_data/{오늘}.inspectionList 를 runTransaction 으로 서버 값을 읽고 합쳐 쓴다(2026-11-17 — 1분 자동저장이 리스트를 안 쓰므로
+//       화면 State 로 통째 덮지 않는다). 순수 규칙은 js/lib/insp-packs.js. 리스트에 합치기는 js/lib/insp-manual.js mergePackCards
+//   (같은 상품명+옵션의 대기 중인 개별 추가 줄은 패킹 카드로 바꾸고, 새 카드는 개별 줄 앞에 넣는다 — 2026-11-17).
 // ⚠️ 이 창은 index.html 에 붙는다 — 업무마감봇 선택자와 겹치지 않게 role="dialog"·data-act·end-shift-* 를 쓰지 않는다. id 는 모두 insp-pack-*.
 // ⚠️ 공급처는 코드만(supplierCode). supplierName 은 빈칸(CLAUDE.md 3절).
-import * as State from './state.js?v=202611171250';
-import { updateDailyData } from './app-data.js?v=202611171250';
-import { showToast, getTodayDateString, escapeHtml } from './utils.js?v=202611171250';
-import { renderTodoList, openInspectionListWindow } from './inspection-logic.js?v=202611171250';
-import { opt1Of } from './lib/mibal2-live.js?v=202611171250';   // 자리의 '옵션추가항목1'만(rawDataStr 의 다른 칸 — 공급처 등 — 은 돌려주지 않는다)
-import { fetchAllHistoryData } from './history-data-manager.js?v=202611171250';
-import { doc, getDoc, getDocs, collection, query, where, documentId } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { parseInspPacks, buildCards, mergeList, previewCount, existingCount, refsFromDays, thicknessFromHistoryDoc, samplesFromLocations, locsByCode, inspectedKeysFromHistory, packInspected } from './lib/insp-packs.js?v=202611171250';
+import * as State from './state.js?v=202611171511';
+import { showToast, getTodayDateString, escapeHtml } from './utils.js?v=202611171511';
+import { renderTodoList, openInspectionListWindow } from './inspection-logic.js?v=202611171511';
+import { opt1Of } from './lib/mibal2-live.js?v=202611171511';   // 자리의 '옵션추가항목1'만(rawDataStr 의 다른 칸 — 공급처 등 — 은 돌려주지 않는다)
+import { fetchAllHistoryData } from './history-data-manager.js?v=202611171511';
+import { doc, getDoc, getDocs, collection, query, where, documentId, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { parseInspPacks, buildCards, previewCount, existingCount, refsFromDays, thicknessFromHistoryDoc, samplesFromLocations, locsByCode, inspectedKeysFromHistory, packInspected } from './lib/insp-packs.js?v=202611171511';
+import { mergePackCards } from './lib/insp-manual.js?v=202611171511';
 
 const DOC_PATH = ['artifacts', 'team-work-logger-v2', 'integrations', 'inspPacks'];
 const PICKER_ID = 'insp-pack-picker';
@@ -57,7 +59,7 @@ function ensureShell() {
             <div class="p-4 border-b border-gray-200 flex justify-between items-center flex-shrink-0">
                 <div>
                     <h3 class="text-lg font-bold text-gray-900">패킹에서 검수 리스트 만들기</h3>
-                    <p class="text-xs text-gray-500 mt-0.5">입고예정 패킹을 고르면 엑셀 업로드와 같은 기준(상품·색상별 1장)으로 검수 대기 리스트에 추가합니다.</p>
+                    <p class="text-xs text-gray-500 mt-0.5">입고예정 패킹을 고르면 상품·색상별 1장으로 검수 대기 리스트에 추가합니다.</p>
                 </div>
                 <button id="insp-pack-close-btn" class="text-gray-400 hover:text-gray-700 p-1" title="닫기">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
@@ -99,9 +101,11 @@ function renderSummary() {
     const packs = selectedPacks();
     const n = previewCount(packs).total;
     const existing = State.appState.inspectionList || [];
-    const willAdd = mergeList(existing, buildCards(packs, null, '')).added;
+    const m = mergePackCards(existing, buildCards(packs, null, ''));
+    const willAdd = m.added + m.replaced;   // 개별 추가 줄을 패킹 카드로 바꾸는 것도 이 패킹의 장으로 센다
     if (sum) {
-        sum.textContent = `선택 ${packs.length}개 → ${n}장` + (packs.length && willAdd !== n ? ` (이미 목록에 있거나 서로 겹쳐서 빠지는 ${n - willAdd}건 → ${willAdd}장 추가)` : '');
+        sum.textContent = `선택 ${packs.length}개 → ${n}장` + (packs.length && willAdd !== n ? ` (이미 목록에 있거나 서로 겹쳐서 빠지는 ${n - willAdd}건 → ${willAdd}장 추가)` : '')
+            + (m.replaced > 0 ? ` · 개별 추가 줄 ${m.replaced}건은 이 패킹 카드로 바뀜` : '');
     }
     if (btn) btn.disabled = busy || packs.length === 0;
 }
@@ -269,14 +273,25 @@ async function makeFromPicked() {
         refs.thickByDoc = await loadHistoryThickness(names);
         const cards = buildCards(packs, refs, today);
         if (cards.length === 0) { showToast('선택한 패킹에 만들 항목이 없습니다.', true); return; }
-        const { merged, added, skipped } = mergeList(State.appState.inspectionList || [], cards);
-        if (added === 0) {
+        if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+            showToast('인터넷 연결이 끊겨 검수 리스트를 저장하지 못했습니다. 연결을 확인한 뒤 다시 눌러 주세요.', true);
+            return;
+        }
+        // 서버 리스트를 읽고 그 위에 합친다 — 그사이 다른 기기가 넣은 줄(개별 추가·다른 패킹)을 지우지 않게
+        const dailyRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', today);
+        const { merged, added, skipped, replaced } = await runTransaction(State.db, async (tx) => {
+            const snap = await tx.get(dailyRef);
+            const cur = snap.exists() && Array.isArray(snap.data().inspectionList) ? snap.data().inspectionList : [];
+            const m = mergePackCards(cur, cards);
+            if (m.added > 0 || m.replaced > 0) tx.set(dailyRef, { inspectionList: m.merged }, { merge: true });
+            return m;
+        });
+        State.appState.inspectionList = merged;   // 실시간 구독도 곧 같은 값으로
+        const replacedNote = replaced > 0 ? ` · 개별 추가 줄 ${replaced}건을 패킹 카드로 바꿈` : '';
+        if (added === 0 && replaced === 0) {
             showToast(`0장 추가, 이미 있거나 겹쳐서 빠진 ${skipped}건${locNote}`);
         } else {
-            const ok = await updateDailyData({ inspectionList: merged });
-            if (ok === false) { showToast('검수 리스트를 저장하지 못했습니다.', true); return; }
-            State.appState.inspectionList = merged;
-            showToast(`${added}장 추가, 이미 있거나 겹쳐서 빠진 ${skipped}건 (총 ${merged.length}개)${locNote}`);
+            showToast(`${added}장 추가, 이미 있거나 겹쳐서 빠진 ${skipped}건 (총 ${merged.length}개)${replacedNote}${locNote}`);
         }
         busy = false;
         closePicker();
