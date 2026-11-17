@@ -233,27 +233,80 @@ export const canRemove = (cur) => !!cur && int(cur.accumulatedTotal) === 0 && Ma
  *  'delete' = 아직 시작 안 한 줄(1회차·누적 0) → 문서 삭제.
  *  'stop'   = 누적이 있거나 2회차 이상(기록 보존) → 삭제 대신 완료로 내림(stopped: true — 끝까지 못 하고 멈춤 표시).
  *  'skip'   = 문서 없음·이미 완료. */
-export function removePlan(cur, { by = '', now = '', date = '' } = {}) {
+export function removePlan(cur, { by = '', now = '', date = '' } = {}, prevLogs = null) {
     if (!cur || cur.status === DONE) return { action: 'skip', patch: null };
     if (canRemove(cur)) return { action: 'delete', patch: null };
+    // 2회차 이상인데 이 회차 기록이 없다(잘못 연 회차) — 직전 회차 기록이 있으면 그 완료 상태로 되돌린다(2026-11-17 사용자 신고)
+    //   기록 합이 마지막 누적과 다르면(옛 누적·빠진 기록) 아무것도 바꾸지 않고 막는다(blocked — 완료(중단)로 내리지도 않음, 리뷰 1)
+    const rv = revertCheck(cur, prevLogs);
+    if (rv.ok) return { action: 'revert', patch: rv.patch };
+    if (rv.reason === 'mismatch') return { action: 'blocked', patch: null, message: rv.message };
     return { action: 'stop', patch: { status: DONE, stopped: true, doneAt: str(now), doneBy: str(by), endDate: ymd(date) } };
 }
 
-/** 확인창 숫자 — rows 의 판정 건수 { del, stop, skip }. */
-export function removeCounts(rows) {
-    const c = { del: 0, stop: 0, skip: 0 };
+/** 회차 되돌리기 대상인가 — 2회차 이상이고 누적 0(그 회차 기록 없음). */
+export const canRevertRound = (cur) => !!cur && Math.max(1, int(cur.round) || 1) >= 2 && int(cur.accumulatedTotal) === 0;
+
+/** 잘못 연 회차를 직전 회차 완료 상태로 — logs 중 같은 key·round-1 기록을 합산(정상·불량·합계), 검수수량·사유는 그 회차 마지막 기록의 값,
+ *  status 완료, endDate = 마지막 기록 날짜, startDate = 그 회차 기록의 시작일(없으면 첫 기록 날짜),
+ *  stopped = 마지막 기록의 누적(accumAfter)이 검수수량보다 작으면 true(끝까지 못 하고 닫힌 회차).
+ *  대상이 아니거나 직전 회차 기록이 없거나, 기록 합이 마지막 누적과 다르면 null(revertCheck 가 이유를 준다). */
+export function revertRoundPlan(cur, logs) {
+    const r = revertCheck(cur, logs);
+    return r.ok ? r.patch : null;
+}
+
+/** @returns {{ ok: true, patch } | { ok: false, reason: 'notTarget'|'none'|'mismatch', message }} */
+export function revertCheck(cur, logs) {
+    if (!canRevertRound(cur)) return { ok: false, reason: 'notTarget', message: '되돌릴 대상이 아닙니다 — 2회차 이상이고 이 회차 기록이 없어야 합니다.' };
+    const prev = Math.max(1, int(cur.round) || 1) - 1;
+    const key = str(cur.key || '');
+    const list = (Array.isArray(logs) ? logs : [])
+        .filter(l => l && Math.max(1, int(l.round) || 1) === prev && (!key || str(l.key || l.docId) === key))
+        .slice().sort((a, b) => orderKeyOf(a).localeCompare(orderKeyOf(b)));
+    if (!list.length) return { ok: false, reason: 'none', message: '직전 회차 기록이 없어 되돌릴 수 없습니다.' };
+    const n = list.reduce((a, l) => a + Math.max(0, int(l.normal)), 0);
+    const d = list.reduce((a, l) => a + Math.max(0, int(l.defective)), 0);
+    const last = list[list.length - 1];
+    const lastDate = ymd(last.date);
+    // 안전장치(리뷰 1): 기록 합이 마지막 저장의 누적과 다르면(옛 누적·지워진 기록 등) 자동으로 되돌리지 않는다
+    if (last.accumAfter != null && n + d !== int(last.accumAfter)) {
+        return { ok: false, reason: 'mismatch', message: `기록 합(${n + d})과 마지막 누적(${int(last.accumAfter)})이 달라 자동으로 되돌릴 수 없습니다 — 관리자에게 알려 주세요.` };
+    }
+    const stock = int(last.totalStock) || int(cur.totalStock);
+    return { ok: true, patch: {
+        round: prev,
+        accumulatedNormal: n, accumulatedDefective: d, accumulatedTotal: n + d,
+        totalStock: stock,
+        reason: str(last.reason) || str(cur.reason),
+        status: DONE, stopped: stock > 0 && n + d < stock,
+        endDate: lastDate || ymd(last.endDate),
+        startDate: ymd(list.find(l => ymd(l.startDate)) ? list.find(l => ymd(l.startDate)).startDate : '') || ymd(list[0].date),
+        doneAt: str(last.at), doneBy: '',
+        lastDate,
+        lastDayQty: list.filter(l => ymd(l.date) === lastDate).reduce((a, l) => a + int(l.normal) + int(l.defective), 0),
+    } };
+}
+const orderKeyOf = (l) => (str(l && l.at) || `${str(l && l.date)}T${str(l && l.time)}`);
+
+/** 확인창 숫자 — rows 의 판정 건수 { del, stop, revert, blocked, skip }. prevByKey = { key: 그 상품 기록들 } (되돌리기 판정용, 없으면 되돌리기 없음). */
+export function removeCounts(rows, prevByKey = {}) {
+    const c = { del: 0, stop: 0, revert: 0, blocked: 0, skip: 0 };
     (Array.isArray(rows) ? rows : []).forEach(r => {
-        const a = removePlan(r).action;
-        if (a === 'delete') c.del++; else if (a === 'stop') c.stop++; else c.skip++;
+        const a = removePlan(r, {}, r ? (prevByKey || {})[r.id] : null).action;
+        if (a === 'delete') c.del++; else if (a === 'stop') c.stop++; else if (a === 'revert') c.revert++; else if (a === 'blocked') c.blocked++; else c.skip++;
     });
     return c;
 }
 
 /** 확인창 문구 — 'n건 삭제, m건은 기록이 있어 완료로 내림'. 둘 다 0 이면 ''. */
-export function removeMessage({ del = 0, stop = 0 } = {}) {
+export function removeMessage({ del = 0, stop = 0, revert = 0, blocked = 0, failed = 0 } = {}) {
     const parts = [];
     if (del) parts.push(`${del}건 삭제`);
     if (stop) parts.push(`${stop}건은 기록이 있어 완료로 내림`);
+    if (revert) parts.push(`${revert}건은 직전 회차 완료로 되돌림`);
+    if (blocked) parts.push(`${blocked}건은 기록 합이 맞지 않아 그대로 둠(관리자에게)`);
+    if (failed) parts.push(`${failed}건 실패`);
     return parts.join(', ');
 }
 
@@ -372,6 +425,7 @@ export function logToHistoryLog(log) {
         totalStock: int(l.totalStock),
         fromTotalLog: true,
         saveId: str(l.id || l.saveId),   // 데이터관리 [수정]·[삭제] 가 이 기록을 찾는다(total_inspection_logs/{saveId})
+        key: str(l.key || l.docId),      // 진행 문서 줄의 기록 수(accDocRow)
     };
 }
 
@@ -385,7 +439,7 @@ export function logDefectQty(log) {
 /** product_history 문서들(화면용) + 전량 기록 → 새 배열(원본 불변). 같은 이름(nameKey)의 문서 logs 끝에 붙이고,
  *  문서가 없는 상품은 전량 기록만 가진 화면용 칸(totalOnly: true — 삭제 버튼을 보이지 않는다)을 만든다.
  *  lastInspectionDate 는 더 늦은 날짜로. totalInbound(검수 횟수)는 바꾸지 않는다. */
-export function mergeIntoProductHistory(productDocs, logs) {
+export function mergeIntoProductHistory(productDocs, logs, accDocs = []) {
     const docs = (Array.isArray(productDocs) ? productDocs : []).map(d => ({ ...d }));
     const byId = new Map(docs.map((d, i) => [nameKey(d.id), i]));
     const sorted = (Array.isArray(logs) ? logs : []).filter(l => l && nameKey(l.name))
@@ -404,8 +458,49 @@ export function mergeIntoProductHistory(productDocs, logs) {
         if (str(hl.date) > str(d.lastInspectionDate)) d.lastInspectionDate = hl.date;
         if (d.totalOnly) { d.lastCode = str(l.code) || d.lastCode; d.lastOption = str(l.option); }
     });
+    // 진행 문서(total_inspections_accumulated) — 그 상품 칸에 totalDocs 로 붙인다. 기록이 없어도 진행 문서가 있으면 화면용 칸을 만든다(2026-11-17)
+    (Array.isArray(accDocs) ? accDocs : []).filter(a => a && nameKey(a.name || a.productName)).forEach(a => {
+        const id = nameKey(a.name || a.productName);
+        let i = byId.get(id);
+        if (i === undefined) {
+            docs.push({ id, logs: [], totalInbound: 0, lastInspectionDate: '', lastCode: str(a.code), lastOption: str(a.option), totalOnly: true });
+            i = docs.length - 1;
+            byId.set(id, i);
+        }
+        docs[i].totalDocs = [...(docs[i].totalDocs || []), a];
+    });
     return docs;
 }
+
+/** 데이터관리 진행 문서 줄 — { id, option, round, state('진행중'|'완료'|'중단'), acc, stock, period, logCount, canRevert, canDelete, canDone, canReopen }.
+ *  logCount = 그 key 의 전량 기록 수(logs). 진행 문서 삭제는 기록이 없을 때만. */
+export function accDocRow(a, logs) {
+    const x = a || {};
+    const id = str(x.id);
+    const logCount = (Array.isArray(logs) ? logs : []).filter(l => l && str(l.key || l.docId) === id).length;
+    const done = x.status === DONE;
+    return {
+        id, option: str(x.option), round: Math.max(1, int(x.round) || 1),
+        state: done ? (x.stopped ? '중단' : '완료') : '진행중',
+        acc: int(x.accumulatedTotal), stock: int(x.totalStock),
+        period: periodLabel(x.startDate, x.endDate),
+        logCount,
+        canRevert: !done && canRevertRound(x),
+        canDelete: logCount === 0 && int(x.accumulatedTotal) === 0,   // 기록도 누적도 없는 진행 문서만(리뷰 2)
+        canDone: !done, canReopen: done,
+    };
+}
+
+/** 완료 상품을 다시 넣을 때 확인창 문구. */
+export function reopenConfirmText(cur) {
+    const c = cur || {};
+    const r = Math.max(1, int(c.round) || 1);
+    const end = ymd(c.endDate);
+    return `이미 ${r}회차가 완료된 상품입니다(누적 ${int(c.accumulatedTotal)} / 검수수량 ${int(c.totalStock)}${end ? `, 종료 ${end}` : ''}).\n새 회차로 다시 시작할까요?`;
+}
+
+/** 진행 목록 화면 — 오늘 완료된 줄도 맨 아래에 남긴다(다음 날부터는 [완료 보기]에서만). */
+export const isDoneToday = (r, today) => !!r && r.status === DONE && ymd(r.endDate) === ymd(today) && !!ymd(today);
 
 /** 작업자 표시 — 이름만. 옛 기록이 이메일이면 memberEmails({이름: 이메일})로 이름을 찾고, 못 찾으면 '-'. */
 export function inspectorLabel(v, memberEmails) {

@@ -5,7 +5,7 @@
 //   서식(글꼴·채움·테두리·열 너비 등)은 견주지 않는다 — 화면에 그렇게 안내한다.
 //   결과에는 위치·개수만 담는다(값은 보여 주지 않는다 — 실제 출고 파일). 순수 모듈(SheetJS 는 넘겨받음). 테스트: tests/ship-compare.test.js
 
-import { pyStr, PACK_PREFIX } from './ship-core.js?v=202611171632';
+import { pyStr, PACK_PREFIX } from './ship-core.js?v=202611171714';
 
 const DIGITS = /^-?\d+$/;
 
@@ -94,8 +94,10 @@ export function intended(a, b) {
 //   PACK_PREFIX: 웹판은 패키지명 앞에 플랫폼 접두(직진 ZG · 에이블리 AB, ship-core.packageNameBase). exe 는 YYMMDD-NN.
 //     칸: 직진 출고리스트 지그재그양식서 A 8행~ · 패키지번호 B 2행~ · 피킹작업지시서 A 2행~(ZG·AB) · 에이블리 대량입고 A 6행~.
 //     웹 값 = 그 파일 플랫폼 접두 + exe 값일 때만.
-//   NO_MASTER: 웹판은 직진 출고리스트 원본 없이(출고요청으로) 만든다 — 지그재그양식서 8행~ G(시즌)·I(공장상품명)가 빈칸.
+//   NO_MASTER: 웹판을 직진 원본 없이 만들었을 때 — 지그재그양식서 8행~ G(시즌)·I(공장상품명)가 빈칸.
 //     test_웹판비교.py drop_no_master 와 같은 조건(웹 값이 빈칸일 때만).
+//     2026-11-17 원본을 다시 읽는다 — 웹 결과를 원본을 읽고 만들었으면(opts.noMaster === false) 이 칸 차이는 진짜 차이로 센다.
+//     모르면(밖에서 놓은 웹 파일) 예전처럼 의도된 차이.
 const PREFIX_CELLS = {
     '직진배송출고리스트.xlsx': { pre: PACK_PREFIX.zikjin, at: (d) => (d.sheet === '지그재그양식서' && d.col === 1 && d.row >= 8) || (d.sheet === '패키지번호' && d.col === 2 && d.row >= 2) },
     'ZG_피킹작업지시서.xlsx': { pre: PACK_PREFIX.zikjin, at: (d) => d.sheet === '피킹작업지시서' && d.col === 1 && d.row >= 2 },
@@ -103,22 +105,22 @@ const PREFIX_CELLS = {
     '에이블리_대량입고.xlsx': { pre: PACK_PREFIX.ably, at: (d) => d.col === 1 && d.row >= 6 },   // 대량입고는 양식의 활성 시트(이름은 양식마다)
 };
 
-/** 이 파일(key)의 이 칸(d) 차이가 자리 때문에 의도된 것이면 그 이름 */
-export function intendedAt(key, d) {
+/** 이 파일(key)의 이 칸(d) 차이가 자리 때문에 의도된 것이면 그 이름. opts.noMaster === false 면 NO_MASTER 를 보지 않는다 */
+export function intendedAt(key, d, opts = {}) {
     const rule = PREFIX_CELLS[key];
     if (rule && rule.at(d) && typeof d.a === 'string' && d.a !== '' && d.b === rule.pre + d.a) return 'PACK_PREFIX';
-    if (key === '직진배송출고리스트.xlsx' && d.sheet === '지그재그양식서' && d.row >= 8 && (d.col === 7 || d.col === 9)
+    if (opts.noMaster !== false && key === '직진배송출고리스트.xlsx' && d.sheet === '지그재그양식서' && d.row >= 8 && (d.col === 7 || d.col === 9)
         && d.b === null && d.a !== null && d.a !== undefined) return 'NO_MASTER';
     return null;
 }
 
 /** (의도된 차이 [{why, where}], 그 밖의 차이) — 같은 칸의 자료형 차이는 값 차이를 따라간다(split_diffs).
- *  key(파일 짝 키, pairKey)를 주면 자리에 따른 의도된 차이(intendedAt)도 본다 */
-export function splitDiffs(diffs, key = '') {
+ *  key(파일 짝 키, pairKey)를 주면 자리에 따른 의도된 차이(intendedAt)도 본다. opts 는 intendedAt 에 넘긴다 */
+export function splitDiffs(diffs, key = '', opts = {}) {
     const ok = new Map();
     for (const d of diffs) {
         if (d.cat === '값' && d.row && d.col) {
-            const why = intended(d.a, d.b) || intendedAt(key, d);
+            const why = intended(d.a, d.b) || intendedAt(key, d, opts);
             if (why) ok.set(`${d.sheet}\u0000${d.row}\u0000${d.col}`, why);
         }
     }
@@ -162,7 +164,7 @@ export function summarizeDiffs(diffs, limit = 20) {
 /**
  * 짝 맞춰 견주기.
  * @param {Array<{name, grid}>} left   exe 쪽
- * @param {Array<{name, grid}>} right  웹 쪽
+ * @param {Array<{name, grid, noMaster?}>} right  웹 쪽 — noMaster: false = 원본을 읽고 만든 결과(시즌·공장상품명 빈칸을 의도된 차이로 보지 않음)
  * @returns {Array<{key, left?, right?, missing?: 'left'|'right', good, bad, lines}>}
  */
 export function comparePairs(left, right) {
@@ -172,7 +174,7 @@ export function comparePairs(left, right) {
     return keys.map(key => {
         const a = L.get(key), b = Rm.get(key);
         if (!a || !b) return { key, left: a && a.name, right: b && b.name, missing: a ? 'right' : 'left', good: [], bad: [], lines: [] };
-        const { good, bad } = splitDiffs(compareGrids(a.grid, b.grid), key);
+        const { good, bad } = splitDiffs(compareGrids(a.grid, b.grid), key, { noMaster: b.noMaster });
         return { key, left: a.name, right: b.name, good, bad, lines: summarizeDiffs(bad) };
     });
 }

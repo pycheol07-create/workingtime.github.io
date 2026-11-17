@@ -7,12 +7,16 @@
 // 2026-11-12 직진배송출고리스트 원본(마스터 약 2만 행)을 없앴다(사용자 결정 — 에이블리와 같은 방식):
 //   SKU번호·상품명·옵션은 출고요청에서, 상품바코드번호는 출고전표의 바코드(없으면 상품코드)에서, 검품방식은 '스탠다드' 고정, 시즌·공장상품명은 빈칸.
 //   그래서 2단계에 출고요청이 꼭 있어야 한다. 옛 방식과 같은 입력이면 수량·바코드·봉 구성이 같은지 tests/ship-zikjin-compare.test.js 가 본다.
+// 2026-11-17 시즌·공장상품명은 다시 원본(직진배송출고ver.5)에서 읽는다(사용자 요청 — 시즌은 원본에서만 알 수 있다).
+//   원본은 그 두 칸에만 쓴다(readZikjinMaster → zikjinStep2 master). SKU·상품명·옵션·바코드·양식은 위 그대로.
+//   찾는 규칙은 옛 방식(tests/fixtures/ship-zikjin-legacy.js)과 같다: 전표 바코드(보정한 상품코드)로 원본 D 를 찾고, 없으면 SKU번호로 C 를 찾은 뒤
+//   그 행의 SKU번호로 다시 찾은 첫 행(bySku)의 G 시즌 · I 공장상품명. 원본을 안 넘기면(null) 두 칸은 빈칸.
 
 import {
     pyStr, pyStrip, pyTruthy, strip, orEmpty, toInt, isFraction, cleanProductName, sortedBy,
     zikjinSource, packDay, countPacks, checkLimit, splitAndName, overBags, kstDay, fileNames, looksLikeStockOut, STOCK_OUT_MSG,
-} from './ship-core.js?v=202611171632';
-import { headerColumns } from './ship-read.js?v=202611171632';
+} from './ship-core.js?v=202611171714';
+import { headerColumns } from './ship-read.js?v=202611171714';
 
 export const DATA_START_ROW = 8;   // 지그재그양식서: 머리글 7행, 자료 8행부터
 export const TEMPLATE_SHEETS = ['지그재그양식서', '재고로그조회리스트', '패키지번호'];
@@ -153,10 +157,79 @@ export function readZikjinRequestInfo(book, log = []) {
     return map;
 }
 
+// ---------------------------------------------------------------- 원본(마스터) — 시즌·공장상품명만 (2026-11-17)
+export const MASTER_SHEET = '지그재그양식서';
+export const MASTER_HEADER_ROW = DATA_START_ROW - 1;   // 7행 머리글
+// 옛 방식(044876e 이전)의 열 자리: C SKU번호 · D 상품바코드번호 · G 시즌 · I 공장상품명.
+//   그 자리의 7행 머리글이 맞으면(아래 MASTER_HEAD) 그 자리 · 아니면 7행에서 맞는 첫 열 · 그래도 없으면 이 자리(옛 방식 그대로)
+export const MASTER_COLS = Object.freeze({ sku: 3, barcode: 4, season: 7, factory: 9 });
+const MASTER_HEAD = { sku: (h) => h.toUpperCase().includes('SKU'), barcode: (h) => h.includes('바코드'), season: (h) => h.includes('시즌'), factory: (h) => h.includes('공장') };
+const MASTER_LABEL = { sku: 'SKU번호', barcode: '바코드', season: '시즌', factory: '공장상품명' };
+
+/**
+ * 원본 책(ship-read.readBook — '지그재그양식서' 시트만 읽어도 됨) → 찾기표 { byBarcode, bySku, rows, cols }.
+ *   필요한 4칸만 메모리에 둔다(상품명 등 다른 칸은 읽지 않음). 옛 방식과 같게 바코드는 마지막 행, SKU번호는 첫 행이 이긴다.
+ *   시트가 없거나 8행부터 자료가 하나도 없으면(빈 양식을 고름) 던진다.
+ */
+export function readZikjinMaster(book, log = []) {
+    const ws = book && typeof book.sheet === 'function' ? book.sheet(MASTER_SHEET) : null;
+    if (!ws) throw new Error(`원본에 '${MASTER_SHEET}' 시트가 없습니다 — 직진배송출고리스트 원본 파일이 맞는지 확인하세요.`);
+    const headAt = (c) => { const v = ws.cell(MASTER_HEADER_ROW, c); return v === null || v === undefined || v === '' ? '' : pyStrip(pyStr(v)); };
+    const cols = {};
+    const byPos = [], moved = [];
+    for (const k of Object.keys(MASTER_COLS)) {
+        const fixed = MASTER_COLS[k];
+        let c = null;
+        if (MASTER_HEAD[k](headAt(fixed))) c = fixed;                        // 옛 자리가 맞으면 그 자리
+        else {
+            for (let x = 1; x <= ws.maxCol; x++) if (MASTER_HEAD[k](headAt(x))) { c = x; break; }   // 맞는 첫 열
+            if (c) moved.push(MASTER_LABEL[k]);
+        }
+        cols[k] = c || fixed;
+        if (!c) byPos.push(MASTER_LABEL[k]);
+    }
+    const byBarcode = new Map(), bySku = new Map();
+    let rows = 0;
+    for (let r = DATA_START_ROW; r <= ws.maxRow; r++) {
+        const sku = ws.cell(r, cols.sku), bc = ws.cell(r, cols.barcode);
+        if ((sku === null || sku === '') && (bc === null || bc === '')) continue;
+        rows++;
+        const info = { sku, season: ws.cell(r, cols.season), factory: ws.cell(r, cols.factory) };
+        if (sku !== null) {
+            const s = strip(sku);
+            if (s && !bySku.has(s)) bySku.set(s, info);
+        }
+        if (bc !== null) {
+            const b = strip(bc);
+            if (b && b !== '-') byBarcode.set(b, info);
+        }
+    }
+    if (!rows) throw new Error(`원본 '${MASTER_SHEET}' ${DATA_START_ROW}행부터 상품 자료가 없습니다 — 빈 양식이 아니라 직진배송출고리스트 원본을 골라 주세요.`);
+    log.push(`  원본(시즌·공장상품명): 상품 ${fmtN(rows)}줄 · 바코드 ${fmtN(byBarcode.size)}건 · SKU번호 ${fmtN(bySku.size)}건`
+        + (moved.length ? ` (머리글로 다른 열에서 찾은 칸: ${moved.join('·')})` : '')
+        + (byPos.length ? ` (머리글을 못 찾아 옛 자리로 읽은 칸: ${byPos.join('·')})` : ''));
+    return { byBarcode, bySku, rows, cols };
+}
+
+/**
+ * 한 줄의 시즌·공장상품명 — 옛 방식과 같은 순서. code = 전표 바코드(보정한 상품코드), sku = 이 줄 SKU번호(출고요청).
+ * @returns {{ season, factory }|null}  null = 원본에 없음
+ */
+export function masterInfoOf(index, { code, sku }) {
+    if (!index) return null;
+    let hit = index.byBarcode.get(strip(code));
+    if (!hit && pyTruthy(sku)) hit = index.bySku.get(strip(sku));
+    if (!hit) return null;
+    // 옛 방식: 시트1 을 쓸 때 찾은 행의 SKU번호로 다시 찾은 첫 행(bySku) 값을 쓴다
+    const m = hit.sku !== null && hit.sku !== undefined ? index.bySku.get(strip(hit.sku)) : null;
+    return { season: m ? m.season : null, factory: m ? m.factory : null };
+}
+
 /**
  * 2단계: 어드민 출고전표 + 출고요청 → 시트1·2·3 행, 피킹 항목, 로케이션 전송 행, 봉 수.
  *   (2026-11-12 원본 없앰) SKU번호·상품명·옵션 = 출고요청, 상품바코드번호 = 출고전표 바코드(상품코드와 다르면 바코드, 없으면 상품코드),
- *   검품방식 '스탠다드', 시즌·공장상품명 빈칸. 출고요청에 없는 상품코드는 출고리스트에서 빠진다(로케이션 전송에는 들어감).
+ *   검품방식 '스탠다드'. 출고요청에 없는 상품코드는 출고리스트에서 빠진다(로케이션 전송에는 들어감).
+ *   (2026-11-17) 시즌·공장상품명 = 원본(p.master, readZikjinMaster 결과). 원본이 없으면(null) 빈칸, 원본에 없는 줄도 빈칸(result.master.missing).
  * @param {object} p
  * @param {object} p.admin      어드민 출고전표 책(활성 시트, 1행 머리글)
  * @param {object} p.request    출고요청 책(필수)
@@ -164,8 +237,10 @@ export function readZikjinRequestInfo(book, log = []) {
  * @param {string} p.packageBase  패키지명 앞부분 — 그대로 '<앞부분>-NN'. 화면은 접두를 붙여 넘긴다(ZG261113 — ship-core.packageNameBase), exe 비교 시험은 YYMMDD
  * @param {number} p.packageLimit 봉투당 한도
  * @param {Array<{name,limit}>} p.specialRules 지정상품 규칙(limit 0 은 꺼짐)
+ * @param {object|null} p.master  원본 찾기표(readZikjinMaster) — 없으면 시즌·공장상품명 빈칸
+ * @returns 결과의 master = 원본을 넘겼으면 { rows, missing: [상품코드(전표 원본 코드), …] }, 안 넘겼으면 null
  */
-export function zikjinStep2({ admin, request = null, requestName = null, packageBase, packageLimit, specialRules = [], now = new Date() }) {
+export function zikjinStep2({ admin, request = null, requestName = null, packageBase, packageLimit, specialRules = [], master = null, now = new Date() }) {
     const log = [];
     const limit = checkLimit(packageLimit);
     const base = pyStrip(String(packageBase ?? ''));
@@ -217,6 +292,7 @@ export function zikjinStep2({ admin, request = null, requestName = null, package
     let pkg = [];
     const notFound = [];
     let nameFromAdmin = 0, optionFromAdmin = 0;
+    const masterMissing = new Set();   // 전표 원본 코드(중복 없이, 나온 순서)
     for (const d of adminData) {
         const code = strip(d['상품코드']);
         const info = infoByCode.get(d['원본상품코드']) || infoByCode.get(code);
@@ -225,7 +301,11 @@ export function zikjinStep2({ admin, request = null, requestName = null, package
         if (!pyTruthy(nameRaw)) { nameRaw = d['상품명']; nameFromAdmin++; }
         let option = info.option;
         if (!info.hasOption) { option = d['옵션']; optionFromAdmin++; }
+        const mi = master ? masterInfoOf(master, { code, sku: info.sku }) : null;
+        if (master && !mi) masterMissing.add(d['원본상품코드']);
         pkg.push({
+            season: mi ? mi.season : null,
+            factory_name: mi ? mi.factory : null,
             sku: info.sku,
             name: cleanProductName(nameRaw),
             name_raw: nameRaw,
@@ -240,6 +320,10 @@ export function zikjinStep2({ admin, request = null, requestName = null, package
     if (notFound.length) {
         log.push(`  ⚠ 출고요청에서 못 찾은 상품코드(SKU번호 없음): ${notFound.length}건 — 출고리스트에서 빠집니다 (예: ${notFound.slice(0, 5).join(', ')})`);
     }
+    // 원본 없음은 결과 카드 경고(ship-summary)가 따로 크게 말한다 — 여기서 ⚠ 로 세면 같은 말이 두 번
+    if (!master) log.push('  ℹ 원본(직진배송출고ver.5)을 읽지 않아 시즌·공장상품명을 빈칸으로 씁니다');
+    else if (masterMissing.size) log.push(`  ⚠ 원본에 없는 상품 ${masterMissing.size}개 — 시즌·공장상품명 빈칸 (예: ${[...masterMissing].slice(0, 5).join(', ')})`);
+    else log.push('  ✓ 시즌·공장상품명: 모든 줄을 원본에서 찾음');
     pkg = sortedBy(pkg, r => pyStr(r.location));
     const pkgTotal = pkg.reduce((s, r) => s + r.qty, 0);
     if (adminTotal !== pkgTotal) log.push(`  ⚠ 수량 합계 불일치: 어드민=${adminTotal}, 패키지=${pkgTotal}`);
@@ -286,10 +370,11 @@ export function zikjinStep2({ admin, request = null, requestName = null, package
     const sheet3 = pkg.map(r => [r.sku, r.package, r.name, r.option, r.qty]);
 
     // (i) 시트1 — 8행 아래는 비운 양식에 봉마다 1행(패키지명순). A 패키지명 · B 검품방식 · C SKU번호 · D 상품바코드번호 ·
-    //     E 상품명 · F 옵션정보 · G 시즌(빈칸) · H 입고예정수량 · I 공장상품명(빈칸) · J 로케이션. 글자는 '=' 로 시작해도 글자(ship-write.cellXml)
+    //     E 상품명 · F 옵션정보 · G 시즌(원본) · H 입고예정수량 · I 공장상품명(원본) · J 로케이션. 글자는 '=' 로 시작해도 글자(ship-write.cellXml)
+    //     원본 칸이 수식이면 엑셀이 저장해 둔 값을 쓴다(앱 양식에는 원본의 다른 행·시트가 없어 수식을 옮기면 틀린다)
     const sorted = sortedBy(pkg, r => pyStr(r.package));
     const sheet1 = sorted.map(pr => [pr.package, INSPECTION_METHOD, pr.sku, pr.admin_code, pr.name_raw, pr.option,
-        null, pr.qty, null, pr.location]);
+        pr.season ?? null, pr.qty, pr.factory_name ?? null, pr.location]);
     log.push(`  지그재그양식서: ${sorted.length}행 작성 완료 (각 봉별 1행)`);
 
     // (k) 피킹 항목(ZG)
@@ -310,6 +395,7 @@ export function zikjinStep2({ admin, request = null, requestName = null, package
         sheet1, sheet2, sheet3, pkgRows: pkg, pickItems, packs, location,
         packageCount: sp.counter,
         fileName: names.zikjinList, pickFileName: names.zikjinPick,
+        master: master ? { rows: master.rows, missing: [...masterMissing] } : null,
         log,
     };
 }

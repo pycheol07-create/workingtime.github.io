@@ -1,7 +1,7 @@
 // === js/lib/ship-summary.js ===
 // 플랫폼 출고 결과 카드(#sp-result-card)·노란 경고 상자(#sp-warn) — 계산 lib 가 돌려준 결과 객체에서 다시 센다(2026-11-12).
 //   진행 기록 글자를 읽어 숫자를 뽑지 않는다(문장이 바뀌어도 깨지지 않게) — ⚠ 줄 수만 센다.
-//   상품명·코드는 돌려주지 않는다(숫자·건수만). 순수 모듈. 테스트: tests/ship-summary.test.js
+//   상품명은 돌려주지 않는다(숫자·건수만). 예외: 직진 '원본에 없는 상품' 경고는 상품코드 목록을 붙인다(화면에만, 2026-11-17). 순수 모듈. 테스트: tests/ship-summary.test.js
 //
 // 입력(lib 반환값)
 //   1단계(직진·에이블리): items [[코드, 수량]]
@@ -9,10 +9,10 @@
 //   에이블리 2단계: rows(대량입고 행 — 5번 칸 수량) · pickItems[].code · location.rows · packageCount
 //   에이블리 요청 총량: ship-ably.readAblyRequest 의 qty 합(부르는 쪽이 넘긴다)
 
-import { overBags, baseDateWarning, pyTruthy, toInt } from './ship-core.js?v=202611171632';
-import { headerColumns } from './ship-read.js?v=202611171632';
-import { zikjinStep1 } from './ship-zikjin.js?v=202611171632';
-import { readAblyRequest } from './ship-ably.js?v=202611171632';
+import { overBags, baseDateWarning, pyTruthy, toInt } from './ship-core.js?v=202611171714';
+import { headerColumns } from './ship-read.js?v=202611171714';
+import { zikjinStep1 } from './ship-zikjin.js?v=202611171714';
+import { readAblyRequest } from './ship-ably.js?v=202611171714';
 
 export const SUMMARY_MAX_BYTES = 3 * 1024 * 1024;   // 이보다 큰 파일은 칸 요약을 건너뜀(두 번 읽지 않게)
 
@@ -61,6 +61,14 @@ export function fileSummary(book, { tab, slot }) {
     }
 }
 
+export const MASTER_LIST_MAX = 30;
+/** '원본에 없는 상품 n개(시즌 빈칸): P1, P2 … 외 n개' — 상품코드만 */
+export function masterMissingText(codes, max = MASTER_LIST_MAX) {
+    const a = (codes || []).map(String);
+    const more = a.length > max ? ` 외 ${fmt(a.length - max)}개` : '';
+    return `원본에 없는 상품 ${fmt(a.length)}개(시즌 빈칸): ${a.slice(0, max).join(', ')}${more} — 원본에 새 상품을 넣었는지 확인하세요.`;
+}
+
 /**
  * @param {object} p
  * @param {'zikjin'|'ably'} p.tab
@@ -88,6 +96,11 @@ export function summarizeRun({ tab, step, result, base = '', limit = 0, now = ne
         const sent = sum(r.location && r.location.rows, x => x[2]);
         if (sent > qty) warns.push(`출고요청에서 못 찾은 상품 ${fmt(sent - qty)}개가 출고리스트에서 빠졌습니다 — 출고요청과 전표가 같은 묶음인지 확인하세요.`);
         if (!(r.location && r.location.source)) warns.push('출고요청 파일이 없어 로케이션 전송·봉 수 기록을 하지 않았습니다(일반/즉시출고를 가릴 수 없음).');
+        // 원본(시즌·공장상품명, 2026-11-17) — 결과에 master 칸이 있을 때만(null = 원본을 안 읽음). 목록은 상품코드만(화면에만)
+        if ('master' in r) {
+            if (!r.master) warns.push('직진배송 원본(직진배송출고ver.5)을 읽지 않아 시즌·공장상품명이 빈칸으로 만들어졌습니다 — 원본을 고른 뒤 다시 만드세요.');
+            else if ((r.master.missing || []).length) warns.push(masterMissingText(r.master.missing));
+        }
     } else {
         const rows = r.rows || [];
         kinds = new Set((r.pickItems || []).map(x => String(x.code || ''))).size;

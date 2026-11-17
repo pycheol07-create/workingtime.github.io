@@ -23,38 +23,42 @@
 //     빈 양식은 앱 Storage ship/templates/zikjin.xlsx(관리자만 올림, storage.rules)에서 받는다. 올리기 전에 이 브라우저에서
 //     머리글만 남기고 자료 행을 지운다(js/lib/ship-write.js cleanZikjinTemplate). 옛 PC 기억(IndexedDB)은 열 때 지운다.
 //     임시 길(저장소 규칙 게시 전): 앱 양식을 못 읽으면 '양식 준비 중'을 띄우고 2단계에 원본(임시) 칸을 열어 옛 방식처럼 그 원본에 쓴다(ZG_TEMP_SLOT).
+//   · 2026-11-17 시즌·공장상품명은 다시 원본(직진배송출고ver.5)에서 읽는다 — 원본 파일 위치(핸들)만 이 PC·브라우저에 기억하고(js/lib/ship-master-file.js)
+//     직진 2단계 때마다 최신 내용을 읽어 그 두 칸만 채운다(js/lib/ship-zikjin.js readZikjinMaster, 내용은 메모리에만). 상태 줄 #sp-zg-master.
+//     위치 기억을 못 쓰면(지원 안 함·거절·옮김) 놓은 원본을 이번 화면에서만 쓴다(S.zgm.once, 기억 안 함). 못 읽으면 막지 않고 확인창 + 결과 카드 경고.
 //   · 전송이 꺼져 있으면(transmit false, 병행 초기) Firestore 쓰기 함수를 아예 부르지 않는다 — 기록은 옛 exe 가 한다.
 //   · 라이브러리는 이 페이지에서만 CDN 지연 로드: SheetJS 0.20.3(ESM — 다른 화면의 전역 XLSX 0.18.5 와 섞이지 않게)·JSZip 3.10.2·ExcelJS 4.4.0.
 // 권한: 입장은 js/page-gate.js(ship.platform). 설정 저장·전송은 규칙이 막는다. 전송 켜기(transmit)는 관리자만.
 import { onAuthStateChanged, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { doc, getDocFromServer } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getStorage, ref as sRef, uploadBytes, getBlob, getMetadata } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
-import { initializeFirebase } from './config.js?v=202611171632';
-import { emulatorEnabled, connectStorageEmulatorIfEnabled } from './firebase-emulator.js?v=202611171632';
-import { setShellContext, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202611171632';
-import { memberNameFor } from './app-shell-data.js?v=202611171632';
-import { friendlyFirebaseError } from './utils.js?v=202611171632';
-import { resolve, can } from './lib/perm.js?v=202611171632';
-import { readBook, headerColumns } from './lib/ship-read.js?v=202611171632';
-import { zikjinStep1, zikjinStep2 } from './lib/ship-zikjin.js?v=202611171632';
-import { ablyStep1, ablyStep2, readAblyRequest } from './lib/ship-ably.js?v=202611171632';
-import { zikjinListBytes, ablyBulkBytes, stockXlsBytes, cleanZikjinTemplate, zikjinTemplateProblem, cleanAblyTemplate, ablyTemplateProblem } from './lib/ship-write.js?v=202611171632';
-import { pickingBytes } from './lib/ship-picking.js?v=202611171632';
-import { kstDay, baseDateWarning, targetArea, STOCK_OUT_MSG, PACK_PREFIX, baseDatePart, packageNameBase } from './lib/ship-core.js?v=202611171632';
-import { peekBook, classifyPeek, assignFiles, routeFiles, SLOTS, KIND, KIND_LABEL, ZIKJIN_TEMPLATE_NOTE } from './lib/ship-assign.js?v=202611171632';
-import { openShipStore, isFileRecord, sizeText, savedText, KEY_TEMPLATE, KEY_OUT_DIR } from './lib/ship-file-store.js?v=202611171632';
-import { createSaver, mimeOf } from './lib/save-file.js?v=202611171632';
-import { normalizeSettings, validateEdit, settingsWrite, parseLimit, activeRuleCount, MAX_RULES } from './lib/ship-settings.js?v=202611171632';
-import { flowState, foldState, modeView, loadMode, tabForMode, MODE_STORE_KEY, MODE_LABEL } from './lib/ship-flow.js?v=202611171632';
-import { summarizeRun, fileSummary, SUMMARY_MAX_BYTES } from './lib/ship-summary.js?v=202611171632';
-import { madeKey, loadMade, findMade, recordMade, madeConfirmText, MADE_STORE_KEY } from './lib/ship-made.js?v=202611171632';
-import { gridOf, comparePairs } from './lib/ship-compare.js?v=202611171632';
-import { batchKeyOf, codeTotals, freshKey, sha256Hex, LEGACY } from './lib/ship-batch.js?v=202611171632';
-import { loadSettings, saveSettings, sendBatch, previewBatches, removeBatch, writeActivity, beatActivity, watchActivity } from './ship-store.js?v=202611171632';
-import { normalizeActivity, findSharedMade, activityBanner, newRunId, BEAT_MS } from './lib/ship-activity.js?v=202611171632';
-import { logHtml, logText, AUTO_MARK } from './lib/ship-log.js?v=202611171632';
-import { autoDecision, autoStartText } from './lib/ship-auto.js?v=202611171632';
-import { isMixed, planMixed, jobLabel, runJobs, queueCounts, pairWaitPlan } from './lib/ship-mixed.js?v=202611171632';
+import { initializeFirebase } from './config.js?v=202611171714';
+import { emulatorEnabled, connectStorageEmulatorIfEnabled } from './firebase-emulator.js?v=202611171714';
+import { setShellContext, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202611171714';
+import { memberNameFor } from './app-shell-data.js?v=202611171714';
+import { friendlyFirebaseError } from './utils.js?v=202611171714';
+import { resolve, can } from './lib/perm.js?v=202611171714';
+import { readBook, headerColumns } from './lib/ship-read.js?v=202611171714';
+import { zikjinStep1, zikjinStep2, readZikjinMaster, MASTER_SHEET } from './lib/ship-zikjin.js?v=202611171714';
+import { createMasterFile, MASTER_STATE_TEXT, KEY_MASTER } from './lib/ship-master-file.js?v=202611171714';
+import { ablyStep1, ablyStep2, readAblyRequest } from './lib/ship-ably.js?v=202611171714';
+import { zikjinListBytes, ablyBulkBytes, stockXlsBytes, cleanZikjinTemplate, zikjinTemplateProblem, cleanAblyTemplate, ablyTemplateProblem } from './lib/ship-write.js?v=202611171714';
+import { pickingBytes } from './lib/ship-picking.js?v=202611171714';
+import { kstDay, baseDateWarning, targetArea, STOCK_OUT_MSG, PACK_PREFIX, baseDatePart, packageNameBase } from './lib/ship-core.js?v=202611171714';
+import { peekBook, classifyPeek, assignFiles, routeFiles, SLOTS, KIND, KIND_LABEL } from './lib/ship-assign.js?v=202611171714';
+import { openShipStore, isFileRecord, sizeText, savedText, KEY_TEMPLATE, KEY_OUT_DIR } from './lib/ship-file-store.js?v=202611171714';
+import { createSaver, mimeOf } from './lib/save-file.js?v=202611171714';
+import { normalizeSettings, validateEdit, settingsWrite, parseLimit, activeRuleCount, MAX_RULES } from './lib/ship-settings.js?v=202611171714';
+import { flowState, foldState, modeView, loadMode, tabForMode, MODE_STORE_KEY, MODE_LABEL } from './lib/ship-flow.js?v=202611171714';
+import { summarizeRun, fileSummary, SUMMARY_MAX_BYTES } from './lib/ship-summary.js?v=202611171714';
+import { madeKey, loadMade, findMade, recordMade, madeConfirmText, MADE_STORE_KEY } from './lib/ship-made.js?v=202611171714';
+import { gridOf, comparePairs } from './lib/ship-compare.js?v=202611171714';
+import { batchKeyOf, codeTotals, freshKey, sha256Hex, LEGACY } from './lib/ship-batch.js?v=202611171714';
+import { loadSettings, saveSettings, sendBatch, previewBatches, removeBatch, writeActivity, beatActivity, watchActivity } from './ship-store.js?v=202611171714';
+import { normalizeActivity, findSharedMade, activityBanner, newRunId, BEAT_MS } from './lib/ship-activity.js?v=202611171714';
+import { logHtml, logText, AUTO_MARK } from './lib/ship-log.js?v=202611171714';
+import { autoDecision, autoStartText } from './lib/ship-auto.js?v=202611171714';
+import { isMixed, planMixed, jobLabel, runJobs, queueCounts, pairWaitPlan } from './lib/ship-mixed.js?v=202611171714';
 
 const $ = (id) => document.getElementById(id);
 const APP_BASE = 'artifacts/team-work-logger-v2';
@@ -112,8 +116,9 @@ const SLOT_META = {
 // 임시 길(2026-11-12 — 저장소 규칙 게시 전까지): 앱 양식을 못 쓰면(아직 안 올림·권한 없음·못 읽음) 직진 2단계에 원본 칸을 다시 연다.
 //   넣은 원본은 옛 방식처럼 그 파일에 바로 쓴다(시트1 8행 아래는 지우고 다시 씀 — ship-write.zikjinListBytes). 계산은 새 방식 그대로
 //   (SKU·상품명·옵션 = 출고요청). 이 PC 에 새로 기억하지 않는다(예전에 기억한 원본이 있으면 그것을 칸에 넣어 준다).
-const ZG_TEMP_SLOT = { id: 'template', title: '직진배송출고리스트 원본(임시)', short: '원본(임시)', req: true,
-    hint: '양식 준비 중 — 원본을 넣으면 그 파일의 서식에 씁니다(이 PC 안에서만, 저장·기억 안 함)' };
+//   2026-11-17: 이 칸은 '서식'(양식 대신)용이다 — 시즌을 읽는 원본 기억(#sp-zg-master)과 따로. 이 칸 파일은 원본 기억이 없을 때 시즌 읽기에도 쓴다.
+const ZG_TEMP_SLOT = { id: 'template', title: '출고리스트 서식용 원본(임시)', short: '서식 원본(임시)', req: true,
+    hint: '양식 준비 중 — 넣은 원본 파일의 서식에 씁니다(이 PC 안에서만, 저장·기억 안 함). 시즌을 읽는 원본 기억과는 따로입니다' };
 const zgFallback = () => S.zgTmpl.state === 'none' || S.zgTmpl.state === 'error';
 /** 지금 화면의 칸 — 직진 2단계는 앱 양식을 못 쓸 때만 원본(임시) 칸이 붙는다 */
 const slotsOf = (tab, step) => (tab === 'zikjin' && step === 2 && zgFallback() ? [...SLOT_META.zikjin[2], ZG_TEMP_SLOT] : SLOT_META[tab][step]);
@@ -140,6 +145,9 @@ const S = {
     // 에이블리 대량입고 양식(앱 Storage, 2026-11-12) — 같은 state. 'ok' 가 아니면 assets 기본 양식을 쓴다
     abTmpl: { state: 'loading', updated: '', size: 0, gen: '', bytes: null, bytesGen: '', err: '' },
     tmplPick: null,   // [설정] › 기본 양식에서 고른 쪽('zikjin'|'ably') — 파일 고르기 창이 돌아올 때
+    // 직진 원본(시즌·공장상품명, 2026-11-17) — master = createMasterFile(위치 기억), zgm.st = 상태(ship-master-file state + 'loading'),
+    //   once = 이번 화면에서만 쓰는 놓은 원본 { name, bytes, size }(기억 안 함), err = 마지막 원본 확인 오류 글
+    master: null, zgm: { st: 'loading', once: null, err: '' },
     settings: normalizeSettings(null), settingsRead: false,
     // 화면 방식(2026-11-12) — 'auto' 통합(기본) · 'zikjin'·'ably' 기존 방식. 화면만 바꾸고 만들기·전송은 같은 코드(js/lib/ship-flow.js modeView)
     mode: 'auto',
@@ -159,6 +167,7 @@ const S = {
     baseTouched: { zikjin: false, ably: false },   // 패키지명 베이스를 사람이 고쳤나 — 안 고쳤으면 날짜가 바뀌면 오늘로 다시 채운다
     baseTouchedDay: { zikjin: '', ably: '' },      // 고친 날(KST YYMMDD) — 날짜가 바뀌면 '고침'을 풀고 오늘로(2026-11-13 리뷰)
     queue: null, queueRunning: false,   // 섞어 올리기(2026-11-13) — { jobs: [{ label, tab, step, status, why, last, results, warns }], view }
+    runCancelWhy: '',   // 이번 run 을 확인창에서 취소했으면 그 이유(섞어 올리기 '건너뜀', 2026-11-17)
     runSaves: null,   // 이번 실행에서 저장한 방식들('folder'|'download') — 결과 카드 '폴더를 고르면 다음부터' 안내
     // 여러 자리 같이 보기(2026-11-13, js/lib/ship-activity.js) — 문서 값·이 창에서 시작한 실행 id·직원 이름
     actRaw: null, actMine: [], memberName: null,
@@ -243,7 +252,7 @@ function setBusy(on, text = '처리 중…') {
     $('sp-busy').hidden = !lock;
     $('sp-busy-text').textContent = on ? text : '섞어 올린 묶음을 차례로 만드는 중…';
     $('sp-run').disabled = lock;
-    document.querySelectorAll('#sp-slots button, #sp-tabs button, #sp-steps button, #sp-settings-btn, #sp-folder, #sp-pick-many, #sp-fold button, #sp-batches button, #sp-compare button, #sp-pick-mode, #sp-mode-menu button, #sp-mode-back, #sp-s-tmpl button, #sp-queue button')
+    document.querySelectorAll('#sp-slots button, #sp-tabs button, #sp-steps button, #sp-settings-btn, #sp-folder, #sp-pick-many, #sp-fold button, #sp-batches button, #sp-compare button, #sp-pick-mode, #sp-mode-menu button, #sp-mode-back, #sp-s-tmpl button, #sp-queue button, #sp-zg-master button')
         .forEach(b => { b.disabled = lock; });
     if (lock) closeModeMenu();
     if (!lock) renderTemplateRows();   // 설정 창 양식 칸 — 잠금(올리기 꺼짐)·관리자 여부는 다시 그려서 맞춘다
@@ -398,8 +407,8 @@ function renderZgTemplate() {
         cls = 'warn';
         const why = T.state === 'none' ? '아직 앱에 없음' : (T.code === 'storage/unauthorized' ? '앱 저장소 설정 전' : '읽지 못함');
         // 통합은 위 다음 할 일(#sp-next)이 '원본도 같이 놓아 주세요'를 말한다 — 여기는 상태만
-        text = auto ? `출고리스트 양식 준비 중(${why}) — 원본(임시)이 필요합니다.`
-            : `출고리스트 양식 준비 중(${why}) — '원본(임시)' 칸에 직진배송출고리스트 원본을 넣어 주세요(이 PC 안에서만 쓰고 저장하지 않음).`;
+        text = auto ? `출고리스트 양식 준비 중(${why}) — 서식용 원본(임시)이 필요합니다.`
+            : `출고리스트 양식 준비 중(${why}) — '${ZG_TEMP_SLOT.short}' 칸에 직진배송출고리스트 원본을 넣어 주세요(서식용 — 이 PC 안에서만 쓰고 저장하지 않음).`;
     }
     el.className = `pd-alert ${cls} sp-zg-tmpl`;
     el.textContent = text;
@@ -411,6 +420,180 @@ function renderIntakeNote() {
     const on = modeView(S.mode).auto && zgFallback();
     el.hidden = !on;
     el.textContent = on ? '직진배송 출고리스트 양식 준비 중 — 직진 2단계(출고전표를 놓을 때) 직진배송출고리스트 원본 파일도 같이 놓아 주세요(이 PC 안에서만 쓰고 저장하지 않음).' : '';
+}
+
+// ── 직진 원본(시즌·공장상품명, 2026-11-17) ─────────────────────
+const MASTER_FROM = { pc: '기억한 위치에서 지금 읽음', once: '이번 화면에서 놓은 파일', temp: '서식용 원본(임시) 칸 파일' };
+/**
+ * 원본 상태 줄(#sp-zg-master) — 직진 쪽(통합 첫 화면 포함). '원본: 파일이름 · 마지막으로 읽은 시각 · [바꾸기]', 처음이면 [원본 파일 고르기].
+ *   기억을 못 쓰면(지원 안 함·거절·옮김) [원본 파일 다시 고르기] + 놓은 원본을 이번만 쓰는 안내.
+ */
+function renderZgMaster() {
+    const el = $('sp-zg-master');
+    if (!el) return;
+    const show = S.tab === 'zikjin' || (modeView(S.mode).auto && !autoHasWork());
+    el.hidden = !show;
+    if (!show) { el.innerHTML = ''; return; }
+    const Z = S.zgm, M = S.master;
+    const name = M ? M.name : '';
+    const sup = !!(M && M.supported());
+    const btn = (act, label) => `<button class="d-btn d-btn-sm" data-zgm="${act}"${locked() ? ' disabled' : ''}>${esc(label)}</button>`;
+    let warn = false, text = '', btns = [];
+    if (Z.st === 'loading') {
+        text = '원본(시즌): 확인하는 중…';
+    } else if (Z.st === 'ok') {
+        text = `원본: ${name} · 마지막으로 읽은 시각 ${M.readAt ? savedText(M.readAt) : '아직 안 읽음'} — 직진 2단계 때마다 이 파일의 최신 내용을 읽어 시즌·공장상품명을 채웁니다`;
+        if (Z.once) text += ` (놓은 '${Z.once.name}' 은 이 파일을 못 읽을 때만 씀)`;
+        btns = [btn('pick', '바꾸기')];
+    } else if (Z.once) {
+        text = `원본: ${Z.once.name} · 이번 화면에서만 씀(놓은 파일 — 기억 안 함, 새로고침하면 사라지고 파일을 고친 내용은 다시 놓아야 반영)`;
+        btns = [btn('clear-once', '빼기')];
+        if (Z.st === 'prompt') btns.push(btn('allow', `기억한 '${name}' 읽기 허용`));
+        else if (sup) btns.push(btn('pick', name ? '원본 파일 다시 고르기(기억)' : '원본 파일 고르기(기억)'));
+    } else if (Z.st === 'prompt') {
+        text = `원본: ${name} — 이 브라우저에서 읽기 허용이 필요합니다([읽기 허용]이나 [만들기]를 누르면 브라우저가 묻습니다)`;
+        btns = [btn('allow', '읽기 허용'), btn('pick', '바꾸기')];
+    } else {
+        warn = true;
+        const why = Z.err || MASTER_STATE_TEXT[Z.st] || MASTER_STATE_TEXT.error;
+        if (Z.st === 'unsupported') {
+            text = `원본(시즌): ${why} — 직진 2단계 때 직진배송출고ver.5 원본 파일을 같이 놓거나 [원본 파일 선택]으로 넣어 주세요(이번만, 기억 안 함). 없으면 시즌이 빈칸으로 만들어집니다.`;
+            btns = [btn('once', '원본 파일 선택')];
+        } else if (Z.st === 'none') {
+            text = '원본(시즌): 직진배송출고ver.5 를 아직 고르지 않았습니다 — 고르지 않으면 시즌이 빈칸으로 만들어집니다. 한 번 고르면 이 PC·브라우저가 위치를 기억하고 매번 최신 내용을 읽습니다.';
+            btns = [btn('pick', '원본 파일 고르기'), btn('once', '이번만 파일 선택')];
+        } else {
+            text = `원본: ${name || '(이름 없음)'} — ${why}. 다시 고르거나, 원본 파일을 이 화면에 놓으면 이번만 씁니다(기억 안 함). 없으면 시즌이 빈칸으로 만들어집니다.`;
+            btns = [btn('pick', '원본 파일 다시 고르기'), btn('once', '이번만 파일 선택')];
+        }
+    }
+    el.className = `pd-alert ${warn ? 'warn' : 'info'} sp-zg-master`;
+    el.innerHTML = `<span class="sp-zgm-text">${esc(text)}</span>${btns.length ? `<span class="sp-zgm-btns">${btns.join('')}</span>` : ''}`;
+}
+/** 원본 책 → 찾기표(필요한 시트만 읽음, 메모리에만). 못 쓰면 던진다 */
+function masterIndexOf(X, bytes, name, log = []) {
+    return readZikjinMaster(readBook(X, bytes, name, { sheets: [MASTER_SHEET] }), log);
+}
+/** 기억한 원본을 지금 읽어 확인(고른 직후·[읽기 허용]) — ask: 권한을 지금 묻기(클릭 안에서) */
+async function checkMaster({ ask }) {
+    if (!S.master || locked()) return;
+    newLogGroup({ kind: 'other', title: '직진 원본 확인' });
+    setBusy(true, '원본 확인 중…');
+    try {
+        const r = await S.master.read({ ask });
+        if (!r.ok) {
+            S.zgm.st = r.state; S.zgm.err = '';
+            logLine(`⚠ 직진 원본을 읽지 못했습니다: ${MASTER_STATE_TEXT[r.state] || r.state}`);
+            toast(`원본을 읽지 못했습니다 — ${MASTER_STATE_TEXT[r.state] || r.state}`, 6000);
+            return;
+        }
+        const { X } = await loadLibs();
+        const idx = masterIndexOf(X, r.bytes, r.name);
+        S.zgm.st = 'ok'; S.zgm.err = '';
+        logLine(`✓ 직진 원본 '${r.name}' — 상품 ${fmt(idx.rows)}줄. 직진 2단계 때마다 이 파일의 최신 내용을 다시 읽습니다(내용은 저장하지 않음).`);
+        toast('원본을 확인했습니다 — 다음부터 이 파일을 읽습니다');
+    } catch (e) {
+        S.zgm.st = 'error'; S.zgm.err = `원본으로 쓸 수 없음: ${errText(e)}`;
+        logLine(`✗ 원본으로 쓸 수 없습니다: ${errText(e)}`);
+        toast(`원본으로 쓸 수 없습니다 — ${errText(e)}`, 6000);
+    } finally {
+        setBusy(false);
+        render();
+    }
+}
+/** [원본 파일 고르기]·[바꾸기] — 고르면 위치를 기억하고 바로 읽어 확인 */
+async function pickMaster() {
+    if (!S.master || !S.master.supported()) { toast(`${MASTER_STATE_TEXT.unsupported} — [원본 파일 선택]으로 넣어 주세요(이번만).`, 5000); return; }
+    const picked = await S.master.choose();   // 클릭 안에서 첫 await
+    if (!picked) return;
+    await checkMaster({ ask: false });
+}
+/** [이번만 파일 선택] — 기억하지 않고 이번 화면에서만 */
+async function useOnceMaster(file) {
+    newLogGroup({ kind: 'other', title: '직진 원본(이번만)' });
+    setBusy(true, '원본 확인 중…');
+    try {
+        const f = await fileOf(file);
+        const { X } = await loadLibs();
+        const idx = masterIndexOf(X, f.bytes, f.name);
+        S.zgm.once = { name: f.name, bytes: f.bytes, size: f.size };
+        logLine(`✓ '${f.name}' → 직진 원본(시즌·공장상품명) — 상품 ${fmt(idx.rows)}줄. 이번 화면에서만 씁니다(기억 안 함).`);
+        toast('원본을 넣었습니다(이번 화면에서만)');
+    } catch (e) {
+        logLine(`✗ 원본으로 쓸 수 없습니다: ${errText(e)}`);
+        toast(`원본으로 쓸 수 없습니다 — ${errText(e)}`, 6000);
+    } finally {
+        setBusy(false);
+        render();
+    }
+}
+/** 놓은 파일 중 직진 원본 → 이번 화면에서만 쓰는 원본(기억 안 함). 그 파일의 '넣지 않음' 안내는 뺀다 */
+function takeZgMaster(judged, notes, tab) {
+    if (tab !== 'zikjin') return notes;
+    const t = judged.find(f => f.kind === KIND.ZIKJIN_TEMPLATE);
+    if (!t) return notes;
+    S.zgm.once = { name: t.name, bytes: t.bytes, size: t.size };
+    const hint = S.zgm.st === 'ok' ? ' — 기억한 원본을 읽을 수 있으면 그쪽(최신)을 먼저 씁니다'
+        : (S.master && S.master.supported() ? ' — 위치를 기억하려면 원본 줄의 [원본 파일 고르기]' : '');
+    logLine(`✓ '${t.name}' → 직진 원본(시즌·공장상품명), 이번 화면에서만 씀(기억 안 함)${hint}`);
+    return notes.filter(n => !n.startsWith(`'${t.name}'`));
+}
+/**
+ * 직진 2단계 원본 고르기 — 기억한 위치(지금 읽기) → 놓은 원본(이번만) → 서식용 원본(임시) 칸 순으로,
+ *   읽지 못하거나 원본 모양이 아니면(readZikjinMaster 실패) 다음 후보. 권한 요청은 하지 않는다(run 이 먼저 permit).
+ * @returns {Promise<{ index, log: string[] } | { why: string, log: string[] }>}
+ */
+async function masterPick(f, X) {
+    const tried = [];
+    const cands = [];
+    if (S.master && S.master.remembered) cands.push('pc');
+    if (S.zgm.once) cands.push('once');
+    if (f.template) cands.push('temp');
+    for (const from of cands) {
+        let bytes, name;
+        if (from === 'pc') {
+            const r = await S.master.read({ ask: false });
+            if (!r.ok) {
+                S.zgm.st = r.state;
+                tried.push(`기억한 '${S.master.name}' — ${MASTER_STATE_TEXT[r.state] || r.state}`);
+                continue;
+            }
+            ({ bytes, name } = r);
+        } else if (from === 'once') ({ bytes, name } = S.zgm.once);
+        else ({ bytes, name } = f.template);
+        try {
+            const mlog = [];
+            const index = masterIndexOf(X, bytes, name, mlog);
+            if (from === 'pc') { S.zgm.st = 'ok'; S.zgm.err = ''; }
+            return { index, log: [...tried.map(t => `  ℹ 원본 후보 건너뜀: ${t}`), `  원본: '${name}' (${MASTER_FROM[from]})`, ...mlog] };
+        } catch (e) {
+            tried.push(`'${name}' — 원본으로 쓸 수 없음(${errText(e)})`);
+            if (from === 'pc') { S.zgm.st = 'error'; S.zgm.err = `원본으로 쓸 수 없음: ${errText(e)}`; }
+        }
+    }
+    const why = tried.length ? tried.join(' / ') : (S.master && S.master.supported() ? MASTER_STATE_TEXT.none : MASTER_STATE_TEXT.unsupported);
+    return { why, log: [`  ℹ 원본을 읽지 못해 시즌·공장상품명을 빈칸으로 만듭니다 — ${why}`] };
+}
+function bindZgMaster() {
+    $('sp-zg-master').addEventListener('click', (e) => {
+        const b = e.target.closest('button[data-zgm]');
+        if (!b || locked()) return;
+        const act = b.dataset.zgm;
+        if (act === 'pick') pickMaster();
+        else if (act === 'allow') checkMaster({ ask: true });
+        else if (act === 'once') {
+            const inp = $('sp-master-input');
+            inp.value = '';
+            inp.click();
+        } else if (act === 'clear-once') {
+            S.zgm.once = null;
+            render();
+        }
+    });
+    $('sp-master-input').addEventListener('change', (e) => {
+        const file = e.target.files && e.target.files[0];
+        if (file && !locked()) useOnceMaster(file);
+    });
 }
 
 /** 설정 창 › 기본 양식 칸(#sp-s-tmpl, 창이 열려 있을 때만) — 관리자만 올리기, 직원은 상태만 */
@@ -660,6 +843,7 @@ function render() {
     renderSlots();
     renderFold();
     renderZgTemplate();
+    renderZgMaster();
     renderOpts();
     renderTransmit();
     renderFolder();
@@ -902,6 +1086,7 @@ async function dropManyFiles(fileList) {
         // 1단계로 갈 때 같이 넣은 양식(원본)은 2단계 칸에 — '1단계에 쓰지 않습니다' 안내는 뺀다
         let rest = await takeZgTemp(judged, notes, tab, step);
         if (rest.length < notes.length) nPut++;   // 직진 원본(임시)을 2단계 칸에 넣음
+        rest = takeZgMaster(judged, rest, tab);   // 직진 원본 → 시즌 읽기(이번 화면에서만, 칸 아님 — nPut 에 안 셈)
         let nSeen = nPut;                          // '파일 n개 인식' — 다른 단계 칸에 넣은 것도 센다
         if (step === 1 && SLOTS[tab][2].template) {
             const tmplKind = SLOTS[tab][2].template;
@@ -956,6 +1141,7 @@ function codesOf(X, f) {
 }
 /** 섞인 파일 → 묶음 계획(진행 기록에 인식·건너뜀 안내) */
 async function planDrop(X, judged) {
+    takeZgMaster(judged, [], 'zikjin');   // 직진 원본을 같이 놓았으면 시즌 읽기에(이번 화면에서만)
     for (const f of judged) if (f.kind === KIND.ZIKJIN_REQUEST || f.kind === KIND.ABLY_REQUEST || f.kind === KIND.ADMIN) f.codes = codesOf(X, f);
     const pend = pendingTabs();
     const pending = {};
@@ -1029,8 +1215,8 @@ async function runQueue(plan) {
                 await put(2, 'admin', j.admin);
                 if (j.template && tab === 'ably') await put(2, 'template', j.template);
                 else if (j.template && tab === 'zikjin') {
+                    // 시즌 읽기(이번 화면에서만)는 planDrop 이 이미 맡았다 — 앱 양식을 못 쓸 때만 서식용 칸에도
                     if (zgFallback()) { S.files.zikjin[2].template = stripKind(j.template); n++; logLine(`✓ '${j.template.name}' → ${ZG_TEMP_SLOT.title}`); }
-                    else logLine(`⚠ '${j.template.name}' — ${ZIKJIN_TEMPLATE_NOTE}`);
                 }
             }
             render();
@@ -1044,6 +1230,10 @@ async function runQueue(plan) {
             S.recog = text;
             S.last = null;   // 이 묶음 결과만 보게(run 이 일찍 끝나도 앞 묶음 결과를 이 묶음 것으로 세지 않게)
             await run({ auto: true, madeOk: g.madeOk, warns: g.warns, dateWarn: g.dateWarn, queue: true });
+            if (S.runCancelWhy) {   // 확인창에서 취소 — 실패가 아니라 건너뜀
+                logLine(`  ⚠ ${label} 은 만들지 않았습니다(${S.runCancelWhy}) — 다음 묶음으로 갑니다.`);
+                return { label, tab, step, status: 'skip', why: `${S.runCancelWhy} — 만들지 않았습니다`, last: null, results: [] };
+            }
             const L = S.last;
             const ok = !!(L && !L.failed);
             return { label, tab, step, status: ok ? 'ok' : 'fail', why: '', last: L, results: S.results.slice(),
@@ -1098,7 +1288,7 @@ function bindQueue() {
             if (!x || !x.last) return;
             Q.view = Number(v.dataset.qview);
             S.last = x.last; S.results = x.results.slice();
-            S.cmp.right = S.results.map(r => ({ name: r.name, bytes: r.bytes, size: r.bytes.byteLength, from: 'web' }));
+            S.cmp.right = S.results.map(r => ({ name: r.name, bytes: r.bytes, size: r.bytes.byteLength, from: 'web', noMaster: r.noMaster }));
             $('sp-cmp-out').innerHTML = '';
             renderResults();   // 아래 파일 목록도 그 묶음 것으로
             render();
@@ -1145,6 +1335,14 @@ async function autoGate(tab, step, { put, ambiguous = null, dupes = 0, mismatch 
     if (d.action === 'none') return null;
     if (d.action === 'wait') { logLine(`  더 넣을 파일: ${missing.join(', ')}`); return null; }
     if (d.action === 'stop') { stopWhy(d.why); return null; }
+    // 직진 2단계: 기억한 원본(시즌)이 '허용 필요'면 클릭이 있어야 브라우저가 묻는다 — 저절로 시작하지 않고 [만들기]를 누르게(누르면 묻고 읽음)
+    if (tab === 'zikjin' && step === 2 && S.master && S.master.remembered) {
+        try { S.zgm.st = await S.master.state(); } catch (_) { /* 그대로 */ }
+        if (S.zgm.st === 'prompt' && !S.zgm.once && !S.files.zikjin[2].template) {
+            stopWhy('직진배송 원본(시즌)을 읽으려면 이 브라우저의 읽기 허용이 필요해');
+            return null;
+        }
+    }
     let made = null;
     try { made = findMadeAny(await madeKeyOf(tab, step, S.files[tab][step])); } catch (_) { made = null; }
     let madeOk = false;
@@ -1202,8 +1400,9 @@ async function dropLegacy(fileList) {
             nPut++;
             logLine(`✓ '${file.name}' → ${slotsOf(tab, step).find(m => m.id === slot).title}`);
         }
-        const notes = await takeZgTemp(judged, notes0, tab, step);
-        if (notes.length < notes0.length) nPut++;
+        const notes1 = await takeZgTemp(judged, notes0, tab, step);
+        if (notes1.length < notes0.length) nPut++;
+        const notes = takeZgMaster(judged, notes1, tab);   // 직진 원본 → 시즌 읽기(이번 화면에서만)
         notes.forEach(n => logLine('⚠ ' + n));
         if (notes.length) toast(notes[0], 6000);
         // 2026-11-13 개별 선택도 지금 단계 파일이 다 차면 저절로 시작(통합과 같은 표 — js/lib/ship-auto.js). 다른 쪽 파일 안내는 넣지 않은 것이라 멈추지 않는다
@@ -1497,7 +1696,7 @@ async function runCompare() {
     try {
         const { X } = await loadLibs();
         const g = (f) => ({ name: f.name, grid: gridOf(X, f.bytes) });
-        res = comparePairs(S.cmp.left.map(g), S.cmp.right.map(g));
+        res = comparePairs(S.cmp.left.map(g), S.cmp.right.map(f => ({ ...g(f), noMaster: f.noMaster })));
     } catch (e) {
         console.warn('[플랫폼 출고] 비교 실패:', (e && e.name) || 'Error');
         out.innerHTML = `<div class="pd-alert risk">읽지 못한 파일이 있습니다: ${esc(errText(e))}</div>`;
@@ -1916,7 +2115,16 @@ async function run(opts = {}) {
     let T = null;
     let mk = null;
     let act = null;   // 여러 자리 같이 보기 기록(actStart)
+    let master = null;      // 직진 2단계 원본 찾기표(readZikjinMaster) — null 이면 시즌·공장상품명 빈칸
+    let masterLog = [];
+    const zgMaster = tab === 'zikjin' && step === 2;
+    S.runCancelWhy = '';    // 확인창에서 취소해 만들지 않았으면 그 이유(섞어 올리기가 '건너뜀'으로 적는다)
     try {
+        // 직진 2단계 원본(시즌) — 권한 확인·요청만 먼저(클릭 권한 시간 안에 원본·저장 폴더 두 요청). 내용은 폴더 권한 뒤에 읽는다.
+        //   저절로 시작은 묻지 않는다(클릭이 아니라 브라우저가 거절)
+        if (zgMaster && S.master && S.master.remembered) {
+            try { S.zgm.st = await S.master.permit({ ask: !auto }); } catch (_) { /* 읽을 때 다시 본다 */ }
+        }
         // 클릭 안에서 — 폴더를 한 번 묻거나 권한을 받는다. 저절로 시작은 클릭이 아니라 묻지 못한다(물으면 브라우저가 거절하고 이 창은 다운로드로 굳는다) —
         //   묻지 않고, 폴더를 못 쓰면 save 가 다운로드로 받는다(결과 카드에 '폴더를 고르면 다음부터' 안내)
         if (!auto) { try { await S.saver.prepare(); } catch (_) { /* 못 하면 다운로드로 받는다 */ } }
@@ -1928,9 +2136,29 @@ async function run(opts = {}) {
         if (prev && !auto) {
             if (!confirm(madeConfirmText(prev, { step, transmit: transmitOn() }))) {
                 toast('다시 만들지 않았습니다.');
+                S.runCancelWhy = '같은 묶음 다시 만들기 확인창에서 취소';
                 return;
             }
             madeOk = step === 2;
+        }
+        // 원본 내용을 읽어 찾기표로(메모리에만). 못 읽으면 막지 않는다 — 시즌이 빈칸으로 만들어진다(결과 카드 경고).
+        //   [만들기]를 눌렀을 때만 확인창. 저절로 시작·섞어 올리기는 묻지 않고 진행(취소로 '실패'가 되지 않게)
+        if (zgMaster) {
+            setBusy(true, '원본 읽는 중…');
+            const { X } = await loadLibs();
+            const m = await masterPick(f, X);
+            masterLog = m.log;
+            if (m.index) master = m.index;
+            else if (!auto) {
+                renderZgMaster();
+                if (!confirm(`⚠ 직진배송 원본(직진배송출고ver.5)을 읽지 못했습니다 — ${m.why}.\n\n`
+                    + '시즌·공장상품명이 빈칸으로 만들어집니다 — 원본을 고르세요(화면의 \'원본\' 줄 단추).\n\n'
+                    + '확인 = 그래도 시즌 빈칸으로 만들기\n취소 = 만들지 않기')) {
+                    toast('만들지 않았습니다 — 원본을 고른 뒤 다시 [만들기]를 눌러 주세요.', 6000);
+                    S.runCancelWhy = '직진배송 원본을 읽지 못해 확인창에서 취소';
+                    return;
+                }
+            }
         }
         act = actStart({ tab, step, pkg: step === 2 ? base : '', k: mk || '' });   // 확인창을 지난 뒤에만(취소하면 기록 없음)
         setBusy(true, '라이브러리 불러오는 중…');
@@ -1986,8 +2214,9 @@ async function run(opts = {}) {
             await tick();
             const r = zikjinStep2({
                 admin, request, requestName: f.request.name,
-                packageBase: base, packageLimit: limit, specialRules: S.settings.specialRules, now,
+                packageBase: base, packageLimit: limit, specialRules: S.settings.specialRules, master, now,
             });
+            masterLog.forEach(logLine);
             r.log.forEach(logLine);
             setBusy(true, '출고리스트 쓰는 중…');
             setPhase('저장 중');
@@ -2043,7 +2272,10 @@ async function run(opts = {}) {
             S.last = { tab, step, failed: false, transmit: T, warns: [...S.runWarns], summary, auto, saveNote: saveNoteOf(S.runSaves), dateWarn: auto ? (opts.dateWarn || '') : '' };
             if (mk) saveMade(mk, tab, step);   // 성공했을 때만 기록
             if (step === 2) S.session[tab].step2For = f.admin;
-            S.cmp.right = S.results.map(x => ({ name: x.name, bytes: x.bytes, size: x.bytes.byteLength, from: 'web' }));
+            // [exe 결과와 비교하기] — 원본을 읽고 만들었으면 시즌·공장상품명 빈칸을 의도된 차이로 보지 않는다(ship-compare NO_MASTER)
+            const noMaster = tab === 'zikjin' && step === 2 ? !master : undefined;
+            S.results.forEach(x => { x.noMaster = noMaster; });
+            S.cmp.right = S.results.map(x => ({ name: x.name, bytes: x.bytes, size: x.bytes.byteLength, from: 'web', noMaster: x.noMaster }));
             $('sp-cmp-out').innerHTML = '';
         }
         S.runLog = null;
@@ -2152,6 +2384,9 @@ async function restoreFromPc() {
     }
     S.saver = createSaver({ win: window, remember: S.store, key: KEY_OUT_DIR });
     await S.saver.restore();
+    // 직진 원본(시즌) 위치 기억 — 핸들만(내용 없음). 저장소가 없어도 이번 창에서는 고를 수 있다
+    S.master = createMasterFile({ win: window, remember: S.store, key: KEY_MASTER });
+    try { S.zgm.st = await S.master.state(); } catch (_) { S.zgm.st = 'error'; }
     if (!S.store) return;
     // 옛 방식(2026-11-10~12)이 이 PC 에 기억해 둔 직진배송출고리스트 원본 — 앱 양식을 쓸 수 있으면 지운다(상품 자료가 PC 에 남지 않게).
     //   앱 양식 준비 중(임시 길)이면 지우지 않고 원본(임시) 칸에 넣어 준다(새로 기억하지는 않는다). 그래서 refreshZgTemplate 뒤에 부른다.
@@ -2212,6 +2447,7 @@ async function start(user) {
     bindResults();
     bindBatches();
     bindCompare();
+    bindZgMaster();
     render();
 }
 

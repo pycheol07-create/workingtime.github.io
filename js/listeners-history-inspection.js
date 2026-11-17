@@ -1,26 +1,26 @@
 // === js/listeners-history-inspection.js ===
-import * as DOM from './dom-elements.js?v=202611171632';
-import * as State from './state.js?v=202611171632';
-import { showToast, getTodayDateString, showConfirm } from './utils.js?v=202611171632';
-import { dayInspItems } from './lib/insp-day.js?v=202611171632';
-import { TASK, tName } from './task-names.js?v=202611171632';
+import * as DOM from './dom-elements.js?v=202611171714';
+import * as State from './state.js?v=202611171714';
+import { showToast, getTodayDateString, showConfirm } from './utils.js?v=202611171714';
+import { dayInspItems } from './lib/insp-day.js?v=202611171714';
+import { TASK, tName } from './task-names.js?v=202611171714';
 
 import { 
     renderInspectionHistoryTable, 
     renderInspectionLayout,
     renderInspectionListMode
-} from './ui-history.js?v=202611171632'; 
-import { clearInspResultCache, seedInspResultCache, fetchTotalInspLogs, totalInspLogsTruncated, TOTAL_LOG_LIMIT } from './ui-history-inspection.js?v=202611171632';   // 정상여부 캐시 · 전량 기록
-import { mergeIntoProductHistory, totalHistoryLogsOf, bulkSummary, bulkMessage } from './lib/total-insp.js?v=202611171632';
-import { editTotalLog, deleteTotalLog, listDayLogs, listProductLogs, deleteTotalDay, deleteTotalProduct, askTotalLogEdit } from './total-insp-edit.js?v=202611171632';
-import { historyRangeStart } from './lib/history-window.js?v=202611171632';
+} from './ui-history.js?v=202611171714'; 
+import { clearInspResultCache, seedInspResultCache, fetchTotalInspLogs, totalInspLogsTruncated, TOTAL_LOG_LIMIT } from './ui-history-inspection.js?v=202611171714';   // 정상여부 캐시 · 전량 기록
+import { mergeIntoProductHistory, totalHistoryLogsOf, bulkSummary, bulkMessage } from './lib/total-insp.js?v=202611171714';
+import { editTotalLog, deleteTotalLog, listDayLogs, listProductLogs, deleteTotalDay, deleteTotalProduct, askTotalLogEdit, fetchAccDocs, removeOrRevertOne, setAccStatus, deleteAccDocIfEmpty } from './total-insp-edit.js?v=202611171714';
+import { historyRangeStart } from './lib/history-window.js?v=202611171714';
 
 import { 
     setSortState, 
     renderQCStatsMode, 
     currentInspTypeFilter, 
     setInspTypeFilter 
-} from './ui-history-inspection.js?v=202611171632';
+} from './ui-history-inspection.js?v=202611171714';
 
 import {
     loadInspectionLogs,
@@ -32,7 +32,7 @@ import {
     savePreInspectionNote,
     handleManualImageSelect, 
     clearManualImageState    
-} from './inspection-logic.js?v=202611171632';
+} from './inspection-logic.js?v=202611171714';
 
 import { collection, getDocs, doc, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
@@ -44,10 +44,11 @@ document.addEventListener('product-history-changed', () => { cachedInspectionDat
 // 전량검수 기록(total_inspection_logs, 2026-11-17) — 보기 기간 시작일(이력과 같은 13개월 + 이번 달) 이후를 탭에 들어올 때·[새로고침] 때 한 번 읽는다.
 //   null = 아직 못 읽음(실패 포함 — 전량 없이 보이고 경고만). 상품별·품질 통계는 product_history 복사본에 합쳐 보인다(문서에는 쓰지 않는다).
 let cachedTotalLogs = null;
+let cachedAccDocs = null;     // 전량검수 진행 문서(상품별 보기 진행 문서 줄 — 기록이 없어도 진행 문서가 있으면 보인다)
 let mergedView = null;        // mergeIntoProductHistory 결과 — 두 캐시가 바뀔 때만 다시 만든다
 const productView = () => {
     if (!Array.isArray(cachedInspectionData)) return cachedInspectionData;
-    if (!mergedView) mergedView = mergeIntoProductHistory(cachedInspectionData, cachedTotalLogs || []);
+    if (!mergedView) mergedView = mergeIntoProductHistory(cachedInspectionData, cachedTotalLogs || [], cachedAccDocs || []);
     return mergedView;
 };
 async function loadTotalLogs(force) {
@@ -55,6 +56,8 @@ async function loadTotalLogs(force) {
     try {
         cachedTotalLogs = await fetchTotalInspLogs(historyRangeStart(getTodayDateString(), 13), { force: !!force });
         if (totalInspLogsTruncated()) showToast(`전량검수 기록이 많아 최근 ${TOTAL_LOG_LIMIT}건만 보입니다.`, true);
+        try { cachedAccDocs = await fetchAccDocs({ force: !!force }); }
+        catch (e2) { console.warn('전량검수 진행 문서 읽기 실패:', e2 && e2.code ? e2.code : e2); cachedAccDocs = null; }
     } catch (e) {
         console.warn('전량검수 기록 읽기 실패 — 전량 없이 보입니다:', e && e.code ? e.code : e);
         cachedTotalLogs = null;
@@ -182,7 +185,8 @@ async function handleTotalLogClick(e) {
     const delBtn = t.closest('[data-tl-del]');
     const dayBtn = t.closest('[data-tl-day-del]');
     const prodBtn = t.closest('[data-tl-prod-del]');
-    if (!editBtn && !delBtn && !dayBtn && !prodBtn) return false;
+    const accBtn = t.closest('[data-ta-revert],[data-ta-done],[data-ta-reopen],[data-ta-del]');
+    if (!editBtn && !delBtn && !dayBtn && !prodBtn && !accBtn) return false;
     e.stopPropagation();
     if (e.__totalLogHandled) return true;   // 같은 클릭이 두 번 들어와도(리스너가 겹쳐 붙은 경우) 한 번만
     e.__totalLogHandled = true;
@@ -190,6 +194,35 @@ async function handleTotalLogClick(e) {
     totalBusy = true;
     let needRefresh = false;
     try {
+        if (accBtn) {   // 진행 문서 줄(상품별 보기) — 회차 되돌리기·완료로·다시 진행·진행 문서 삭제
+            const d = accBtn.dataset;
+            const key = d.taRevert || d.taDone || d.taReopen || d.taDel;
+            const a = (cachedAccDocs || []).find(x => x.id === key) || {};
+            const nm = `${a.name || ''}${a.option ? ` / ${a.option}` : ''}`;
+            let r;
+            if (d.taRevert) {
+                const ok = await showConfirm(`${nm}\n${Math.max(1, Number(a.round) || 1)}회차(기록 없음)를 지우고 직전 회차 완료 상태로 되돌립니다.\n직전 회차 기록을 합쳐 누적·검수수량·종료일을 되살립니다.`,
+                    { title: '회차 되돌리기', okText: '되돌리기', cancelText: '취소' });
+                if (!ok) return true;
+                r = await removeOrRevertOne(key, { mode: 'revert' });
+                if (r.ok) showToast('직전 회차 완료 상태로 되돌렸습니다.');
+            } else if (d.taDel) {
+                const ok = await showConfirm(`${nm}\n기록이 없는 진행 문서를 지웁니다.`, { title: '진행 문서 삭제', okText: '삭제', cancelText: '취소', danger: true });
+                if (!ok) return true;
+                r = await deleteAccDocIfEmpty(key);
+                if (r.ok) showToast(r.gone ? '이미 지워진 진행 문서입니다.' : '진행 문서를 지웠습니다.');
+            } else {
+                const toDone = !!d.taDone;
+                const ok = await showConfirm(`${nm}\n${toDone ? '완료로 바꿉니다(종료일 = 오늘).' : '다시 진행으로 바꿉니다(종료일을 비움).'}`,
+                    { title: toDone ? '완료로' : '다시 진행', okText: toDone ? '완료로' : '다시 진행', cancelText: '취소' });
+                if (!ok) return true;
+                r = await setAccStatus(key, toDone ? 'done' : 'reopen');
+                if (r.ok) showToast(toDone ? '완료로 바꿨습니다.' : '다시 진행으로 바꿨습니다.');
+            }
+            if (!r.ok) showToast(r.message, true);
+            needRefresh = true;
+            return true;
+        }
         if (editBtn) {
             const id = editBtn.dataset.tlEdit;
             const log = (cachedTotalLogs || []).find(l => (l.id || l.saveId) === id);

@@ -3,6 +3,7 @@
 //   결과 저장 폴더 핸들(js/lib/save-file.js)을 둔다(폴더를 한 번만 고르게).
 //   KEY_TEMPLATE: 옛 '직진배송출고리스트 원본 PC 기억'(2026-11-10~11-12) 자리 — 원본을 없앤 뒤(2026-11-12) 새로 쓰지 않는다.
 //     화면이 열릴 때 앱 양식(Storage)을 쓸 수 있으면 지우고, 아직 못 쓰면(저장소 규칙 게시 전 임시 길) 원본(임시) 칸에 넣어 준다(js/ship.js restoreFromPc).
+//   'zikjinMasterHandle'(2026-11-17, js/lib/ship-master-file.js KEY_MASTER): 직진 원본(시즌) 파일 핸들·이름·마지막으로 읽은 시각만 — 파일 내용은 두지 않는다.
 //   다른 화면의 IndexedDB(상품 관리 등)와 이름을 나눠 쓴다.
 // indexedDB 는 넘겨받을 수 있다(시험). 기본은 globalThis.indexedDB. 테스트: tests/ship-file-store.test.js(이름·설명) · tools/ship-check.py(실제 브라우저)
 

@@ -11,15 +11,16 @@
 //     상품 삭제의 누적 문서는 목록을 읽은 뒤 lastUpdated 가 바뀌었으면(그사이 저장됨) 지우지 않는다(리뷰 3).
 //   권한은 데이터관리 화면 그대로(규칙: artifacts/{colId} 직원 쓰기). 순수 규칙은 js/lib/total-insp.js.
 // ⚠️ history.html 에 붙는다 — role="dialog"·data-act·end-shift-* 를 쓰지 않는다. 고객 이름·연락처·주문번호를 적을 칸을 만들지 않는다(사유는 안내 표시).
-import * as State from './state.js?v=202611171632';
-import { getTodayDateString, escapeHtml } from './utils.js?v=202611171632';
+import * as State from './state.js?v=202611171714';
+import { getTodayDateString, escapeHtml } from './utils.js?v=202611171714';
 import {
-    doc, getDoc, collection, query, where, getDocs, runTransaction, serverTimestamp
+    doc, getDoc, collection, query, where, getDocs, runTransaction, serverTimestamp, limit as fsLimit
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { TASK, tName } from './task-names.js?v=202611171632';
+import { TASK, tName } from './task-names.js?v=202611171714';
 import {
-    editLogPlan, deleteLogsPlan, clampQty, chunkByKey, nameKey, ymd, bulkSummary, qtyGroups, laterLogsPatch, accChangedSince
-} from './lib/total-insp.js?v=202611171632';
+    editLogPlan, deleteLogsPlan, clampQty, chunkByKey, nameKey, ymd, bulkSummary, qtyGroups, laterLogsPatch, accChangedSince,
+    removePlan, revertCheck, markDone, markReopen
+} from './lib/total-insp.js?v=202611171714';
 
 const APP = ['artifacts', 'team-work-logger-v2'];
 const CHUNK = 150;
@@ -292,4 +293,82 @@ export function askTotalLogEdit(log) {
         const n = root.querySelector('#total-log-edit-normal');
         if (n) n.focus();
     });
+}
+
+// ── 진행 문서(total_inspections_accumulated) 한 건 — 회차 되돌리기·목록에서 내리기·완료로/다시 진행·진행 문서 삭제(2026-11-17) ──
+//   전량검수 창 [×]·[목록 비우기](js/total-inspection-logic.js)와 데이터관리 상품별 보기의 진행 문서 줄이 같이 쓴다.
+//   기록은 트랜잭션 전에 key 로 조회해 id 를 모으고, 트랜잭션 안에서 tx.get 으로 다시 읽는다(읽기 → 쓰기).
+
+/** 그 진행 문서(key)의 전량 기록 전부(서버에서). */
+export async function listKeyLogs(key) {
+    const qs = await getDocs(query(logsCol(), where('key', '==', String(key))));
+    const out = [];
+    qs.forEach(d => out.push({ id: d.id, ...d.data() }));
+    return out;
+}
+
+/** 한 건 처리 — mode 'remove'(전량검수 창 [×]: 삭제 / 직전 회차로 되돌림 / 완료(중단)) · 'revert'(되돌리기만, 대상이 아니면 막음).
+ *  logIds 를 주면 그 기록들을(트랜잭션 안에서 다시 읽어) 직전 회차 판정에 쓴다. 안 주면 여기서 조회.
+ *  @returns {{ ok: true, action: 'delete'|'stop'|'revert'|'skip' } | { ok: false, message }} */
+export async function removeOrRevertOne(key, { mode = 'remove', logIds = null } = {}) {
+    const ids = Array.isArray(logIds) ? logIds : (await listKeyLogs(key)).map(l => l.id);
+    const by = me(), now = new Date().toISOString(), date = getTodayDateString();
+    return runTransaction(State.db, async (tx) => {
+        const sn = await tx.get(accRef(key));
+        if (!sn.exists()) return { ok: false, message: '진행 문서가 없습니다(이미 지워졌을 수 있습니다).' };
+        const cur = { ...sn.data(), key };
+        const ls = await Promise.all(ids.map(id => tx.get(logRef(id))));
+        const logs = [];
+        ls.forEach((x, i) => { if (x.exists()) logs.push({ id: ids[i], ...x.data() }); });
+        if (mode === 'revert') {
+            const rc = revertCheck(cur, logs);
+            if (!rc.ok) return { ok: false, message: rc.message };
+            tx.update(accRef(key), { ...rc.patch, lastUpdated: serverTimestamp() });
+            return { ok: true, action: 'revert' };
+        }
+        const p = removePlan(cur, { by, now, date }, logs);
+        if (p.action === 'blocked') return { ok: false, action: 'blocked', message: p.message };   // 아무것도 안 바꾼다
+        if (p.action === 'delete') tx.delete(accRef(key));
+        else if (p.action === 'stop' || p.action === 'revert') tx.update(accRef(key), { ...p.patch, lastUpdated: serverTimestamp() });
+        return { ok: true, action: p.action };
+    });
+}
+
+/** [완료로]·[다시 진행] — 서버 값으로 다시 판정. */
+export async function setAccStatus(key, to) {
+    const by = me(), now = new Date().toISOString(), date = getTodayDateString();
+    return runTransaction(State.db, async (tx) => {
+        const sn = await tx.get(accRef(key));
+        if (!sn.exists()) return { ok: false, message: '진행 문서가 없습니다(이미 지워졌을 수 있습니다).' };
+        const m = to === 'done' ? markDone(sn.data(), { by, now, date }) : markReopen(sn.data());
+        if (!m.ok) return m;
+        tx.update(accRef(key), { ...m.patch, lastUpdated: serverTimestamp() });
+        return { ok: true };
+    });
+}
+
+/** [진행 문서 삭제] — 그 key 의 기록이 하나도 없고 누적도 0 일 때만(서버 값, 리뷰 2). 기록이 있으면 [전량검수 기록 삭제] 안내. */
+export async function deleteAccDocIfEmpty(key) {
+    const logs = await listKeyLogs(key);
+    if (logs.length) return { ok: false, message: `이 진행 문서에는 전량검수 기록 ${logs.length}건이 있습니다 — 상품의 [전량검수 기록 삭제]를 쓰세요.` };
+    return runTransaction(State.db, async (tx) => {
+        const sn = await tx.get(accRef(key));
+        if (!sn.exists()) return { ok: true, gone: true };
+        const acc = Number((sn.data() || {}).accumulatedTotal) || 0;
+        if (acc !== 0) return { ok: false, message: `누적이 ${acc}개 남아 있어 지울 수 없습니다 — [완료로]를 쓰거나 관리자에게 알려 주세요.` };
+        tx.delete(accRef(key));
+        return { ok: true };
+    });
+}
+
+/** 데이터관리 상품별 보기 — 진행 문서 전부(최대 ACC_LIMIT). 이름·옵션·회차·상태·누적·검수수량·검수일자만 화면에 쓴다(공급처 이름 칸 없음). */
+const ACC_LIMIT = 3000;
+let accCache = null;
+export async function fetchAccDocs({ force = false } = {}) {
+    if (!force && Array.isArray(accCache)) return accCache;
+    const qs = await getDocs(query(accCol(), fsLimit(ACC_LIMIT)));
+    const out = [];
+    qs.forEach(d => out.push({ id: d.id, ...d.data() }));
+    accCache = out;
+    return out;
 }

@@ -12,20 +12,21 @@
 //   · [완료 처리]·[다시 진행]·[목록에서 빼기](누적 0 인 줄만).
 // 순수 규칙은 js/lib/total-insp.js. 공급처는 코드만(supplierCode) — 이름 칸은 쓰지 않는다(CLAUDE.md 3절).
 // ⚠️ 이 창은 index.html·history.html 에 붙는다 — role="dialog"·data-act·end-shift-* 를 쓰지 않는다(업무마감봇 선택자).
-import * as DOM from './dom-elements.js?v=202611171632';
-import * as State from './state.js?v=202611171632';
-import { showToast, getTodayDateString, getCurrentTime, escapeHtml, showConfirm } from './utils.js?v=202611171632';
+import * as DOM from './dom-elements.js?v=202611171714';
+import * as State from './state.js?v=202611171714';
+import { showToast, getTodayDateString, getCurrentTime, escapeHtml, showConfirm } from './utils.js?v=202611171714';
 import {
-    doc, collection, query, where, limit as fsLimit, onSnapshot, runTransaction, serverTimestamp, increment, deleteField
+    doc, getDoc, collection, query, where, limit as fsLimit, onSnapshot, runTransaction, serverTimestamp, increment, deleteField
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { TASK, tName } from './task-names.js?v=202611171632';
-import { openManualAdd } from './inspection-manual.js?v=202611171632';
-import { S as PS, loadLoc, locOf, fmtDateTime, tsMs } from './products-store.js?v=202611171632';   // [재고 연동] — 위치·재고 요약(ProductLoc, IndexedDB 캐시 같이 씀)
-import { getCurrentInspItem } from './inspection-logic.js?v=202611171632';
+import { TASK, tName } from './task-names.js?v=202611171714';
+import { openManualAdd } from './inspection-manual.js?v=202611171714';
+import { S as PS, loadLoc, locOf, fmtDateTime, tsMs } from './products-store.js?v=202611171714';   // [재고 연동] — 위치·재고 요약(ProductLoc, IndexedDB 캐시 같이 씀)
+import { getCurrentInspItem } from './inspection-logic.js?v=202611171714';
+import { listKeyLogs, removeOrRevertOne } from './total-insp-edit.js?v=202611171714';   // 잘못 연 회차 되돌리기(직전 회차 기록 합산)
 import {
-    ON, DONE, totalKey, startOrReopen, applySave, applyInfoSave, isInfoOnly, periodLabel, ymd, markDone, markReopen, progressOf, todayQtyOf,
+    ON, DONE, canRevertRound, reopenConfirmText, isDoneToday, totalKey, startOrReopen, applySave, applyInfoSave, isInfoOnly, periodLabel, ymd, markDone, markReopen, progressOf, todayQtyOf,
     sortList, nextOnKey, filterRows, exactRow, logOf, fromSampleItem, stockFromLoc, infoChangedLabels, stockBasisText, removePlan, removeCounts, removeMessage
-} from './lib/total-insp.js?v=202611171632';
+} from './lib/total-insp.js?v=202611171714';
 
 const APP = ['artifacts', 'team-work-logger-v2'];
 const COL = 'total_inspections_accumulated';
@@ -35,6 +36,9 @@ const SAVE_LABEL = '저장';   // 오늘 수량이 있든 없든 같은 글자(2
 
 let rowsOn = [];             // 진행중 문서 [{ id, ...data }]
 let rowsDone = [];           // [완료 보기]를 켠 동안의 완료 문서
+let rowsToday = [];          // 오늘 완료된 문서 — 목록 맨 아래에 흐리게 남긴다(다음 날부터는 [완료 보기]에서만, 2026-11-17)
+let unsubToday = null;
+let todayKey = '';           // 구독한 날짜(자정을 넘기면 다시 구독)
 let loadedOn = false;
 let listError = '';
 let showDone = false;
@@ -66,8 +70,14 @@ const num = (el) => {
 const isTouch = () => typeof matchMedia === 'function' && matchMedia('(max-width:768px), (pointer:coarse)').matches;
 const failMsg = (e, fallback) => (e && e.code === 'permission-denied' ? '권한이 없습니다.' : fallback);
 
-const allRows = () => sortList([...rowsOn, ...(showDone ? rowsDone : [])]);
-const rowById = (id) => (id ? (rowsOn.find(r => r.id === id) || rowsDone.find(r => r.id === id) || null) : null);
+/** 화면 목록 — 진행중 + 오늘 완료(+ [완료 보기]면 완료 전부). 같은 문서는 한 번(진행중 > 오늘 완료 > 완료 순). */
+const mergeRows = (...lists) => {
+    const seen = new Set();
+    return lists.flat().filter(r => r && !seen.has(r.id) && seen.add(r.id));
+};
+const todayDone = () => rowsToday.filter(r => isDoneToday(r, getTodayDateString()));   // 자정이 지나면 화면에서 빠진다
+const allRows = () => sortList(mergeRows(rowsOn, todayDone(), showDone ? rowsDone : []));
+const rowById = (id) => (id ? (rowsOn.find(r => r.id === id) || rowsToday.find(r => r.id === id) || rowsDone.find(r => r.id === id) || null) : null);
 const isModalOpen = () => !!(DOM.totalInspModal && !DOM.totalInspModal.classList.contains('hidden'));
 
 // ── 구독 ─────────────────────────────────────────────────────────────
@@ -89,6 +99,32 @@ function subscribeOn() {
     });
 }
 
+/** 오늘 완료된 문서 — status 완료 && endDate 오늘(같음 조건 둘 — 단일 필드 색인으로 된다). 창이 열린 동안만. */
+function subscribeToday() {
+    const today = getTodayDateString();
+    if (unsubToday && todayKey === today) return;
+    if (unsubToday) { unsubToday(); unsubToday = null; }
+    if (!State.db) return;
+    todayKey = today;
+    unsubToday = onSnapshot(query(colRef(), where('status', '==', DONE), where('endDate', '==', today)), (snap) => {
+        rowsToday = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        afterRowsChanged();
+    }, (err) => {
+        console.warn('[전량검수] 오늘 완료 읽기 실패(목록에서 바로 빠집니다):', err && err.code ? err.code : err);
+        rowsToday = [];
+        unsubToday = null;
+        afterRowsChanged();
+    });
+    // 날짜가 바뀌면(창을 연 채 자정을 넘김) 오늘 완료 구독을 다시 — 1분마다 확인, 창이 닫히면 멈춘다(리뷰 5)
+    if (!todayTimer) {
+        todayTimer = setInterval(() => {
+            if (!isModalOpen()) return;
+            if (getTodayDateString() !== todayKey) { subscribeToday(); afterRowsChanged(); }
+        }, 60 * 1000);
+    }
+}
+let todayTimer = null;
+
 function subscribeDone() {
     if (unsubDone || !State.db) return;
     unsubDone = onSnapshot(query(colRef(), where('status', '==', DONE), fsLimit(DONE_LIMIT)), (snap) => {
@@ -108,6 +144,10 @@ function unsubscribeDone() {
 
 function unsubscribeAll() {
     if (unsubOn) { unsubOn(); unsubOn = null; }
+    if (unsubToday) { unsubToday(); unsubToday = null; }
+    if (todayTimer) { clearInterval(todayTimer); todayTimer = null; }
+    rowsToday = [];
+    todayKey = '';
     unsubscribeDone();
     rowsOn = [];
     loadedOn = false;
@@ -174,7 +214,7 @@ function rowHtml(r, today) {
         ? `<span class="font-bold text-gray-800">${escapeHtml(p.acc.toLocaleString())} / ${escapeHtml(p.total.toLocaleString())}</span> <span class="text-gray-500">(${escapeHtml(p.pct)}%)</span>`
         : `<span class="font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded px-1.5">검수수량 미입력</span>`;
     const tags = [
-        done ? `<span class="text-[11px] font-bold bg-sky-100 text-sky-800 rounded px-1.5 py-0.5">${r.stopped ? '완료(중단)' : '완료'}</span>` : '',
+        done ? `<span class="text-[11px] font-bold bg-sky-100 text-sky-800 rounded px-1.5 py-0.5">${r.stopped ? '완료(중단)' : '완료 ✓'}${ymd(r.endDate) ? ` (${escapeHtml(r.endDate)})` : ''}</span>` : '',
         Number(r.round) > 1 ? `<span class="text-[11px] font-bold bg-purple-50 text-purple-800 border border-purple-200 rounded px-1.5 py-0.5">${escapeHtml(r.round)}회차</span>` : '',
         r.origin === 'sample' ? '<span class="text-[11px] font-bold bg-gray-100 text-gray-600 rounded px-1.5 py-0.5">샘플에서</span>' : '',
         tq > 0 ? `<span class="text-[11px] font-bold bg-green-50 text-green-800 border border-green-200 rounded px-1.5 py-0.5">오늘 ${escapeHtml(tq.toLocaleString())}개</span>` : '',
@@ -320,6 +360,7 @@ export function openTotalInspection({ selectId = '' } = {}) {
     watchModal();
     DOM.totalInspModal.classList.remove('hidden');
     subscribeOn();
+    subscribeToday();
     if (selectId) {
         if (rowById(selectId)) selectRow(selectId); else pendingSelect = selectId;
     }
@@ -340,11 +381,34 @@ async function addItems(items, { reason = '', stay = false, label = '' } = {}) {
     const list = (Array.isArray(items) ? items : []).map(it => ({ it, id: it ? totalKey(it.name, it.option) : '' }))
         .filter(x => x.id && !seen.has(x.id) && seen.add(x.id));
     if (!list.length) throw Object.assign(new Error('넣을 상품 없음'), { userMessage: '넣을 상품이 없습니다.' });
+    // 완료된 상품을 다시 넣으면 새 회차가 된다 — 먼저 묻는다(2026-11-17 사용자 신고: 모르고 다시 넣어 2회차가 됨).
+    //   연속 스캔(stay)에는 확인창을 띄우지 않고 넣지 않는다(토스트). 확인한 것만 트랜잭션에서 새 회차로 연다.
+    const pre = await Promise.all(list.map(x => getDoc(docRef(x.id)).then(sn => (sn.exists() ? sn.data() : null)).catch(() => null)));
+    const doneIdx = pre.map((c, i) => (c && c.status === DONE ? i : -1)).filter(i => i >= 0);
+    const allowReopen = new Set();
+    if (doneIdx.length) {
+        if (stay) {
+            const c = pre[doneIdx[0]];
+            const msg = `이미 ${Math.max(1, Number(c.round) || 1)}회차가 완료된 상품 — ${label || '이 상품'}. 새 회차는 [찾아서 추가]에서 다시 골라 확인하세요.`;
+            showToast(msg, true);
+            if (doneIdx.length === list.length) return () => msg;
+        } else {
+            const text = doneIdx.length === 1
+                ? `${list[doneIdx[0]].it.name}${list[doneIdx[0]].it.option ? ` / ${list[doneIdx[0]].it.option}` : ''}\n${reopenConfirmText(pre[doneIdx[0]])}`
+                : `완료된 상품 ${doneIdx.length}개가 있습니다.\n${doneIdx.slice(0, 5).map(i => `· ${list[i].it.name}${list[i].it.option ? ` / ${list[i].it.option}` : ''} (${Math.max(1, Number(pre[i].round) || 1)}회차 완료)`).join('\n')}\n모두 새 회차로 다시 시작할까요?`;
+            const ok = await showConfirm(text, { title: '완료된 상품', okText: '새 회차 시작', cancelText: '취소' });
+            if (ok) doneIdx.forEach(i => allowReopen.add(list[i].id));
+            else if (doneIdx.length === list.length) return () => { showToast('넣지 않았습니다.'); return '넣지 않았습니다.'; };
+        }
+    }
     const by = me(), now = nowIso();
     const res = await runTransaction(State.db, async (tx) => {
         const snaps = await Promise.all(list.map(x => tx.get(docRef(x.id))));
         return snaps.map((sn, i) => {
-            const d = startOrReopen(sn.exists() ? sn.data() : null, list[i].it, { reason, by, now, today: getTodayDateString() });
+            const cur = sn.exists() ? sn.data() : null;
+            // 확인 안 한 완료 상품(취소·연속 스캔, 또는 그사이 다른 기기에서 완료됨)은 새 회차로 열지 않는다
+            if (cur && cur.status === DONE && !allowReopen.has(list[i].id)) return { id: list[i].id, action: 'keptDone' };
+            const d = startOrReopen(cur, list[i].it, { reason, by, now, today: getTodayDateString() });
             if (d.doc) {
                 const val = { ...d.doc, lastUpdated: serverTimestamp() };
                 if (d.dropSupplier) val.supplier = deleteField();   // 옛 문서의 공급처 이름 칸은 지운다(코드만 남김)
@@ -360,6 +424,7 @@ async function addItems(items, { reason = '', stay = false, label = '' } = {}) {
             const msg = a === 'create' ? `${label} 추가됨`
                 : a === 'reopen' ? `완료였던 ${label} 새 회차로 추가됨`
                 : a === 'conflict' ? `같은 목록 키의 다른 상품(옵션 표기 차이 등)이 있어 못 넣음 — ${label}`
+                : a === 'keptDone' ? `이미 완료된 상품이라 넣지 않음 — ${label}`
                 : `이미 진행 중 — ${label}`;
             showToast(msg, a === 'conflict');
             return msg;
@@ -370,8 +435,9 @@ async function addItems(items, { reason = '', stay = false, label = '' } = {}) {
         if (n('reopen')) parts.push(`완료였던 ${n('reopen')}개 새 회차로`);
         if (n('open') + n('upgrade')) parts.push(`이미 진행 중 ${n('open') + n('upgrade')}개`);
         if (n('conflict')) parts.push(`같은 목록 키의 다른 상품(옵션 표기 차이 등)이 있어 못 넣음 ${n('conflict')}개`);
+        if (n('keptDone')) parts.push(`완료 상품 ${n('keptDone')}개는 넣지 않음`);
         showToast(parts.join(' · ') || '진행 목록에 넣었습니다.', n('conflict') > 0 && n('conflict') === res.length);
-        const first = res.find(r => r.action !== 'conflict');
+        const first = res.find(r => r.action !== 'conflict' && r.action !== 'keptDone');
         openTotalInspection({ selectId: first ? first.id : '' });
     };
 }
@@ -608,21 +674,41 @@ const REMOVE_CHUNK = 100;
 async function removeRows(ids, { all = false } = {}) {
     if (acting || saving) return;
     const rows = ids.map(rowById).filter(Boolean);
-    const c = removeCounts(rows);
-    if (!c.del && !c.stop) { showToast('내릴 진행 줄이 없습니다.', true); return; }
+    // 2회차↑·누적 0 인 줄 — 그 상품 기록을 먼저 모아 직전 회차가 있는지 본다(확인창 숫자용, 실제 판정은 트랜잭션 안에서 다시)
+    const prevByKey = {};
+    for (const r of rows.filter(x => x.status !== DONE && canRevertRound(x))) {
+        try { prevByKey[r.id] = await listKeyLogs(r.id); } catch (e) { prevByKey[r.id] = []; }
+    }
+    const c = removeCounts(rows, prevByKey);
+    if (!c.del && !c.stop && !c.revert) {
+        showToast(c.blocked ? removeMessage({ blocked: c.blocked }) : '내릴 진행 줄이 없습니다.', true);
+        return;
+    }
     const one = rows.length === 1 ? rows[0] : null;
     const head = one ? `'${one.name}${one.option ? ` / ${one.option}` : ''}' — ` : `진행 목록 ${rows.length}건 — `;
-    const ok = await showConfirm(`${head}${removeMessage(c)}.\n기록이 있는 줄은 완료 목록([완료 보기])에 남습니다.`,
+    const ok = await showConfirm(`${head}${removeMessage(c)}.\n기록이 있는 줄은 완료 목록([완료 보기])에 남습니다.${c.revert ? '\n되돌린 줄은 직전 회차의 누적·검수수량·종료일로 돌아갑니다.' : ''}`,
         { title: all ? '목록 비우기' : '목록에서 내리기', okText: all ? '비우기' : '내리기', cancelText: '취소', danger: true });
     if (!ok) return;
     acting = true;
     renderList();
     renderSelected(false);
-    const done = { del: 0, stop: 0, skip: 0 };
+    const done = { del: 0, stop: 0, revert: 0, blocked: 0, failed: 0, skip: 0 };
     let failed = false;
     try {
         const by = me(), now = nowIso();
-        const list = rows.map(r => r.id);
+        // 되돌리기 후보는 한 건씩(직전 회차 기록을 트랜잭션 안에서 다시 읽는다 — js/total-insp-edit.js)
+        for (const id of Object.keys(prevByKey)) {
+            try {   // 건별로 — 한 건이 실패해도 나머지는 처리하고 실패 건수를 알린다(리뷰 4)
+                const r = await removeOrRevertOne(id, { mode: 'remove', logIds: prevByKey[id].map(l => l.id) });
+                const a = r.ok ? r.action : (r.action === 'blocked' ? 'blocked' : 'skip');
+                if (a === 'delete') done.del++; else if (a === 'stop') done.stop++; else if (a === 'revert') done.revert++;
+                else if (a === 'blocked') done.blocked++; else done.skip++;
+            } catch (e) {
+                console.error('[전량검수] 되돌리기 실패:', e && e.code ? e.code : e);
+                done.failed++;
+            }
+        }
+        const list = rows.map(r => r.id).filter(id => !(id in prevByKey));
         for (let i = 0; i < list.length; i += REMOVE_CHUNK) {
             const part = list.slice(i, i + REMOVE_CHUNK);
             const res = await runTransaction(State.db, async (tx) => {
@@ -644,9 +730,9 @@ async function removeRows(ids, { all = false } = {}) {
         acting = false;
         afterRowsChanged();
     }
-    if (failed && !done.del && !done.stop) return;
+    if (failed && !done.del && !done.stop && !done.revert && !done.blocked && !done.failed) return;
     const msg = removeMessage(done) || '바뀐 것이 없습니다';
-    showToast(`${msg}${done.skip ? ` · 그사이 바뀌어 건너뜀 ${done.skip}건` : ''}`, failed);
+    showToast(`${msg}${done.skip ? ` · 그사이 바뀌어 건너뜀 ${done.skip}건` : ''}`, failed || done.failed > 0 || done.blocked > 0);
 }
 
 /** 줄 [×] — 그 줄만. */
