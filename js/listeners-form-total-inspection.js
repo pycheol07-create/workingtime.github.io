@@ -1,7 +1,7 @@
 // === js/listeners-form-total-inspection.js ===
 // 설명: 전량검수 창(진행 목록, 2026-11-17) 리스너 + 샘플검수 [전량검수로 전환] 버튼. 동작은 js/total-inspection-logic.js.
 
-import * as DOM from './dom-elements.js?v=202611171522';
+import * as DOM from './dom-elements.js?v=202611171543';
 import {
     triggerTotalInspectionFromSample,
     closeTotalInspection,
@@ -16,7 +16,7 @@ import {
     reopenTotal,
     clearTotalList,
     toggleTotalListCollapsed
-} from './total-inspection-logic.js?v=202611171522';
+} from './total-inspection-logic.js?v=202611171543';
 
 export function setupTotalInspectionListeners() {
 
@@ -40,7 +40,6 @@ export function setupTotalInspectionListeners() {
         });
     }
     if (DOM.totalInspSearchBtn) DOM.totalInspSearchBtn.addEventListener('click', onTotalSearchEnter);
-    if (DOM.totalInspAddBtn) DOM.totalInspAddBtn.addEventListener('click', () => openTotalManualAdd(''));
 
     // 목록 줄 고르기(위임 한 번) · 완료 보기
     if (DOM.totalInspList) DOM.totalInspList.addEventListener('click', onTotalListClick);

@@ -1,22 +1,22 @@
 // === js/inspection-logic.js ===
-import * as DOM from './dom-elements.js?v=202611171522';
-import * as State from './state.js?v=202611171522';
-import { updateDailyData } from './app-data.js?v=202611171522';
-import { showToast, getCurrentTime, getTodayDateString, escapeHtml, showConfirm } from './utils.js?v=202611171522';
+import * as DOM from './dom-elements.js?v=202611171543';
+import * as State from './state.js?v=202611171543';
+import { updateDailyData } from './app-data.js?v=202611171543';
+import { showToast, getCurrentTime, getTodayDateString, escapeHtml, showConfirm } from './utils.js?v=202611171543';
 import { doc, getDoc, setDoc, updateDoc, arrayUnion, serverTimestamp, increment, runTransaction, deleteField } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // 분리된 모듈 가져오기
-import { clearImageState, setExistingPhoto, resolvePhotoForSave, isPhotoBusy, bumpPhotoEpoch } from './inspection-media.js?v=202611171522';
-import { syncInspSegments } from './inspection-segments.js?v=202611171522';
-import { moveDoneItems } from './lib/insp-day.js?v=202611171522';
-import { openManualAdd } from './inspection-manual.js?v=202611171522';   // [조회]에서 리스트에 없는 상품 → 개별 추가 창(2026-11-17)
-import { historyId } from './lib/insp-manual.js?v=202611171522';
-import { TASK, tName } from './task-names.js?v=202611171522';
+import { clearImageState, setExistingPhoto, resolvePhotoForSave, isPhotoBusy, bumpPhotoEpoch } from './inspection-media.js?v=202611171543';
+import { syncInspSegments } from './inspection-segments.js?v=202611171543';
+import { moveDoneItems } from './lib/insp-day.js?v=202611171543';
+import { openManualAdd } from './inspection-manual.js?v=202611171543';   // [조회]에서 리스트에 없는 상품 → 개별 추가 창(2026-11-17)
+import { historyId } from './lib/insp-manual.js?v=202611171543';
+import { TASK, tName } from './task-names.js?v=202611171543';
 import {
     CHECK_KEYS, LABELS, judge, missingFields, nextPendingIndex, prevIndex, progress,
     logIdentity, upsertLog, findLogForItem, addDefectSummary, defectSummaryOf, uniqueInboundCount,
     applyDoneToList, applyDoneByKey, todoCardHtml, doneCardHtml, itemKey, relocateIndex, pickKey, isPicked, pickProgress, windowOrder, WINDOW_SORTS, windowSortOf
-} from './lib/insp-flow.js?v=202611171522';
+} from './lib/insp-flow.js?v=202611171543';
 
 // 상태 변수
 export let todayInspectionList = [];
@@ -1354,5 +1354,5 @@ export const clearTodayList = async () => {
     renderTodayInspectionList();
 };
 
-export { toggleScanner, handleImageSelect, clearImageState, handleManualImageSelect, clearManualImageState } from './inspection-media.js?v=202611171522';
-export { loadAllInspectionHistory, loadInspectionLogs, prepareEditInspectionLog, updateInspectionLog, deleteInspectionLog, deleteProductHistory, savePreInspectionNote } from './inspection-editor.js?v=202611171522';
+export { toggleScanner, handleImageSelect, clearImageState, handleManualImageSelect, clearManualImageState } from './inspection-media.js?v=202611171543';
+export { loadAllInspectionHistory, loadInspectionLogs, prepareEditInspectionLog, updateInspectionLog, deleteInspectionLog, deleteProductHistory, savePreInspectionNote } from './inspection-editor.js?v=202611171543';

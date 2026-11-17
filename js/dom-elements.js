@@ -272,7 +272,6 @@ export const totalInspLocation = document.getElementById('total-insp-location');
 export const totalInspInboundDate = document.getElementById('total-insp-inbound-date');
 export const totalInspBackBtn = document.getElementById('total-insp-back-btn');
 // 진행 목록(2026-11-17) — 공급처 이름 칸(total-insp-supplier)은 없앴다(코드만)
-export const totalInspAddBtn = document.getElementById('total-insp-add-btn');
 export const totalInspList = document.getElementById('total-insp-list');
 export const totalInspListCount = document.getElementById('total-insp-list-count');
 export const totalInspListStatus = document.getElementById('total-insp-list-status');
@@ -516,7 +515,6 @@ if (['localhost', '127.0.0.1'].includes(location.hostname)) {
                 totalInspLocation,
                 totalInspInboundDate,
                 totalInspBackBtn,
-                totalInspAddBtn,
                 totalInspList,
                 totalInspListCount,
                 totalInspListStatus,

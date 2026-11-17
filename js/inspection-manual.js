@@ -13,17 +13,21 @@
 // ⚠️ 유형(샘플 / 요청확인)은 선택형만. 고객 이름·연락처·주문번호·후기 원문을 적을 칸을 만들지 않는다(CLAUDE.md 3절) — 요청확인을 고르면 안내를 보인다.
 // 전량검수도 이 창을 쓴다(2026-11-17, openManualAdd(글자, { target: 'total', onAdd })) — 유형 대신 사유(필수, 고른 상품 공통) + 고객 정보 안내,
 //   카메라는 이 창 안의 스캐너(inspection-media.js startInlineScanner — 전량 창에는 샘플검수 스캐너가 없다).
-//   넣기(트랜잭션)·넣은 뒤 화면은 부르는 쪽이 넘기는 onAdd(items, { reason }) 가 한다 — 샘플 쪽은 아래 addToSampleList(예전 그대로).
-import * as State from './state.js?v=202611171522';
-import { showToast, getTodayDateString, escapeHtml } from './utils.js?v=202611171522';
-import { renderTodoList, selectTodoItem } from './inspection-logic.js?v=202611171522';
-import { toggleScanner, startInlineScanner } from './inspection-media.js?v=202611171522';
-import { S as PS, loadCatalog, loadLoc, locOf } from './products-store.js?v=202611171522';
-import { thicknessFromHistoryDoc } from './lib/insp-packs.js?v=202611171522';
+//   넣기(트랜잭션)·넣은 뒤 화면은 부르는 쪽이 넘기는 onAdd(items, { reason, stay, label }) 가 한다 — 샘플 쪽은 아래 addToSampleList.
+// 바로 넣기(2026-11-17): 바코드·옵션 상품코드로 옵션 하나가 정해지면(lib quickPick) 고르기 없이 넣는다 — 유형/사유가 비었으면 그 칸에 초점을 두고
+//   고르는 순간(사유는 Enter) 넣는다. 이때는 창을 닫지 않고 검색칸을 비워 다음 스캔을 받는다(stay — 넣는 쪽은 토스트만, 줄을 열지 않음).
+//   유형·사유는 창이 열린 동안 그대로 둔다. 보통 [추가](여러 옵션 고르기)는 예전처럼 넣고 닫은 뒤 첫 줄을 연다.
+// 옵션 칩(2026-11-17): 색상별 묶음 + 사이즈 순서(lib groupOptions), 옵션이 MANY_OPTIONS 개 넘으면 거르기 칸·묶음별 [전체], 사라진 옵션은 접어 둔다.
+import * as State from './state.js?v=202611171543';
+import { showToast, getTodayDateString, escapeHtml } from './utils.js?v=202611171543';
+import { renderTodoList, selectTodoItem } from './inspection-logic.js?v=202611171543';
+import { toggleScanner, startInlineScanner } from './inspection-media.js?v=202611171543';
+import { S as PS, loadCatalog, loadLoc, locOf } from './products-store.js?v=202611171543';
+import { thicknessFromHistoryDoc } from './lib/insp-packs.js?v=202611171543';
 import {
     KINDS, findCandidates, manualItem, typedItem, addToList, historyId, historyCodes, pickHistoryByCode,
-    totalItemOf, typedTotalItem
-} from './lib/insp-manual.js?v=202611171522';
+    totalItemOf, typedTotalItem, quickPick, groupOptions, optionMatches, MANY_OPTIONS
+} from './lib/insp-manual.js?v=202611171543';
 import { doc, getDoc, getDocs, collection, query, where, limit as fsLimit, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const PICKER_ID = 'insp-manual-picker';
@@ -46,8 +50,13 @@ let typedP = null;            // 읽는 중인 이력 확인 { id, promise } —
 let managerObs = null;        // 카메라로 숨긴 동안 검수 창이 닫히면 이 창도 닫는다
 let typedTimer = null;
 let target = 'sample';        // 'sample' 샘플검수 대기 리스트 | 'total' 전량검수 진행 목록
-let onAddFn = null;           // 넣기 — (items, { reason }) => Promise<(() => void) | void>, 돌려준 함수는 창을 닫은 뒤 부른다
+let onAddFn = null;           // 넣기 — (items, { reason, stay, label }) => Promise<(() => void) | void>, 돌려준 함수는 창을 닫은 뒤(stay 면 열어 둔 채) 부른다
 let inlineScan = null;        // 전량 쪽 창 안 스캐너 { stop }
+let quickKey = '';            // 바로 넣을 옵션 'ci:oi'(찾은 결과가 옵션 하나로 정해짐) — 고른 것이 이것 하나일 때만 바로 넣는다
+const BUSY_SCAN_MSG = '앞 상품을 넣는 중입니다 — 다시 스캔해 주세요';   // 넣는 중 들어온 스캔·검색은 받지 않는다(대기시키면 닫힐 때 조용히 빠진다)
+let searchSeq = 0;            // 찾기 회차 — 넣는 사이 새로 찾았으면 넣은 뒤 화면을 비우지 않는다
+let optFilter = new Map();    // 후보 칸 → 옵션 거르기 글자
+let goneOpen = new Set();     // 사라진 옵션을 펼친 후보 칸
 
 const el = (id) => document.getElementById(id);
 const isOpen = () => !!el(PICKER_ID);
@@ -102,6 +111,7 @@ function closePicker() {
     if (managerObs) { managerObs.disconnect(); managerObs = null; }
     typedP = null;
     cands = []; more = false; expanded = new Set(); picked = new Set();
+    quickKey = ''; optFilter = new Map(); goneOpen = new Set();
     typedHist = { id: '', state: '', count: 0, thickness: '' };
     clearTimeout(typedTimer);
 }
@@ -208,14 +218,47 @@ function ensureShell() {
         const note = el('insp-manual-kind-note');
         if (note) note.classList.toggle('hidden', kind !== 'request');   // 요청확인일 때만 고객 정보 안내
         renderSummary();
+        if (quickReady()) tryQuick();   // 옵션이 정해진 채 유형을 기다리던 중 — 고르는 순간 넣는다
     }));
     const reasonEl = root.querySelector('#insp-manual-reason');
-    if (reasonEl) reasonEl.addEventListener('input', renderSummary);
+    if (reasonEl) {
+        reasonEl.addEventListener('input', renderSummary);
+        // 사유는 글자 칸이라 '고르는 순간'이 없다 — 옵션이 정해진 채 기다리던 중이면 Enter 로 넣는다
+        reasonEl.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.isComposing && quickReady()) { e.preventDefault(); tryQuick(); }
+        });
+    }
     const scanClose = root.querySelector('#insp-manual-scan-close-btn');
     if (scanClose) scanClose.addEventListener('click', stopInlineScan);
     root.querySelector('#insp-manual-add-btn').addEventListener('click', addSelected);
     // 후보 펼치기·옵션 칩 — 위임 한 번
-    root.querySelector('#insp-manual-results').addEventListener('click', (e) => {
+    const results = root.querySelector('#insp-manual-results');
+    results.addEventListener('input', (e) => {
+        const f = e.target.closest('[data-mfilter]');
+        if (!f) return;
+        const ci = Number(f.dataset.mfilter);
+        optFilter.set(ci, f.value);
+        applyFilter(ci);
+    });
+    results.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && e.target.closest('[data-mfilter]')) e.preventDefault();
+    });
+    results.addEventListener('click', (e) => {
+        const all = e.target.closest('[data-mgall]');
+        if (all) {
+            const [ci, gi] = all.dataset.mgall.split(':').map(Number);
+            toggleGroup(ci, gi);
+            renderResults();
+            renderSummary();
+            return;
+        }
+        const goneBtn = e.target.closest('[data-mgone]');
+        if (goneBtn) {
+            const ci = Number(goneBtn.dataset.mgone);
+            if (goneOpen.has(ci)) goneOpen.delete(ci); else goneOpen.add(ci);
+            renderResults();
+            return;
+        }
         const opt = e.target.closest('[data-mopt]');
         if (opt) {
             const k = opt.dataset.mopt;
@@ -283,6 +326,94 @@ function renderSummary() {
     }
 }
 
+// ── 옵션 칩 — 색상 묶음·거르기·[전체]·사라진 옵션 접기 ─────────────────────
+const optOf = (ci, oi) => (cands[ci] && cands[ci].opts[oi]) || null;
+
+function chipHtml(ci, it, o) {
+    const key = `${ci}:${it.oi}`;
+    const on = picked.has(key);
+    const f = optFilter.get(ci) || '';
+    const hide = f && !optionMatches(o, f);
+    return `<button type="button" data-mopt="${escapeHtml(key)}" aria-pressed="${on ? 'true' : 'false'}" title="${escapeHtml(o.option || '(옵션 없음)')}"
+        class="${hide ? 'hidden ' : ''}text-left text-xs font-bold border rounded-lg px-2.5 py-1.5 min-h-[44px] min-w-[52px] ${on ? 'bg-teal-600 border-teal-600 text-white' : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'} ${o.gone ? 'opacity-60' : ''}">
+        <span class="${o.gone ? 'line-through' : ''}">${escapeHtml(it.label)}</span>
+        <span class="block font-mono font-normal text-[11px] ${on ? 'text-teal-50' : 'text-gray-500'}">${escapeHtml(o.code)}${o.gone ? ' · 사라짐' : ''}</span></button>`;
+}
+
+/** 펼친 후보의 옵션 칩. 묶음 머리 = 색상(묶을 게 없으면 머리 없이 한 줄), 옵션이 MANY_OPTIONS 개 넘으면 거르기 칸 + 묶음별 [전체]. */
+function optionsHtml(c, ci) {
+    const g = groupOptions(c.opts);
+    const many = c.opts.length > MANY_OPTIONS;
+    const f = optFilter.get(ci) || '';
+    const vis = (it) => !f || optionMatches(c.opts[it.oi], f);
+    let nVis = 0;   // 그린 칩 가운데 보이는 것(접힌 사라진 옵션은 안 셈 — applyFilter 와 같게)
+    const groupHtml = (grp, gi, { head = true, gone = false } = {}) => {
+        const items = grp.items;
+        const nOn = items.filter(it => picked.has(`${ci}:${it.oi}`)).length;
+        const visItems = items.filter(vis);
+        nVis += visItems.length;
+        const allOn = visItems.length > 0 && visItems.every(it => picked.has(`${ci}:${it.oi}`));
+        const allBtn = many && !gone ? `<button type="button" data-mgall="${escapeHtml(`${ci}:${gi}`)}" class="text-[11px] font-bold text-teal-700 border border-teal-300 bg-white hover:bg-teal-50 rounded px-2 min-h-[32px]">${allOn ? '전체 해제' : '전체'}</button>` : '';
+        const headHtml = head ? `<div class="flex items-center gap-2 mb-1">
+                <span class="text-xs font-bold text-gray-800">${escapeHtml(grp.color || '(색상 없음)')}</span>
+                <span class="text-[11px] text-gray-500">${escapeHtml(items.length)}개${nOn ? ` · ${escapeHtml(nOn)}개 고름` : ''}</span>${allBtn}</div>` : (allBtn ? `<div class="mb-1">${allBtn}</div>` : '');
+        return `<div data-mgroup="${escapeHtml(gi)}" class="${visItems.length ? '' : 'hidden'}">${headHtml}
+            <div class="flex flex-wrap gap-1.5">${items.map(it => chipHtml(ci, it, c.opts[it.oi])).join('')}</div></div>`;
+    };
+    const live = g.groups.map((grp, gi) => groupHtml(grp, gi, { head: g.grouped })).join('');
+    let goneHtml = '';
+    if (g.gone.length) {
+        const goneGrp = { color: '', items: g.gone };
+        if (!g.groups.length) {
+            goneHtml = groupHtml(goneGrp, 'gone', { head: false, gone: true });   // 살아 있는 옵션이 없으면 접지 않는다
+        } else {
+            const open = goneOpen.has(ci) || g.gone.some(it => picked.has(`${ci}:${it.oi}`));
+            goneHtml = `<div class="border-t border-dashed border-gray-200 pt-2">
+                <button type="button" data-mgone="${escapeHtml(ci)}" aria-expanded="${open ? 'true' : 'false'}" class="text-xs font-bold text-gray-500 hover:text-gray-700 min-h-[32px]">사라진 옵션 ${escapeHtml(g.gone.length)}개 ${open ? '▴' : '▾'}</button>
+                ${open ? groupHtml(goneGrp, 'gone', { head: false, gone: true }) : ''}</div>`;
+        }
+    }
+    const filterHtml = many ? `<input type="text" data-mfilter="${escapeHtml(ci)}" value="${escapeHtml(f)}" autocomplete="off" maxlength="40"
+            class="w-full p-2 border border-gray-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-teal-500 min-h-[44px]"
+            placeholder="옵션 ${escapeHtml(c.opts.length)}개 — 색상·사이즈로 거르기 (예: 블랙 M)">` : '';
+    return `<div data-mwrap="${escapeHtml(ci)}" class="px-3 pb-3 space-y-2">${filterHtml}${live}${goneHtml}
+        <div data-mnone class="${!f || nVis ? 'hidden ' : ''}text-xs text-gray-500">거르기에 맞는 옵션이 없습니다.</div></div>`;
+}
+
+/** 거르기 글자가 바뀜 — 다시 그리지 않고 숨김만 바꾼다(입력 중인 한글 조합·초점이 끊기지 않게). */
+function applyFilter(ci) {
+    const box = el('insp-manual-results');
+    const wrap = box && box.querySelector(`[data-mwrap="${ci}"]`);
+    if (!wrap) return;
+    const f = optFilter.get(ci) || '';
+    let any = false;
+    wrap.querySelectorAll('[data-mgroup]').forEach(gEl => {
+        let n = 0;
+        gEl.querySelectorAll('[data-mopt]').forEach(b => {
+            const o = optOf(ci, Number(b.dataset.mopt.split(':')[1]));
+            const show = !!o && (!f || optionMatches(o, f));
+            b.classList.toggle('hidden', !show);
+            if (show) n++;
+        });
+        gEl.classList.toggle('hidden', n === 0);
+        if (n) any = true;
+    });
+    const none = wrap.querySelector('[data-mnone]');
+    if (none) none.classList.toggle('hidden', any || !f);
+}
+
+/** 묶음 [전체] — 거르기에 맞는(보이는) 살아 있는 옵션을 다 고르거나, 다 골라져 있으면 다 푼다. */
+function toggleGroup(ci, gi) {
+    const c = cands[ci];
+    if (!c) return;
+    const grp = groupOptions(c.opts).groups[gi];
+    if (!grp) return;
+    const f = optFilter.get(ci) || '';
+    const keys = grp.items.filter(it => !f || optionMatches(c.opts[it.oi], f)).map(it => `${ci}:${it.oi}`);
+    const allOn = keys.length > 0 && keys.every(k => picked.has(k));
+    keys.forEach(k => { if (allOn) picked.delete(k); else picked.add(k); });
+}
+
 function renderResults() {
     const box = el('insp-manual-results');
     if (!box) return;
@@ -293,13 +424,7 @@ function renderResults() {
         const tag = MATCH_LABEL[c.match] ? `<span class="text-[11px] font-bold text-teal-800 bg-teal-50 px-1.5 py-0.5 rounded-full whitespace-nowrap">${escapeHtml(MATCH_LABEL[c.match])}</span>` : '';
         const gone = c.gone ? '<span class="text-[11px] font-bold text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded-full whitespace-nowrap">사라진 상품</span>' : '';
         const cnt = nPicked ? `<span class="text-[11px] font-bold text-white bg-teal-600 px-1.5 py-0.5 rounded-full whitespace-nowrap">${escapeHtml(nPicked)}개 고름</span>` : '';
-        const chips = open ? `<div class="px-3 pb-3 flex flex-wrap gap-1.5">${c.opts.map((o, oi) => {
-            const on = picked.has(`${ci}:${oi}`);
-            return `<button type="button" data-mopt="${escapeHtml(`${ci}:${oi}`)}" aria-pressed="${on ? 'true' : 'false'}"
-                class="text-left text-xs font-bold border rounded-lg px-2.5 py-1.5 min-h-[44px] ${on ? 'bg-teal-600 border-teal-600 text-white' : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'} ${o.gone ? 'opacity-60' : ''}">
-                <span class="${o.gone ? 'line-through' : ''}">${escapeHtml(o.option || '(옵션 없음)')}</span>
-                <span class="block font-mono font-normal text-[11px] ${on ? 'text-teal-50' : 'text-gray-500'}">${escapeHtml(o.code)}${o.gone ? ' · 사라짐' : ''}</span></button>`;
-        }).join('')}</div>` : '';
+        const chips = open ? optionsHtml(c, ci) : '';
         return `<div class="border ${nPicked ? 'border-teal-400' : 'border-gray-200'} rounded-lg ${c.gone ? 'bg-gray-50' : 'bg-white'}">
             <button type="button" data-mcand="${escapeHtml(ci)}" aria-expanded="${open ? 'true' : 'false'}" class="w-full text-left px-3 py-2 min-h-[44px] flex items-start gap-2">
                 <span class="min-w-0 flex-1">
@@ -316,6 +441,7 @@ async function runSearch() {
     const q = el('insp-manual-q');
     const term = q ? q.value.trim() : '';
     if (!term) { setStatus('상품명·상품코드·바코드를 입력해 주세요.', true); return; }
+    if (busy) { refuseBusy(); return; }   // 검색칸 글자는 남겨 둔다
     if (!catalogP) setStatus('상품 목록 불러오는 중…');
     try {
         await ensureCatalog();
@@ -327,11 +453,15 @@ async function runSearch() {
     }
     if (!isOpen()) return;
     if (!el('insp-manual-q') || el('insp-manual-q').value.trim() !== term) return;   // 그사이 다른 글자로 찾았다
+    if (busy) { refuseBusy(); return; }   // 상품 목록을 기다리는 사이 넣기가 시작됐다
     const r = findCandidates(PS.products, term, { limit: NAME_LIMIT });
+    searchSeq++;
     cands = r.items;
     more = r.more;
     expanded = new Set();
     picked = new Set();
+    optFilter = new Map();
+    goneOpen = new Set();
     cands.forEach((c, ci) => {
         if (c.match !== 'name') {
             expanded.add(ci);
@@ -339,13 +469,68 @@ async function runSearch() {
         }
     });
     if (cands.length === 1) expanded.add(0);
+    const qp = quickPick(cands);   // 바코드·옵션 상품코드로 옵션 하나가 정해짐 → 바로 넣기
+    quickKey = qp ? `${qp.ci}:${qp.oi}` : '';
+    if (quickKey) picked = new Set([quickKey]);
     const nExact = cands.filter(c => c.match !== 'name').length;
-    if (!PS.meta) setStatus('상품 DB 가 비어 있습니다 — [직접 입력]을 쓰세요.', true);
+    if (quickKey) setStatus(needText() ? `옵션이 하나로 정해졌습니다(${pickLabel()}) — ${target === 'total' ? '사유를 적고 Enter(또는 [1개 추가])를 누르면' : '유형을 고르면'} 바로 넣습니다.`
+        : `${pickLabel()} 넣는 중…`);
+    else if (!PS.meta) setStatus('상품 DB 가 비어 있습니다 — [직접 입력]을 쓰세요.', true);
     else if (!cands.length) setStatus('찾는 상품이 없습니다 — 상품 DB 에 없으면 [직접 입력]으로 넣을 수 있습니다.', true);
     else setStatus(`후보 ${cands.length}개${nExact ? ` (코드·바코드 일치 ${nExact}개)` : ''} — 상품을 눌러 옵션을 고르세요(여러 개 가능).`
         + (locWarn ? ' · 위치를 읽지 못해 로케이션은 비워서 넣습니다.' : ''));
     renderResults();
     renderSummary();
+    if (quickKey) tryQuick();
+}
+
+// ── 바로 넣기 ─────────────────────────────────────────────────────────
+/** 바로 넣을 옵션이 그대로 골라져 있나(그 뒤 칩을 더 고르거나 풀었으면 보통 [추가] 흐름). */
+function quickReady() {
+    return !!quickKey && mode === 'find' && picked.size === 1 && picked.has(quickKey);
+}
+
+/** 고른 옵션 하나의 표시 이름 '상품명 / 옵션' */
+function pickLabel() {
+    const [ci, oi] = quickKey.split(':').map(Number);
+    const c = cands[ci], o = c && c.opts[oi];
+    if (!c || !o) return '';
+    return o.option ? `${c.name} / ${o.option}` : c.name;
+}
+
+/** 필수 칸(유형·사유)이 차 있으면 바로 넣고, 비었으면 그 칸에 초점(고르는 순간·Enter 에 다시 불린다). */
+function tryQuick() {
+    if (!quickReady()) return;
+    if (needText()) { focusNeed(); return; }
+    if (busy) { refuseBusy(); return; }
+    addPicked({ stay: true });
+}
+
+/** 넣는 중(바로 넣기·[N개 추가] 모두)에 들어온 스캔·검색 — 거절하고 알린다. 검색칸 글자는 그대로. */
+function refuseBusy() {
+    showToast(BUSY_SCAN_MSG, true);
+    setStatus(BUSY_SCAN_MSG, true);
+}
+
+function focusNeed() {
+    const f = target === 'total' ? el('insp-manual-reason')
+        : (document.querySelector('input[name="insp-manual-kind"]:checked') || document.querySelector('input[name="insp-manual-kind"]'));
+    if (!f) return;
+    f.scrollIntoView({ block: 'nearest' });
+    f.focus();
+}
+
+/** 바로 넣은 뒤 — 창은 열어 둔 채 결과를 비우고 검색칸에 초점(다음 스캔). 유형·사유는 그대로. */
+function readyForNext(msg, term) {
+    cands = []; more = false; expanded = new Set(); picked = new Set();
+    quickKey = ''; optFilter = new Map(); goneOpen = new Set();
+    renderResults();
+    const q = el('insp-manual-q');
+    if (q && q.value.trim() === term) q.value = '';
+    if (q) q.focus();
+    setStatus(`${msg || '넣었습니다'} — 다음 상품을 찾거나 스캔하세요. 끝나면 [닫기].`);
+    const cancel = el('insp-manual-cancel-btn');
+    if (cancel) cancel.textContent = '닫기';
 }
 
 function startScan() {
@@ -452,8 +637,9 @@ async function resolveHistory(cand, codes) {
     }
 }
 
-/** 샘플검수 대기 리스트에 넣기(예전 addSelected 안의 트랜잭션·화면 처리를 그대로 옮김) — 창을 닫은 뒤 부를 함수를 돌려준다. */
-async function addToSampleList(items) {
+/** 샘플검수 대기 리스트에 넣기(예전 addSelected 안의 트랜잭션·화면 처리를 그대로 옮김) — 창을 닫은 뒤 부를 함수를 돌려준다.
+ *  stay = 바로 넣기(창을 열어 둔 채 다음 스캔) — 리스트만 다시 그리고 토스트만, 줄은 열지 않는다. 돌려준 함수는 안내 글자를 돌려준다. */
+async function addToSampleList(items, { stay = false, label = '' } = {}) {
     const ref = doc(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', getTodayDateString());
     const res = await runTransaction(State.db, async (tx) => {
         const snap = await tx.get(ref);
@@ -466,6 +652,11 @@ async function addToSampleList(items) {
     State.appState.inspectionList = res.list;
     return () => {
         renderTodoList();
+        if (stay) {
+            const msg = res.added.length ? `${label} 추가됨` : `이미 리스트에 있음 — ${label}`;
+            showToast(msg);
+            return msg;
+        }
         if (res.added.length) {
             showToast(`${res.added.length}개 추가 (총 ${res.list.length}개)` + (res.dup.length ? ` · 이미 리스트에 있음 ${res.dup.length}개` : ''));
         } else {
@@ -475,8 +666,16 @@ async function addToSampleList(items) {
     };
 }
 
+/** [추가] 버튼 — 바로 넣을 옵션 하나만 골라져 있으면 바로 넣기(창을 열어 둠), 아니면 보통 넣기(넣고 닫음). */
 async function addSelected() {
+    return addPicked({ stay: quickReady() });
+}
+
+async function addPicked({ stay = false } = {}) {
     if (busy) return;
+    const seq = searchSeq;
+    const term = el('insp-manual-q') ? el('insp-manual-q').value.trim() : '';
+    const label = stay ? pickLabel() : '';   // 넣는 사이 새로 찾으면 cands 가 바뀌므로 먼저
     const isTotal = target === 'total';
     const reason = reasonText();
     if (isTotal && !reason) { showToast('전량검수 사유를 입력해 주세요.', true); return; }
@@ -520,10 +719,16 @@ async function addSelected() {
         }
 
         const add = onAddFn || addToSampleList;
-        const after = await add(items.filter(Boolean), { reason });
+        const after = await add(items.filter(Boolean), { reason, stay, label });
         busy = false;
-        closePicker();
-        if (typeof after === 'function') after();
+        if (stay) {
+            const msg = typeof after === 'function' ? after() : '';
+            // 넣는 동안 검색은 거절되지만(refuseBusy) 혹시 회차가 바뀌었으면 그 화면은 비우지 않는다
+            if (isOpen() && seq === searchSeq) readyForNext(typeof msg === 'string' ? msg : '', term);
+        } else {
+            closePicker();
+            if (typeof after === 'function') after();
+        }
     } catch (e) {
         console.error('[개별 추가] 넣기 실패:', e && e.code ? e.code : e);
         showToast(e && e.code === 'permission-denied' ? '넣을 권한이 없습니다.'

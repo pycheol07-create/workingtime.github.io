@@ -12,19 +12,19 @@
 //   · [완료 처리]·[다시 진행]·[목록에서 빼기](누적 0 인 줄만).
 // 순수 규칙은 js/lib/total-insp.js. 공급처는 코드만(supplierCode) — 이름 칸은 쓰지 않는다(CLAUDE.md 3절).
 // ⚠️ 이 창은 index.html·history.html 에 붙는다 — role="dialog"·data-act·end-shift-* 를 쓰지 않는다(업무마감봇 선택자).
-import * as DOM from './dom-elements.js?v=202611171522';
-import * as State from './state.js?v=202611171522';
-import { showToast, getTodayDateString, getCurrentTime, escapeHtml, showConfirm } from './utils.js?v=202611171522';
+import * as DOM from './dom-elements.js?v=202611171543';
+import * as State from './state.js?v=202611171543';
+import { showToast, getTodayDateString, getCurrentTime, escapeHtml, showConfirm } from './utils.js?v=202611171543';
 import {
     doc, collection, query, where, limit as fsLimit, onSnapshot, runTransaction, serverTimestamp, increment, deleteField
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { TASK, tName } from './task-names.js?v=202611171522';
-import { openManualAdd } from './inspection-manual.js?v=202611171522';
-import { getCurrentInspItem } from './inspection-logic.js?v=202611171522';
+import { TASK, tName } from './task-names.js?v=202611171543';
+import { openManualAdd } from './inspection-manual.js?v=202611171543';
+import { getCurrentInspItem } from './inspection-logic.js?v=202611171543';
 import {
     ON, DONE, totalKey, startOrReopen, applySave, markDone, markReopen, progressOf, todayQtyOf,
     sortList, nextOnKey, filterRows, exactRow, logOf, fromSampleItem, removePlan, removeCounts, removeMessage
-} from './lib/total-insp.js?v=202611171522';
+} from './lib/total-insp.js?v=202611171543';
 
 const APP = ['artifacts', 'team-work-logger-v2'];
 const COL = 'total_inspections_accumulated';
@@ -211,7 +211,7 @@ function renderList() {
     if (!loadedOn && !rows.length) { box.innerHTML = ''; return; }
     if (!rows.length) {
         box.innerHTML = `<div class="text-sm text-gray-400 text-center border border-dashed border-gray-300 rounded-lg py-6">${
-            filterTerm ? '찾는 상품이 목록에 없습니다 — Enter 를 누르면 개별 추가 창이 열립니다.' : '진행 중인 전량검수가 없습니다. [+ 개별 추가]로 넣으세요.'}</div>`;
+            filterTerm ? '찾는 상품이 목록에 없습니다 — [찾아서 추가]나 Enter 로 상품을 찾아 넣으세요.' : '진행 중인 전량검수가 없습니다. 위 칸에 상품명·코드·바코드를 넣고 [찾아서 추가]를 누르세요.'}</div>`;
         return;
     }
     const today = getTodayDateString();
@@ -311,8 +311,9 @@ export function closeTotalInspection() {
 }
 
 // ── 넣기(개별 추가·샘플에서 전환) ─────────────────────────────────────
-/** 진행 목록에 넣는다 — 개별 추가 창(onAdd)과 샘플 전환이 같이 쓴다. 창을 닫은 뒤 부를 함수를 돌려준다. */
-async function addItems(items, { reason = '' } = {}) {
+/** 진행 목록에 넣는다 — 개별 추가 창(onAdd)과 샘플 전환이 같이 쓴다. 창을 닫은 뒤 부를 함수를 돌려준다.
+ *  stay = 개별 추가 창의 바로 넣기(창을 열어 둔 채 다음 스캔) — 토스트만 하고 줄은 열지 않는다(목록은 구독이 바꾼다). 돌려준 함수는 안내 글자를 돌려준다. */
+async function addItems(items, { reason = '', stay = false, label = '' } = {}) {
     const seen = new Set();
     const list = (Array.isArray(items) ? items : []).map(it => ({ it, id: it ? totalKey(it.name, it.option) : '' }))
         .filter(x => x.id && !seen.has(x.id) && seen.add(x.id));
@@ -332,6 +333,15 @@ async function addItems(items, { reason = '' } = {}) {
         });
     });
     return () => {
+        if (stay) {
+            const a = res[0] ? res[0].action : '';
+            const msg = a === 'create' ? `${label} 추가됨`
+                : a === 'reopen' ? `완료였던 ${label} 새 회차로 추가됨`
+                : a === 'conflict' ? `같은 목록 키의 다른 상품(옵션 표기 차이 등)이 있어 못 넣음 — ${label}`
+                : `이미 진행 중 — ${label}`;
+            showToast(msg, a === 'conflict');
+            return msg;
+        }
         const n = (a) => res.filter(r => r.action === a).length;
         const parts = [];
         if (n('create')) parts.push(`${n('create')}개 넣음`);
@@ -378,7 +388,7 @@ export function onTotalSearchInput() {
 /** Enter·[찾기] — 목록에 딱 맞는 줄이 있으면 고르고, 없으면 그 글자로 개별 추가 창. */
 export function onTotalSearchEnter() {
     const text = DOM.totalInspProductName ? DOM.totalInspProductName.value.trim() : '';
-    if (!text) { showToast('상품명 또는 상품코드를 입력해 주세요.', true); return; }
+    if (!text) { openTotalManualAdd(''); return; }   // 빈 칸이면 찾기 창을 바로 연다(개별 추가 버튼을 이 버튼 하나로 합침, 2026-11-17)
     const id = exactRow(allRows(), text);
     if (id) { selectRow(id); return; }
     openTotalManualAdd(text);

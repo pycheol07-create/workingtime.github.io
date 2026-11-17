@@ -88,6 +88,136 @@ export function findCandidates(products, term, { limit = 30 } = {}) {
     return { items: [...exact, ...names.slice(0, n)], more: names.length > n };
 }
 
+/** 바로 넣기(2026-11-17) — 찾은 결과가 옵션 하나로 정해졌나. 후보가 1개뿐이고 바코드·옵션 상품코드로 맞았고 그 옵션이 1개일 때만.
+ *  자체코드(code2)·품목코드(pid)·상품명은 옵션이 정해지지 않으니 null(옵션 고르기).
+ *  @returns {{ ci: number, oi: number } | null} ci = items 칸, oi = 그 후보 opts 칸 */
+export function quickPick(items) {
+    const arr = Array.isArray(items) ? items : [];
+    if (arr.length !== 1) return null;
+    const c = arr[0];
+    if (!c || (c.match !== 'barcode' && c.match !== 'option')) return null;
+    const pre = Array.isArray(c.pre) ? c.pre : [];
+    if (pre.length !== 1) return null;
+    const oi = (Array.isArray(c.opts) ? c.opts : []).findIndex(o => o && o.code === pre[0]);
+    return oi === -1 ? null : { ci: 0, oi };
+}
+
+// ── 옵션 칩 묶기(2026-11-17) — 옵션이 많은 상품(100개 넘음)을 색상별로 묶고 사이즈 순서로 ──────
+/** 옵션이 이보다 많으면 거르기 칸·묶음별 [전체]를 보인다. */
+export const MANY_OPTIONS = 12;
+
+const up = (v) => str(v).replace(/\s/g, '').toUpperCase();
+const SIZE_ONE = /^(?:\d*X{0,4}S|M|\d*X{0,4}L|FREE|F|FREESIZE|ONESIZE|OS|프리|프리사이즈|\d+(?:\.\d+)?(?:CM|MM|IN|호|SIZE)?)$/;
+/** 사이즈처럼 생긴 글자인가 — XS·M·2XL·FREE·프리·95·230mm·55호, 범위 S/M·230~240 도. */
+export function isSizeToken(v) {
+    const u = up(v);
+    if (!u) return false;
+    if (SIZE_ONE.test(u)) return true;
+    const parts = u.split(/[/~]/);
+    return parts.length > 1 && parts.every(p => SIZE_ONE.test(p));
+}
+
+/** 옵션명 → { color, size }. 상품 DB 옵션명은 '블랙-S'(가장 흔함)·'[블랙-S]'·'블랙 / M'(엑셀 양식 예)·'[블랙] M'·'블랙, M'·
+ *  '색상-블랙, 사이즈-M'(직진 형식)처럼 온다. 못 나누면 통째로 color(사이즈처럼 생겼으면 size).
+ *  나누는 글자는 '-' → '/' → ',' → 공백 순으로 보고, 마지막 조각이 사이즈처럼 생긴 첫 나눔을 쓴다. 없으면 '-'·'/'·',' 의 첫 조각이 색상. */
+export function splitOption(option) {
+    let s = str(option).trim();
+    if (!s) return { color: '', size: '' };
+    if (/(?:^|,)\s*(?:색상|사이즈)\s*[-:]/.test(s)) {   // 직진 형식
+        let color = '';
+        const rest = [];
+        s.split(',').forEach(p => {
+            const t = p.trim();
+            if (!t) return;
+            const m = t.match(/^색상\s*[-:]\s*(.*)$/);
+            if (m && !color) { color = m[1].trim(); return; }
+            rest.push(t.replace(/^(?:사이즈|기장별|기장)\s*[-:]\s*/, '').trim());
+        });
+        return { color, size: rest.filter(Boolean).join(' ') };
+    }
+    const br = s.match(/^\[([^\]]*)\]\s*(.*)$/);
+    if (br) {
+        const rest = br[2].replace(/^[\s/,-]+/, '').trim();
+        if (rest) return { color: br[1].trim(), size: rest };   // '[블랙] M'
+        s = br[1].trim();                                       // '[블랙-S]' → '블랙-S'
+        if (!s) return { color: '', size: '' };
+    }
+    if (isSizeToken(s)) return { color: '', size: s };
+    let fallback = null;
+    for (const sep of ['-', '/', ',', ' ']) {
+        const parts = (sep === ' ' ? s.split(/\s+/) : s.split(sep)).map(t => t.trim()).filter(Boolean);
+        if (parts.length < 2) continue;
+        const last = parts[parts.length - 1];
+        if (isSizeToken(last) && !isSizeToken(parts[0])) {
+            return { color: parts.slice(0, -1).join(sep === ' ' ? ' ' : sep), size: last };
+        }
+        if (!fallback && sep !== ' ') {
+            fallback = parts.length === 2 && isSizeToken(parts[0]) && !isSizeToken(last)
+                ? { color: last, size: parts[0] }   // 'M-블랙' 처럼 사이즈가 앞
+                : { color: parts[0], size: parts.slice(1).join(sep) };
+        }
+    }
+    return fallback || { color: s, size: '' };
+}
+
+/** 사이즈 순서 열쇠 [무리, 값] — 글자 사이즈(XS<S<M<L<XL<2XL…) → FREE → 숫자 오름차순 → 나머지(원래 순서). */
+export function sizeRank(size) {
+    const u = up(size);
+    const m = u.match(/^(\d*)(X*)(S|M|L)$/);
+    // '2XL' = 숫자 + X 하나(= XXL), 'XXL' = X 개수. '2XXL'·'XM' 은 사이즈로 안 본다
+    if (m && !(m[1] && m[2].length > 1) && !(m[3] === 'M' && (m[1] || m[2]))) {
+        const n = m[1] ? Number(m[1]) : m[2].length;
+        return [0, m[3] === 'M' ? 0 : m[3] === 'S' ? -(1 + n) : 1 + n];
+    }
+    if (/^(?:FREE|F|FREESIZE|ONESIZE|OS|프리|프리사이즈)$/.test(u)) return [1, 0];
+    const num = u.match(/^(\d+(?:\.\d+)?)/);
+    if (num) return [2, Number(num[1])];
+    const first = u.split(/[/~]/)[0];
+    if (first && first !== u) { const r = sizeRank(first); if (r[0] < 3) return r; }   // 범위 'S/M' 은 앞쪽으로
+    return [3, 0];
+}
+
+export function compareSize(a, b) {
+    const ra = sizeRank(a), rb = sizeRank(b);
+    return ra[0] - rb[0] || ra[1] - rb[1];
+}
+
+/** 후보 옵션(opts) → 색상 묶음. 묶음 순서 = 처음 나온 순서, 묶음 안 = 사이즈 순서(같으면 원래 순서). 사라진 옵션은 gone 으로 따로(원래 순서).
+ *  grouped = 묶음 머리를 보일 만한가(색상이 2개 이상, 또는 색상 하나에 사이즈가 있음). 아니면 칩을 옵션 이름 그대로 한 줄로.
+ *  @returns {{ groups: Array<{ color, items: Array<{ oi, color, size, label }> }>, gone: Array<{ oi, color, size, label }>, grouped: boolean }}
+ *    oi = opts 칸 번호(화면 고르기 열쇠 'ci:oi' 그대로), label = 묶음 안 칩 글자(사이즈, 없으면 옵션 이름) */
+export function groupOptions(opts) {
+    const arr = Array.isArray(opts) ? opts : [];
+    const byKey = new Map();
+    const groups = [];
+    const gone = [];
+    arr.forEach((o, oi) => {
+        if (!o) return;
+        const sp = splitOption(o.option);
+        const it = { oi, color: sp.color, size: sp.size, label: sp.size || str(o.option).trim() || '(옵션 없음)' };
+        if (o.gone) { gone.push({ ...it, label: str(o.option).trim() || '(옵션 없음)' }); return; }
+        const key = norm(sp.color);
+        let g = byKey.get(key);
+        if (!g) { g = { color: sp.color, items: [] }; byKey.set(key, g); groups.push(g); }
+        g.items.push(it);
+    });
+    groups.forEach(g => g.items.sort((a, b) => compareSize(a.size, b.size)));
+    const grouped = groups.length > 1 || (groups.length === 1 && !!groups[0].color && groups[0].items.some(i => i.size));
+    if (!grouped) groups.forEach(g => g.items.forEach(i => { i.label = str(arr[i.oi].option).trim() || '(옵션 없음)'; }));
+    return { groups, gone, grouped };
+}
+
+/** 옵션 거르기 — 띄어 쓴 낱말이 모두 맞아야 한다. 낱말 하나는 색상 일부, 사이즈와 똑같음, (2자 이상) 옵션 이름 일부, (3자 이상) 상품코드 일부 중 하나.
+ *  opt = { option, code }(후보 opts 한 칸). 빈 거르기는 전부 맞음. */
+export function optionMatches(opt, filter) {
+    const terms = str(filter).trim().toLowerCase().split(/\s+/).filter(Boolean);
+    if (!terms.length) return true;
+    const o = opt || {};
+    const sp = splitOption(o.option);
+    const color = norm(sp.color), size = norm(sp.size), name = norm(o.option), code = norm(o.code);
+    return terms.every(t => color.includes(t) || size === t || (t.length >= 2 && name.includes(t)) || (t.length >= 3 && code.includes(t)));
+}
+
 /** 위치 요약(js/products-store.js locOf 결과) → { location: '피킹1, 피킹2', reserveLocation: '비축' } */
 export function locFields(loc) {
     const L = loc || {};
