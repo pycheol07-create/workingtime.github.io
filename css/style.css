@@ -850,6 +850,19 @@ html.dark .depth-panel {
         padding-right: 0 !important;
     }
 }
+/* 전량검수 창 전체화면(#total-insp-fullscreen-btn → #total-insp-modal-content.total-insp-full, 창 뿌리 .total-insp-full-on) — PC 만.
+   tailwind sm: 칸(최대 너비·높이·둥근 모서리)을 이기려고 !important. 휴대폰은 아래 블록이 이미 화면 가득. */
+#total-inspection-manager-modal.total-insp-full-on { padding: 0 !important; }
+#total-inspection-manager-modal #total-insp-modal-content.total-insp-full {
+    width: 100vw !important;
+    max-width: 100vw !important;
+    height: 100vh !important;
+    height: 100dvh !important;
+    max-height: 100vh !important;
+    max-height: 100dvh !important;
+    border-radius: 0 !important;
+}
+#total-inspection-manager-modal #total-insp-modal-content.total-insp-full > div:first-child { border-radius: 0 !important; }
 /* 전량검수 창(2026-11-17) — 샘플검수 매니저처럼 PC 는 왼쪽 진행 목록(aside)·오른쪽 입력 2열(lg),
    휴대폰(≤768px)은 화면 가득 위아래로 쌓고 목록을 접는다(#total-insp-panel.total-insp-collapsed — js/total-inspection-logic.js). */
 @media (max-width: 768px) {
@@ -863,7 +876,8 @@ html.dark .depth-panel {
         border-radius: 0 !important;
         margin: 0 !important;
     }
-    #total-inspection-manager-modal .total-insp-desc { display: none !important; }
+    #total-inspection-manager-modal .total-insp-desc,
+    #total-inspection-manager-modal #total-insp-fullscreen-btn { display: none !important; }
     #total-inspection-manager-modal #total-insp-body {
         display: flex !important;
         flex-direction: column !important;

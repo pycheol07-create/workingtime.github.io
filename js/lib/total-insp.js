@@ -46,9 +46,9 @@ export function sameProduct(cur, item) {
 
 /** 옛 문서(status 없음 — 진행 목록 전) — 진행중으로 보고 빠진 칸만 채운다(누적·총 재고는 그대로). 공급처 이름 칸 supplier 는 지울 대상으로 알려 준다.
  *  @returns {{ patch: object, dropSupplier: boolean }} */
-export function fillMissing(cur, item, { reason = '', by = '', now = '' } = {}) {
+export function fillMissing(cur, item, { reason = '', by = '', now = '', today = '' } = {}) {
     const c = cur || {};
-    const fresh = newTotalDoc({ ...(item || {}), name: (item && item.name) || c.name || c.productName }, { reason, by, now });
+    const fresh = newTotalDoc({ ...(item || {}), name: (item && item.name) || c.name || c.productName }, { reason, by, now, today });
     const patch = {};
     Object.keys(fresh).forEach(k => {
         if (k === 'status') return;
@@ -76,14 +76,21 @@ export const supplierCodeOnly = (v) => {
 };
 
 /** 새 진행 문서. by = 직원 이름, now = ISO 시각. undefined 칸을 두지 않는다(Firestore 가 거부). */
-export function newTotalDoc(item, { reason = '', by = '', now = '' } = {}) {
+/** 검수일자 칸 모양 — 'YYYY-MM-DD' 만(그 밖은 ''). */
+export const ymd = (v) => (/^\d{4}-\d{2}-\d{2}$/.test(str(v).trim()) ? str(v).trim() : '');
+
+/** 새 진행 문서. by = 직원 이름, now = ISO 시각, today = 오늘(한국 날짜 'YYYY-MM-DD' — 검수 시작일 기본값).
+ *  검수일자(2026-11-17 사용자 요청): startDate = 시작일(기본 오늘, 사람이 고칠 수 있음), endDate = 종료일(완료될 때 그날 — 진행 중엔 '').
+ *  옛 inboundDate(입고일) 칸은 새로 쓰지 않는다(옛 문서에 있으면 읽기만). */
+export function newTotalDoc(item, { reason = '', by = '', now = '', today = '' } = {}) {
     const it = item || {};
     return {
         name: nameKey(it.name),
         option: str(it.option).trim(),
         code: str(it.code).trim(),
         location: str(it.location).trim(),
-        inboundDate: str(it.inboundDate).trim(),
+        startDate: ymd(it.startDate) || ymd(today),
+        endDate: '',
         supplierCode: supplierCodeOnly(it.supplierCode),
         reason: str(reason).trim(),
         totalStock: 0,
@@ -103,10 +110,11 @@ export function newTotalDoc(item, { reason = '', by = '', now = '' } = {}) {
 }
 
 /** 완료 문서를 다시 넣었다 → 회차 +1, 누적 0, 진행중. 총 재고는 다시 입력(0). 사유가 비면 앞 회차 사유를 그대로 둔다. */
-export function reopenRound(cur, item, { reason = '', by = '', now = '' } = {}) {
+export function reopenRound(cur, item, { reason = '', by = '', now = '', today = '' } = {}) {
     const c = cur || {};
-    const fresh = newTotalDoc({ ...c, ...(item || {}), name: c.name || (item && item.name) }, { reason: str(reason).trim() || c.reason, by, now });
-    ['location', 'inboundDate', 'code', 'supplierCode'].forEach(k => { if (!fresh[k] && c[k]) fresh[k] = k === 'supplierCode' ? supplierCodeOnly(c[k]) : str(c[k]); });
+    // 새 회차의 검수일자는 오늘부터(앞 회차 시작·종료일은 기록에 남아 있다)
+    const fresh = newTotalDoc({ ...c, ...(item || {}), name: c.name || (item && item.name), startDate: '' }, { reason: str(reason).trim() || c.reason, by, now, today });
+    ['location', 'code', 'supplierCode'].forEach(k => { if (!fresh[k] && c[k]) fresh[k] = k === 'supplierCode' ? supplierCodeOnly(c[k]) : str(c[k]); });
     fresh.round = Math.max(1, int(c.round) || 1) + 1;
     return fresh;
 }
@@ -126,7 +134,8 @@ export function startOrReopen(cur, item, opts = {}) {
     return { action: 'open', doc: null };
 }
 
-/** 오늘 저장 하나를 서버 값(cur)에 더한다. input: { normal, defective, totalStock, reason, location, inboundDate, date, by, now }
+/** 오늘 저장 하나를 서버 값(cur)에 더한다. input: { normal, defective, totalStock, reason, location, startDate, date, by, now }
+ *  자동 완료되면 endDate = date(그날). 시작일이 비어 있으면(옛 문서) date 로 채운다.
  *  @returns {{ ok: true, patch, accumAfter, done, qty } | { ok: false, error, message }}
  *   error: missing(문서 없음) · done(이미 완료) · reason · stock · qty · over */
 export function applySave(cur, input = {}) {
@@ -159,24 +168,62 @@ export function applySave(cur, input = {}) {
         status: done ? DONE : ON,
         doneAt: done ? str(input.now) : '',
         doneBy: done ? str(input.by) : '',
+        startDate: ymd(input.startDate) || ymd(cur.startDate) || ymd(date),
+        endDate: done ? ymd(date) : '',
     };
     if (input.location != null) patch.location = str(input.location).trim();
-    if (input.inboundDate != null) patch.inboundDate = str(input.inboundDate).trim();
     return { ok: true, patch, accumAfter, done, qty, normal, defective };
 }
 
+/** 오늘 수량 없이 총 재고·사유·시작일·위치만 저장(2026-11-17 사용자 요청 — 총 재고를 먼저 넣는다). 기록 문서·처리량은 쓰지 않는다.
+ *  총 재고는 비우면 그대로, 넣으면 1 이상이고 누적보다 작게 못 줄인다. 누적과 같게 맞추면(누적 > 0) 자동 완료(endDate = date).
+ *  @returns {{ ok: true, patch, done } | { ok: false, error, message }} error: missing · done · stock · empty */
+export function applyInfoSave(cur, input = {}) {
+    if (!cur) return { ok: false, error: 'missing', message: '진행 목록에 없는 상품입니다. 목록을 새로 열어 주세요.' };
+    if (cur.status === DONE) return { ok: false, error: 'done', message: '이미 완료된 상품입니다. [다시 진행]을 누른 뒤 저장하세요.' };
+    const acc = int(cur.accumulatedTotal);
+    const patch = {};
+    if (input.totalStock != null && input.totalStock !== '') {
+        const t = int(input.totalStock);
+        if (t <= 0) return { ok: false, error: 'stock', message: '총 재고는 1 이상으로 입력해 주세요.' };
+        if (t < acc) return { ok: false, error: 'stock', message: `총 재고(${t})를 지금까지 누적(${acc})보다 작게 줄일 수 없습니다.` };
+        patch.totalStock = t;
+    }
+    const reason = str(input.reason).trim();
+    if (reason) patch.reason = reason;
+    const sd = ymd(input.startDate) || ymd(cur.startDate) || ymd(input.date);
+    if (sd) patch.startDate = sd;
+    if (input.location != null) patch.location = str(input.location).trim();
+    const changed = Object.keys(patch).some(k => str(patch[k]) !== str(cur[k]));
+    if (!changed) return { ok: false, error: 'empty', message: '바뀐 내용이 없습니다. 총 재고나 오늘 수량을 입력해 주세요.' };
+    const stock = patch.totalStock != null ? patch.totalStock : int(cur.totalStock);
+    const done = acc > 0 && stock === acc;
+    if (done) Object.assign(patch, { status: DONE, doneAt: str(input.now), doneBy: str(input.by), endDate: ymd(input.date) });
+    return { ok: true, patch, done };
+}
+
+/** 오늘 정상·불량이 둘 다 비었거나 0 이면 '정보만 저장'(applyInfoSave). */
+export const isInfoOnly = (normal, defective) => int(normal) === 0 && int(defective) === 0;
+
+/** 검수일자 표시 — '2026-11-17 ~ 2026-11-20' · 진행 중이면 '2026-11-17 ~' · 없으면 '-'. */
+export function periodLabel(start, end) {
+    const a = ymd(start), b = ymd(end);
+    if (!a && !b) return '-';
+    return `${a || '?'} ~${b ? ` ${b}` : ''}`;
+}
+
 /** [완료 처리] — 진행중만. */
-export function markDone(cur, { by = '', now = '' } = {}) {
+export function markDone(cur, { by = '', now = '', date = '' } = {}) {
     if (!cur) return { ok: false, message: '진행 목록에 없는 상품입니다.' };
     if (cur.status === DONE) return { ok: false, message: '이미 완료된 상품입니다.' };
-    return { ok: true, patch: { status: DONE, doneAt: str(now), doneBy: str(by) } };
+    return { ok: true, patch: { status: DONE, doneAt: str(now), doneBy: str(by), endDate: ymd(date) } };
 }
 
 /** [다시 진행] — 완료를 같은 회차·같은 누적으로 되돌린다. */
 export function markReopen(cur) {
     if (!cur) return { ok: false, message: '진행 목록에 없는 상품입니다.' };
     if (cur.status !== DONE) return { ok: false, message: '진행 중인 상품입니다.' };
-    return { ok: true, patch: { status: ON, doneAt: '', doneBy: '', stopped: false } };
+    return { ok: true, patch: { status: ON, doneAt: '', doneBy: '', stopped: false, endDate: '' } };
 }
 
 /** [목록에서 빼기] — 1회차이고 누적 0 인 줄만. 2회차 이상은 앞 회차 기록이 있으므로 빼지 않고 [완료 처리]로 닫는다(리뷰 7). */
@@ -186,10 +233,10 @@ export const canRemove = (cur) => !!cur && int(cur.accumulatedTotal) === 0 && Ma
  *  'delete' = 아직 시작 안 한 줄(1회차·누적 0) → 문서 삭제.
  *  'stop'   = 누적이 있거나 2회차 이상(기록 보존) → 삭제 대신 완료로 내림(stopped: true — 끝까지 못 하고 멈춤 표시).
  *  'skip'   = 문서 없음·이미 완료. */
-export function removePlan(cur, { by = '', now = '' } = {}) {
+export function removePlan(cur, { by = '', now = '', date = '' } = {}) {
     if (!cur || cur.status === DONE) return { action: 'skip', patch: null };
     if (canRemove(cur)) return { action: 'delete', patch: null };
-    return { action: 'stop', patch: { status: DONE, stopped: true, doneAt: str(now), doneBy: str(by) } };
+    return { action: 'stop', patch: { status: DONE, stopped: true, doneAt: str(now), doneBy: str(by), endDate: ymd(date) } };
 }
 
 /** 확인창 숫자 — rows 의 판정 건수 { del, stop, skip }. */
@@ -295,6 +342,8 @@ export function logOf({ saveId, date, time, key, cur, res, inspector, at }) {
         defective: int(r.defective),
         accumAfter: int(r.accumAfter),
         totalStock: int(r.patch ? r.patch.totalStock : c.totalStock),
+        startDate: ymd(r.patch ? r.patch.startDate : c.startDate),
+        endDate: ymd(r.patch ? r.patch.endDate : ''),
         inspector: str(inspector),
         at: str(at),
     };
@@ -308,6 +357,7 @@ export function logToHistoryLog(log) {
         date: str(l.date),
         time: str(l.time),
         inspectionType: 'total',
+        inboundDate: l.startDate || l.endDate ? `검수 ${periodLabel(l.startDate, l.endDate)}` : '',
         code: str(l.code),
         option: str(l.option),
         inboundQty: n + d,
@@ -321,6 +371,7 @@ export function logToHistoryLog(log) {
         accumAfter: int(l.accumAfter),
         totalStock: int(l.totalStock),
         fromTotalLog: true,
+        saveId: str(l.id || l.saveId),   // 데이터관리 [수정]·[삭제] 가 이 기록을 찾는다(total_inspection_logs/{saveId})
     };
 }
 
@@ -382,14 +433,14 @@ export function logDates(logs) {
     return m;
 }
 
-export const EXCEL_HEADERS = Object.freeze(['날짜', '시각', '유형', '상품코드', '상품명', '옵션', '사유', '정상', '불량', '합계', '누적', '총재고', '남은', '회차', '상태', '작업자']);
+export const EXCEL_HEADERS = Object.freeze(['날짜', '시각', '검수일자', '유형', '상품코드', '상품명', '옵션', '사유', '정상', '불량', '합계', '누적', '총재고', '남은', '회차', '상태', '작업자']);
 
 /** 엑셀 '전량검수_기록' 한 줄. 상태 = 그 저장 뒤 누적이 총 재고에 닿았으면 완료. */
 export function excelRow(log, memberEmails) {
     const l = log || {};
     const n = int(l.normal), d = int(l.defective), acc = int(l.accumAfter), tot = int(l.totalStock);
     return {
-        '날짜': str(l.date), '시각': str(l.time), '유형': '전량', '상품코드': str(l.code) || '-', '상품명': str(l.name),
+        '날짜': str(l.date), '시각': str(l.time), '검수일자': periodLabel(l.startDate, l.endDate), '유형': '전량', '상품코드': str(l.code) || '-', '상품명': str(l.name),
         '옵션': str(l.option) || '-', '사유': str(l.reason) || '-', '정상': n, '불량': d, '합계': n + d, '누적': acc, '총재고': tot,
         '남은': Math.max(0, tot - acc), '회차': Math.max(1, int(l.round) || 1), '상태': tot > 0 && acc >= tot ? DONE : ON,
         '작업자': inspectorLabel(l.inspector, memberEmails),
@@ -403,6 +454,180 @@ export function fromSampleItem(it) {
     if (!name) return null;
     return {
         name, option: str(x.option).trim(), code: str(x.code).trim(), location: str(x.location).trim(),
-        inboundDate: str(x.inboundDate).trim(), supplierCode: supplierCodeOnly(x.supplierCode), origin: 'sample',
+        supplierCode: supplierCodeOnly(x.supplierCode), origin: 'sample',
     };
 }
+
+// ── 데이터관리(검수이력) 전량 기록 [수정]·[삭제]·리스트 삭제(2026-11-17 사용자 요청) ─────────────────────
+//   기록(total_inspection_logs/{saveId})을 고치거나 지우면 같은 회차(round)의 누적 문서에 차이를 반영하고 상태를 다시 판정한다.
+//   다른 회차의 기록이면 누적은 건드리지 않는다(기록만). 처리량 '전량검수'는 그 기록 날짜 칸에서 차이만큼(0 밑으로 안 감).
+//   화면·Firestore 는 js/total-insp-edit.js.
+
+/** 기록이 지금 누적 문서의 회차인가. */
+export const sameRoundAs = (cur, log) => !!cur && !!log
+    && Math.max(1, int(cur.round) || 1) === Math.max(1, int(log.round) || 1);
+
+/** 누적 문서에 차이(dN 정상, dD 불량)를 반영한 patch. opts: { date(오늘), by, now, clamp, dayDelta }
+ *   clamp — 삭제용: 음수가 되면 0 으로(옛 기록이 어긋나도 지울 수는 있게). 수정은 clamp 없이 음수면 막는다.
+ *   dayDelta — 누적 문서의 lastDate 날짜에 해당하는 수량 차이(오늘 한 수량 표시 맞추기).
+ *   상태: 진행중인데 누적이 총 재고에 닿으면 완료(endDate = date). 자동 완료였던 것(전 누적 ≥ 총 재고)이 총 재고 밑으로 내려가면
+ *   진행중으로 되돌리고 endDate·doneAt·doneBy 를 비운다. 사람이 [완료 처리]·내림(중단)으로 닫은 것(전 누적 < 총 재고)은 완료 그대로.
+ *  @returns {{ ok: true, patch } | { ok: false, error, message }} */
+export function accDelta(cur, dN, dD, { date = '', by = '', now = '', clamp = false, dayDelta = 0 } = {}) {
+    if (!cur) return { ok: false, error: 'missing', message: '누적 문서가 없습니다.' };
+    let n = int(cur.accumulatedNormal) + int(dN);
+    let d = int(cur.accumulatedDefective) + int(dD);
+    if ((n < 0 || d < 0) && !clamp) return { ok: false, error: 'negative', message: '누적이 0 밑으로 내려갑니다 — 수량을 다시 확인해 주세요.' };
+    n = Math.max(0, n); d = Math.max(0, d);
+    const total = n + d;
+    const stock = int(cur.totalStock);
+    // 삭제(clamp)는 누적을 줄이기만 하므로 총 재고 초과를 보지 않는다 — 옛 문서가 이미 넘어 있어도 지울 수 있게(리뷰 2)
+    if (!clamp && stock > 0 && total > stock) return { ok: false, error: 'over', message: `누적(${total})이 총 재고(${stock})를 넘습니다. 총 재고를 먼저 고치세요.` };
+    const patch = { accumulatedNormal: n, accumulatedDefective: d, accumulatedTotal: total };
+    if (int(dayDelta)) patch.lastDayQty = Math.max(0, int(cur.lastDayQty) + int(dayDelta));
+    const before = int(cur.accumulatedTotal);
+    const reached = stock > 0 && total >= stock;
+    if (cur.status === DONE) {
+        const wasAuto = stock > 0 && before >= stock;
+        if (wasAuto && !reached) Object.assign(patch, { status: ON, endDate: '', doneAt: '', doneBy: '', stopped: false });
+    } else if (reached) {
+        Object.assign(patch, { status: DONE, endDate: ymd(date), doneAt: str(now), doneBy: str(by) });
+    }
+    return { ok: true, patch };
+}
+
+/** 기록 하나 [수정] — input: { normal, defective, reason }. 0+0 은 [삭제]를 쓰게 막는다.
+ *  @returns {{ ok: true, logPatch, accPatch: object|null, qtyDelta, affectsAcc } | { ok: false, error, message }} */
+export function editLogPlan(log, cur, input = {}, opts = {}) {
+    if (!log) return { ok: false, error: 'missing', message: '기록이 없습니다(이미 지워졌을 수 있습니다).' };
+    const nN = int(input.normal), nD = int(input.defective);
+    if (nN < 0 || nD < 0) return { ok: false, error: 'qty', message: '수량은 0 이상으로 입력해 주세요.' };
+    if (nN + nD <= 0) return { ok: false, error: 'qty', message: '수량이 0 이면 [삭제]를 쓰세요.' };
+    const dN = nN - int(log.normal), dD = nD - int(log.defective);
+    const reason = str(input.reason).trim() || str(log.reason);
+    const logPatch = {
+        normal: nN, defective: nD, reason,
+        accumAfter: Math.max(0, int(log.accumAfter) + dN + dD),
+        editedAt: str(opts.now), editedBy: str(opts.by),
+    };
+    const affectsAcc = sameRoundAs(cur, log);
+    let accPatch = null;
+    if (affectsAcc && (dN || dD)) {
+        const r = accDelta(cur, dN, dD, { ...opts, clamp: false, dayDelta: str(cur.lastDate) === str(log.date) ? dN + dD : 0 });
+        if (!r.ok) return r;
+        accPatch = r.patch;
+    }
+    return { ok: true, logPatch, accPatch, qtyDelta: dN + dD, affectsAcc };
+}
+
+/** 기록 여러 건 [삭제](같은 누적 문서 것) — 같은 회차 기록의 합만 누적에서 뺀다(clamp). 처리량은 날짜별 합을 뺀다.
+ *  @returns {{ accPatch: object|null, qtyByDate: Object<string, number>, normal, defective, affected }} affected = 누적에 반영된 기록 수 */
+export function deleteLogsPlan(cur, logs, opts = {}) {
+    const arr = (Array.isArray(logs) ? logs : []).filter(Boolean);
+    const qtyByDate = {};
+    let sN = 0, sD = 0, affected = 0, dayDelta = 0;
+    arr.forEach(l => {
+        const q = int(l.normal) + int(l.defective);
+        const dt = ymd(l.date);
+        if (dt && q) qtyByDate[dt] = (qtyByDate[dt] || 0) - q;
+        if (sameRoundAs(cur, l)) {
+            sN += int(l.normal); sD += int(l.defective); affected++;
+            if (str(cur.lastDate) === str(l.date)) dayDelta -= q;
+        }
+    });
+    let accPatch = null;
+    if (cur && (sN || sD)) {
+        const r = accDelta(cur, -sN, -sD, { ...opts, clamp: true, dayDelta });
+        accPatch = r.ok ? r.patch : null;
+    }
+    return { accPatch, qtyByDate, normal: sN, defective: sD, affected };
+}
+
+/** 처리량 칸(마감 여부를 모를 때의 기본) — 기록 날짜가 오늘이면 daily_data, 지난 날이면 마감된 history(둘 다 taskQuantities 맵). */
+export const qtyDocKind = (date, today) => (str(date) === str(today) ? 'daily_data' : 'history');
+
+/** 처리량을 고칠 문서(리뷰 1) — 지난 날은 history. 오늘이라도 history/{오늘} 이 있으면(이미 마감) history 를 고친다.
+ *  단 history 에 마감 시각(closedAt, ISO)이 있고 기록 저장 시각(at, ISO)이 그보다 늦으면 마감 뒤 저장이라 daily_data 쪽.
+ *  history 는 있는데 비교할 시각이 없으면 history 우선(마감 처리량에 들어갔다고 본다).
+ *  hist = { exists, closedAt } (그 날짜 history 문서). */
+export function qtyTarget(date, today, hist, at) {
+    if (str(date) !== str(today)) return 'history';
+    const h = hist || {};
+    if (!h.exists) return 'daily_data';
+    const c = str(h.closedAt), a = str(at);
+    if (c && a && a > c) return 'daily_data';
+    return 'history';
+}
+
+/** 처리량 차이를 문서별로 묶는다 — entries [{ date, at, delta }], histByDate { 날짜: { exists, closedAt } }.
+ *  @returns {Object<string, number>} 'history|2026-11-16' · 'daily_data|2026-11-17' → 합계 차이(0 은 뺀다) */
+export function qtyGroups(entries, today, histByDate) {
+    const out = {};
+    (Array.isArray(entries) ? entries : []).forEach(e => {
+        const date = ymd(e && e.date);
+        const delta = int(e && e.delta);
+        if (!date || !delta) return;
+        const k = `${qtyTarget(date, today, (histByDate || {})[date], e.at)}|${date}`;
+        out[k] = (out[k] || 0) + delta;
+    });
+    Object.keys(out).forEach(k => { if (!out[k]) delete out[k]; });
+    return out;
+}
+
+/** 저장 순서 열쇠 — 저장 시각(at) 먼저, 없으면 날짜+시각. */
+const orderKey = (l) => (str(l && l.at) || `${str(l && l.date)}T${str(l && l.time)}`);
+
+/** 기록 하나를 고쳤을 때 같은 누적·같은 회차의 뒤 기록들 accumAfter 도 차이만큼(0 밑으로 안 감, 리뷰 4).
+ *  logs = [{ id, ...기록 }] (고친 기록 포함 가능 — 빠진다). @returns {Array<{ id, accumAfter }>} */
+export function laterLogsPatch(edited, logs, delta) {
+    const d = int(delta);
+    if (!edited || !d) return [];
+    const k = orderKey(edited);
+    const key = str(edited.key || edited.docId);
+    return (Array.isArray(logs) ? logs : [])
+        .filter(l => l && l.id && str(l.id) !== str(edited.id || edited.saveId)
+            && str(l.key || l.docId) === key && sameRoundAs(l, edited) && orderKey(l) > k)
+        .map(l => ({ id: str(l.id), accumAfter: Math.max(0, int(l.accumAfter) + d) }));
+}
+
+/** 처리량 새 값 — 0 밑으로 안 감. */
+export const clampQty = (cur, delta) => Math.max(0, (Number(cur) || 0) + int(delta));
+
+/** 확인창용 묶음 요약 — { count, normal, defective, byDate: {날짜: 수량} }. */
+export function bulkSummary(logs) {
+    const out = { count: 0, normal: 0, defective: 0, byDate: {} };
+    (Array.isArray(logs) ? logs : []).filter(Boolean).forEach(l => {
+        out.count++;
+        out.normal += int(l.normal);
+        out.defective += int(l.defective);
+        const dt = ymd(l.date);
+        if (dt) out.byDate[dt] = (out.byDate[dt] || 0) + int(l.normal) + int(l.defective);
+    });
+    return out;
+}
+
+/** 확인창 문구 — '기록 3건, 누적에서 정상 5·불량 1 빠짐, 처리량 날짜별 차감(11-16 -4 · 11-17 -2)'. 날짜는 많으면 5개까지. */
+export function bulkMessage(sum) {
+    const s = sum || { count: 0, normal: 0, defective: 0, byDate: {} };
+    const days = Object.keys(s.byDate || {}).sort();
+    const shown = days.slice(0, 5).map(d => `${d.slice(5)} -${s.byDate[d]}`).join(' · ');
+    const more = days.length > 5 ? ` 외 ${days.length - 5}일` : '';
+    return `기록 ${s.count}건, 누적에서 정상 ${s.normal}·불량 ${s.defective} 빠짐, 처리량 날짜별 차감(${shown || '없음'}${more})`;
+}
+
+/** 기록을 누적 문서(key)별로 묶고 한 묶음을 size 건씩 자른다(한 트랜잭션 문서 한도 500 — 기록 + 처리량 날짜 + 누적 1). */
+export function chunkByKey(logs, size = 150) {
+    const by = new Map();
+    (Array.isArray(logs) ? logs : []).filter(l => l && str(l.key || l.docId)).forEach(l => {
+        const k = str(l.key || l.docId);
+        if (!by.has(k)) by.set(k, []);
+        by.get(k).push(l);
+    });
+    const out = [];
+    by.forEach((arr, key) => { for (let i = 0; i < arr.length; i += size) out.push({ key, logs: arr.slice(i, i + size) }); });
+    return out;
+}
+
+/** 상품 [전량검수 기록 삭제] — 목록을 읽을 때의 누적 문서 lastUpdated(ms)와 지금 값이 다르면(그사이 저장됨) 지우지 않는다.
+ *  둘 다 없으면 같다고 본다. */
+export const accChangedSince = (listedMs, nowMs) => (Number(listedMs) || 0) !== (Number(nowMs) || 0);

@@ -5,8 +5,8 @@
 
 import { doc, collection, getDocs, query, where, runTransaction, serverTimestamp, deleteDoc }
     from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import * as State from './state.js?v=202611171543';
-import { itemFromDraft, applyChange, logEntriesOf } from './lib/plan-items.js?v=202611171543';
+import * as State from './state.js?v=202611171615';
+import { itemFromDraft, applyChange, logEntriesOf } from './lib/plan-items.js?v=202611171615';
 
 export const ITEMS_COL = 'OpsPlanItems';
 const myEmail = () => String((State.auth && State.auth.currentUser && State.auth.currentUser.email) || '').toLowerCase();

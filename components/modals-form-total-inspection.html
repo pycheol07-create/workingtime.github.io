@@ -9,9 +9,17 @@
                 <h2 class="text-lg font-bold text-gray-900">전량 검수</h2>
                 <p class="total-insp-desc text-xs text-gray-500 mt-0.5">끝날 때까지 남는 진행 목록입니다. 누적이 총 재고에 닿으면 자동 완료됩니다.</p>
             </div>
+            <div class="flex items-center gap-1 flex-shrink-0">
+            <!-- 전체화면(샘플검수 #insp-fullscreen-btn 와 같은 기능) — 휴대폰에선 숨김(이미 화면 가득, css/style.css) -->
+            <button id="total-insp-fullscreen-btn" type="button" class="text-gray-400 hover:text-gray-700 transition p-1 min-h-[44px] min-w-[44px] flex items-center justify-center" title="전체화면" aria-label="전체화면" aria-pressed="false">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
+                </svg>
+            </button>
             <button id="total-insp-close-btn" type="button" class="modal-close-btn text-gray-400 hover:text-gray-700 p-1 min-h-[44px] min-w-[44px] flex items-center justify-center" title="닫기" aria-label="닫기">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
             </button>
+            </div>
         </div>
 
         <div id="total-insp-body" class="p-4 overflow-y-auto flex-grow grid grid-cols-1 lg:grid-cols-[340px,1fr] gap-4">
@@ -69,11 +77,16 @@
                                 <div class="block text-[11px] text-gray-500 font-bold">옵션</div>
                                 <div id="total-insp-option" class="text-sm font-bold text-gray-900 bg-white p-1.5 rounded border border-gray-200 min-h-[30px] break-words">-</div>
                             </div>
+                            <!-- 검수일자: 시작일은 넣을 때 오늘(고칠 수 있음), 종료일은 완료될 때 그날 자동 — [다시 진행]이면 비움 -->
                             <div>
-                                <label for="total-insp-inbound-date" class="block text-[11px] text-gray-500 font-bold">입고일자</label>
-                                <input type="date" id="total-insp-inbound-date" class="w-full p-1.5 border border-gray-300 rounded text-sm bg-white font-medium text-gray-900 min-h-[44px]">
+                                <label for="total-insp-start-date" class="block text-[11px] text-gray-500 font-bold">검수 시작일</label>
+                                <input type="date" id="total-insp-start-date" class="w-full p-1.5 border border-gray-300 rounded text-sm bg-white font-medium text-gray-900 min-h-[44px]">
                             </div>
                             <div>
+                                <div class="block text-[11px] text-gray-500 font-bold">검수 종료일 <span class="font-normal">(완료되면 자동)</span></div>
+                                <div id="total-insp-end-date" class="text-sm font-bold text-gray-900 bg-gray-100 p-1.5 rounded border border-gray-200 min-h-[44px] flex items-center">-</div>
+                            </div>
+                            <div class="col-span-2">
                                 <label for="total-insp-location" class="block text-[11px] text-gray-500 font-bold">로케이션</label>
                                 <input type="text" id="total-insp-location" class="w-full p-1.5 border border-gray-300 rounded text-sm bg-white font-medium text-gray-900 min-h-[44px]" placeholder="예: A-1-03" autocomplete="off">
                             </div>
@@ -86,14 +99,26 @@
                             <input type="text" id="total-insp-reason" class="w-full p-2 border border-gray-300 rounded text-sm bg-white min-h-[44px]" placeholder="예: 지퍼 불량 접수로 전량 검수" autocomplete="off" maxlength="200">
                             <p class="text-[11px] text-red-700 mt-1">고객 이름·연락처·주문번호는 적지 마세요.</p>
                         </div>
-                        <div class="total-insp-2col grid grid-cols-2 gap-3">
-                            <div>
-                                <label for="total-insp-total-stock" class="block text-xs font-bold text-gray-600 mb-1">총 재고 (검수 대상 수량)</label>
-                                <input type="number" id="total-insp-total-stock" min="0" inputmode="numeric" enterkeyhint="next" class="w-full p-2 border border-gray-300 rounded text-sm bg-white font-bold text-blue-600 min-h-[44px]" placeholder="첫 저장 전에 입력">
-                            </div>
-                            <div>
-                                <div class="block text-xs font-bold text-gray-600 mb-1">지금까지 누적</div>
-                                <div id="total-insp-accumulated" class="w-full p-2 border border-gray-200 rounded text-sm bg-gray-100 font-bold text-gray-700 min-h-[44px] flex items-center">0</div>
+                        <div>
+                            <label for="total-insp-total-stock" class="block text-xs font-bold text-gray-600 mb-1">총 재고 (검수 대상 수량)</label>
+                            <input type="number" id="total-insp-total-stock" min="0" inputmode="numeric" enterkeyhint="next" class="w-full p-2 border border-gray-300 rounded text-sm bg-white font-bold text-blue-600 min-h-[44px]" placeholder="첫 저장 전에 입력 — 수량 없이 저장하면 총 재고만 들어갑니다">
+                        </div>
+                        <!-- 지금까지 누적 — 누적 합계(/ 총 재고) 크게 + 정상(초록)·불량(빨강) 칸. 휴대폰도 한 줄(3칸) — 아래 '남은 수량' 칸과 같은 모양 -->
+                        <div>
+                            <div class="block text-xs font-bold text-gray-600 mb-1">지금까지 누적</div>
+                            <div class="total-insp-3col grid grid-cols-3 gap-2">
+                                <div class="bg-white p-2 rounded-lg border border-gray-300 text-center flex flex-col justify-center min-w-0">
+                                    <span class="text-[11px] font-bold text-gray-600">누적 / 총 재고</span>
+                                    <span class="whitespace-nowrap"><span id="total-insp-accumulated" class="text-2xl font-black text-gray-900">0</span><span id="total-insp-acc-stock" class="text-sm font-bold text-gray-500"> / -</span></span>
+                                </div>
+                                <div class="bg-green-50 p-2 rounded-lg border border-green-200 text-center flex flex-col justify-center min-w-0">
+                                    <span class="text-[11px] font-bold text-green-700">정상</span>
+                                    <span id="total-insp-acc-normal" class="text-2xl font-black text-green-700">0</span>
+                                </div>
+                                <div class="bg-red-50 p-2 rounded-lg border border-red-200 text-center flex flex-col justify-center min-w-0">
+                                    <span class="text-[11px] font-bold text-red-700">불량</span>
+                                    <span id="total-insp-acc-defective" class="text-2xl font-black text-red-600">0</span>
+                                </div>
                             </div>
                         </div>
                     </div>

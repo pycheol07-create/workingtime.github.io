@@ -1,25 +1,26 @@
 // === js/listeners-history-inspection.js ===
-import * as DOM from './dom-elements.js?v=202611171543';
-import * as State from './state.js?v=202611171543';
-import { showToast, getTodayDateString } from './utils.js?v=202611171543';
-import { dayInspItems } from './lib/insp-day.js?v=202611171543';
-import { TASK, tName } from './task-names.js?v=202611171543';
+import * as DOM from './dom-elements.js?v=202611171615';
+import * as State from './state.js?v=202611171615';
+import { showToast, getTodayDateString, showConfirm } from './utils.js?v=202611171615';
+import { dayInspItems } from './lib/insp-day.js?v=202611171615';
+import { TASK, tName } from './task-names.js?v=202611171615';
 
 import { 
     renderInspectionHistoryTable, 
     renderInspectionLayout,
     renderInspectionListMode
-} from './ui-history.js?v=202611171543'; 
-import { clearInspResultCache, seedInspResultCache, fetchTotalInspLogs, totalInspLogsTruncated, TOTAL_LOG_LIMIT } from './ui-history-inspection.js?v=202611171543';   // 정상여부 캐시 · 전량 기록
-import { mergeIntoProductHistory, totalHistoryLogsOf } from './lib/total-insp.js?v=202611171543';
-import { historyRangeStart } from './lib/history-window.js?v=202611171543';
+} from './ui-history.js?v=202611171615'; 
+import { clearInspResultCache, seedInspResultCache, fetchTotalInspLogs, totalInspLogsTruncated, TOTAL_LOG_LIMIT } from './ui-history-inspection.js?v=202611171615';   // 정상여부 캐시 · 전량 기록
+import { mergeIntoProductHistory, totalHistoryLogsOf, bulkSummary, bulkMessage } from './lib/total-insp.js?v=202611171615';
+import { editTotalLog, deleteTotalLog, listDayLogs, listProductLogs, deleteTotalDay, deleteTotalProduct, askTotalLogEdit } from './total-insp-edit.js?v=202611171615';
+import { historyRangeStart } from './lib/history-window.js?v=202611171615';
 
 import { 
     setSortState, 
     renderQCStatsMode, 
     currentInspTypeFilter, 
     setInspTypeFilter 
-} from './ui-history-inspection.js?v=202611171543';
+} from './ui-history-inspection.js?v=202611171615';
 
 import {
     loadInspectionLogs,
@@ -31,7 +32,7 @@ import {
     savePreInspectionNote,
     handleManualImageSelect, 
     clearManualImageState    
-} from './inspection-logic.js?v=202611171543';
+} from './inspection-logic.js?v=202611171615';
 
 import { collection, getDocs, doc, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
@@ -161,6 +162,96 @@ export const fetchAndRenderInspectionHistory = async ({ reuse = false } = {}) =>
     }
 };
 
+// ── 전량검수 기록 수정·삭제(2026-11-17, js/total-insp-edit.js) ────────────────────────────────
+let totalBusy = false;
+/** 고친 뒤 — 전량 기록 캐시(엑셀도 같은 캐시)를 새로 읽고 지금 보기를 다시 그린다. */
+async function refreshAfterTotalEdit() {
+    await loadTotalLogs(true);
+    await fetchAndRenderInspectionHistory({ reuse: true });
+}
+const missingNote = (r) => [
+    r.qtyMissing && r.qtyMissing.length ? `처리량 문서가 없어 못 고친 날짜: ${r.qtyMissing.join(', ')}` : '',
+    r.accMissing ? '누적(진행 목록) 문서가 없어 기록만 고쳤습니다' : '',
+].filter(Boolean).join(' · ');
+
+/** @returns {Promise<boolean>} 전량 버튼이었으면 true(다른 처리 안 함) */
+async function handleTotalLogClick(e) {
+    const t = e.target && e.target.closest ? e.target : null;
+    if (!t) return false;
+    const editBtn = t.closest('[data-tl-edit]');
+    const delBtn = t.closest('[data-tl-del]');
+    const dayBtn = t.closest('[data-tl-day-del]');
+    const prodBtn = t.closest('[data-tl-prod-del]');
+    if (!editBtn && !delBtn && !dayBtn && !prodBtn) return false;
+    e.stopPropagation();
+    if (e.__totalLogHandled) return true;   // 같은 클릭이 두 번 들어와도(리스너가 겹쳐 붙은 경우) 한 번만
+    e.__totalLogHandled = true;
+    if (totalBusy) { showToast('앞 작업을 처리하는 중입니다.', true); return true; }
+    totalBusy = true;
+    let needRefresh = false;
+    try {
+        if (editBtn) {
+            const id = editBtn.dataset.tlEdit;
+            const log = (cachedTotalLogs || []).find(l => (l.id || l.saveId) === id);
+            if (!log) { showToast('기록을 찾지 못했습니다. [새로고침] 뒤 다시 눌러 주세요.', true); return true; }
+            const input = await askTotalLogEdit(log);
+            if (!input) return true;
+            const r = await editTotalLog(id, input);
+            if (!r.ok) { showToast(r.message, true); return true; }
+            const note = [r.otherRound ? '다른 회차 기록이라 누적은 그대로' : '', missingNote(r)].filter(Boolean).join(' · ');
+            showToast(`전량검수 기록을 고쳤습니다.${note ? ` (${note})` : ''}`, !!missingNote(r));
+            needRefresh = true;
+            return true;
+        }
+        if (delBtn) {
+            const id = delBtn.dataset.tlDel;
+            const log = (cachedTotalLogs || []).find(l => (l.id || l.saveId) === id) || {};
+            const ok = await showConfirm(`${log.name || '전량검수 기록'}${log.option ? ` / ${log.option}` : ''} · ${log.date || ''}\n${bulkMessage(bulkSummary([log]))}`,
+                { title: '전량검수 기록 삭제', okText: '삭제', cancelText: '취소', danger: true });
+            if (!ok) return true;
+            const r = await deleteTotalLog(id);
+            if (!r.ok) { showToast(r.message, true); needRefresh = true; return true; }
+            const note = missingNote({ ...r, accMissing: r.accMissing > 0 });
+            showToast(r.deleted ? `삭제했습니다.${note ? ` (${note})` : ''}` : '이미 지워진 기록입니다.', !!note);
+            needRefresh = true;
+            return true;
+        }
+        if (dayBtn) {
+            const date = dayBtn.dataset.tlDayDel;
+            const { logs, summary } = await listDayLogs(date);
+            if (!logs.length) { showToast('이 날의 전량검수 기록이 없습니다.', true); needRefresh = true; return true; }
+            const ok = await showConfirm(`${date} 전량검수 기록을 모두 지웁니다.\n${bulkMessage(summary)}`,
+                { title: '이 날 전량검수 삭제', okText: '삭제', cancelText: '취소', danger: true });
+            if (!ok) return true;
+            const r = await deleteTotalDay(logs);
+            const note = missingNote({ ...r, accMissing: false });
+            showToast(r.ok ? `${r.deleted}건 삭제했습니다.${note ? ` (${note})` : ''}` : r.message, !r.ok || !!note);
+            needRefresh = true;
+            return true;
+        }
+        const name = prodBtn.dataset.tlProdDel;
+        const { logs, accKeys, accStamps, summary } = await listProductLogs(name);
+        if (!logs.length && !accKeys.length) { showToast('이 상품의 전량검수 기록이 없습니다.', true); needRefresh = true; return true; }
+        const ok = await showConfirm(`'${name}' 의 전량검수 기록 전부와 진행 목록(누적 ${accKeys.length}건)을 지웁니다.\n${bulkMessage(summary)}`,
+            { title: '전량검수 기록 삭제', okText: '삭제', cancelText: '취소', danger: true });
+        if (!ok) return true;
+        const r = await deleteTotalProduct(name, logs, accKeys, accStamps);
+        const note = missingNote({ ...r, accMissing: false });
+        showToast(r.ok ? `기록 ${r.deleted}건·누적 ${r.accDeleted || 0}건 삭제했습니다.${note ? ` (${note})` : ''}` : r.message, !r.ok || !!note);
+        needRefresh = true;
+        return true;
+    } catch (err) {
+        console.error('[전량검수 기록] 처리 실패:', err && err.code ? err.code : err);
+        showToast(err && err.code === 'permission-denied' ? '권한이 없습니다.' : '처리하지 못했습니다. 다시 눌러 주세요.', true);
+        return true;
+    } finally {
+        // 처리 중 표시는 여기서 먼저 푼다 — 다시 읽기·다시 그리기는 기다리지 않는다(리뷰 0: 예전엔 [수정] 뒤 다시 그리기를
+        //   기다리는 동안 표시가 남아, 바로 [삭제]를 누르면 '앞 작업을 처리하는 중'으로 막혔다)
+        totalBusy = false;
+        if (needRefresh) refreshAfterTotalEdit().catch(err => console.warn('[전량검수 기록] 다시 그리기 실패:', err && err.code ? err.code : err));
+    }
+}
+
 export function setupHistoryInspectionListeners() {
 
     const preModal = document.getElementById('pre-register-inspection-modal');
@@ -208,6 +299,8 @@ export function setupHistoryInspectionListeners() {
         });
 
         DOM.inspectionHistoryViewContainer.addEventListener('click', async (e) => {
+            // 전량검수 기록 [수정]·[삭제]·[이 날 전량검수 삭제]·[전량검수 기록 삭제](상품) — 줄 클릭(상세 펼치기)보다 먼저 본다
+            if (await handleTotalLogClick(e)) return;
             
             const addPreBtn = e.target.closest('#btn-add-pre-inspection');
             if (addPreBtn) {

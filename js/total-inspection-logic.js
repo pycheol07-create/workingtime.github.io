@@ -12,25 +12,26 @@
 //   · [완료 처리]·[다시 진행]·[목록에서 빼기](누적 0 인 줄만).
 // 순수 규칙은 js/lib/total-insp.js. 공급처는 코드만(supplierCode) — 이름 칸은 쓰지 않는다(CLAUDE.md 3절).
 // ⚠️ 이 창은 index.html·history.html 에 붙는다 — role="dialog"·data-act·end-shift-* 를 쓰지 않는다(업무마감봇 선택자).
-import * as DOM from './dom-elements.js?v=202611171543';
-import * as State from './state.js?v=202611171543';
-import { showToast, getTodayDateString, getCurrentTime, escapeHtml, showConfirm } from './utils.js?v=202611171543';
+import * as DOM from './dom-elements.js?v=202611171615';
+import * as State from './state.js?v=202611171615';
+import { showToast, getTodayDateString, getCurrentTime, escapeHtml, showConfirm } from './utils.js?v=202611171615';
 import {
     doc, collection, query, where, limit as fsLimit, onSnapshot, runTransaction, serverTimestamp, increment, deleteField
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { TASK, tName } from './task-names.js?v=202611171543';
-import { openManualAdd } from './inspection-manual.js?v=202611171543';
-import { getCurrentInspItem } from './inspection-logic.js?v=202611171543';
+import { TASK, tName } from './task-names.js?v=202611171615';
+import { openManualAdd } from './inspection-manual.js?v=202611171615';
+import { getCurrentInspItem } from './inspection-logic.js?v=202611171615';
 import {
-    ON, DONE, totalKey, startOrReopen, applySave, markDone, markReopen, progressOf, todayQtyOf,
+    ON, DONE, totalKey, startOrReopen, applySave, applyInfoSave, isInfoOnly, periodLabel, ymd, markDone, markReopen, progressOf, todayQtyOf,
     sortList, nextOnKey, filterRows, exactRow, logOf, fromSampleItem, removePlan, removeCounts, removeMessage
-} from './lib/total-insp.js?v=202611171543';
+} from './lib/total-insp.js?v=202611171615';
 
 const APP = ['artifacts', 'team-work-logger-v2'];
 const COL = 'total_inspections_accumulated';
 const LOG_COL = 'total_inspection_logs';
 const DONE_LIMIT = 200;
 const SAVE_LABEL = '오늘 수량 누적 저장';
+const INFO_LABEL = '총 재고·정보 저장';   // 오늘 정상·불량이 비었을 때 — 총 재고를 먼저 넣는다(2026-11-17 사용자 요청)
 
 let rowsOn = [];             // 진행중 문서 [{ id, ...data }]
 let rowsDone = [];           // [완료 보기]를 켠 동안의 완료 문서
@@ -232,37 +233,52 @@ function renderSelected(fill) {
         DOM.totalInspSelMeta.textContent = [
             `${Math.max(1, Number(r.round) || 1)}회차`,
             done ? (r.stopped ? '완료(중단)' : '완료') : '진행중',
+            `검수 ${periodLabel(r.startDate, r.endDate)}`,
             r.supplierCode ? `공급처 ${r.supplierCode}` : '',
             r.createdBy ? `넣은 사람 ${r.createdBy}` : '',
+            ymd(r.inboundDate) ? `입고 ${r.inboundDate}` : '',   // 옛 문서의 입고일 — 읽기만(새로 쓰지 않음)
         ].filter(Boolean).join(' · ');
     }
     if (DOM.totalInspCode) DOM.totalInspCode.textContent = r.code || '-';
     if (DOM.totalInspOption) DOM.totalInspOption.textContent = r.option || '-';
+    if (DOM.totalInspEndDate) DOM.totalInspEndDate.textContent = ymd(r.endDate) || (done ? '-' : '진행 중');
     if (DOM.totalInspAccumulated) {
-        DOM.totalInspAccumulated.textContent = `${Number(r.accumulatedTotal) || 0} (정상 ${Number(r.accumulatedNormal) || 0} · 불량 ${Number(r.accumulatedDefective) || 0})`;
+        DOM.totalInspAccumulated.textContent = (Number(r.accumulatedTotal) || 0).toLocaleString();
     }
+    // 누적 칸 — 합계(/ 총 재고) 크게, 정상·불량 따로(2026-11-17 사용자 요청: 더 눈에 띄게)
+    if (DOM.totalInspAccStock) DOM.totalInspAccStock.textContent = ` / ${Number(r.totalStock) > 0 ? Number(r.totalStock).toLocaleString() : '-'}`;
+    if (DOM.totalInspAccNormal) DOM.totalInspAccNormal.textContent = (Number(r.accumulatedNormal) || 0).toLocaleString();
+    if (DOM.totalInspAccDefective) DOM.totalInspAccDefective.textContent = (Number(r.accumulatedDefective) || 0).toLocaleString();
     if (fill) {
         if (DOM.totalInspReason) DOM.totalInspReason.value = r.reason || '';
         if (DOM.totalInspTotalStock) DOM.totalInspTotalStock.value = Number(r.totalStock) > 0 ? String(r.totalStock) : '';
         if (DOM.totalInspLocation) DOM.totalInspLocation.value = r.location || '';
-        if (DOM.totalInspInboundDate) DOM.totalInspInboundDate.value = r.inboundDate || '';
+        if (DOM.totalInspStartDate) DOM.totalInspStartDate.value = ymd(r.startDate) || getTodayDateString();   // 비었으면(옛 문서) 오늘 — 저장 때 들어간다
         if (DOM.totalInspTodayNormal) DOM.totalInspTodayNormal.value = '';
         if (DOM.totalInspTodayDefective) DOM.totalInspTodayDefective.value = '';
     }
-    [DOM.totalInspReason, DOM.totalInspTotalStock, DOM.totalInspLocation, DOM.totalInspInboundDate,
+    [DOM.totalInspReason, DOM.totalInspTotalStock, DOM.totalInspLocation, DOM.totalInspStartDate,
         DOM.totalInspTodayNormal, DOM.totalInspTodayDefective].forEach(el => { if (el) el.disabled = done; });
     if (DOM.totalInspDoneNote) DOM.totalInspDoneNote.classList.toggle('hidden', !done);
     if (DOM.totalInspSaveBtn) {
         DOM.totalInspSaveBtn.disabled = saving || done;
-        DOM.totalInspSaveBtn.textContent = saving ? '저장 중…' : SAVE_LABEL;
     }
+    updateSaveLabel();
     if (DOM.totalInspDoneBtn) { DOM.totalInspDoneBtn.classList.toggle('hidden', done); DOM.totalInspDoneBtn.disabled = acting || saving; }
     if (DOM.totalInspReopenBtn) { DOM.totalInspReopenBtn.classList.toggle('hidden', !done); DOM.totalInspReopenBtn.disabled = acting || saving; }
     updateTotalInspRemaining();
 }
 
 /** 남은 수량 — 입력 중인 총 재고·오늘 수량으로. 넘으면 빨간 글자. */
+/** 저장 버튼 글자 — 오늘 정상·불량이 비었으면 '총 재고·정보 저장', 있으면 '오늘 수량 누적 저장'. */
+function updateSaveLabel() {
+    if (!DOM.totalInspSaveBtn) return;
+    const info = isInfoOnly(num(DOM.totalInspTodayNormal), num(DOM.totalInspTodayDefective));
+    DOM.totalInspSaveBtn.textContent = saving ? '저장 중…' : (info ? INFO_LABEL : SAVE_LABEL);
+}
+
 export function updateTotalInspRemaining() {
+    updateSaveLabel();
     const r = rowById(selectedId);
     const el = DOM.totalInspRemaining;
     if (!el) return;
@@ -322,7 +338,7 @@ async function addItems(items, { reason = '', stay = false, label = '' } = {}) {
     const res = await runTransaction(State.db, async (tx) => {
         const snaps = await Promise.all(list.map(x => tx.get(docRef(x.id))));
         return snaps.map((sn, i) => {
-            const d = startOrReopen(sn.exists() ? sn.data() : null, list[i].it, { reason, by, now });
+            const d = startOrReopen(sn.exists() ? sn.data() : null, list[i].it, { reason, by, now, today: getTodayDateString() });
             if (d.doc) {
                 const val = { ...d.doc, lastUpdated: serverTimestamp() };
                 if (d.dropSupplier) val.supplier = deleteField();   // 옛 문서의 공급처 이름 칸은 지운다(코드만 남김)
@@ -410,6 +426,37 @@ export function setTotalShowDone(on) {
 }
 
 // ── 저장 ─────────────────────────────────────────────────────────────
+/** 오늘 수량 없이 총 재고·사유·시작일·위치만(트랜잭션, 서버 값으로 다시 판정). 기록 문서·처리량은 쓰지 않는다. */
+async function saveTotalInfo(row, input) {
+    const pre = applyInfoSave(row, { ...input, date: getTodayDateString() });
+    if (!pre.ok) { showToast(pre.message, true); return; }
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+        showToast('인터넷 연결이 끊겨 저장하지 못했습니다(입력은 남아 있습니다).', true);
+        return;
+    }
+    const id = row.id;
+    saving = true;
+    renderSelected(false);
+    try {
+        const out = await runTransaction(State.db, async (tx) => {
+            const ref = docRef(id);
+            const snap = await tx.get(ref);
+            const r = applyInfoSave(snap.exists() ? snap.data() : null, { ...input, date: getTodayDateString(), by: me(), now: nowIso() });
+            if (!r.ok) return { err: r };
+            tx.update(ref, { ...r.patch, lastUpdated: serverTimestamp() });
+            return { r };
+        });
+        if (out.err) { showToast(out.err.message, true); return; }
+        showToast(out.r.done ? '총 재고 저장됨 · 누적과 같아 완료됐습니다.' : '총 재고 저장됨 — 검수한 수량은 오늘 정상·불량에 넣고 저장하세요.');
+    } catch (e) {
+        console.error('[전량검수] 총 재고 저장 실패:', e && e.code ? e.code : e);
+        showToast(failMsg(e, '저장하지 못했습니다. 입력은 남아 있습니다 — 다시 눌러 주세요.'), true);
+    } finally {
+        saving = false;
+        afterRowsChanged();
+    }
+}
+
 export async function saveTotalInspection() {
     if (saving) return;
     const row = rowById(selectedId);
@@ -420,8 +467,9 @@ export async function saveTotalInspection() {
         totalStock: num(DOM.totalInspTotalStock),
         reason: DOM.totalInspReason ? DOM.totalInspReason.value : '',
         location: DOM.totalInspLocation ? DOM.totalInspLocation.value : '',
-        inboundDate: DOM.totalInspInboundDate ? DOM.totalInspInboundDate.value : '',
+        startDate: DOM.totalInspStartDate ? DOM.totalInspStartDate.value : '',
     };
+    if (isInfoOnly(input.normal, input.defective)) { await saveTotalInfo(row, input); return; }   // 오늘 수량이 없으면 총 재고·정보만
     const pre = applySave(row, { ...input, date: getTodayDateString() });   // 화면 값으로 먼저 — 서버에서 한 번 더 본다
     if (!pre.ok) { showToast(pre.message, true); return; }
     if (typeof navigator !== 'undefined' && navigator.onLine === false) {
@@ -469,8 +517,9 @@ export async function saveTotalInspection() {
         if (DOM.totalInspTodayNormal) DOM.totalInspTodayNormal.value = '';
         if (DOM.totalInspTodayDefective) DOM.totalInspTodayDefective.value = '';
         saving = false;
-        // 다음 진행 줄로(없으면 지금 줄 그대로 — 완료로 빠졌으면 닫힌다)
-        const next = nextOnKey(sortList(rowsOn), ps.id);
+        // 완료됐으면 다음 진행 줄로. 아직이면 그 줄에 머문다 — 예전엔 늘 다음 줄로 넘어가 방금 넣은 총 재고·누적이 화면에서 사라져
+        //   '저장이 안 됐다'로 보였다(2026-11-17 사용자 신고). 머물 때 입력칸은 지우지 않은 그대로(총 재고·사유·시작일은 서버 값과 같다).
+        const next = out.r && out.r.done ? nextOnKey(sortList(rowsOn), ps.id) : '';
         if (next) selectRow(next);
         else afterRowsChanged();
     } catch (e) {
@@ -514,7 +563,7 @@ export async function markTotalDone() {
     if (!ok) return;
     const id = r.id;
     await act(id, (tx, ref, cur) => {
-        const m = markDone(cur, { by: me(), now: nowIso() });
+        const m = markDone(cur, { by: me(), now: nowIso(), date: getTodayDateString() });
         if (m.ok) tx.update(ref, { ...m.patch, lastUpdated: serverTimestamp() });
         return m;
     }, '완료 처리했습니다.');
@@ -565,7 +614,7 @@ async function removeRows(ids, { all = false } = {}) {
             const res = await runTransaction(State.db, async (tx) => {
                 const snaps = await Promise.all(part.map(id => tx.get(docRef(id))));
                 return snaps.map((sn, k) => {
-                    const p = removePlan(sn.exists() ? sn.data() : null, { by, now });
+                    const p = removePlan(sn.exists() ? sn.data() : null, { by, now, date: getTodayDateString() });
                     if (p.action === 'delete') tx.delete(docRef(part[k]));
                     else if (p.action === 'stop') tx.update(docRef(part[k]), { ...p.patch, lastUpdated: serverTimestamp() });
                     return p.action;
@@ -592,4 +641,17 @@ export const removeTotalRow = (id) => removeRows([id]);
 /** [목록 비우기] — 진행 중인 줄 전부(검색칸으로 거른 것과 상관없이). */
 export function clearTotalList() {
     return removeRows(sortList(rowsOn).map(r => r.id), { all: true });
+}
+
+// ── 전체화면(샘플검수 #insp-fullscreen-btn 와 같은 기능 — 휴대폰에선 버튼이 숨어 있다, css/style.css) ──
+export function toggleTotalFullscreen() {
+    const box = DOM.totalInspModalContent;
+    if (!box || !DOM.totalInspModal) return;
+    const on = !box.classList.contains('total-insp-full');
+    box.classList.toggle('total-insp-full', on);
+    DOM.totalInspModal.classList.toggle('total-insp-full-on', on);
+    if (DOM.totalInspFullscreenBtn) {
+        DOM.totalInspFullscreenBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
+        DOM.totalInspFullscreenBtn.title = on ? '전체화면 끄기' : '전체화면';
+    }
 }

@@ -1,12 +1,12 @@
 // === js/ui-history-inspection.js ===
-import * as DOM from './dom-elements.js?v=202611171543';
-import * as State from './state.js?v=202611171543';
-import { getWeekOfYear, escapeHtml, getTodayDateString } from './utils.js?v=202611171543';
-import { dayInspItems, packDatesLabel } from './lib/insp-day.js?v=202611171543';
-import { inspTypeLabel } from './lib/insp-manual.js?v=202611171543';
+import * as DOM from './dom-elements.js?v=202611171615';
+import * as State from './state.js?v=202611171615';
+import { getWeekOfYear, escapeHtml, getTodayDateString } from './utils.js?v=202611171615';
+import { dayInspItems, packDatesLabel } from './lib/insp-day.js?v=202611171615';
+import { inspTypeLabel } from './lib/insp-manual.js?v=202611171615';
 import { doc, getDoc, runTransaction, collection, getDocs, query, where, orderBy, limit as fsLimit } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { itemKey, patchItemsByKey } from './lib/insp-flow.js?v=202611171543';
-import { dayRows, inspectorLabel, logDefectQty } from './lib/total-insp.js?v=202611171543';
+import { itemKey, patchItemsByKey } from './lib/insp-flow.js?v=202611171615';
+import { dayRows, inspectorLabel, logDefectQty, periodLabel } from './lib/total-insp.js?v=202611171615';
 
 // 전량검수 저장 기록(2026-11-17) — artifacts/team-work-logger-v2/total_inspection_logs where date >= fromDate(보기 기간 시작일),
 //   최근 날짜부터 최대 TOTAL_LOG_LIMIT 건. 검수이력 탭(js/listeners-history-inspection.js)이 탭에 들어올 때·[새로고침] 때 force 로 읽고,
@@ -29,7 +29,15 @@ export async function fetchTotalInspLogs(fromDate, { force = false } = {}) {
 /** 마지막으로 읽은 전량 기록이 상한에 걸려 잘렸나(안내용). */
 export const totalInspLogsTruncated = () => !!(totalLogCache && totalLogCache.truncated);
 
-/** 일자별 보기 — 그날 전량검수 기록 표(상품명·옵션·코드·사유·정상·불량·누적/총재고·회차·작업자). 없으면 ''. */
+/** 전량 기록 한 줄의 [수정]·[삭제] — js/listeners-history-inspection.js 가 data-tl-edit·data-tl-del 을 받는다(js/total-insp-edit.js). */
+function totalLogBtns(saveId) {
+    if (!saveId) return '';
+    const id = escapeHtml(saveId);
+    return `<button type="button" data-tl-edit="${id}" class="text-blue-600 hover:text-blue-800 text-[11px] font-bold px-2 py-1 rounded border border-blue-200 hover:bg-blue-50">수정</button>`
+        + ` <button type="button" data-tl-del="${id}" class="text-red-600 hover:text-red-700 text-[11px] font-bold px-2 py-1 rounded border border-red-200 hover:bg-red-50">삭제</button>`;
+}
+
+/** 일자별 보기 — 그날 전량검수 기록 표(상품명·옵션·코드·사유·검수일자(시작~종료)·정상·불량·누적/총재고·회차·작업자). 없으면 ''. */
 function totalLogsTableHtml(rows) {
     if (!rows || !rows.length) return '';
     const emails = (State.appConfig && State.appConfig.memberEmails) || {};
@@ -41,15 +49,20 @@ function totalLogsTableHtml(rows) {
             <td class="px-3 py-2 text-xs text-gray-600">${escapeHtml(l.option || '-')}</td>
             <td class="px-3 py-2 text-xs font-mono text-gray-500">${escapeHtml(l.code || '-')}</td>
             <td class="px-3 py-2 text-xs text-gray-700 break-words max-w-[220px]">${escapeHtml(l.reason || '-')}</td>
+            <td class="px-3 py-2 text-[11px] font-mono text-gray-600 whitespace-nowrap">${escapeHtml(periodLabel(l.startDate, l.endDate))}</td>
             <td class="px-3 py-2 text-center text-xs font-bold text-green-700">${escapeHtml(n(l.normal))}</td>
             <td class="px-3 py-2 text-center text-xs font-bold ${Number(l.defective) > 0 ? 'text-red-600' : 'text-gray-400'}">${escapeHtml(n(l.defective))}</td>
             <td class="px-3 py-2 text-center text-xs text-gray-700 whitespace-nowrap">${escapeHtml(n(l.accumAfter))} / ${escapeHtml(n(l.totalStock))}</td>
             <td class="px-3 py-2 text-center text-xs text-gray-600">${escapeHtml(Math.max(1, Number(l.round) || 1))}</td>
             <td class="px-3 py-2 text-xs text-gray-700">${escapeHtml(inspectorLabel(l.inspector, emails))}</td>
+            <td class="px-3 py-2 text-right whitespace-nowrap">${totalLogBtns(l.id || l.saveId)}</td>
         </tr>`).join('');
     return `
         <div class="mt-4 border-t-2 border-purple-200">
-            <div class="px-4 py-2 bg-purple-50 text-sm font-bold text-purple-900">전량검수 ${escapeHtml(rows.length)}건</div>
+            <div class="px-4 py-2 bg-purple-50 text-sm font-bold text-purple-900 flex justify-between items-center gap-2">
+                <span>전량검수 ${escapeHtml(rows.length)}건</span>
+                <button type="button" data-tl-day-del="${escapeHtml(rows[0] && rows[0].date)}" class="text-xs bg-white border border-red-200 hover:bg-red-50 text-red-600 font-bold py-1 px-2 rounded shadow-sm" title="이 날짜의 전량검수 기록을 모두 지우고 누적·처리량에서 뺍니다">이 날 전량검수 삭제</button>
+            </div>
             <table class="w-full text-left border-collapse">
                 <thead class="bg-white text-[11px] text-gray-500">
                     <tr>
@@ -58,11 +71,13 @@ function totalLogsTableHtml(rows) {
                         <th class="px-3 py-2 font-bold bg-gray-50">옵션</th>
                         <th class="px-3 py-2 font-bold bg-gray-50">코드</th>
                         <th class="px-3 py-2 font-bold bg-gray-50">사유</th>
+                        <th class="px-3 py-2 font-bold bg-gray-50">검수일자</th>
                         <th class="px-3 py-2 font-bold bg-gray-50 text-center">정상</th>
                         <th class="px-3 py-2 font-bold bg-gray-50 text-center">불량</th>
                         <th class="px-3 py-2 font-bold bg-gray-50 text-center">누적/총재고</th>
                         <th class="px-3 py-2 font-bold bg-gray-50 text-center">회차</th>
                         <th class="px-3 py-2 font-bold bg-gray-50">작업자</th>
+                        <th class="px-3 py-2 font-bold bg-gray-50 text-right">관리</th>
                     </tr>
                 </thead>
                 <tbody class="bg-white divide-y divide-gray-100">${body}</tbody>
@@ -599,7 +614,8 @@ export const renderInspectionHistoryTable = (historyData) => {
                         <button class="text-indigo-600 hover:text-indigo-900 font-semibold text-xs border border-indigo-200 rounded px-3 py-1.5 hover:bg-indigo-50 transition pointer-events-none shadow-sm">
                             상세보기 ▾
                         </button>
-                        ${item.totalOnly ? '<span class="text-[11px] font-bold text-purple-700" title="전량검수 기록만 있는 상품(상품 이력 문서 없음)">전량만</span>' : `<button class="text-red-500 hover:text-red-700 font-semibold text-xs border border-red-200 rounded px-3 py-1.5 hover:bg-red-50 transition btn-delete-product opacity-0 group-hover:opacity-100 m-touch-show shadow-sm"
+                        ${(item.logs || []).some(l => l && l.fromTotalLog) ? `<button type="button" data-tl-prod-del="${escapeHtml(item.id)}" class="text-purple-700 hover:text-red-700 font-semibold text-xs border border-purple-200 rounded px-3 py-1.5 hover:bg-red-50 transition shadow-sm" title="이 상품의 전량검수 기록 전부와 누적(진행 목록)을 지웁니다">전량검수 기록 삭제</button>` : ''}
+                        ${item.totalOnly ? '' : `<button class="text-red-500 hover:text-red-700 font-semibold text-xs border border-red-200 rounded px-3 py-1.5 hover:bg-red-50 transition btn-delete-product opacity-0 group-hover:opacity-100 m-touch-show shadow-sm"
                                 data-product-name="${escapeHtml(item.id)}" title="상품 전체 삭제">
                             삭제
                         </button>`}
@@ -778,7 +794,7 @@ export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
                         <td class="px-4 py-3 text-center">${imageHtml}</td>
                         <td class="px-4 py-3 text-right whitespace-nowrap">
                             ${item.fromTotalLog
-                                ? '<span class="text-[11px] font-bold text-purple-700" title="전량검수 기록은 전량검수 창에서 관리합니다">전량</span>'
+                                ? totalLogBtns(item.saveId)
                                 : `<button class="text-blue-600 hover:text-blue-800 text-[11px] font-bold px-3 py-1.5 rounded border border-blue-200 hover:bg-blue-50 btn-edit-insp-log transition shadow-sm" data-index="${escapeHtml(item.originalIndex)}" data-product-name="${escapeHtml(productName)}">수정</button>`}
                         </td>
                     </tr>

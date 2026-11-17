@@ -259,6 +259,9 @@ export const totalInspContentArea = document.getElementById('total-insp-content-
 export const totalInspReason = document.getElementById('total-insp-reason');
 export const totalInspTotalStock = document.getElementById('total-insp-total-stock');
 export const totalInspAccumulated = document.getElementById('total-insp-accumulated');
+export const totalInspAccStock = document.getElementById('total-insp-acc-stock');
+export const totalInspAccNormal = document.getElementById('total-insp-acc-normal');
+export const totalInspAccDefective = document.getElementById('total-insp-acc-defective');
 export const totalInspTodayNormal = document.getElementById('total-insp-today-normal');
 export const totalInspTodayDefective = document.getElementById('total-insp-today-defective');
 export const totalInspRemaining = document.getElementById('total-insp-remaining');
@@ -269,7 +272,11 @@ export const inspSwitchToTotalBtn = document.getElementById('insp-switch-to-tota
 export const totalInspCode = document.getElementById('total-insp-code');
 export const totalInspOption = document.getElementById('total-insp-option');
 export const totalInspLocation = document.getElementById('total-insp-location');
-export const totalInspInboundDate = document.getElementById('total-insp-inbound-date');
+// 검수일자(시작일 입력·종료일 표시) — 옛 입고일자 칸(total-insp-inbound-date)은 없앴다(2026-11-17)
+export const totalInspStartDate = document.getElementById('total-insp-start-date');
+export const totalInspEndDate = document.getElementById('total-insp-end-date');
+export const totalInspFullscreenBtn = document.getElementById('total-insp-fullscreen-btn');
+export const totalInspModalContent = document.getElementById('total-insp-modal-content');
 export const totalInspBackBtn = document.getElementById('total-insp-back-btn');
 // 진행 목록(2026-11-17) — 공급처 이름 칸(total-insp-supplier)은 없앴다(코드만)
 export const totalInspList = document.getElementById('total-insp-list');
@@ -505,6 +512,9 @@ if (['localhost', '127.0.0.1'].includes(location.hostname)) {
                 totalInspReason,
                 totalInspTotalStock,
                 totalInspAccumulated,
+                totalInspAccStock,
+                totalInspAccNormal,
+                totalInspAccDefective,
                 totalInspTodayNormal,
                 totalInspTodayDefective,
                 totalInspRemaining,
@@ -513,7 +523,10 @@ if (['localhost', '127.0.0.1'].includes(location.hostname)) {
                 totalInspCode,
                 totalInspOption,
                 totalInspLocation,
-                totalInspInboundDate,
+                totalInspStartDate,
+                totalInspEndDate,
+                totalInspFullscreenBtn,
+                totalInspModalContent,
                 totalInspBackBtn,
                 totalInspList,
                 totalInspListCount,
