@@ -12,26 +12,26 @@
 //   · [완료 처리]·[다시 진행]·[목록에서 빼기](누적 0 인 줄만).
 // 순수 규칙은 js/lib/total-insp.js. 공급처는 코드만(supplierCode) — 이름 칸은 쓰지 않는다(CLAUDE.md 3절).
 // ⚠️ 이 창은 index.html·history.html 에 붙는다 — role="dialog"·data-act·end-shift-* 를 쓰지 않는다(업무마감봇 선택자).
-import * as DOM from './dom-elements.js?v=202611171615';
-import * as State from './state.js?v=202611171615';
-import { showToast, getTodayDateString, getCurrentTime, escapeHtml, showConfirm } from './utils.js?v=202611171615';
+import * as DOM from './dom-elements.js?v=202611171632';
+import * as State from './state.js?v=202611171632';
+import { showToast, getTodayDateString, getCurrentTime, escapeHtml, showConfirm } from './utils.js?v=202611171632';
 import {
     doc, collection, query, where, limit as fsLimit, onSnapshot, runTransaction, serverTimestamp, increment, deleteField
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { TASK, tName } from './task-names.js?v=202611171615';
-import { openManualAdd } from './inspection-manual.js?v=202611171615';
-import { getCurrentInspItem } from './inspection-logic.js?v=202611171615';
+import { TASK, tName } from './task-names.js?v=202611171632';
+import { openManualAdd } from './inspection-manual.js?v=202611171632';
+import { S as PS, loadLoc, locOf, fmtDateTime, tsMs } from './products-store.js?v=202611171632';   // [재고 연동] — 위치·재고 요약(ProductLoc, IndexedDB 캐시 같이 씀)
+import { getCurrentInspItem } from './inspection-logic.js?v=202611171632';
 import {
     ON, DONE, totalKey, startOrReopen, applySave, applyInfoSave, isInfoOnly, periodLabel, ymd, markDone, markReopen, progressOf, todayQtyOf,
-    sortList, nextOnKey, filterRows, exactRow, logOf, fromSampleItem, removePlan, removeCounts, removeMessage
-} from './lib/total-insp.js?v=202611171615';
+    sortList, nextOnKey, filterRows, exactRow, logOf, fromSampleItem, stockFromLoc, infoChangedLabels, stockBasisText, removePlan, removeCounts, removeMessage
+} from './lib/total-insp.js?v=202611171632';
 
 const APP = ['artifacts', 'team-work-logger-v2'];
 const COL = 'total_inspections_accumulated';
 const LOG_COL = 'total_inspection_logs';
 const DONE_LIMIT = 200;
-const SAVE_LABEL = '오늘 수량 누적 저장';
-const INFO_LABEL = '총 재고·정보 저장';   // 오늘 정상·불량이 비었을 때 — 총 재고를 먼저 넣는다(2026-11-17 사용자 요청)
+const SAVE_LABEL = '저장';   // 오늘 수량이 있든 없든 같은 글자(2026-11-17 사용자 요청) — 무엇이 저장됐는지는 저장 뒤 토스트로
 
 let rowsOn = [];             // 진행중 문서 [{ id, ...data }]
 let rowsDone = [];           // [완료 보기]를 켠 동안의 완료 문서
@@ -172,7 +172,7 @@ function rowHtml(r, today) {
     const tq = todayQtyOf(r, today);
     const stock = p.total > 0
         ? `<span class="font-bold text-gray-800">${escapeHtml(p.acc.toLocaleString())} / ${escapeHtml(p.total.toLocaleString())}</span> <span class="text-gray-500">(${escapeHtml(p.pct)}%)</span>`
-        : `<span class="font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded px-1.5">총 재고 미입력</span>`;
+        : `<span class="font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded px-1.5">검수수량 미입력</span>`;
     const tags = [
         done ? `<span class="text-[11px] font-bold bg-sky-100 text-sky-800 rounded px-1.5 py-0.5">${r.stopped ? '완료(중단)' : '완료'}</span>` : '',
         Number(r.round) > 1 ? `<span class="text-[11px] font-bold bg-purple-50 text-purple-800 border border-purple-200 rounded px-1.5 py-0.5">${escapeHtml(r.round)}회차</span>` : '',
@@ -250,6 +250,7 @@ function renderSelected(fill) {
     if (DOM.totalInspAccNormal) DOM.totalInspAccNormal.textContent = (Number(r.accumulatedNormal) || 0).toLocaleString();
     if (DOM.totalInspAccDefective) DOM.totalInspAccDefective.textContent = (Number(r.accumulatedDefective) || 0).toLocaleString();
     if (fill) {
+        setStockNote('');
         if (DOM.totalInspReason) DOM.totalInspReason.value = r.reason || '';
         if (DOM.totalInspTotalStock) DOM.totalInspTotalStock.value = Number(r.totalStock) > 0 ? String(r.totalStock) : '';
         if (DOM.totalInspLocation) DOM.totalInspLocation.value = r.location || '';
@@ -261,20 +262,25 @@ function renderSelected(fill) {
         DOM.totalInspTodayNormal, DOM.totalInspTodayDefective].forEach(el => { if (el) el.disabled = done; });
     if (DOM.totalInspDoneNote) DOM.totalInspDoneNote.classList.toggle('hidden', !done);
     if (DOM.totalInspSaveBtn) {
-        DOM.totalInspSaveBtn.disabled = saving || done;
+        DOM.totalInspSaveBtn.disabled = saving || done || stockBusy;   // [재고 연동] 불러오는 중엔 저장 막음
     }
     updateSaveLabel();
     if (DOM.totalInspDoneBtn) { DOM.totalInspDoneBtn.classList.toggle('hidden', done); DOM.totalInspDoneBtn.disabled = acting || saving; }
     if (DOM.totalInspReopenBtn) { DOM.totalInspReopenBtn.classList.toggle('hidden', !done); DOM.totalInspReopenBtn.disabled = acting || saving; }
+    if (DOM.totalInspStockSyncBtn) {
+        // 상품코드가 없는 줄(직접 입력에서 코드를 안 적음)은 찾을 수 없다
+        const noCode = !String(r.code || '').trim();
+        DOM.totalInspStockSyncBtn.disabled = done || saving || stockBusy || noCode;
+        DOM.totalInspStockSyncBtn.title = noCode ? '상품코드가 없는 줄이라 재고를 찾을 수 없습니다' : '앱에 있는 재고 요약으로 검수수량 칸을 채웁니다(저장은 [저장])';
+    }
     updateTotalInspRemaining();
 }
 
 /** 남은 수량 — 입력 중인 총 재고·오늘 수량으로. 넘으면 빨간 글자. */
-/** 저장 버튼 글자 — 오늘 정상·불량이 비었으면 '총 재고·정보 저장', 있으면 '오늘 수량 누적 저장'. */
+/** 저장 버튼 글자 — 늘 '저장'(저장 중엔 '저장 중…'). 오늘 수량이 없으면 검수수량·정보만 저장하는 동작은 그대로. */
 function updateSaveLabel() {
     if (!DOM.totalInspSaveBtn) return;
-    const info = isInfoOnly(num(DOM.totalInspTodayNormal), num(DOM.totalInspTodayDefective));
-    DOM.totalInspSaveBtn.textContent = saving ? '저장 중…' : (info ? INFO_LABEL : SAVE_LABEL);
+    DOM.totalInspSaveBtn.textContent = saving ? '저장 중…' : SAVE_LABEL;
 }
 
 export function updateTotalInspRemaining() {
@@ -426,7 +432,12 @@ export function setTotalShowDone(on) {
 }
 
 // ── 저장 ─────────────────────────────────────────────────────────────
-/** 오늘 수량 없이 총 재고·사유·시작일·위치만(트랜잭션, 서버 값으로 다시 판정). 기록 문서·처리량은 쓰지 않는다. */
+/** 정보만 저장한 뒤 토스트 — 무엇이 저장됐는지(검수수량·사유·시작일·로케이션 중 바뀐 것). */
+function infoSavedText(cur, patch) {
+    return infoChangedLabels(cur, patch).join('·') || '정보';   // 실제로 바뀐 칸만(lib/total-insp.js)
+}
+
+/** 오늘 수량 없이 검수수량(칸 이름 totalStock)·사유·시작일·위치만(트랜잭션, 서버 값으로 다시 판정). 기록 문서·처리량은 쓰지 않는다. */
 async function saveTotalInfo(row, input) {
     const pre = applyInfoSave(row, { ...input, date: getTodayDateString() });
     if (!pre.ok) { showToast(pre.message, true); return; }
@@ -441,15 +452,17 @@ async function saveTotalInfo(row, input) {
         const out = await runTransaction(State.db, async (tx) => {
             const ref = docRef(id);
             const snap = await tx.get(ref);
-            const r = applyInfoSave(snap.exists() ? snap.data() : null, { ...input, date: getTodayDateString(), by: me(), now: nowIso() });
+            const cur = snap.exists() ? snap.data() : null;
+            const r = applyInfoSave(cur, { ...input, date: getTodayDateString(), by: me(), now: nowIso() });
             if (!r.ok) return { err: r };
             tx.update(ref, { ...r.patch, lastUpdated: serverTimestamp() });
-            return { r };
+            return { r, cur };
         });
         if (out.err) { showToast(out.err.message, true); return; }
-        showToast(out.r.done ? '총 재고 저장됨 · 누적과 같아 완료됐습니다.' : '총 재고 저장됨 — 검수한 수량은 오늘 정상·불량에 넣고 저장하세요.');
+        const saved = infoSavedText(out.cur, out.r.patch);
+        showToast(out.r.done ? `저장됨 · ${saved} — 누적과 같아 완료됐습니다.` : `저장됨 · ${saved} (오늘 수량은 넣지 않음 — 검수한 수량은 정상·불량에 넣고 [저장])`);
     } catch (e) {
-        console.error('[전량검수] 총 재고 저장 실패:', e && e.code ? e.code : e);
+        console.error('[전량검수] 검수수량 저장 실패:', e && e.code ? e.code : e);
         showToast(failMsg(e, '저장하지 못했습니다. 입력은 남아 있습니다 — 다시 눌러 주세요.'), true);
     } finally {
         saving = false;
@@ -458,7 +471,7 @@ async function saveTotalInfo(row, input) {
 }
 
 export async function saveTotalInspection() {
-    if (saving) return;
+    if (saving || stockBusy) return;   // [재고 연동] 불러오는 중이면 칸 값이 바뀔 수 있다
     const row = rowById(selectedId);
     if (!row) { showToast('진행 목록에서 상품을 먼저 고르세요.', true); return; }
     const input = {
@@ -512,7 +525,8 @@ export async function saveTotalInspection() {
         } else {
             const { r } = out;
             // 화면 처리량은 오늘 문서 구독(js/app-sync.js)이 바꾼다 — 여기서 더하지 않는다(샘플검수와 같게, 두 번 더해지지 않게)
-            showToast(r.done ? `저장 · 누적 ${r.accumAfter}개로 총 재고에 닿아 완료됐습니다.` : `저장 · 누적 ${r.accumAfter}개`);
+            const today = `오늘 정상 ${r.normal}·불량 ${r.defective}`;
+            showToast(r.done ? `저장됨 · ${today} · 누적 ${r.accumAfter}개로 검수수량에 닿아 완료됐습니다.` : `저장됨 · ${today} · 누적 ${r.accumAfter} / ${r.patch.totalStock}개`);
         }
         if (DOM.totalInspTodayNormal) DOM.totalInspTodayNormal.value = '';
         if (DOM.totalInspTodayDefective) DOM.totalInspTodayDefective.value = '';
@@ -558,7 +572,7 @@ export async function markTotalDone() {
     if (!r) return;
     const p = progressOf(r);
     const ok = await showConfirm(
-        `'${r.name}${r.option ? ` / ${r.option}` : ''}' 을(를) 완료 처리할까요?\n누적 ${p.acc}${p.total > 0 ? ` / 총 재고 ${p.total}` : ''}\n완료 목록에서 [다시 진행]으로 되돌릴 수 있습니다.`,
+        `'${r.name}${r.option ? ` / ${r.option}` : ''}' 을(를) 완료 처리할까요?\n누적 ${p.acc}${p.total > 0 ? ` / 검수수량 ${p.total}` : ''}\n완료 목록에서 [다시 진행]으로 되돌릴 수 있습니다.`,
         { title: '전량검수 완료 처리', okText: '완료 처리', cancelText: '취소' });
     if (!ok) return;
     const id = r.id;
@@ -653,5 +667,63 @@ export function toggleTotalFullscreen() {
     if (DOM.totalInspFullscreenBtn) {
         DOM.totalInspFullscreenBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
         DOM.totalInspFullscreenBtn.title = on ? '전체화면 끄기' : '전체화면';
+    }
+}
+
+// ── [재고 연동](2026-11-17 사용자 요청) — 고른 줄 상품코드의 재고를 검수수량 칸에 채운다(저장은 사람이 [저장]) ──
+// 출처: ProductLoc(위치·재고 요약 — 채우기자동화가 평일 아침 채우기 지시서 때 Locations 자리 수량·이지어드민 정상/비축으로 씀).
+//   Locations ZONE_* 를 직접 읽지 않는다(상품코드 하나 찾자고 구역 문서를 통째로 읽게 되고, rawDataStr 에 공급처 열이 섞인다 — CLAUDE.md 3절).
+//   ProductLoc 은 상품코드·자리·수량·비축·정상/출고예정만 담는다(화이트리스트). 읽기: META 1회 + 바뀌었을 때만 Lxx(IndexedDB 캐시를 상품 관리·개별 추가와 같이 씀),
+//   이 창에서는 STOCK_TTL 안에는 다시 읽지 않는다. 이지어드민 API 는 부르지 않는다.
+const STOCK_TTL = 10 * 60 * 1000;
+let stockLoadedAt = 0;
+let stockBusy = false;
+
+function setStockNote(text, warn = false) {
+    const el = DOM.totalInspStockNote;
+    if (!el) return;
+    el.textContent = text;
+    el.classList.toggle('hidden', !text);
+    el.classList.toggle('text-red-600', warn);
+    el.classList.toggle('text-gray-600', !warn);
+}
+
+export async function syncTotalStock() {
+    const r = rowById(selectedId);
+    if (!r || stockBusy || saving) return;
+    const code = String(r.code || '').trim();
+    if (!code) { setStockNote('상품코드가 없는 줄이라 재고를 찾을 수 없습니다 — 검수수량을 직접 입력하세요.', true); return; }
+    const id = r.id;
+    stockBusy = true;
+    renderSelected(false);
+    setStockNote('재고 요약 불러오는 중…');
+    try {
+        if (!PS.db) PS.db = State.db;
+        if (!PS.loc || Date.now() - stockLoadedAt > STOCK_TTL) {
+            await loadLoc();
+            stockLoadedAt = Date.now();
+        }
+        if (selectedId !== id) return;   // 그사이 다른 줄을 골랐다
+        if (!PS.loc) { setStockNote('위치·재고 요약이 아직 없습니다 — 검수수량을 직접 입력하세요.', true); return; }
+        const res = stockFromLoc(locOf(code));
+        const metaAt = PS.locMeta && PS.locMeta.at ? tsMs(PS.locMeta.at) : 0;
+        if (!res.found) {
+            const at = stockBasisText('ez', metaAt, '', fmtDateTime);
+            setStockNote(`상품코드 ${code} 의 재고를 요약에서 찾지 못했습니다${at ? `(${at})` : ''} — 직접 입력하세요.`, true);
+            return;
+        }
+        // 기준 시각: 정상재고는 요약 시각, 로케이션 자리 합은 로케이션 업로드 시각(META.locAt)
+        const at = stockBasisText(res.basis, metaAt, PS.locMeta && PS.locMeta.locAt, fmtDateTime);
+        if (DOM.totalInspTotalStock) DOM.totalInspTotalStock.value = String(res.qty);
+        updateTotalInspRemaining();
+        const acc = Number(r.accumulatedTotal) || 0;
+        setStockNote(`${at ? `${at} · ` : ''}${res.detail} = ${res.qty}개 — [저장]을 눌러야 들어갑니다.`
+            + (res.qty < acc ? ` 지금까지 누적(${acc})보다 작아 그대로는 저장되지 않습니다.` : ''), res.qty < acc);
+    } catch (e) {
+        console.warn('[전량검수] 재고 요약 읽기 실패:', e && e.code ? e.code : e);
+        setStockNote('재고 요약을 읽지 못했습니다. 잠시 뒤 다시 누르거나 직접 입력하세요.', true);
+    } finally {
+        stockBusy = false;
+        renderSelected(false);
     }
 }

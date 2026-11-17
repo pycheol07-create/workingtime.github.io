@@ -259,6 +259,8 @@ export const totalInspContentArea = document.getElementById('total-insp-content-
 export const totalInspReason = document.getElementById('total-insp-reason');
 export const totalInspTotalStock = document.getElementById('total-insp-total-stock');
 export const totalInspAccumulated = document.getElementById('total-insp-accumulated');
+export const totalInspStockSyncBtn = document.getElementById('total-insp-stock-sync-btn');   // [재고 연동]
+export const totalInspStockNote = document.getElementById('total-insp-stock-note');
 export const totalInspAccStock = document.getElementById('total-insp-acc-stock');
 export const totalInspAccNormal = document.getElementById('total-insp-acc-normal');
 export const totalInspAccDefective = document.getElementById('total-insp-acc-defective');
@@ -512,6 +514,8 @@ if (['localhost', '127.0.0.1'].includes(location.hostname)) {
                 totalInspReason,
                 totalInspTotalStock,
                 totalInspAccumulated,
+                totalInspStockSyncBtn,
+                totalInspStockNote,
                 totalInspAccStock,
                 totalInspAccNormal,
                 totalInspAccDefective,

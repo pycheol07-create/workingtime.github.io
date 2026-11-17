@@ -148,12 +148,12 @@ export function applySave(cur, input = {}) {
     const qty = normal + defective;
     if (qty <= 0) return { ok: false, error: 'qty', message: '오늘 검수 수량을 입력해 주세요.' };
     const totalStock = input.totalStock == null || input.totalStock === '' ? int(cur.totalStock) : int(input.totalStock);
-    if (totalStock <= 0) return { ok: false, error: 'stock', message: '총 재고(검수 대상 수량)를 먼저 입력해 주세요.' };
+    if (totalStock <= 0) return { ok: false, error: 'stock', message: '검수수량을 먼저 입력해 주세요.' };
     const accN = int(cur.accumulatedNormal) + normal;
     const accD = int(cur.accumulatedDefective) + defective;
     const accumAfter = accN + accD;
     if (accumAfter > totalStock) {
-        return { ok: false, error: 'over', message: `누적(${accumAfter})이 총 재고(${totalStock})를 넘습니다. 총 재고를 먼저 고치세요.` };
+        return { ok: false, error: 'over', message: `누적(${accumAfter})이 검수수량(${totalStock})을 넘습니다. 검수수량을 먼저 고치세요.` };
     }
     const date = str(input.date);
     const done = accumAfter === totalStock;
@@ -185,8 +185,8 @@ export function applyInfoSave(cur, input = {}) {
     const patch = {};
     if (input.totalStock != null && input.totalStock !== '') {
         const t = int(input.totalStock);
-        if (t <= 0) return { ok: false, error: 'stock', message: '총 재고는 1 이상으로 입력해 주세요.' };
-        if (t < acc) return { ok: false, error: 'stock', message: `총 재고(${t})를 지금까지 누적(${acc})보다 작게 줄일 수 없습니다.` };
+        if (t <= 0) return { ok: false, error: 'stock', message: '검수수량은 1 이상으로 입력해 주세요.' };
+        if (t < acc) return { ok: false, error: 'stock', message: `검수수량(${t})을 지금까지 누적(${acc})보다 작게 줄일 수 없습니다.` };
         patch.totalStock = t;
     }
     const reason = str(input.reason).trim();
@@ -195,7 +195,7 @@ export function applyInfoSave(cur, input = {}) {
     if (sd) patch.startDate = sd;
     if (input.location != null) patch.location = str(input.location).trim();
     const changed = Object.keys(patch).some(k => str(patch[k]) !== str(cur[k]));
-    if (!changed) return { ok: false, error: 'empty', message: '바뀐 내용이 없습니다. 총 재고나 오늘 수량을 입력해 주세요.' };
+    if (!changed) return { ok: false, error: 'empty', message: '바뀐 내용이 없습니다. 검수수량이나 오늘 수량을 입력해 주세요.' };
     const stock = patch.totalStock != null ? patch.totalStock : int(cur.totalStock);
     const done = acc > 0 && stock === acc;
     if (done) Object.assign(patch, { status: DONE, doneAt: str(input.now), doneBy: str(input.by), endDate: ymd(input.date) });
@@ -433,7 +433,7 @@ export function logDates(logs) {
     return m;
 }
 
-export const EXCEL_HEADERS = Object.freeze(['날짜', '시각', '검수일자', '유형', '상품코드', '상품명', '옵션', '사유', '정상', '불량', '합계', '누적', '총재고', '남은', '회차', '상태', '작업자']);
+export const EXCEL_HEADERS = Object.freeze(['날짜', '시각', '검수일자', '유형', '상품코드', '상품명', '옵션', '사유', '정상', '불량', '합계', '누적', '검수수량', '남은', '회차', '상태', '작업자']);
 
 /** 엑셀 '전량검수_기록' 한 줄. 상태 = 그 저장 뒤 누적이 총 재고에 닿았으면 완료. */
 export function excelRow(log, memberEmails) {
@@ -441,7 +441,7 @@ export function excelRow(log, memberEmails) {
     const n = int(l.normal), d = int(l.defective), acc = int(l.accumAfter), tot = int(l.totalStock);
     return {
         '날짜': str(l.date), '시각': str(l.time), '검수일자': periodLabel(l.startDate, l.endDate), '유형': '전량', '상품코드': str(l.code) || '-', '상품명': str(l.name),
-        '옵션': str(l.option) || '-', '사유': str(l.reason) || '-', '정상': n, '불량': d, '합계': n + d, '누적': acc, '총재고': tot,
+        '옵션': str(l.option) || '-', '사유': str(l.reason) || '-', '정상': n, '불량': d, '합계': n + d, '누적': acc, '검수수량': tot,
         '남은': Math.max(0, tot - acc), '회차': Math.max(1, int(l.round) || 1), '상태': tot > 0 && acc >= tot ? DONE : ON,
         '작업자': inspectorLabel(l.inspector, memberEmails),
     };
@@ -482,7 +482,7 @@ export function accDelta(cur, dN, dD, { date = '', by = '', now = '', clamp = fa
     const total = n + d;
     const stock = int(cur.totalStock);
     // 삭제(clamp)는 누적을 줄이기만 하므로 총 재고 초과를 보지 않는다 — 옛 문서가 이미 넘어 있어도 지울 수 있게(리뷰 2)
-    if (!clamp && stock > 0 && total > stock) return { ok: false, error: 'over', message: `누적(${total})이 총 재고(${stock})를 넘습니다. 총 재고를 먼저 고치세요.` };
+    if (!clamp && stock > 0 && total > stock) return { ok: false, error: 'over', message: `누적(${total})이 검수수량(${stock})을 넘습니다. 검수수량을 먼저 고치세요.` };
     const patch = { accumulatedNormal: n, accumulatedDefective: d, accumulatedTotal: total };
     if (int(dayDelta)) patch.lastDayQty = Math.max(0, int(cur.lastDayQty) + int(dayDelta));
     const before = int(cur.accumulatedTotal);
@@ -631,3 +631,63 @@ export function chunkByKey(logs, size = 150) {
 /** 상품 [전량검수 기록 삭제] — 목록을 읽을 때의 누적 문서 lastUpdated(ms)와 지금 값이 다르면(그사이 저장됨) 지우지 않는다.
  *  둘 다 없으면 같다고 본다. */
 export const accChangedSince = (listedMs, nowMs) => (Number(listedMs) || 0) !== (Number(nowMs) || 0);
+
+// ── [재고 연동](2026-11-17 사용자 요청) — 검수수량 칸에 앱 안 재고를 채운다(저장은 사람이 [저장]) ─────────────
+//   출처: ProductLoc(js/products-store.js loadLoc·locOf — 채우기자동화 위치요약.py 가 평일 아침 채우기 지시서 때 씀, META.at = 기준 시각).
+//     L = { spots: [[자리, 대분류, 자리수량, 칸수]], reserve: [비축수량, 비축위치]|null, stock: [정상재고, 출고예정]|null }
+//   stock(이지어드민 정상재고)이 있으면 정상 + 비축, 없으면(비축이 없는 상품은 요약에 정상재고가 없다) 로케이션 자리 수량 합 + 비축.
+//   공급처·원가 칸은 이 요약에 없다(화이트리스트).
+/** 기타(비축) 자리인가 — 대분류 '기타' 또는 자리 id 가 '비축'·'SAM' 으로 시작. s = [자리, 대분류, 수량, 칸수]. */
+export function isEtcSpot(s) {
+    const id = str(Array.isArray(s) ? s[0] : '').trim();
+    const cat = str(Array.isArray(s) ? s[1] : '').trim() || '피킹용';
+    return cat === '기타' || id.startsWith('비축') || id.toUpperCase().startsWith('SAM');
+}
+
+/** @returns {{ found: false } | { found: true, qty, basis: 'ez'|'loc', detail }} */
+export function stockFromLoc(L) {
+    const loc = L || {};
+    const spots = Array.isArray(loc.spots) ? loc.spots : [];
+    const reserve = Array.isArray(loc.reserve) ? Math.max(0, int(loc.reserve[0])) : 0;
+    const st = Array.isArray(loc.stock) ? loc.stock : null;
+    const hasNum = (v) => v != null && v !== '' && Number.isFinite(Number(v));
+    if (st && hasNum(st[0])) {
+        const normal = Math.max(0, int(st[0]));
+        const ready = hasNum(st[1]) ? int(st[1]) : null;
+        return {
+            found: true, qty: normal + reserve, basis: 'ez',
+            detail: `이지어드민 정상재고 ${normal} + 비축 ${reserve}${ready != null ? ` (출고예정 ${ready}개는 빼지 않음)` : ''}`,
+        };
+    }
+    // 기타(비축) 자리는 뺀다 — 채우기자동화 규칙.py _rec_is_etc·js/location.js isEtcLocation 과 같은 판정(비축은 reserve 로 따로 더한다)
+    const nums = spots.filter(s => Array.isArray(s) && hasNum(s[2]) && !isEtcSpot(s));
+    if (!nums.length && !reserve) return { found: false };
+    const pick = nums.reduce((a, s) => a + Math.max(0, int(s[2])), 0);
+    return {
+        found: true, qty: pick + reserve, basis: 'loc',
+        detail: `로케이션 피킹 자리 ${nums.length}곳 수량 합 ${pick}${reserve ? ` + 비축 ${reserve}` : ''}`,
+    };
+}
+
+/** 정보만 저장한 뒤 토스트 — 서버 값(cur)과 실제로 달라진 칸만(검수수량·사유·시작일·로케이션). 없으면 []. */
+export function infoChangedLabels(cur, patch) {
+    const c = cur || {}, p = patch || {};
+    const out = [];
+    const diff = (k) => p[k] != null && str(p[k]) !== str(c[k] == null ? '' : c[k]);
+    if (diff('totalStock')) out.push(`검수수량 ${p.totalStock}`);
+    if (diff('reason')) out.push('사유');
+    if (diff('startDate')) out.push(`시작일 ${p.startDate}`);
+    if (diff('location')) out.push('로케이션');
+    return out;
+}
+
+/** [재고 연동] 기준 시각 글자 — 정상재고(ez)는 요약을 쓴 시각(META.at), 로케이션 자리 합(loc)은 로케이션 업로드 시각(META.locAt, ISO).
+ *  fmt(ms) = 화면 시각 글자. 시각이 없으면 ''. */
+export function stockBasisText(basis, metaAtMs, locAtIso, fmt) {
+    const f = typeof fmt === 'function' ? fmt : (ms) => String(ms);
+    if (basis === 'loc') {
+        const ms = Date.parse(str(locAtIso));
+        return Number.isFinite(ms) ? `${f(ms)} 로케이션 업로드 기준` : '로케이션 업로드 기준(시각 모름)';
+    }
+    return metaAtMs ? `${f(metaAtMs)} 기준` : '';
+}

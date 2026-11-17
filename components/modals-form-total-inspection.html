@@ -7,7 +7,7 @@
         <div class="p-4 border-b border-gray-200 bg-white flex justify-between items-center flex-shrink-0 sm:rounded-t-2xl">
             <div class="min-w-0">
                 <h2 class="text-lg font-bold text-gray-900">전량 검수</h2>
-                <p class="total-insp-desc text-xs text-gray-500 mt-0.5">끝날 때까지 남는 진행 목록입니다. 누적이 총 재고에 닿으면 자동 완료됩니다.</p>
+                <p class="total-insp-desc text-xs text-gray-500 mt-0.5">끝날 때까지 남는 진행 목록입니다. 누적이 검수수량에 닿으면 자동 완료됩니다.</p>
             </div>
             <div class="flex items-center gap-1 flex-shrink-0">
             <!-- 전체화면(샘플검수 #insp-fullscreen-btn 와 같은 기능) — 휴대폰에선 숨김(이미 화면 가득, css/style.css) -->
@@ -100,15 +100,20 @@
                             <p class="text-[11px] text-red-700 mt-1">고객 이름·연락처·주문번호는 적지 마세요.</p>
                         </div>
                         <div>
-                            <label for="total-insp-total-stock" class="block text-xs font-bold text-gray-600 mb-1">총 재고 (검수 대상 수량)</label>
-                            <input type="number" id="total-insp-total-stock" min="0" inputmode="numeric" enterkeyhint="next" class="w-full p-2 border border-gray-300 rounded text-sm bg-white font-bold text-blue-600 min-h-[44px]" placeholder="첫 저장 전에 입력 — 수량 없이 저장하면 총 재고만 들어갑니다">
+                            <label for="total-insp-total-stock" class="block text-xs font-bold text-gray-600 mb-1">검수수량</label>
+                            <div class="flex gap-2">
+                                <input type="number" id="total-insp-total-stock" min="0" inputmode="numeric" enterkeyhint="next" class="flex-grow min-w-0 p-2 border border-gray-300 rounded text-sm bg-white font-bold text-blue-600 min-h-[44px]" placeholder="첫 저장 전에 입력 — 오늘 수량 없이 저장하면 검수수량만 들어갑니다">
+                                <!-- [재고 연동] — 앱 안 위치·재고 요약(ProductLoc)에서 이 줄 상품코드의 재고를 칸에 채운다(저장은 [저장]). 상품코드 없는 줄은 비활성 -->
+                                <button id="total-insp-stock-sync-btn" type="button" class="flex-shrink-0 bg-white border border-blue-300 hover:bg-blue-50 text-blue-700 text-xs font-bold px-3 rounded min-h-[44px] whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed" title="앱에 있는 재고 요약으로 검수수량 칸을 채웁니다(저장은 [저장])">재고 연동</button>
+                            </div>
+                            <p id="total-insp-stock-note" class="hidden text-[11px] text-gray-600 mt-1" aria-live="polite"></p>
                         </div>
-                        <!-- 지금까지 누적 — 누적 합계(/ 총 재고) 크게 + 정상(초록)·불량(빨강) 칸. 휴대폰도 한 줄(3칸) — 아래 '남은 수량' 칸과 같은 모양 -->
+                        <!-- 지금까지 누적 — 누적 합계(/ 검수수량) 크게 + 정상(초록)·불량(빨강) 칸. 휴대폰도 한 줄(3칸) — 아래 '남은 수량' 칸과 같은 모양 -->
                         <div>
                             <div class="block text-xs font-bold text-gray-600 mb-1">지금까지 누적</div>
                             <div class="total-insp-3col grid grid-cols-3 gap-2">
                                 <div class="bg-white p-2 rounded-lg border border-gray-300 text-center flex flex-col justify-center min-w-0">
-                                    <span class="text-[11px] font-bold text-gray-600">누적 / 총 재고</span>
+                                    <span class="text-[11px] font-bold text-gray-600">누적 / 검수수량</span>
                                     <span class="whitespace-nowrap"><span id="total-insp-accumulated" class="text-2xl font-black text-gray-900">0</span><span id="total-insp-acc-stock" class="text-sm font-bold text-gray-500"> / -</span></span>
                                 </div>
                                 <div class="bg-green-50 p-2 rounded-lg border border-green-200 text-center flex flex-col justify-center min-w-0">
@@ -144,7 +149,7 @@
                     <div id="total-insp-done-note" class="hidden text-sm font-bold text-sky-800 bg-sky-50 border border-sky-200 rounded-lg px-3 py-2">완료된 상품입니다. 더 검수하려면 [다시 진행]을 누르세요.</div>
 
                     <button id="total-insp-save-btn" type="button" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-xl transition text-lg disabled:opacity-50 disabled:cursor-not-allowed">
-                        오늘 수량 누적 저장
+                        저장
                     </button>
 
                     <div class="flex flex-wrap gap-2">

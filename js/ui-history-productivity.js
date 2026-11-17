@@ -1,10 +1,10 @@
 // === js/ui-history-productivity.js ===
-import * as State from './state.js?v=202611171615';
-import { buildMemberHourlyWageMap, escapeHtml } from './utils.js?v=202611171615';
-import { D } from './d-chart.js?v=202611171615';
-import { aliasHistoryView } from './lib/task-alias-view.js?v=202611171615';
-import { TASK, tName, isT, tQty, isTLike } from './task-names.js?v=202611171615';
-import { PARTS, partSummary as opsPartSummary, periodMetrics, DOMESTIC_ITEMS_PER_ORDER } from './lib/ops-metrics.js?v=202611171615';
+import * as State from './state.js?v=202611171632';
+import { buildMemberHourlyWageMap, escapeHtml } from './utils.js?v=202611171632';
+import { D } from './d-chart.js?v=202611171632';
+import { aliasHistoryView } from './lib/task-alias-view.js?v=202611171632';
+import { TASK, tName, isT, tQty, isTLike } from './task-names.js?v=202611171632';
+import { PARTS, partSummary as opsPartSummary, periodMetrics, DOMESTIC_ITEMS_PER_ORDER } from './lib/ops-metrics.js?v=202611171632';
 
 let productivityChartInstance = null;
 

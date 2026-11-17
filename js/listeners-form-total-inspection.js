@@ -1,7 +1,7 @@
 // === js/listeners-form-total-inspection.js ===
 // 설명: 전량검수 창(진행 목록, 2026-11-17) 리스너 + 샘플검수 [전량검수로 전환] 버튼. 동작은 js/total-inspection-logic.js.
 
-import * as DOM from './dom-elements.js?v=202611171615';
+import * as DOM from './dom-elements.js?v=202611171632';
 import {
     triggerTotalInspectionFromSample,
     closeTotalInspection,
@@ -16,8 +16,9 @@ import {
     reopenTotal,
     clearTotalList,
     toggleTotalListCollapsed,
-    toggleTotalFullscreen
-} from './total-inspection-logic.js?v=202611171615';
+    toggleTotalFullscreen,
+    syncTotalStock
+} from './total-inspection-logic.js?v=202611171632';
 
 export function setupTotalInspectionListeners() {
 
@@ -60,4 +61,6 @@ export function setupTotalInspectionListeners() {
     if (DOM.totalInspClearBtn) DOM.totalInspClearBtn.addEventListener('click', clearTotalList);
     if (DOM.totalInspToggle) DOM.totalInspToggle.addEventListener('click', toggleTotalListCollapsed);
     if (DOM.totalInspFullscreenBtn) DOM.totalInspFullscreenBtn.addEventListener('click', toggleTotalFullscreen);
+    // [재고 연동] — 검수수량 칸에 앱 안 재고 요약을 채운다(저장은 [저장])
+    if (DOM.totalInspStockSyncBtn) DOM.totalInspStockSyncBtn.addEventListener('click', syncTotalStock);
 }

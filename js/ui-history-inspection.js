@@ -1,12 +1,12 @@
 // === js/ui-history-inspection.js ===
-import * as DOM from './dom-elements.js?v=202611171615';
-import * as State from './state.js?v=202611171615';
-import { getWeekOfYear, escapeHtml, getTodayDateString } from './utils.js?v=202611171615';
-import { dayInspItems, packDatesLabel } from './lib/insp-day.js?v=202611171615';
-import { inspTypeLabel } from './lib/insp-manual.js?v=202611171615';
+import * as DOM from './dom-elements.js?v=202611171632';
+import * as State from './state.js?v=202611171632';
+import { getWeekOfYear, escapeHtml, getTodayDateString } from './utils.js?v=202611171632';
+import { dayInspItems, packDatesLabel } from './lib/insp-day.js?v=202611171632';
+import { inspTypeLabel } from './lib/insp-manual.js?v=202611171632';
 import { doc, getDoc, runTransaction, collection, getDocs, query, where, orderBy, limit as fsLimit } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { itemKey, patchItemsByKey } from './lib/insp-flow.js?v=202611171615';
-import { dayRows, inspectorLabel, logDefectQty, periodLabel } from './lib/total-insp.js?v=202611171615';
+import { itemKey, patchItemsByKey } from './lib/insp-flow.js?v=202611171632';
+import { dayRows, inspectorLabel, logDefectQty, periodLabel } from './lib/total-insp.js?v=202611171632';
 
 // 전량검수 저장 기록(2026-11-17) — artifacts/team-work-logger-v2/total_inspection_logs where date >= fromDate(보기 기간 시작일),
 //   최근 날짜부터 최대 TOTAL_LOG_LIMIT 건. 검수이력 탭(js/listeners-history-inspection.js)이 탭에 들어올 때·[새로고침] 때 force 로 읽고,
@@ -37,7 +37,7 @@ function totalLogBtns(saveId) {
         + ` <button type="button" data-tl-del="${id}" class="text-red-600 hover:text-red-700 text-[11px] font-bold px-2 py-1 rounded border border-red-200 hover:bg-red-50">삭제</button>`;
 }
 
-/** 일자별 보기 — 그날 전량검수 기록 표(상품명·옵션·코드·사유·검수일자(시작~종료)·정상·불량·누적/총재고·회차·작업자). 없으면 ''. */
+/** 일자별 보기 — 그날 전량검수 기록 표(상품명·옵션·코드·사유·검수일자(시작~종료)·정상·불량·누적/검수수량·회차·작업자). 없으면 ''. */
 function totalLogsTableHtml(rows) {
     if (!rows || !rows.length) return '';
     const emails = (State.appConfig && State.appConfig.memberEmails) || {};
@@ -74,7 +74,7 @@ function totalLogsTableHtml(rows) {
                         <th class="px-3 py-2 font-bold bg-gray-50">검수일자</th>
                         <th class="px-3 py-2 font-bold bg-gray-50 text-center">정상</th>
                         <th class="px-3 py-2 font-bold bg-gray-50 text-center">불량</th>
-                        <th class="px-3 py-2 font-bold bg-gray-50 text-center">누적/총재고</th>
+                        <th class="px-3 py-2 font-bold bg-gray-50 text-center">누적/검수수량</th>
                         <th class="px-3 py-2 font-bold bg-gray-50 text-center">회차</th>
                         <th class="px-3 py-2 font-bold bg-gray-50">작업자</th>
                         <th class="px-3 py-2 font-bold bg-gray-50 text-right">관리</th>
