@@ -200,15 +200,14 @@ export function autoSort(combos, preset, { priorities, layout } = {}) {
     const pr = priorities || {};
     if (preset === 'dong-group') return legacyToCards(pr, combos);
     if (!AUTO_PRESETS.includes(preset)) throw new Error('자동 정렬 종류가 이상함: ' + preset);
-    // 자릿수 카드('Z-1(5자리)')는 조합 카드가 있으면 따로 줄을 차지하지 않고 조합 카드 바로 뒤 같은 줄에 붙인다(예전 정렬 결과·U 그대로)
+    // 자릿수 카드('Z-1(5자리)'·'Z-1(6자리)')는 따로 줄을 차지하지 않고 조합('Z-1') 자리 하나로 정렬한 뒤 같은 줄에 나란히(예전 정렬 결과·U 그대로)
     const all = comboList(combos, pr);
-    const tails = all.filter(n => cardBase(n) !== n && all.includes(cardBase(n)));
-    const res = autoSortCore(all.filter(n => !tails.includes(n)), preset, pr, layout);
-    if (!tails.length) return res;
+    const reps = [...new Set(all.map(cardBase))];
+    if (reps.length === all.length) return autoSortCore(all, preset, pr, layout);
+    const res = autoSortCore(reps, preset, pr, layout);
     const order = [], level = [];
     res.order.forEach((n, i) => {
-        order.push(n); level.push(res.level[i]);
-        tails.filter(t => cardBase(t) === n).sort(byKeyAsc).forEach(t => { order.push(t); level.push(res.level[i]); });
+        all.filter(t => cardBase(t) === n).sort(byKeyAsc).forEach(t => { order.push(t); level.push(res.level[i]); });
     });
     return { ...res, order, level };
 }

@@ -26,14 +26,14 @@
 // 원문 문자열은 textContent 로만 넣는다.
 
 import { doc, getDoc, setDoc, updateDoc, deleteField, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202611190935';
-import { canFeature, currentPerm } from './feature-gate.js?v=202611190935';
-import { KEYS, LIMITS, FIELD_TEXT, normalize, sameValues, serverRows, sourceText, guideLines } from './lib/locrec-settings.js?v=202611190935';
-import { autoSort, CARD_LAYOUT, SPLIT_EX_RE } from './lib/loc-cards.js?v=202611190935';
+import { onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202611190953';
+import { canFeature, currentPerm } from './feature-gate.js?v=202611190953';
+import { KEYS, LIMITS, FIELD_TEXT, normalize, sameValues, serverRows, sourceText, guideLines } from './lib/locrec-settings.js?v=202611190953';
+import { autoSort, CARD_LAYOUT, SPLIT_EX_RE } from './lib/loc-cards.js?v=202611190953';
 import {
     cardLabel, parseExcludeText, boardFrom, applyCards, whereIs, excludedCards, placeCard, cardMoves, moveCard,
     toggleExclude, addRow, deleteRow, moveRow, setExclude, setU, boardSignature, boardToSave
-} from './lib/loc-card-board.js?v=202611190935';
+} from './lib/loc-card-board.js?v=202611190953';
 
 const PANE = 'recommend';
 const INFO_PATH = ['Locations', 'INFO_CONFIG'];
@@ -330,6 +330,50 @@ function 자동정렬(preset) {
     }
 }
 
+// 카드를 끄는 동안 창 위·아래 끝(80px)에 가까이 가면 저절로 스크롤 — 끄는 중에는 마우스 휠이 먹지 않아 아래 칸에 놓기 어려웠다(2026-11-19 사용자 요청)
+function 끌기스크롤걸기(board) {
+    let y = null, raf = 0, box = null;
+    const 스크롤상자 = (el) => {
+        for (let n = el && el.parentElement; n && n !== document.body; n = n.parentElement) {
+            const s = getComputedStyle(n);
+            if (/(auto|scroll)/.test(s.overflowY) && n.scrollHeight > n.clientHeight + 1) return n;
+        }
+        return document.scrollingElement || document.documentElement;
+    };
+    const tick = () => {
+        raf = 0;
+        if (!box) return;
+        if (y == null) { raf = requestAnimationFrame(tick); return; }   // 첫 dragover 전 — 루프는 계속
+        const page = box === document.scrollingElement || box === document.documentElement;
+        const r = page ? { top: 0, bottom: window.innerHeight } : box.getBoundingClientRect();
+        const E = 80;
+        let v = 0;
+        if (y < r.top + E) v = -Math.min(24, Math.ceil((r.top + E - y) / 3));
+        else if (y > r.bottom - E) v = Math.min(24, Math.ceil((y - (r.bottom - E)) / 3));
+        if (v) box.scrollTop += v;
+        raf = requestAnimationFrame(tick);
+    };
+    const over = (e) => { if (끄는카드) y = e.clientY; };
+    const stop = () => {
+        y = null; box = null;
+        document.removeEventListener('dragover', over);
+        document.removeEventListener('dragend', stop, true);
+        document.removeEventListener('drop', stop, true);
+        if (raf) cancelAnimationFrame(raf);
+        raf = 0;
+    };
+    board.addEventListener('dragstart', () => {
+        if (!끄는카드) return;
+        box = 스크롤상자(board);
+        document.addEventListener('dragover', over);
+        document.addEventListener('dragend', stop, true);   // 끄는 중 보드가 다시 그려져 카드가 빠져도 끝나게
+        document.addEventListener('drop', stop, true);
+        if (!raf) raf = requestAnimationFrame(tick);
+    });
+    board.addEventListener('dragend', stop);
+    board.addEventListener('drop', stop);
+}
+
 // 카드 끌기·누르기·줄 버튼 — 보드 상자 하나에 위임
 function 카드이벤트걸기() {
     const board = $('lrs-card-board');
@@ -342,6 +386,7 @@ function 카드이벤트걸기() {
             c.classList.add('dragging');
             try { e.dataTransfer.setData('text/plain', 끄는카드); e.dataTransfer.effectAllowed = 'move'; } catch (_) { /* 일부 브라우저 */ }
         });
+        끌기스크롤걸기(board);   // 위 dragstart 뒤에 걸어 끄는카드가 정해진 다음 돈다
         board.addEventListener('dragend', (e) => {
             const c = e.target && e.target.closest ? e.target.closest('.lrs-card') : null;
             if (c) c.classList.remove('dragging');

@@ -9,7 +9,7 @@
 //   함수는 보드를 고치지 않고 새 보드를 돌려준다.
 // 검사는 ./loc-cards.js parseCards 그대로 쓴다. 저장 때 zones·dongs 는 건드리지 않는다(boardToSave).
 
-import { parseCards, legacyToCards, cardBase } from './loc-cards.js?v=202611190935';
+import { parseCards, legacyToCards, cardBase } from './loc-cards.js?v=202611190953';
 
 // 카드 이름 규칙 — loc-cards.js 의 CARD_RE·CARD_MAX 와 같다(그쪽은 내보내지 않음)
 const CARD_RE = /^.-[^,]*$/;
@@ -83,7 +83,9 @@ function fixSplits(b) {
         const r = b.rows.find(x => x.includes(p));
         if (!r) return;
         b.unassigned = b.unassigned.filter(x => x !== n);
-        r.splice(r.indexOf(p) + 1, 0, n);
+        let k = r.indexOf(p) + 1;
+        while (k < r.length && cardBase(r[k]) === p) k++;   // 같은 조합 자릿수 카드 뒤(이름 순 유지)
+        r.splice(k, 0, n);
     });
     return b;
 }
@@ -110,8 +112,16 @@ export function boardFrom(priorities, counts) {
     }
     const rows = rowsOf(cards);
     const universe = [...new Set([...names, ...cards.order])].sort(cardCompare);
-    const b = { rows, unassigned: [], exclude, U: cards.rowsPerDong, universe };
-    return { mode, errors, board: fillUnassigned(b) };
+    const b = fillUnassigned({ rows, unassigned: [], exclude, U: cards.rowsPerDong, universe });
+    // 자리가 모두 자릿수 카드로 나뉜 조합 카드('Z-1', 자료에 칸 없음)는 자릿수 카드를 그 자리에 놓은 뒤 지운다 — 계산은 같다(자릿수 카드가 순서·제외에 있으면 그것)
+    const nameSet = new Set(names);
+    [...new Set([...b.universe, ...b.exclude])].filter(n => cardBase(n) === n && !nameSet.has(n) && names.some(x => x !== n && cardBase(x) === n)).forEach(p => {
+        b.rows = b.rows.map(r => r.filter(x => x !== p));
+        b.exclude = b.exclude.filter(x => x !== p);
+        b.unassigned = b.unassigned.filter(x => x !== p);
+        b.universe = b.universe.filter(x => x !== p);
+    });
+    return { mode, errors, board: b };
 }
 
 /** 자동 정렬 결과(loc-cards autoSort) → 보드. 제외는 그대로, 나머지는 미지정. */
