@@ -45,9 +45,9 @@
 //
 // ⚠️ 이 파일을 고치면 서버(로케이션추천)도 바로 바뀐다 — 서버는 배포본이 아니라 v.수정본 소스를 node 로 읽는다.
 
-import { isEtcLocObj } from './mibal2-rows.js?v=202611190922';
-import { capacityFor } from './mibal2-calc.js?v=202611190922';
-import { parseCards, comboOf, isExcludedSlot } from './loc-cards.js?v=202611190922';
+import { isEtcLocObj } from './mibal2-rows.js?v=202611190935';
+import { capacityFor } from './mibal2-calc.js?v=202611190935';
+import { parseCards, comboOf, isExcludedSlot, slotCard } from './loc-cards.js?v=202611190935';
 
 export { isEtcLocObj };
 
@@ -138,7 +138,8 @@ export function makeRankers(priorities, opt) {
             rk.dongOrder = pc.dongOrder;
             rk.zoneOrder = pc.zoneOrder;
             const ex = Array.isArray(pr.excludeCombos) ? pr.excludeCombos : [];
-            rk.isExcluded = (slot) => isExcludedSlot(slot || {}, ex);
+            rk.isExcluded = (slot) => isExcludedSlot(slot || {}, ex, pr.cards.order);
+            rk.cardOrder = pr.cards.order;   // 자릿수 카드 판정용(카드 방식일 때만)
             rk.zoneRank = (locId) => (pc.letterRow((locId || '').charAt(0).toUpperCase()) === RANK_NONE ? RANK_NONE : 0);
             return rk;
         }
@@ -404,7 +405,7 @@ export function emptySlots(locs, priorities, { excludeTagged = false, rankers } 
         if (excludeTagged && isTagged(d)) return false;
         // 기타(비축·샘플·SAM)는 실제 피킹 랙이 아니므로 이동 추천 대상에서 제외
         if (isEtcLocObj(d)) return false;
-        if (isExcludedSlot(d, excludeCombos)) return false;
+        if (isExcludedSlot(d, excludeCombos, rk.cardOrder)) return false;
         return true;
     });
     if (rk.cards) {
@@ -741,7 +742,7 @@ export function rankedPickSlots(locs, priorities, rankers) {
         if (seen.has(d.id)) return;
         seen.add(d.id);
         if (isEtcLocObj(d)) return;
-        if (isExcludedSlot(d, excludeCombos)) return;
+        if (isExcludedSlot(d, excludeCombos, rk.cardOrder)) return;
         const c = slotCost(d, rk);
         if (c == null) return;
         out.push({ slot: d, cost: c });
@@ -1004,7 +1005,7 @@ function routeBase(locs, daily, priorities, rk, { frontPct = 0.2, frontK = 100 }
         if (seen.has(d.id)) return;
         seen.add(d.id);
         if (isEtcLocObj(d)) return;
-        if (isExcludedSlot(d, excludeCombos)) return;
+        if (isExcludedSlot(d, excludeCombos, rk.cardOrder)) return;
         slotIds.add(d.id);
         costOf.set(d.id, slotCost(d, rk, 'dong', { loose: true }));
     });
@@ -1398,8 +1399,8 @@ export function runRecommend(input) {
             if (seenId.has(d.id)) return;
             seenId.add(d.id);
             if (isEtcLocObj(d)) return;
-            const cb = comboOf(d);
-            if (isExcludedSlot(d, ex) || rk.rowOf(d) !== RANK_NONE) return;
+            const cb = slotCard(d, ex, rk.cardOrder);
+            if (isExcludedSlot(d, ex, rk.cardOrder) || rk.rowOf(d) !== RANK_NONE) return;
             cnt.set(cb, (cnt.get(cb) || 0) + 1);
         });
         if (cnt.size) {

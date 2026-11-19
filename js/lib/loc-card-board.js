@@ -9,7 +9,7 @@
 //   함수는 보드를 고치지 않고 새 보드를 돌려준다.
 // 검사는 ./loc-cards.js parseCards 그대로 쓴다. 저장 때 zones·dongs 는 건드리지 않는다(boardToSave).
 
-import { parseCards, legacyToCards } from './loc-cards.js?v=202611190922';
+import { parseCards, legacyToCards, cardBase } from './loc-cards.js?v=202611190935';
 
 // 카드 이름 규칙 — loc-cards.js 의 CARD_RE·CARD_MAX 와 같다(그쪽은 내보내지 않음)
 const CARD_RE = /^.-[^,]*$/;
@@ -17,7 +17,7 @@ const CARD_MAX = 40;
 const isCardName = (n) => typeof n === 'string' && n.length <= CARD_MAX && CARD_RE.test(n);
 
 const letterOf = (n) => String(n).charAt(0);
-const dongOf = (n) => String(n).slice(2);
+const dongOf = (n) => cardBase(n).slice(2);
 
 /** 카드 정렬(미지정·제외 칸 표시용): ★ 먼저 → 글자 → 동(숫자면 숫자 순, 동 없음은 뒤) */
 export function cardCompare(a, b) {
@@ -28,7 +28,7 @@ export function cardCompare(a, b) {
         return la < lb ? -1 : 1;
     }
     const da = dongOf(a), db = dongOf(b);
-    if (da === db) return 0;
+    if (da === db) return a === b ? 0 : (a < b ? -1 : 1);   // 같은 조합의 자릿수 카드('Z-1(5자리)')는 조합 카드 뒤
     if (!da) return 1;
     if (!db) return -1;
     const na = Number(da), nb = Number(db);
@@ -68,6 +68,23 @@ function rowsOf(cards) {
 function fillUnassigned(b) {
     const used = new Set([...b.rows.flat(), ...b.exclude]);
     b.unassigned = b.universe.filter(n => !used.has(n)).sort(cardCompare);
+    return fixSplits(b);
+}
+
+/**
+ * 자릿수 카드('Z-1(5자리)')는 미지정이면 저장되지 않아 계산에서 조합 카드('Z-1')를 따른다(loc-cards slotCard).
+ * 그래서 조합 카드가 줄·제외에 있으면 미지정 칸에 두지 않고 조합 카드 자리로 보낸다(같은 줄 조합 바로 뒤 / 제외) — 화면과 계산을 맞춘다.
+ */
+function fixSplits(b) {
+    b.unassigned.slice().forEach(n => {
+        const p = cardBase(n);
+        if (p === n || b.unassigned.includes(p)) return;
+        if (b.exclude.includes(p)) { b.unassigned = b.unassigned.filter(x => x !== n); b.exclude.push(n); return; }
+        const r = b.rows.find(x => x.includes(p));
+        if (!r) return;
+        b.unassigned = b.unassigned.filter(x => x !== n);
+        r.splice(r.indexOf(p) + 1, 0, n);
+    });
     return b;
 }
 
@@ -142,7 +159,7 @@ export function placeCard(board, name, target) {
         if (target.insert || i === b.rows.length) b.rows.splice(i, 0, [name]);
         else b.rows[i].push(name);
     } else return board;
-    return b;
+    return fixSplits(b);
 }
 
 /**
@@ -192,7 +209,7 @@ export function deleteRow(board, i) {
     const [gone] = b.rows.splice(i, 1);
     b.unassigned.push(...gone);
     b.unassigned.sort(cardCompare);
-    return b;
+    return fixSplits(b);
 }
 
 /** 줄 순서 바꾸기 dir 'up'|'down' */

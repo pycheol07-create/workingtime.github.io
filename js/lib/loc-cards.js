@@ -20,22 +20,31 @@ const U_MIN = 0.5, U_MAX = 20;
 /** 자리 → 카드 이름(조합) = 첫 글자 대문자-동. excludeCombos 와 같은 규칙. */
 export const comboOf = (d) => `${(d.id || '').charAt(0).toUpperCase()}-${(d.dong || '').toString().trim()}`;
 
-// 자릿수 제외(2026-11-19): 제외 항목 'Z-1(5자리)' = 카드 Z-1 자리 중 id 의 숫자(0-9) 개수가 5 인 자리만(예: Z-1-0001 은 5, Z-1-0101-1 은 6).
-//   카드 이름이 아니라 제외 칸에만 쓰는 항목 — order 에 넣지 않는다. 서버 판정.py split_excluded 가 같은 규칙.
+// 자릿수 카드(2026-11-19): 'Z-1(5자리)' = 카드 Z-1 자리 중 id 의 숫자(0-9) 개수가 5 인 자리(예: Z-1-0001 은 5, Z-1-0101-1 은 6).
+//   보통 카드처럼 줄·미지정·제외에 둘 수 있다. 자리의 카드 = '조합(N자리)' 가 제외 목록이나 카드 순서에 있으면 그것, 아니면 조합(slotCard).
+//   그래서 자릿수 카드를 안 쓰면 예전과 같다. 화면은 한 조합에 숫자 개수가 섞여 있으면 가장 긴 자릿수만 조합 이름, 나머지는 자릿수 카드로 보여 준다.
+//   서버 판정.py slot_card 가 같은 규칙.
 export const SPLIT_EX_RE = /^(.-[^,(]*)\((\d{1,2})자리\)$/;
+const SPLIT_SUFFIX = /\(\d{1,2}자리\)$/;
+/** 카드 이름 → 자릿수 꼬리를 뗀 조합 이름('Z-1(5자리)' → 'Z-1') */
+export const cardBase = (n) => String(n).replace(SPLIT_SUFFIX, '');
 /** 자리 id 의 숫자(0-9) 개수 */
 export const slotDigits = (d) => (String((d && d.id) || '').match(/[0-9]/g) || []).length;
-/** 제외 항목 목록(배열·Set)에 이 자리가 걸리나 — 카드 이름 그대로 또는 '카드(N자리)' */
-export function isExcludedSlot(d, ex) {
-    if (!ex) return false;
-    const has = typeof ex.has === 'function' ? (x) => ex.has(x) : (x) => ex.includes(x);
-    if ((typeof ex.size === 'number' ? ex.size : ex.length) === 0) return false;
+const hasIn = (c, x) => !!c && (typeof c.has === 'function' ? c.has(x) : Array.isArray(c) && c.includes(x));
+/** 자리 → 카드 이름 — 자릿수 카드가 제외 목록(ex)이나 카드 순서(order)에 있으면 그것, 아니면 조합 */
+export function slotCard(d, ex, order) {
     const cb = comboOf(d || {});
-    return has(cb) || has(`${cb}(${slotDigits(d)}자리)`);
+    const sk = `${cb}(${slotDigits(d)}자리)`;
+    return hasIn(ex, sk) || hasIn(order, sk) ? sk : cb;
+}
+/** 제외 목록(배열·Set)에 이 자리의 카드가 있나. order = 카드 순서(카드 방식일 때만, 없으면 null) */
+export function isExcludedSlot(d, ex, order) {
+    if (!ex || (typeof ex.size === 'number' ? ex.size : ex.length) === 0) return false;
+    return hasIn(ex, slotCard(d, ex, order));
 }
 
 const letterOf = (card) => String(card).charAt(0);
-const dongOfCard = (card) => String(card).slice(2);
+const dongOfCard = (card) => cardBase(card).slice(2);
 const byKeyAsc = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
 
 /**
@@ -92,7 +101,7 @@ export function parseCards(priorities) {
     const zoneOrder = [...lRow.keys()].sort((a, b) => (lRow.get(a) - lRow.get(b)) || byKeyAsc(a, b));
     return {
         present: true, ok: true, errors: [],
-        rowOf: (slot) => (isExcludedSlot(slot || {}, ex) ? RANK_NONE : rowOfCombo(comboOf(slot || {}))),   // 자릿수 제외 자리는 줄 없음
+        rowOf: (slot) => { const cd = slotCard(slot || {}, ex, seen); return ex.includes(cd) ? RANK_NONE : rowOfCombo(cd); },   // 자릿수 카드(순서·제외에 있을 때)
         rowOfCombo,
         nRows: level[level.length - 1] + 1,
         U,
@@ -191,14 +200,27 @@ export function autoSort(combos, preset, { priorities, layout } = {}) {
     const pr = priorities || {};
     if (preset === 'dong-group') return legacyToCards(pr, combos);
     if (!AUTO_PRESETS.includes(preset)) throw new Error('자동 정렬 종류가 이상함: ' + preset);
-    const names = comboList(combos, pr);
+    // 자릿수 카드('Z-1(5자리)')는 조합 카드가 있으면 따로 줄을 차지하지 않고 조합 카드 바로 뒤 같은 줄에 붙인다(예전 정렬 결과·U 그대로)
+    const all = comboList(combos, pr);
+    const tails = all.filter(n => cardBase(n) !== n && all.includes(cardBase(n)));
+    const res = autoSortCore(all.filter(n => !tails.includes(n)), preset, pr, layout);
+    if (!tails.length) return res;
+    const order = [], level = [];
+    res.order.forEach((n, i) => {
+        order.push(n); level.push(res.level[i]);
+        tails.filter(t => cardBase(t) === n).sort(byKeyAsc).forEach(t => { order.push(t); level.push(res.level[i]); });
+    });
+    return { ...res, order, level };
+}
+
+function autoSortCore(names, preset, pr, layout) {
     const dongs = ((pr.dongs && pr.dongs.length) ? pr.dongs : DEFAULT_DONGS).map(x => String(x).trim());
     const lay = layout && Array.isArray(layout.order) && layout.order.length ? layout : CARD_LAYOUT;
     const up = (x) => String(x == null ? '' : x).toUpperCase();
     const ord = lay.order.map((p, i) => ({ p: up(p), i })).filter(x => x.p).sort((a, b) => b.p.length - a.p.length || a.i - b.i);
     const far = (Array.isArray(lay.far) ? lay.far : []).map(up).filter(Boolean);
     const info = names.map(n => {
-        const s = up(n) + '-';
+        const s = up(cardBase(n)) + '-';   // 자릿수 카드는 조합 자리 그대로
         const di = dongs.indexOf(dongOfCard(n));
         const hit = ord.find(x => s.startsWith(x.p));
         if (di < 0) return { n, kind: 'none' };

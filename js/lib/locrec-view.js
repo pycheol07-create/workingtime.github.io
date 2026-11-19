@@ -34,8 +34,8 @@
 //                                     이월 행은 띠 건수·요약·엑셀·[전체 처리함]에서 뺀다(표에는 흐리게 보인다).
 // import 는 같은 lib 의 refill-view.js(날짜·시각, KST)·loc-recommend.js(엑셀 5열) 만 — 같은 규칙을 두 벌 두지 않는다.
 
-import { tsMs, dayKey, keyMs, lastDays, dayLabel, fmtHM, kstParts, waitInfo } from './refill-view.js?v=202611190922';
-import { excelRows, EXCEL_COLS } from './loc-recommend.js?v=202611190922';
+import { tsMs, dayKey, keyMs, lastDays, dayLabel, fmtHM, kstParts, waitInfo } from './refill-view.js?v=202611190935';
+import { excelRows, EXCEL_COLS } from './loc-recommend.js?v=202611190935';
 
 export { tsMs, dayKey, keyMs, lastDays, dayLabel, fmtHM, excelRows, EXCEL_COLS };
 
@@ -607,7 +607,7 @@ export function rowState({ row, open, mark, viewDay, todayKey, nowMs, moved }) {
     }
     if (o && o.state === 'expired') return { label: '만료', tone: 'muted', hidden: false, mark: m };
     if (o && o.state === 'stale') return { label: '자리 바뀜', tone: 'muted', hidden: false, mark: m };
-    if (o && o.alertedDay) return { label: '알림됨', tone: 'accent', hidden: false, mark: m };
+    // '알림됨'(슬랙 큰 건으로 보냄) 상태는 2026-11-19 사용자 요청으로 뺌 — 보냈어도 새로·N일째로 보인다(alertedDay 는 서버가 그대로 씀)
     const first = (o && o.firstDay) || viewDay;
     const n = daysBetween(first, viewDay || todayKey) + 1;
     if (!o || n <= 1) return { label: '새로', tone: 'accent', hidden: false, mark: m };

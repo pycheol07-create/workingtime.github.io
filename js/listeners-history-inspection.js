@@ -1,26 +1,26 @@
 // === js/listeners-history-inspection.js ===
-import * as DOM from './dom-elements.js?v=202611190922';
-import * as State from './state.js?v=202611190922';
-import { showToast, getTodayDateString, showConfirm } from './utils.js?v=202611190922';
-import { dayInspItems } from './lib/insp-day.js?v=202611190922';
-import { TASK, tName } from './task-names.js?v=202611190922';
+import * as DOM from './dom-elements.js?v=202611190935';
+import * as State from './state.js?v=202611190935';
+import { showToast, getTodayDateString, showConfirm } from './utils.js?v=202611190935';
+import { dayInspItems } from './lib/insp-day.js?v=202611190935';
+import { TASK, tName } from './task-names.js?v=202611190935';
 
 import { 
     renderInspectionHistoryTable, 
     renderInspectionLayout,
     renderInspectionListMode
-} from './ui-history.js?v=202611190922'; 
-import { clearInspResultCache, seedInspResultCache, fetchTotalInspLogs, totalInspLogsTruncated, TOTAL_LOG_LIMIT } from './ui-history-inspection.js?v=202611190922';   // 정상여부 캐시 · 전량 기록
-import { mergeIntoProductHistory, totalHistoryLogsOf, bulkSummary, bulkMessage } from './lib/total-insp.js?v=202611190922';
-import { editTotalLog, deleteTotalLog, listDayLogs, listProductLogs, deleteTotalDay, deleteTotalProduct, askTotalLogEdit, fetchAccDocs, removeOrRevertOne, setAccStatus, deleteAccDocIfEmpty } from './total-insp-edit.js?v=202611190922';
-import { historyRangeStart } from './lib/history-window.js?v=202611190922';
+} from './ui-history.js?v=202611190935'; 
+import { clearInspResultCache, seedInspResultCache, fetchTotalInspLogs, totalInspLogsTruncated, TOTAL_LOG_LIMIT } from './ui-history-inspection.js?v=202611190935';   // 정상여부 캐시 · 전량 기록
+import { mergeIntoProductHistory, totalHistoryLogsOf, bulkSummary, bulkMessage } from './lib/total-insp.js?v=202611190935';
+import { editTotalLog, deleteTotalLog, listDayLogs, listProductLogs, deleteTotalDay, deleteTotalProduct, askTotalLogEdit, fetchAccDocs, removeOrRevertOne, setAccStatus, deleteAccDocIfEmpty } from './total-insp-edit.js?v=202611190935';
+import { historyRangeStart } from './lib/history-window.js?v=202611190935';
 
 import { 
     setSortState, 
     renderQCStatsMode, 
     currentInspTypeFilter, 
     setInspTypeFilter 
-} from './ui-history-inspection.js?v=202611190922';
+} from './ui-history-inspection.js?v=202611190935';
 
 import {
     loadInspectionLogs,
@@ -32,7 +32,7 @@ import {
     savePreInspectionNote,
     handleManualImageSelect, 
     clearManualImageState    
-} from './inspection-logic.js?v=202611190922';
+} from './inspection-logic.js?v=202611190935';
 
 import { collection, getDocs, doc, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
