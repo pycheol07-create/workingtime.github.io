@@ -1,26 +1,26 @@
 // === js/listeners-history-inspection.js ===
-import * as DOM from './dom-elements.js?v=202611190953';
-import * as State from './state.js?v=202611190953';
-import { showToast, getTodayDateString, showConfirm } from './utils.js?v=202611190953';
-import { dayInspItems } from './lib/insp-day.js?v=202611190953';
-import { TASK, tName } from './task-names.js?v=202611190953';
+import * as DOM from './dom-elements.js?v=202611191043';
+import * as State from './state.js?v=202611191043';
+import { showToast, getTodayDateString, showConfirm } from './utils.js?v=202611191043';
+import { dayInspItems } from './lib/insp-day.js?v=202611191043';
+import { TASK, tName } from './task-names.js?v=202611191043';
 
 import { 
     renderInspectionHistoryTable, 
     renderInspectionLayout,
     renderInspectionListMode
-} from './ui-history.js?v=202611190953'; 
-import { clearInspResultCache, seedInspResultCache, fetchTotalInspLogs, totalInspLogsTruncated, TOTAL_LOG_LIMIT } from './ui-history-inspection.js?v=202611190953';   // 정상여부 캐시 · 전량 기록
-import { mergeIntoProductHistory, totalHistoryLogsOf, bulkSummary, bulkMessage } from './lib/total-insp.js?v=202611190953';
-import { editTotalLog, deleteTotalLog, listDayLogs, listProductLogs, deleteTotalDay, deleteTotalProduct, askTotalLogEdit, fetchAccDocs, removeOrRevertOne, setAccStatus, deleteAccDocIfEmpty } from './total-insp-edit.js?v=202611190953';
-import { historyRangeStart } from './lib/history-window.js?v=202611190953';
+} from './ui-history.js?v=202611191043'; 
+import { clearInspResultCache, seedInspResultCache, fetchTotalInspLogs, totalInspLogsTruncated, TOTAL_LOG_LIMIT } from './ui-history-inspection.js?v=202611191043';   // 정상여부 캐시 · 전량 기록
+import { mergeIntoProductHistory, nameKey, totalHistoryLogsOf, bulkSummary, bulkMessage } from './lib/total-insp.js?v=202611191043';
+import { editTotalLog, deleteTotalLog, listDayLogs, listProductLogs, deleteTotalDay, deleteTotalProduct, askTotalLogEdit, fetchAccDocs, removeOrRevertOne, setAccStatus, deleteAccDocIfEmpty } from './total-insp-edit.js?v=202611191043';
+import { historyRangeStart } from './lib/history-window.js?v=202611191043';
 
 import { 
     setSortState, 
     renderQCStatsMode, 
     currentInspTypeFilter, 
     setInspTypeFilter 
-} from './ui-history-inspection.js?v=202611190953';
+} from './ui-history-inspection.js?v=202611191043';
 
 import {
     loadInspectionLogs,
@@ -32,7 +32,7 @@ import {
     savePreInspectionNote,
     handleManualImageSelect, 
     clearManualImageState    
-} from './inspection-logic.js?v=202611190953';
+} from './inspection-logic.js?v=202611191043';
 
 import { collection, getDocs, doc, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
@@ -453,8 +453,18 @@ export function setupHistoryInspectionListeners() {
                     return;
                 }
 
-                // 전량검수 기록도 같이 펼친다(화면용 — 수정 버튼 없음, js/inspection-editor.js)
-                loadInspectionLogs(productName, tr, totalHistoryLogsOf(cachedTotalLogs || [], productName));
+                // 전량검수는 [상세보기] 위쪽 칸에 따로(옵션별 진행 + 저장 기록 수정·삭제), 아래 표는 샘플 기록만(2026-11-19)
+                //   일자별·QC 리포트 줄은 예전처럼(전량 기록을 같은 표에 — 그 화면의 날짜·불량 거르기를 탄다, 리뷰)
+                if (State.context.inspectionViewMode !== 'product' || tr.dataset.isQcReport === 'true') {
+                    loadInspectionLogs(productName, tr, totalHistoryLogsOf(cachedTotalLogs || [], productName));
+                    return;
+                }
+                const key = nameKey(productName);
+                const item = (productView() || []).find(x => x && x.id === productName) || {};
+                loadInspectionLogs(productName, tr, [], {
+                    logs: (cachedTotalLogs || []).filter(l => l && nameKey(l.name) === key),
+                    docs: Array.isArray(item.totalDocs) ? item.totalDocs : [],
+                });
                 return;
             }
         });

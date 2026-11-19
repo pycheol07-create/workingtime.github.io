@@ -1,12 +1,12 @@
 // === js/ui-history-inspection.js ===
-import * as DOM from './dom-elements.js?v=202611190953';
-import * as State from './state.js?v=202611190953';
-import { getWeekOfYear, escapeHtml, getTodayDateString } from './utils.js?v=202611190953';
-import { dayInspItems, packDatesLabel } from './lib/insp-day.js?v=202611190953';
-import { inspTypeLabel } from './lib/insp-manual.js?v=202611190953';
+import * as DOM from './dom-elements.js?v=202611191043';
+import * as State from './state.js?v=202611191043';
+import { getWeekOfYear, escapeHtml, getTodayDateString } from './utils.js?v=202611191043';
+import { dayInspItems, packDatesLabel } from './lib/insp-day.js?v=202611191043';
+import { inspTypeLabel } from './lib/insp-manual.js?v=202611191043';
 import { doc, getDoc, runTransaction, collection, getDocs, query, where, orderBy, limit as fsLimit } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { itemKey, patchItemsByKey } from './lib/insp-flow.js?v=202611190953';
-import { dayRows, inspectorLabel, logDefectQty, periodLabel, accDocRow } from './lib/total-insp.js?v=202611190953';
+import { itemKey, patchItemsByKey } from './lib/insp-flow.js?v=202611191043';
+import { dayRows, inspectorLabel, logDefectQty, periodLabel, accDocRow, DONE } from './lib/total-insp.js?v=202611191043';
 
 // 전량검수 저장 기록(2026-11-17) — artifacts/team-work-logger-v2/total_inspection_logs where date >= fromDate(보기 기간 시작일),
 //   최근 날짜부터 최대 TOTAL_LOG_LIMIT 건. 검수이력 탭(js/listeners-history-inspection.js)이 탭에 들어올 때·[새로고침] 때 force 로 읽고,
@@ -29,15 +29,31 @@ export async function fetchTotalInspLogs(fromDate, { force = false } = {}) {
 /** 마지막으로 읽은 전량 기록이 상한에 걸려 잘렸나(안내용). */
 export const totalInspLogsTruncated = () => !!(totalLogCache && totalLogCache.truncated);
 
-/** 상품별 보기 — 그 상품의 전량검수 진행 문서 줄(회차·상태·누적/검수수량·검수일자 + 버튼). 없으면 ''.
- *  버튼: data-ta-revert(2회차↑·누적 0) · data-ta-done · data-ta-reopen · data-ta-del(기록 없는 진행 문서만) — js/listeners-history-inspection.js */
-function accDocsHtml(item) {
+/** 상품별 보기 목록 줄 — 전량검수 요약 한 줄(옵션 수·진행/완료 수). 옵션별 줄과 버튼은 [상세보기] 안 전량검수 칸에(2026-11-19 — 옵션이 많으면 줄이 넘쳐 보기 어려웠다). 없으면 ''. */
+function accSummaryHtml(item) {
     const docs = Array.isArray(item.totalDocs) ? item.totalDocs : [];
+    const nLog = (item.logs || []).filter(l => l && l.fromTotalLog).length;
+    if (!docs.length && !nLog) return '';
+    const run = docs.filter(a => a && a.status !== DONE).length;
+    const parts = [docs.length ? `${docs.length}옵션` : '', run ? `진행 ${run}` : '', docs.length - run ? `완료 ${docs.length - run}` : ''].filter(Boolean);
+    return `<div class="mt-1"><span class="inline-block text-[11px] font-bold px-1.5 py-0.5 rounded border bg-purple-50 text-purple-800 border-purple-200">전량검수${parts.length ? ' · ' + escapeHtml(parts.join(' · ')) : ''}</span></div>`;
+}
+
+/** [상세보기] 전량검수 칸 — 옵션별 진행 문서 표(회차·상태·누적/검수수량·검수일자·기록 수 + 버튼). 없으면 ''.
+ *  버튼: data-ta-revert(2회차↑·누적 0) · data-ta-done · data-ta-reopen · data-ta-del(기록 없는 진행 문서만) — js/listeners-history-inspection.js */
+function accDocsTableHtml(docsIn, rawLogs) {
+    const docs = (Array.isArray(docsIn) ? docsIn : []).slice().sort((a, b) => String(a.option || '').localeCompare(String(b.option || '')));
     if (!docs.length) return '';
-    const logs = (item.logs || []).filter(l => l && l.fromTotalLog);
+    const logs = Array.isArray(rawLogs) ? rawLogs : [];
     const STATE_CLS = { '진행중': 'bg-purple-50 text-purple-800 border-purple-200', '완료': 'bg-sky-50 text-sky-800 border-sky-200', '중단': 'bg-gray-100 text-gray-600 border-gray-200' };
     const btn = (attr, id, label, cls) => `<button type="button" ${attr}="${escapeHtml(id)}" class="text-[11px] font-bold px-2 py-0.5 rounded border ${cls}">${escapeHtml(label)}</button>`;
-    return `<div class="mt-1.5 space-y-1">${docs.map(a => {
+    return `<table class="w-full text-left border-collapse">
+        <thead class="bg-white text-[11px] text-gray-500"><tr>
+            <th class="px-3 py-2 font-bold bg-gray-50">옵션</th><th class="px-3 py-2 font-bold bg-gray-50 text-center">회차</th>
+            <th class="px-3 py-2 font-bold bg-gray-50 text-center">상태</th><th class="px-3 py-2 font-bold bg-gray-50 text-center">누적/검수수량</th>
+            <th class="px-3 py-2 font-bold bg-gray-50">검수일자</th><th class="px-3 py-2 font-bold bg-gray-50 text-center">기록</th>
+            <th class="px-3 py-2 font-bold bg-gray-50 text-right">관리</th></tr></thead>
+        <tbody class="bg-white divide-y divide-gray-100">${docs.map(a => {
         const r = accDocRow(a, logs);
         const btns = [
             r.canRevert ? btn('data-ta-revert', r.id, '회차 되돌리기', 'border-amber-300 text-amber-800 hover:bg-amber-50') : '',
@@ -45,17 +61,16 @@ function accDocsHtml(item) {
             r.canReopen ? btn('data-ta-reopen', r.id, '다시 진행', 'border-purple-300 text-purple-800 hover:bg-purple-50') : '',
             r.canDelete ? btn('data-ta-del', r.id, '진행 문서 삭제', 'border-red-200 text-red-600 hover:bg-red-50') : '',
         ].filter(Boolean).join(' ');
-        return `<div class="flex flex-wrap items-center gap-1.5 text-[11px] text-gray-600">
-            <span class="font-bold text-gray-700">전량</span>
-            <span>${escapeHtml(r.option || '옵션 없음')}</span>
-            <span class="font-bold">${escapeHtml(r.round)}회차</span>
-            <span class="px-1.5 py-0.5 rounded border font-bold ${STATE_CLS[r.state] || ''}">${escapeHtml(r.state)}</span>
-            <span>누적 ${escapeHtml(r.acc)} / 검수수량 ${escapeHtml(r.stock || '-')}</span>
-            <span class="font-mono">${escapeHtml(r.period)}</span>
-            <span class="text-gray-400">기록 ${escapeHtml(r.logCount)}건</span>
-            ${btns}
-        </div>`;
-    }).join('')}</div>`;
+        return `<tr class="text-xs text-gray-700">
+            <td class="px-3 py-2">${escapeHtml(r.option || '옵션 없음')}</td>
+            <td class="px-3 py-2 text-center font-bold">${escapeHtml(r.round)}</td>
+            <td class="px-3 py-2 text-center"><span class="px-1.5 py-0.5 rounded border text-[11px] font-bold ${STATE_CLS[r.state] || ''}">${escapeHtml(r.state)}</span></td>
+            <td class="px-3 py-2 text-center whitespace-nowrap">${escapeHtml(r.acc.toLocaleString())} / ${escapeHtml(r.stock ? r.stock.toLocaleString() : '-')}</td>
+            <td class="px-3 py-2 text-[11px] font-mono whitespace-nowrap">${escapeHtml(r.period)}</td>
+            <td class="px-3 py-2 text-center text-gray-500">${escapeHtml(r.logCount)}건</td>
+            <td class="px-3 py-2 text-right whitespace-nowrap space-x-1">${btns}</td>
+        </tr>`;
+    }).join('')}</tbody></table>`;
 }
 
 /** 전량 기록 한 줄의 [수정]·[삭제] — js/listeners-history-inspection.js 가 data-tl-edit·data-tl-del 을 받는다(js/total-insp-edit.js). */
@@ -67,14 +82,14 @@ function totalLogBtns(saveId) {
 }
 
 /** 일자별 보기 — 그날 전량검수 기록 표(상품명·옵션·코드·사유·검수일자(시작~종료)·정상·불량·누적/검수수량·회차·작업자). 없으면 ''. */
-function totalLogsTableHtml(rows) {
+function totalLogsTableHtml(rows, { dayDel = true, title = '' } = {}) {
     if (!rows || !rows.length) return '';
     const emails = (State.appConfig && State.appConfig.memberEmails) || {};
     const n = (v) => (Number(v) || 0).toLocaleString();
     const body = rows.map(l => `
         <tr class="border-b last:border-0">
-            <td class="px-3 py-2 text-[11px] font-mono text-gray-500 whitespace-nowrap">${escapeHtml(l.time || '-')}</td>
-            <td class="px-3 py-2 text-sm font-medium text-gray-900">${escapeHtml(l.name || '-')}</td>
+            <td class="px-3 py-2 text-[11px] font-mono text-gray-500 whitespace-nowrap">${dayDel ? '' : `${escapeHtml(l.date || '-')}<br>`}${escapeHtml(l.time || '-')}</td>
+            ${dayDel ? `<td class="px-3 py-2 text-sm font-medium text-gray-900">${escapeHtml(l.name || '-')}</td>` : ''}
             <td class="px-3 py-2 text-xs text-gray-600">${escapeHtml(l.option || '-')}</td>
             <td class="px-3 py-2 text-xs font-mono text-gray-500">${escapeHtml(l.code || '-')}</td>
             <td class="px-3 py-2 text-xs text-gray-700 break-words max-w-[220px]">${escapeHtml(l.reason || '-')}</td>
@@ -89,14 +104,14 @@ function totalLogsTableHtml(rows) {
     return `
         <div class="mt-4 border-t-2 border-purple-200">
             <div class="px-4 py-2 bg-purple-50 text-sm font-bold text-purple-900 flex justify-between items-center gap-2">
-                <span>전량검수 ${escapeHtml(rows.length)}건</span>
-                <button type="button" data-tl-day-del="${escapeHtml(rows[0] && rows[0].date)}" class="text-xs bg-white border border-red-200 hover:bg-red-50 text-red-600 font-bold py-1 px-2 rounded shadow-sm" title="이 날짜의 전량검수 기록을 모두 지우고 누적·처리량에서 뺍니다">이 날 전량검수 삭제</button>
+                <span>${escapeHtml(title || `전량검수 기록 ${rows.length}건`)}</span>
+                ${dayDel ? `<button type="button" data-tl-day-del="${escapeHtml(rows[0] && rows[0].date)}" class="text-xs bg-white border border-red-200 hover:bg-red-50 text-red-600 font-bold py-1 px-2 rounded shadow-sm" title="이 날짜의 전량검수 기록을 모두 지우고 누적·처리량에서 뺍니다">이 날 전량검수 삭제</button>` : ''}
             </div>
             <table class="w-full text-left border-collapse">
                 <thead class="bg-white text-[11px] text-gray-500">
                     <tr>
-                        <th class="px-3 py-2 font-bold bg-gray-50">시각</th>
-                        <th class="px-3 py-2 font-bold bg-gray-50">상품명</th>
+                        <th class="px-3 py-2 font-bold bg-gray-50">${dayDel ? '시각' : '날짜·시각'}</th>
+                        ${dayDel ? '<th class="px-3 py-2 font-bold bg-gray-50">상품명</th>' : ''}
                         <th class="px-3 py-2 font-bold bg-gray-50">옵션</th>
                         <th class="px-3 py-2 font-bold bg-gray-50">코드</th>
                         <th class="px-3 py-2 font-bold bg-gray-50">사유</th>
@@ -624,14 +639,15 @@ export const renderInspectionHistoryTable = (historyData) => {
 
             html += `
                 <tr class="hover:bg-blue-50 transition group cursor-pointer btn-view-detail" data-product-name="${escapeHtml(item.id)}" title="클릭하여 상세 이력 펼치기">
-                    <td class="px-6 py-4 font-medium text-gray-900">${escapeHtml(item.id)}${accDocsHtml(item)}</td>
+                    <td class="px-6 py-4 font-medium text-gray-900">${escapeHtml(item.id)}${accSummaryHtml(item)}</td>
                     <td class="px-6 py-4 text-xs text-gray-500 truncate max-w-[150px]" title="${escapeHtml(supplierName)}">
                         ${escapeHtml(supplierName)}
                     </td>
                     <td class="px-6 py-4 text-center">
-                        <span class="inline-flex items-center justify-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                            ${escapeHtml(item.totalInbound || 0)}회
-                        </span>
+                        ${item.totalOnly ? '' : `<span class="inline-flex items-center justify-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                            샘플 ${escapeHtml(item.totalInbound || 0)}회
+                        </span>`}
+                        ${(item.logs || []).some(l => l && l.fromTotalLog) ? `<span class="inline-flex items-center justify-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800 mt-1">전량 ${escapeHtml((item.logs || []).filter(l => l && l.fromTotalLog).length)}건</span>` : ''}
                     </td>
                     <td class="px-6 py-4 text-center font-mono text-xs text-gray-500">
                         ${escapeHtml(item.lastInspectionDate || '-')}
@@ -658,7 +674,26 @@ export const renderInspectionHistoryTable = (historyData) => {
     container.innerHTML = html;
 };
 
-export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
+/** [상세보기] 전량검수 칸 — 옵션별 진행 표 + 저장 기록 표(수정·삭제). total = { logs: 원본 전량 기록[], docs: 진행 문서[] } */
+function totalSectionHtml(total) {
+    const raw = (total && Array.isArray(total.logs) ? total.logs : []).slice()
+        .sort((a, b) => (String(b.date || '') + String(b.time || '')).localeCompare(String(a.date || '') + String(a.time || '')));
+    const docs = total && Array.isArray(total.docs) ? total.docs : [];
+    if (!raw.length && !docs.length) return '';
+    const accHtml = accDocsTableHtml(docs, raw);
+    return `
+        <div class="mb-4 rounded-lg border border-purple-200 bg-white shadow-sm overflow-hidden">
+            <div class="px-4 py-2 bg-purple-50 text-sm font-bold text-purple-900">전량검수 — 옵션별 진행 ${escapeHtml(docs.length)}개</div>
+            ${accHtml || '<div class="px-4 py-3 text-xs text-gray-500">진행 문서 없음</div>'}
+            <div class="max-h-[320px] overflow-y-auto custom-scrollbar">${totalLogsTableHtml(raw, { dayDel: false, title: `저장 기록 ${raw.length}건 (날짜별 정상·불량)` })}</div>
+        </div>`;
+}
+
+export const renderExpandedInspectionLog = (targetTr, logsIn, productName, total = null) => {
+    // 상품별 보기(total 있음): 전량검수는 위 칸에 따로, 아래 표는 샘플 기록만(2026-11-19 — 전량 기록이 샘플 칸 모양으로 섞여 보였다)
+    const showTotal = !!total && currentInspTypeFilter !== 'sample';
+    const totalHtml = showTotal ? totalSectionHtml(total) : '';
+    const logs = total ? (logsIn || []).filter(l => !(l && l.fromTotalLog)) : logsIn;
     const table = targetTr.closest('table');
     if (table) {
         table.querySelectorAll('.expanded-detail-row').forEach(row => row.remove());
@@ -727,7 +762,13 @@ export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
     tr.className = 'expanded-detail-row bg-indigo-50/50 shadow-inner relative z-0';
     
     let logsHtml = '';
-    if (!displayLogs || displayLogs.length === 0) {
+    if ((!displayLogs || displayLogs.length === 0) && totalHtml) {
+        logsHtml = `<div class="p-4 bg-indigo-50/50 border-y border-indigo-200">
+            <div class="flex items-center justify-between mb-3">
+                <h4 class="font-bold text-indigo-900 text-sm flex items-center gap-2">상세 검수 이력 <span class="text-xs font-normal text-indigo-600 bg-indigo-100 px-2 py-0.5 rounded-full border border-indigo-200">${escapeHtml(productName)}</span></h4>
+                <button class="text-xs text-gray-500 hover:text-gray-800 font-bold btn-close-expanded px-3 py-1 rounded hover:bg-gray-200 transition border border-gray-300 bg-white shadow-sm">닫기 ✖</button>
+            </div>${totalHtml}</div>`;
+    } else if (!displayLogs || displayLogs.length === 0) {
         logsHtml = '<div class="p-6 text-center text-gray-500">해당 조건에 부합하는 상세 검수 기록이 없습니다.</div>';
     } else {
         const groupedLogs = {};
@@ -841,7 +882,8 @@ export const renderExpandedInspectionLog = (targetTr, logs, productName) => {
                     </h4>
                     <button class="text-xs text-gray-500 hover:text-gray-800 font-bold btn-close-expanded px-3 py-1 rounded hover:bg-gray-200 transition border border-gray-300 bg-white shadow-sm">닫기 ✖</button>
                 </div>
-                
+                ${totalHtml}
+                ${totalHtml ? `<div class="mb-2 text-sm font-bold text-indigo-900">샘플검수 ${escapeHtml(displayLogs.length)}건</div>` : ''}
                 <div class="max-h-[400px] overflow-y-auto overflow-x-auto rounded-lg border border-indigo-200 bg-white shadow-sm custom-scrollbar relative">
                     <table class="w-full text-left relative z-0">
                         <thead class="bg-indigo-100 text-[11px] text-indigo-800 uppercase sticky top-0 z-10 shadow-sm outline outline-1 outline-indigo-200">
