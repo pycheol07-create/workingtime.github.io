@@ -13,10 +13,10 @@
 import {
     opsSummary, periodMetrics, partSummary, baselineSpeeds, lastDayIdOf, previousPeriodOf, rollingBaselineOf,
     periodDaysOf, PARTS, OEE_LEVELS, OVERLOAD_UTIL, overloadUtilOf
-} from './ops-metrics.js?v=202611171714';
-import { taskNameOf, TASK } from './task-ids.js?v=202611171714';
-import { aliasTaskName } from './task-alias-view.js?v=202611171714';
-import { taskListOf, ownerByPeriod, detectOwnerChanges, CAP_MINUTES } from './task-owner.js?v=202611171714';
+} from './ops-metrics.js?v=202611190922';
+import { taskNameOf, TASK } from './task-ids.js?v=202611190922';
+import { aliasTaskName } from './task-alias-view.js?v=202611190922';
+import { taskListOf, ownerByPeriod, detectOwnerChanges, CAP_MINUTES } from './task-owner.js?v=202611190922';
 
 /** 판정 기준 — 진단 문장·부족/여유 일자가 같이 쓴다. */
 export const OPS_VIEW_LEVELS = Object.freeze({

@@ -20,6 +20,20 @@ const U_MIN = 0.5, U_MAX = 20;
 /** 자리 → 카드 이름(조합) = 첫 글자 대문자-동. excludeCombos 와 같은 규칙. */
 export const comboOf = (d) => `${(d.id || '').charAt(0).toUpperCase()}-${(d.dong || '').toString().trim()}`;
 
+// 자릿수 제외(2026-11-19): 제외 항목 'Z-1(5자리)' = 카드 Z-1 자리 중 id 의 숫자(0-9) 개수가 5 인 자리만(예: Z-1-0001 은 5, Z-1-0101-1 은 6).
+//   카드 이름이 아니라 제외 칸에만 쓰는 항목 — order 에 넣지 않는다. 서버 판정.py split_excluded 가 같은 규칙.
+export const SPLIT_EX_RE = /^(.-[^,(]*)\((\d{1,2})자리\)$/;
+/** 자리 id 의 숫자(0-9) 개수 */
+export const slotDigits = (d) => (String((d && d.id) || '').match(/[0-9]/g) || []).length;
+/** 제외 항목 목록(배열·Set)에 이 자리가 걸리나 — 카드 이름 그대로 또는 '카드(N자리)' */
+export function isExcludedSlot(d, ex) {
+    if (!ex) return false;
+    const has = typeof ex.has === 'function' ? (x) => ex.has(x) : (x) => ex.includes(x);
+    if ((typeof ex.size === 'number' ? ex.size : ex.length) === 0) return false;
+    const cb = comboOf(d || {});
+    return has(cb) || has(`${cb}(${slotDigits(d)}자리)`);
+}
+
 const letterOf = (card) => String(card).charAt(0);
 const dongOfCard = (card) => String(card).slice(2);
 const byKeyAsc = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
@@ -78,7 +92,7 @@ export function parseCards(priorities) {
     const zoneOrder = [...lRow.keys()].sort((a, b) => (lRow.get(a) - lRow.get(b)) || byKeyAsc(a, b));
     return {
         present: true, ok: true, errors: [],
-        rowOf: (slot) => rowOfCombo(comboOf(slot || {})),
+        rowOf: (slot) => (isExcludedSlot(slot || {}, ex) ? RANK_NONE : rowOfCombo(comboOf(slot || {}))),   // 자릿수 제외 자리는 줄 없음
         rowOfCombo,
         nRows: level[level.length - 1] + 1,
         U,

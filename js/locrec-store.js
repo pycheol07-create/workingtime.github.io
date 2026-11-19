@@ -26,19 +26,19 @@
 //   색인·marks·기본 판 날짜 문서를 getDoc 으로 한 번 읽고 LITE_TTL_MS(3분) 기억한다. 권한 있는 카드가 나중에 getLocRecStore 를 부르면 전체 구독으로 바꾼다.
 // '안 함' 붙잡기(2026-11-12): 서버 색인 holds(판정.hold_list) — 붙잡혀 결과 행에서 빠진 추천도 표 '안 함도 보기'에서 [되돌리기](unhold = marks 의 skip 지우기).
 // 칸수 무관 허용(2026-11-13): locRecWork/sizeAllow 를 구독하고 표 [칸수 무관 허용]이 setSizeFree 로 쓴다(코드·시각·이름만, 문서 모양은 locrec-view.js).
-//   서버는 다음 판부터 그 상품을 칸수가 다른 자리로도 추천하고, 대신 자리(findAlt)도 같은 목록을 쓴다. 다시 만들기 요청은 보내지 않는다(사용자 결정).
+//   서버는 다음 판부터 그 상품을 칸 바꾸기((4)↔(2)칸, 2026-11-19)로 추천하고, 대신 자리(findAlt)도 같은 목록을 쓴다. 다시 만들기 요청은 보내지 않는다(사용자 결정).
 import { doc, onSnapshot, setDoc, getDoc, serverTimestamp, deleteField, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import {
     dayKey, parseRecDay, rowState, dayOptions, defaultDay, canMark, excelRows, EXCEL_COLS, SHEET_NAME, fileNameOf,
     stripRows, fileNameAll, recReqUi, tsMs, TABS, dayVer, movedToday, PENDING_TEXT, plannedSlots, HOLD_UNDO_TEXT,
     sizeFreeList, sizeFreeSet, sizeFreeWrite, sizeFreeCode, sizeFreeToast
-} from './lib/locrec-view.js?v=202611171714';
-import { laterMs } from './lib/rebuild-view.js?v=202611171714';
+} from './lib/locrec-view.js?v=202611190922';
+import { laterMs } from './lib/rebuild-view.js?v=202611190922';
 import { docIdsForRow, docIdsForApplied, planApply, planUndo, planClearMoves, applyFailText, undoFailText, bulkSummaryText, markOnlyOk, reasonText,
          dstBlocked, altOk, altRow, blockOf, altConfirmText, bulkAltText, EZ_REMIND_TEXT, BLOCKED_STATE,
-         recentAppliedMoves } from './lib/locrec-apply.js?v=202611171714';
-import { pickAltTarget, prioritiesOf } from './lib/loc-recommend.js?v=202611171714';
-import { uploadView, uploadBlockText } from './lib/busy-view.js?v=202611171714';
+         recentAppliedMoves } from './lib/locrec-apply.js?v=202611190922';
+import { pickAltTarget, prioritiesOf } from './lib/loc-recommend.js?v=202611190922';
+import { uploadView, uploadBlockText } from './lib/busy-view.js?v=202611190922';
 
 const APP = 'artifacts/team-work-logger-v2';
 const LATEST_PATH = `${APP}/integrations/locRecLatest`;

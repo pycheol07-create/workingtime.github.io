@@ -26,14 +26,14 @@
 // 원문 문자열은 textContent 로만 넣는다.
 
 import { doc, getDoc, setDoc, updateDoc, deleteField, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202611171714';
-import { canFeature, currentPerm } from './feature-gate.js?v=202611171714';
-import { KEYS, LIMITS, FIELD_TEXT, normalize, sameValues, serverRows, sourceText, guideLines } from './lib/locrec-settings.js?v=202611171714';
-import { autoSort, CARD_LAYOUT } from './lib/loc-cards.js?v=202611171714';
+import { onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202611190922';
+import { canFeature, currentPerm } from './feature-gate.js?v=202611190922';
+import { KEYS, LIMITS, FIELD_TEXT, normalize, sameValues, serverRows, sourceText, guideLines } from './lib/locrec-settings.js?v=202611190922';
+import { autoSort, CARD_LAYOUT, SPLIT_EX_RE } from './lib/loc-cards.js?v=202611190922';
 import {
     cardLabel, parseExcludeText, boardFrom, applyCards, whereIs, excludedCards, placeCard, cardMoves, moveCard,
     toggleExclude, addRow, deleteRow, moveRow, setExclude, setU, boardSignature, boardToSave
-} from './lib/loc-card-board.js?v=202611171714';
+} from './lib/loc-card-board.js?v=202611190922';
 
 const PANE = 'recommend';
 const INFO_PATH = ['Locations', 'INFO_CONFIG'];
@@ -62,6 +62,7 @@ let 서버값 = null;          // locRecLatest.settings
 let combosOf = null;        // location.js 가 넘긴 () => { 카드 이름: 칸 수 }
 // 동선 기준 카드 화면 상태
 let 보드 = null;            // js/lib/loc-card-board.js 보드
+let digitCountsOf = null;  // '조합(N자리)' → 칸 수(제외 미리보기)
 let 칸수 = {};              // 카드 이름 → 칸 수(탭을 열 때 읽음)
 let 보드원본 = null;       // 불러온 때 보드 — 제외만 바꿨는지 가린다
 let 옛칸있음 = true;       // 문서에 zones·dongs 가 있는가(없으면 저장 때 기본값을 같이 넣는다 — 서버 옛 방식 계산이 비지 않게)
@@ -274,10 +275,15 @@ function 제외미리보기() {
     if (!box) return;
     const ex = $('lrs-exclude-input');
     const list = parseExcludeText(ex ? ex.value : '');
+    let 자릿수 = null;
+    if (list.some(t => SPLIT_EX_RE.test(t))) {
+        try { 자릿수 = typeof digitCountsOf === 'function' ? digitCountsOf() : null; } catch (e) { 자릿수 = null; }
+    }
     box.replaceChildren(...(list.length ? list : ['제외 항목 없음']).map(t => {
         const s = document.createElement('span');
         s.className = list.length ? 'lrs-chip' : 'lrs-muted';
-        s.textContent = t;
+        // 자릿수 제외('Z-1(5자리)')는 지금 자료에서 걸리는 칸 수를 같이 — 맞는 자리인지 눈으로 확인
+        s.textContent = SPLIT_EX_RE.test(t) && 자릿수 ? `${t} · ${자릿수[t] || 0}칸` : t;
         return s;
     }));
 }
@@ -740,10 +746,11 @@ function 불러오기() {
 
 function 버림() { 추천바뀜 = false; 채우기바뀜 = false; }
 
-export function initLocSetPanel({ db: _db, auth: _auth, combosOf: _combosOf }) {
+export function initLocSetPanel({ db: _db, auth: _auth, combosOf: _combosOf, digitCountsOf: _digitCountsOf }) {
     db = _db;
     auth = _auth;
     combosOf = _combosOf || null;
+    digitCountsOf = _digitCountsOf || null;
     const pane = document.querySelector(`#settings-modal [data-set-pane="${PANE}"]`);
     if (!pane || !db) return;
 

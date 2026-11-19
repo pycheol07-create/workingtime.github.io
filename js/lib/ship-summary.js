@@ -9,10 +9,10 @@
 //   에이블리 2단계: rows(대량입고 행 — 5번 칸 수량) · pickItems[].code · location.rows · packageCount
 //   에이블리 요청 총량: ship-ably.readAblyRequest 의 qty 합(부르는 쪽이 넘긴다)
 
-import { overBags, baseDateWarning, pyTruthy, toInt } from './ship-core.js?v=202611171714';
-import { headerColumns } from './ship-read.js?v=202611171714';
-import { zikjinStep1 } from './ship-zikjin.js?v=202611171714';
-import { readAblyRequest } from './ship-ably.js?v=202611171714';
+import { overBags, baseDateWarning, pyTruthy, toInt } from './ship-core.js?v=202611190922';
+import { headerColumns } from './ship-read.js?v=202611190922';
+import { zikjinStep1 } from './ship-zikjin.js?v=202611190922';
+import { readAblyRequest } from './ship-ably.js?v=202611190922';
 
 export const SUMMARY_MAX_BYTES = 3 * 1024 * 1024;   // 이보다 큰 파일은 칸 요약을 건너뜀(두 번 읽지 않게)
 
@@ -98,8 +98,11 @@ export function summarizeRun({ tab, step, result, base = '', limit = 0, now = ne
         if (!(r.location && r.location.source)) warns.push('출고요청 파일이 없어 로케이션 전송·봉 수 기록을 하지 않았습니다(일반/즉시출고를 가릴 수 없음).');
         // 원본(시즌·공장상품명, 2026-11-17) — 결과에 master 칸이 있을 때만(null = 원본을 안 읽음). 목록은 상품코드만(화면에만)
         if ('master' in r) {
-            if (!r.master) warns.push('직진배송 원본(직진배송출고ver.5)을 읽지 않아 시즌·공장상품명이 빈칸으로 만들어졌습니다 — 원본을 고른 뒤 다시 만드세요.');
+            if (!r.master) warns.push('직진배송 원본(직진배송출고ver.5)을 읽지 않아 시즌·공장상품명이 빈칸으로 만들어졌습니다'
+                + (sent > qty ? ' · 출고요청에 없어 빠진 상품도 원본이 있으면 채울 수 있습니다' : '') + ' — 원본을 고른 뒤 다시 만드세요.');
             else if ((r.master.missing || []).length) warns.push(masterMissingText(r.master.missing));
+            const fm = (r.master && r.master.fromRequestMissing) || [];
+            if (fm.length) warns.push(`출고요청에 없는 상품 ${fmt(fm.length)}종을 원본 SKU번호·상품명·옵션으로 넣었습니다 — 확인: ${fm.slice(0, 5).join(', ')}${fm.length > 5 ? ' …' : ''}`);
         }
     } else {
         const rows = r.rows || [];

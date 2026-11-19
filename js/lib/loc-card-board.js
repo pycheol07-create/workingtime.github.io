@@ -9,7 +9,7 @@
 //   함수는 보드를 고치지 않고 새 보드를 돌려준다.
 // 검사는 ./loc-cards.js parseCards 그대로 쓴다. 저장 때 zones·dongs 는 건드리지 않는다(boardToSave).
 
-import { parseCards, legacyToCards } from './loc-cards.js?v=202611171714';
+import { parseCards, legacyToCards } from './loc-cards.js?v=202611190922';
 
 // 카드 이름 규칙 — loc-cards.js 의 CARD_RE·CARD_MAX 와 같다(그쪽은 내보내지 않음)
 const CARD_RE = /^.-[^,]*$/;
@@ -46,7 +46,8 @@ export function cardLabel(name) {
 /** 쉼표 입력 → 제외 조합 목록(앞뒤 공백 빼고 대문자, 겹침 없이). 예전 화면과 같은 규칙. */
 export function parseExcludeText(text) {
     const out = [];
-    String(text || '').split(',').map(s => s.trim().toUpperCase()).filter(Boolean)
+    // 'Z-1 (5 자리)' 처럼 띄어 써도 'Z-1(5자리)'(자릿수 제외, loc-cards SPLIT_EX_RE)로 맞춘다
+    String(text || '').split(',').map(s => s.trim().toUpperCase().replace(/\s*\(\s*(\d{1,2})\s*자리\s*\)$/, '($1자리)')).filter(Boolean)
         .forEach(s => { if (!out.includes(s)) out.push(s); });
     return out;
 }

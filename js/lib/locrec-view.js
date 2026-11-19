@@ -34,8 +34,8 @@
 //                                     이월 행은 띠 건수·요약·엑셀·[전체 처리함]에서 뺀다(표에는 흐리게 보인다).
 // import 는 같은 lib 의 refill-view.js(날짜·시각, KST)·loc-recommend.js(엑셀 5열) 만 — 같은 규칙을 두 벌 두지 않는다.
 
-import { tsMs, dayKey, keyMs, lastDays, dayLabel, fmtHM, kstParts, waitInfo } from './refill-view.js?v=202611171714';
-import { excelRows, EXCEL_COLS } from './loc-recommend.js?v=202611171714';
+import { tsMs, dayKey, keyMs, lastDays, dayLabel, fmtHM, kstParts, waitInfo } from './refill-view.js?v=202611190922';
+import { excelRows, EXCEL_COLS } from './loc-recommend.js?v=202611190922';
 
 export { tsMs, dayKey, keyMs, lastDays, dayLabel, fmtHM, excelRows, EXCEL_COLS };
 
@@ -99,13 +99,13 @@ export function holdRows({ latest, marks, todayKey }) {
 
 // ── 칸수 무관 허용(2026-11-13 사용자 요청) ──
 //   locRecWork/sizeAllow { codes: { 상품코드: {at, by(직원 이름)} } } ← 표의 [칸수 무관 허용]이 쓴다(merge, 끄면 그 키 지우기). 기한 없음.
-//   서버(로케이션추천\저장소.load_size_allow)는 코드만 읽어(at·by 는 버림) node input.sizeFree 로 넘긴다 — 그 상품은 칸수가 다른 자리로도 추천.
+//   서버(로케이션추천\저장소.load_size_allow)는 코드만 읽어(at·by 는 버림) node input.sizeFree 로 넘긴다 — 그 상품은 칸 바꾸기((4)→(2)·(2)→(4), 2026-11-19 loc-recommend sizeAllowed)로 추천.
 //   화면 대신 자리(pickAltTarget sizeFree)도 같은 목록. 켜고 끈 것은 다음 다시 만들기·정기 계산부터 반영된다(요청은 보내지 않는다 — 사용자 결정).
 export const SIZE_FREE_LABEL = '칸수 무관';
-export const SIZE_FREE_HELP = '이 상품은 칸수가 다른 자리(4칸↔2칸 등)로도 추천합니다 — 끌 때까지 다음 추천에도 유지';
+export const SIZE_FREE_HELP = '이 상품은 칸을 바꿔 추천합니다 — 지금 (4)칸이면 (2)칸 자리로, (2)칸이면 (4)칸 자리로만(다른 칸수는 칸수 상관없이). 끌 때까지 다음 추천에도 유지';
 export const SIZE_FREE_CODE_MAX = 60;       // 상품코드 길이 상한(이상한 값을 문서 키로 쓰지 않게)
 export const sizeFreeToast = (code, on) => (on
-    ? `${code} 칸수 무관 허용 — 지금 반영하려면 머리줄 [지금 재고로 다시 만들기]를 누르세요(아니면 다음 정기 추천부터).`
+    ? `${code} 칸수 무관 허용 — (4)칸↔(2)칸으로 바꿔 추천합니다. 지금 반영하려면 머리줄 [지금 재고로 다시 만들기]를 누르세요(아니면 다음 정기 추천부터).`
     : `${code} 칸수 무관 허용을 껐습니다 — 다음 다시 만들기·정기 추천부터 같은 칸수 자리로만 추천합니다.`);
 
 /** 상품코드 정리 — 앞뒤 빈칸을 빼고, 비었거나 너무 길면 '' */

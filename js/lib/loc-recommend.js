@@ -39,15 +39,15 @@
 //   대신 자리     — pickAltTarget·prioritiesOf(2026-11-12, 화면 js/locrec-store.js): [처리함]이 도착 자리 문제로 막힌 단독 한 건을
 //                   지금 자리 목록으로 recommendSingle 에 다시 넣는다(서버 단독과 같은 규칙 — 계약 시험 tests/locrec-alt.test.js).
 //   칸수 무관     — input.sizeFree(2026-11-13, 서버 저장소.load_size_allow — 화면 표의 [칸수 무관 허용]이 쓴 locRecWork/sizeAllow 상품코드):
-//                   그 상품만 칸 일치(sizeFits)를 건너뛴다 — 단독·페어 파트너·뒤로 보내기는 그 상품이 옮겨 갈 때, 맞바꾸기는 방향마다
+//                   그 상품만 칸 일치(sizeFits) 대신 '칸 바꾸기'(2026-11-19 sizeAllowed — (4)칸 → (2)칸, (2)칸 → (4)칸, 다른 칸은 무관) — 단독·페어 파트너·뒤로 보내기는 그 상품이 옮겨 갈 때, 맞바꾸기는 방향마다
 //                   (H 가 L 자리로 갈 때는 H, L 이 H 자리로 갈 때는 L — 두 자리 모두 칸수가 있으면 결국 둘 다 허용이어야 한다).
 //                   화면 대신 자리(pickAltTarget sizeFree)도 같다. 칸이 없거나 비면 출력이 예전과 바이트 단위로 같고, 있으면 counts.sizeFree 만 더 붙는다.
 //
 // ⚠️ 이 파일을 고치면 서버(로케이션추천)도 바로 바뀐다 — 서버는 배포본이 아니라 v.수정본 소스를 node 로 읽는다.
 
-import { isEtcLocObj } from './mibal2-rows.js?v=202611171714';
-import { capacityFor } from './mibal2-calc.js?v=202611171714';
-import { parseCards, comboOf } from './loc-cards.js?v=202611171714';
+import { isEtcLocObj } from './mibal2-rows.js?v=202611190922';
+import { capacityFor } from './mibal2-calc.js?v=202611190922';
+import { parseCards, comboOf, isExcludedSlot } from './loc-cards.js?v=202611190922';
 
 export { isEtcLocObj };
 
@@ -138,7 +138,7 @@ export function makeRankers(priorities, opt) {
             rk.dongOrder = pc.dongOrder;
             rk.zoneOrder = pc.zoneOrder;
             const ex = Array.isArray(pr.excludeCombos) ? pr.excludeCombos : [];
-            rk.isExcluded = (slot) => ex.includes(comboOf(slot || {}));
+            rk.isExcluded = (slot) => isExcludedSlot(slot || {}, ex);
             rk.zoneRank = (locId) => (pc.letterRow((locId || '').charAt(0).toUpperCase()) === RANK_NONE ? RANK_NONE : 0);
             return rk;
         }
@@ -248,6 +248,19 @@ export function sizeFreeSetOf(v) {
     return out.size ? out : null;
 }
 const isSizeFree = (set, code) => !!(set && code != null && set.has(String(code).trim()));
+
+/**
+ * 이 상품이 from 자리에서 to 자리로 갈 수 있나(칸 기준, 2026-11-19).
+ *   칸수 무관 상품(sizeFree)이 아니면 sizeFits(같은 칸수). 칸수 무관 상품은 '칸 바꾸기' — 지금 (4)칸이면 (2)칸 자리로만, (2)칸이면 (4)칸 자리로만.
+ *   지금 칸이 4·2 가 아니면(1·5·빈칸) 예전처럼 칸수를 보지 않는다.
+ */
+export function sizeAllowed(free, code, fromLoc, toLoc) {
+    if (!isSizeFree(free, code)) return sizeFits(fromLoc, toLoc);
+    const a = sizeKey(fromLoc), b = sizeKey(toLoc);
+    if (a === '4') return b === '2';
+    if (a === '2') return b === '4';
+    return true;
+}
 
 /** ms → 그날 한국시간 00:00 의 ms */
 export function kstMidnight(nowMs) {
@@ -391,7 +404,7 @@ export function emptySlots(locs, priorities, { excludeTagged = false, rankers } 
         if (excludeTagged && isTagged(d)) return false;
         // 기타(비축·샘플·SAM)는 실제 피킹 랙이 아니므로 이동 추천 대상에서 제외
         if (isEtcLocObj(d)) return false;
-        if (excludeCombos.length > 0 && excludeCombos.includes(comboOf(d))) return false;
+        if (isExcludedSlot(d, excludeCombos)) return false;
         return true;
     });
     if (rk.cards) {
@@ -491,11 +504,10 @@ export function recommendSingle({ locs, scored, priorities, mode = 'dong', limit
         if (!currentInfo) { skipNoCurrentLoc++; continue; }
 
         const curLoc = byId.get(currentLocId);
-        const sizeOn = sizeMatch && !isSizeFree(free, item.code);
         let found = -1;
         for (let j = 0; j < emptyLocs.length; j++) {
             if (usedEmptyKeys.has(emptyLocs[j].id)) continue;
-            if (sizeOn && !sizeFits(curLoc, emptyLocs[j])) continue;
+            if (sizeMatch && !sizeAllowed(free, item.code, curLoc, emptyLocs[j])) continue;   // 칸수 무관 상품은 4↔2 칸 바꾸기
             if (isBetterSlot(slotInfos[j], currentInfo)) { found = j; break; }
         }
         if (found < 0) { skipNoBetterSlot++; continue; }
@@ -611,7 +623,7 @@ export function recommendPairs({ singleRecs, ctx, pairMap, sizeMatch = false, si
         occupiedKeys.add(base.targetLoc);
 
         const partnerFrom = locById.get(foundPartner.currentLocs);
-        const sizeOn = sizeMatch && !isSizeFree(free, foundPartner.code);
+        const sizeOk = (eLoc) => !sizeMatch || sizeAllowed(free, foundPartner.code, partnerFrom, eLoc);
         const lrk = ctx.rankers && ctx.rankers.line ? ctx.rankers : null;
         if (lrk) {
             // 라인 모델: base 자리와 거리(lineGap) <= 1 인 빈 자리(같은 동 옆 2라인까지 · 같은 라인 앞뒤 1동), 거리 → 위치순위 차 → id
@@ -619,7 +631,7 @@ export function recommendPairs({ singleRecs, ctx, pairMap, sizeMatch = false, si
             const near = [];
             ctx.emptyLocs.forEach(eLoc => {
                 if (occupiedKeys.has(eLoc.id)) return;
-                if (sizeOn && !sizeFits(partnerFrom, eLoc)) return;
+                if (!sizeOk(eLoc)) return;
                 const g = lineGap(baseSlot, eLoc, lrk);
                 if (!(g <= 1 + 1e-9)) return;
                 near.push({ eLoc, g, pd: Math.abs(posRankOf(eLoc.pos) - basePosRank) });
@@ -637,7 +649,7 @@ export function recommendPairs({ singleRecs, ctx, pairMap, sizeMatch = false, si
         const crk = ctx.rankers && ctx.rankers.cards ? ctx.rankers : null;
         const sameDongSlots = ctx.emptyLocs.filter(eLoc => {
             if (occupiedKeys.has(eLoc.id)) return false;
-            if (sizeOn && !sizeFits(partnerFrom, eLoc)) return false;
+            if (!sizeOk(eLoc)) return false;
             if (crk && crk.rowOf(eLoc) === RANK_NONE) return false;   // 카드 모드: 미지정 카드 자리로는 안 보낸다
             const eDong = (eLoc.dong || '').toString().trim();
             return eDong === baseDong;
@@ -729,7 +741,7 @@ export function rankedPickSlots(locs, priorities, rankers) {
         if (seen.has(d.id)) return;
         seen.add(d.id);
         if (isEtcLocObj(d)) return;
-        if (excludeCombos.length && excludeCombos.includes(comboOf(d))) return;
+        if (isExcludedSlot(d, excludeCombos)) return;
         const c = slotCost(d, rk);
         if (c == null) return;
         out.push({ slot: d, cost: c });
@@ -885,7 +897,7 @@ export function recommendSwaps({
             if (l.d > h.d / ratio) return;
             if (h.z !== l.z) return;
             // 칸 일치 — H 는 L 자리로, L 은 H 자리로 간다(양쪽 다 sizeFits = 한쪽이라도 칸수가 있으면 둘이 같아야)
-            if ((!isSizeFree(free, h.code) && !sizeFits(h.slot, l.slot)) || (!isSizeFree(free, l.code) && !sizeFits(l.slot, h.slot))) return;
+            if (!sizeAllowed(free, h.code, h.slot, l.slot) || !sizeAllowed(free, l.code, l.slot, h.slot)) return;   // 칸수 무관 상품은 4↔2 칸 바꾸기
             const dc = h.c - l.c;
             if (dc < P) return;
             cand.push({ h, l, dc, gain: (h.d - l.d) * dc / P });
@@ -992,7 +1004,7 @@ function routeBase(locs, daily, priorities, rk, { frontPct = 0.2, frontK = 100 }
         if (seen.has(d.id)) return;
         seen.add(d.id);
         if (isEtcLocObj(d)) return;
-        if (excludeCombos.length && excludeCombos.includes(comboOf(d))) return;
+        if (isExcludedSlot(d, excludeCombos)) return;
         slotIds.add(d.id);
         costOf.set(d.id, slotCost(d, rk, 'dong', { loose: true }));
     });
@@ -1311,7 +1323,7 @@ export function recommendBack({
     for (const L of cands) {
         if (picks.length >= N) break;
         const cMin = cMinByZone.get(L.z);
-        const hit = empties.find(x => !taken.has(x.e.id) && x.z === L.z && (isSizeFree(free, L.code) || sizeFits(L.slot, x.e)) && x.c - L.c >= P
+        const hit = empties.find(x => !taken.has(x.e.id) && x.z === L.z && sizeAllowed(free, L.code, L.slot, x.e) && x.c - L.c >= P
             && (L.d === 0 || L.d * (x.c - cMin) / P < minGain));
         if (!hit) { counts.noSlot++; continue; }
         taken.add(hit.e.id);
@@ -1387,7 +1399,7 @@ export function runRecommend(input) {
             seenId.add(d.id);
             if (isEtcLocObj(d)) return;
             const cb = comboOf(d);
-            if (ex.includes(cb) || rk.rowOf(d) !== RANK_NONE) return;
+            if (isExcludedSlot(d, ex) || rk.rowOf(d) !== RANK_NONE) return;
             cnt.set(cb, (cnt.get(cb) || 0) + 1);
         });
         if (cnt.size) {

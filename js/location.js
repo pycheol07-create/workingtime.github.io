@@ -1,32 +1,32 @@
-import { initializeFirebase, loadAppConfig } from './config.js?v=202611171714';
+import { initializeFirebase, loadAppConfig } from './config.js?v=202611190922';
 import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, writeBatch, getDocs, query, where, documentId, deleteField, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { escapeHtml as escAttr } from './utils.js?v=202611171714';
-import { cleanRaw, isCostCol, isDroppedHeader, supplierCodeOf } from './lib/sensitive-cols.js?v=202611171714';
-import { multiLocGroups, reserveLocIds, normLocId } from './lib/multi-loc.js?v=202611171714';
-import { codeOfRowB, pickRowB, checkUploadB, checkPermanent, newLocIds } from './lib/upload-check.js?v=202611171714';
-import { orderKeyMap } from './lib/order-hash.js?v=202611171714';
-import { setShellContext } from './app-shell-bridge.js?v=202611171714';
-import { memberNameFor } from './app-shell-data.js?v=202611171714';
-import { menuConfigOf } from './lib/perm.js?v=202611171714';
-import { readHash, writeHash, onHashNav } from './hash-state.js?v=202611171714';
-import { initPageNav } from './page-nav.js?v=202611171714';
-import { initRefillCard } from './refill-card.js?v=202611171714';
-import { initLocRecCard } from './locrec-card.js?v=202611171714';
-import { getLocRecStore, peekLocRecStore } from './locrec-store.js?v=202611171714';   // 오늘 변경 추천 예정 자리·최근 [처리함] 이동(엑셀 경고)
-import { initRebuildBar } from './rebuild-bar.js?v=202611171714';
-import { mountRouteSlot } from './locrec-route-card.js?v=202611171714';
-import { whenPerm, onPerm, canFeature } from './feature-gate.js?v=202611171714';   // 권한 개편 5단계 — 카드는 권한이 확인된 뒤에만 시작
-import { mountBusyBanner, createUploadStatus } from './busy-banner.js?v=202611171714';
-import { uploadBlockText } from './lib/busy-view.js?v=202611171714';
-import { uploadStockView, ezStockView, stockSrcOf, countAuto, autoBadge } from './lib/ez-stock-view.js?v=202611171714';
-import { INCOMING_WAIT_MAX_MS, SHEET_REQ_DAILY_MAX, incomingReadAt, requestServerMs, judgeIncomingSnap, createRunGuard, guardedRun, once, waitTimeoutText } from './lib/incoming-wait.js?v=202611171714';
-import { angleSizeOf, SERVER_DEFAULTS, makeRankers, isEtcLocObj } from './lib/loc-recommend.js?v=202611171714';
-import { comboOf } from './lib/loc-cards.js?v=202611171714';   // 자리 → 'A-1' 조합(카드 이름·제외 조합 같은 규칙)
-import { initLocSetPanel } from './locset-panel.js?v=202611171714';   // 환경설정 '추천·채우기' 탭(변경 추천 설정·채우기 설정)
+import { escapeHtml as escAttr } from './utils.js?v=202611190922';
+import { cleanRaw, isCostCol, isDroppedHeader, supplierCodeOf } from './lib/sensitive-cols.js?v=202611190922';
+import { multiLocGroups, reserveLocIds, normLocId } from './lib/multi-loc.js?v=202611190922';
+import { codeOfRowB, pickRowB, checkUploadB, checkPermanent, newLocIds } from './lib/upload-check.js?v=202611190922';
+import { orderKeyMap } from './lib/order-hash.js?v=202611190922';
+import { setShellContext } from './app-shell-bridge.js?v=202611190922';
+import { memberNameFor } from './app-shell-data.js?v=202611190922';
+import { menuConfigOf } from './lib/perm.js?v=202611190922';
+import { readHash, writeHash, onHashNav } from './hash-state.js?v=202611190922';
+import { initPageNav } from './page-nav.js?v=202611190922';
+import { initRefillCard } from './refill-card.js?v=202611190922';
+import { initLocRecCard } from './locrec-card.js?v=202611190922';
+import { getLocRecStore, peekLocRecStore } from './locrec-store.js?v=202611190922';   // 오늘 변경 추천 예정 자리·최근 [처리함] 이동(엑셀 경고)
+import { initRebuildBar } from './rebuild-bar.js?v=202611190922';
+import { mountRouteSlot } from './locrec-route-card.js?v=202611190922';
+import { whenPerm, onPerm, canFeature } from './feature-gate.js?v=202611190922';   // 권한 개편 5단계 — 카드는 권한이 확인된 뒤에만 시작
+import { mountBusyBanner, createUploadStatus } from './busy-banner.js?v=202611190922';
+import { uploadBlockText } from './lib/busy-view.js?v=202611190922';
+import { uploadStockView, ezStockView, stockSrcOf, countAuto, autoBadge } from './lib/ez-stock-view.js?v=202611190922';
+import { INCOMING_WAIT_MAX_MS, SHEET_REQ_DAILY_MAX, incomingReadAt, requestServerMs, judgeIncomingSnap, createRunGuard, guardedRun, once, waitTimeoutText } from './lib/incoming-wait.js?v=202611190922';
+import { angleSizeOf, SERVER_DEFAULTS, makeRankers, isEtcLocObj } from './lib/loc-recommend.js?v=202611190922';
+import { comboOf, isExcludedSlot, slotDigits } from './lib/loc-cards.js?v=202611190922';   // 자리 → 'A-1' 조합(카드 이름·제외 조합 같은 규칙)
+import { initLocSetPanel } from './locset-panel.js?v=202611190922';   // 환경설정 '추천·채우기' 탭(변경 추천 설정·채우기 설정)
 // 변경 추천 [처리함]이 옮긴 자리의 하루 표시(locRecMove)·오늘 재고 올리기 전 충돌 경고 — 계획·판정은 js/lib/locrec-apply.js
-import { zoneDocIdOf, moveBadge, uploadMoveConflicts, uploadConflictText, isDesignatedEmpty } from './lib/locrec-apply.js?v=202611171714';
-import { dayKey as kstDayKey } from './lib/refill-view.js?v=202611171714';
+import { zoneDocIdOf, moveBadge, uploadMoveConflicts, uploadConflictText, isDesignatedEmpty } from './lib/locrec-apply.js?v=202611190922';
+import { dayKey as kstDayKey } from './lib/refill-view.js?v=202611190922';
 
 // 🔐 onclick="fn('...')" 안에 데이터를 넣을 때 반드시 통과시킬 것.
 //    작은따옴표만 막으면 상품명에 " < 역슬래시가 들어올 때 버튼이 동작하지 않거나
@@ -1543,7 +1543,17 @@ const locCardCounts = () => {
     });
     return out;
 };
-initLocSetPanel({ db, auth, combosOf: locCardCounts });
+// 자릿수 제외 미리보기용 — '조합(N자리)' → 칸 수(N = 자리 id 숫자 개수, loc-cards slotDigits)
+const locDigitCounts = () => {
+    const out = {};
+    (originalData || []).forEach(d => {
+        if (!d || !d.id || isEtcLocObj(d)) return;
+        const k = `${comboOf(d)}(${slotDigits(d)}자리)`;
+        out[k] = (out[k] || 0) + 1;
+    });
+    return out;
+};
+initLocSetPanel({ db, auth, combosOf: locCardCounts, digitCountsOf: locDigitCounts });
 
 window.saveHeaderSettings = async () => {
     const checkboxes = document.querySelectorAll('.chk-header:checked');
@@ -1642,7 +1652,7 @@ function calcIncomingRecommendWith(code, excludeLocIds, planned) {
         const targetDong = (d.dong || '').toString().trim();
         if (currentDongsSet.has(targetDong)) return false;
         
-        if (excludeCombos.length > 0 && excludeCombos.includes(comboOf(d))) return false;
+        if (isExcludedSlot(d, excludeCombos)) return false;   // 'Z-1' 카드 통째 · 'Z-1(5자리)' 자릿수만
         return true;
     });
     
