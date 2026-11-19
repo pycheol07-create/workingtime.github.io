@@ -1,12 +1,12 @@
 // === js/ui-history-inspection.js ===
-import * as DOM from './dom-elements.js?v=202611191103';
-import * as State from './state.js?v=202611191103';
-import { getWeekOfYear, escapeHtml, getTodayDateString } from './utils.js?v=202611191103';
-import { dayInspItems, packDatesLabel } from './lib/insp-day.js?v=202611191103';
-import { inspTypeLabel } from './lib/insp-manual.js?v=202611191103';
+import * as DOM from './dom-elements.js?v=202611191411';
+import * as State from './state.js?v=202611191411';
+import { getWeekOfYear, escapeHtml, getTodayDateString } from './utils.js?v=202611191411';
+import { dayInspItems, packDatesLabel } from './lib/insp-day.js?v=202611191411';
+import { inspTypeLabel } from './lib/insp-manual.js?v=202611191411';
 import { doc, getDoc, runTransaction, collection, getDocs, query, where, orderBy, limit as fsLimit } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { itemKey, patchItemsByKey } from './lib/insp-flow.js?v=202611191103';
-import { dayRows, inspectorLabel, logDefectQty, periodLabel, accDocRow, DONE } from './lib/total-insp.js?v=202611191103';
+import { itemKey, patchItemsByKey } from './lib/insp-flow.js?v=202611191411';
+import { dayRows, inspectorLabel, logDefectQty, periodLabel, accDocRow, DONE } from './lib/total-insp.js?v=202611191411';
 
 // 전량검수 저장 기록(2026-11-17) — artifacts/team-work-logger-v2/total_inspection_logs where date >= fromDate(보기 기간 시작일),
 //   최근 날짜부터 최대 TOTAL_LOG_LIMIT 건. 검수이력 탭(js/listeners-history-inspection.js)이 탭에 들어올 때·[새로고침] 때 force 로 읽고,
@@ -312,6 +312,7 @@ export const renderInspectionLayout = (container) => {
 // ✨ [수정됨] 일자별 검수 리스트 렌더링 (대기 상태 항목은 샘플 수량 0개로 철저히 계산)
 // totalLogs = 전량검수 저장 기록(fetchTotalInspLogs) — 그날 기록이 있으면 날짜 목록에 넣고 표 아래 '전량검수 n건' 표(2026-11-17).
 //   '전량 검수만'이면 그 표만(리스트 줄은 inspectionType 'total' 인 것만 — 보통 없음), '샘플 검수만'이면 전량 표를 숨긴다.
+let dateListScrollTop = 0;   // 일자별 보기 날짜 목록의 마지막 스크롤 위치(페이지를 새로 열 때까지)
 export const renderInspectionListMode = async (dateList, selectedDateData, totalLogs = []) => {
     const container = document.getElementById('inspection-content-area');
     if (!container) return;
@@ -538,7 +539,7 @@ export const renderInspectionListMode = async (dateList, selectedDateData, total
 
     container.innerHTML = `
         <div class="absolute inset-0 flex border border-gray-200 rounded-lg overflow-hidden bg-white insp-list-loaded">
-            <div class="w-40 border-r border-gray-200 bg-gray-50 overflow-y-auto custom-scrollbar shrink-0">
+            <div class="w-40 border-r border-gray-200 bg-gray-50 overflow-y-auto custom-scrollbar shrink-0 insp-date-pane">
                 ${dateListHtml}
             </div>
             <div class="flex-1 overflow-hidden bg-white relative">
@@ -546,6 +547,13 @@ export const renderInspectionListMode = async (dateList, selectedDateData, total
             </div>
         </div>
     `;
+    // 날짜 목록 스크롤 위치 — 날짜를 고르면 검수이력 화면을 통째로 다시 그리므로(목록도 새로 만든다) 기억해 둔 위치로 되돌린다
+    //   (2026-11-19 — 늘 맨 위로 올라갔다)
+    const pane = container.querySelector('.insp-date-pane');
+    if (pane) {
+        if (dateListScrollTop) pane.scrollTop = dateListScrollTop;
+        pane.addEventListener('scroll', () => { dateListScrollTop = pane.scrollTop; }, { passive: true });
+    }
 };
 
 export const renderInspectionHistoryTable = (historyData) => {

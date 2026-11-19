@@ -21,19 +21,19 @@ import { doc, getDoc, getDocs, getDocFromServer, getDocsFromServer, setDoc, writ
     from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { scanApplyPlan, versionDataOf, archiveRecordOf, shrinkArchive, archiveAoa, diffRowsOf, historyGroupsOf, historyRecordsOf,
     stableSig, hasHistoryToday, mibalTotalsOf, barcodeMapOfAoa, batchIdOf, isoDay, ARCHIVE_COLL, RECENT_SCAN_MIN, partialRecordOf,
-    fileRowsOf, inboundFileAoa, mibalFileAoa, floor2FileAoa, readAllPages } from './lib/mibal2-live.js?v=202611191103';
-import { buildDiffRecord, shouldAutoSave, mergeRev, shrinkIfLarge, diffSummaryText, overlapping, queryRange } from './lib/inbound-diff.js?v=202611191103';
-import { inboundMapOf, floor2MapOf } from './lib/scan-link.js?v=202611191103';
-import { inboundSig } from './lib/inbound-fix.js?v=202611191103';
+    fileRowsOf, inboundFileAoa, mibalFileAoa, floor2FileAoa, readAllPages } from './lib/mibal2-live.js?v=202611191411';
+import { buildDiffRecord, shouldAutoSave, mergeRev, shrinkIfLarge, diffSummaryText, overlapping, queryRange } from './lib/inbound-diff.js?v=202611191411';
+import { inboundMapOf, floor2MapOf } from './lib/scan-link.js?v=202611191411';
+import { inboundSig } from './lib/inbound-fix.js?v=202611191411';
 import { buildScanLogDocs, expandScanLogDocs, checkScanLogParts, docIdOf, scanLogInputOf, scanLogListHtml, scanLogExcelRows,
-    SCANLOG_JOBS_COLL, SCANLOG_MAX_PARTS } from './lib/mibal2-scanlog.js?v=202611191103';
-import { setupLiveLoc } from './china-mibal2-live-loc.js?v=202611191103';
-import { setupLiveAdmin, readSheetRowsAOA, packMap, unpackMap } from './china-mibal2-live-admin.js?v=202611191103';
-import { shipMismatchOf, mismatchLine, mismatchBlockText } from './lib/ship-mismatch.js?v=202611191103';
-import { writeXls, xlsBytes } from './lib/xls-limits.js?v=202611191103';
-import { autoStopReason, autoStopText, serverBatchOpen, AUTO_TOAST_MS } from './lib/mibal2-auto-apply.js?v=202611191103';
-import { setupScanBar } from './china-mibal2-bar.js?v=202611191103';
-import { mdhmPad } from './lib/mibal2-closed-view.js?v=202611191103';
+    SCANLOG_JOBS_COLL, SCANLOG_MAX_PARTS } from './lib/mibal2-scanlog.js?v=202611191411';
+import { setupLiveLoc } from './china-mibal2-live-loc.js?v=202611191411';
+import { setupLiveAdmin, readSheetRowsAOA, packMap, unpackMap } from './china-mibal2-live-admin.js?v=202611191411';
+import { shipMismatchOf, mismatchLine, mismatchBlockText } from './lib/ship-mismatch.js?v=202611191411';
+import { writeXls, xlsBytes } from './lib/xls-limits.js?v=202611191411';
+import { autoStopReason, autoStopText, serverBatchOpen, AUTO_TOAST_MS } from './lib/mibal2-auto-apply.js?v=202611191411';
+import { setupScanBar } from './china-mibal2-bar.js?v=202611191411';
+import { mdhmPad } from './lib/mibal2-closed-view.js?v=202611191411';
 
 // 마감된 작업(보관함)을 보는 동안 끄는 버튼 — 고른 출고일 기준으로 쓰는 것만(js/lib/mibal2-closed-view.js). 되돌리기·바코드·위치·관리는 그대로
 const CLOSED_BTN_IDS = ['btn-scan-off-sync', 'btn-scan-off-reset', 'btn-scan-off-diffrec'];
@@ -723,15 +723,15 @@ export function startLive(ctx) {
         const req = ++scanLogReq, id = String(r.id);
         scanLogView = null;
         const body = $('live-scanlog-body'), q = $('live-scanlog-q'), dl = $('btn-live-scanlog-dl');
-        $('live-scanlog-title').textContent = `스캔 내역 — ${id}`;
+        $('live-scanlog-title').textContent = `스캔 내역 — ${r.live ? '진행 중(마감 전) · ' : ''}${id}`;
         q.value = ''; q.disabled = true; dl.disabled = true;
         body.innerHTML = '<div class="t-3" style="padding:18px; text-align:center;">불러오는 중...</div>';
         const fail = (cls, text) => { body.innerHTML = `<div class="${cls}" style="padding:18px; text-align:center;">${esc(text)}</div>`; };
         let v;
-        try { v = await loadScanLog(id); }
+        try { v = r.liveScan ? r.liveScan : await loadScanLog(id); }   // 마감 전 작업은 지금 입고이력으로 만든 것(저장 안 함)
         catch (e) { if (req === scanLogReq) fail('t-risk', '불러오지 못했습니다 — ' + errText(e)); return; }
         if (req !== scanLogReq) return;
-        if (v.none) { fail('t-3', '내역 저장 시작 전 마감된 작업입니다(이 작업은 스캔 내역이 없습니다).'); return; }
+        if (v.none) { fail('t-3', r.live ? '아직 앱 스캔 입고가 없습니다.' : '내역 저장 시작 전 마감된 작업입니다(이 작업은 스캔 내역이 없습니다).'); return; }
         if (v.incomplete) { fail('t-risk', '스캔 내역 일부를 읽지 못해 표시하지 않습니다 — 잠시 뒤 다시 열어 보세요.'); return; }
         const names = new Map((Array.isArray(r.rows) ? r.rows : []).map(x => [String(x.c), x.nm || '']));
         scanLogView = { id, expanded: v.expanded, nameOf: (c) => names.get(c) || '' };
@@ -739,7 +739,23 @@ export function startLive(ctx) {
         renderScanLog();
     }
 
-    // ── [지난 작업 보기] ──
+    // ── [지난 작업 보기] — 맨 위 '진행 중' 줄(2026-11-19 사용자 요청: 마감 전에도 보게) ──
+    // 마감 때와 같은 계산(입고이력·비축 → archiveRecordOf, 스캔 내역 → buildScanLogDocs)을 읽기만 해서 만든다. 아무것도 쓰지 않는다.
+    // 출고일은 작업 출고일(없으면 지금 고른 출고일). 작업 표시도 입고이력도 없으면 null. 부분 마감 뒤라도 지금 남은 전체를 보여 준다.
+    async function currentJobRecord() {
+        const b = batchOf();
+        // 작업 표시 없이 마감된 출고일(보관함 기록)을 보는 중이면 그 출고일로 계산하지 않는다 — 스캔만 '출고일 밖'으로
+        const ships = b ? b.ships.map(String) : closedNow() ? [] : (ctx.getSelectedDates() || []).map(String);
+        const [ih, f2s] = await Promise.all([readInbound(), getDocFromServer(doc(db, CHINA, 'FLOOR2_STOCK'))]);
+        if (!b && !ih.docs.length) return null;   // 작업 표시도 스캔도 없음(마감 직후·보관함 보기 중) — 진행 중 작업 없음
+        const f2 = floor2MapOf(f2s.exists() ? f2s.data() : null).map;
+        const now = new Date();
+        const id = (b && b.id) ? String(b.id) : batchIdOf(now);
+        const rec = archiveRecordOf({ id, ships, startedAtMs: b ? b.startedAt : 0, closedAt: now, by: '',
+            rows: ships.length ? ctx.rowsFor(ships, ih.map, { allGrace: true }) : [], inboundMap: ih.map, floor2Map: f2 });
+        const parts = ih.docs.length ? buildScanLogDocs(ih.docs.map(scanLogInputOf), { id, closedAtMs: now.getTime(), by: '' }) : [];
+        return { ...rec, live: true, liveScan: parts.length ? { expanded: expandScanLogDocs(parts) } : { none: true } };
+    }
     function archiveModal() {
         let m = $('live-archive-modal');
         if (m) return m;
@@ -747,7 +763,7 @@ export function startLive(ctx) {
         m.id = 'live-archive-modal'; m.className = 'modal-overlay';
         m.innerHTML = `<div class="modal-content" style="width:760px; max-width:96vw; max-height:90vh; overflow-y:auto;">
             <h3 style="margin-top:0;">지난 작업 (보관함)</h3>
-            <div class="d-note" style="margin-bottom:10px;">[작업 마감] 때 저장한 작업입니다. 최근 30건 · 엑셀은 상품코드별 도착·입고·비축·차이입니다.</div>
+            <div class="d-note" style="margin-bottom:10px;">[작업 마감] 때 저장한 작업입니다. 최근 30건 · 엑셀은 상품코드별 도착·입고·비축·차이입니다.<br>맨 위 '진행 중' 줄은 아직 마감하지 않은 지금 작업 — 연 시각의 입고이력·비축으로 계산해 보여 줄 뿐 저장하지 않습니다.</div>
             <div style="max-height:60vh; overflow:auto; border:1px solid var(--c-line); border-radius:var(--r-sm);">
                 <table style="width:100%; border-collapse:collapse; font-size:12px; text-align:center; white-space:nowrap;">
                     <thead><tr><th class="d-th">작업번호</th><th class="d-th">출고일</th><th class="d-th">마감</th><th class="d-th">상품</th><th class="d-th">도착</th><th class="d-th">입고</th><th class="d-th">비축</th><th class="d-th">부족·과입고</th><th class="d-th"></th></tr></thead>
@@ -772,16 +788,22 @@ export function startLive(ctx) {
         m.style.display = 'flex';
         const tb = $('live-archive-tbody');
         tb.innerHTML = '<tr><td colspan="9" class="t-3" style="padding:22px;">불러오는 중...</td></tr>';
-        let recs;
+        let recs, cur = null, curErr = '';
         try {
             // 문서 id 내림차순은 에뮬레이터가 지원하지 않는다 — 마감 시각(보관 문서에 늘 있음)으로 최신순
-            const snap = await getDocs(query(collection(db, ARCHIVE_COLL), orderBy('closedAtMs', 'desc'), limit(30)));
+            const [snap, c] = await Promise.all([
+                getDocs(query(collection(db, ARCHIVE_COLL), orderBy('closedAtMs', 'desc'), limit(30))),
+                currentJobRecord().catch(e => { curErr = errText(e); return null; }),
+            ]);
             recs = snap.docs.map(d => d.data());
+            cur = c;
         } catch (e) { tb.innerHTML = `<tr><td colspan="9" class="t-risk" style="padding:22px;">불러오지 못했습니다 — ${esc(errText(e))}</td></tr>`; return; }
-        if (!recs.length) { tb.innerHTML = '<tr><td colspan="9" class="t-3" style="padding:22px;">보관된 작업이 없습니다. [작업 마감]을 하면 여기에 쌓입니다.</td></tr>'; return; }
-        tb.innerHTML = recs.map((r, i) => { const t = r.totals || {}; return `<tr style="border-bottom:1px solid var(--c-line);">
-            <td style="padding:6px;">${esc(r.id)}${r.partialOf ? `<div class="t-3" style="font-size:11px;">${esc(r.partialOf)} 뒤 추가분</div>` : ''}</td><td style="padding:6px;">${esc((r.ships || []).map(fmtMD).join(', '))}</td>
-            <td style="padding:6px;">${r.closedAtMs ? esc(mdhm(r.closedAtMs)) : ''}</td><td style="padding:6px;">${esc(n(t.codes))}</td>
+        if (cur) recs = [cur, ...recs];
+        const curErrRow = curErr ? `<tr><td colspan="9" class="t-risk" style="padding:8px;">진행 중 작업을 계산하지 못했습니다 — ${esc(curErr)}</td></tr>` : '';
+        if (!recs.length) { tb.innerHTML = curErrRow + '<tr><td colspan="9" class="t-3" style="padding:22px;">보관된 작업이 없습니다. [작업 마감]을 하면 여기에 쌓입니다.</td></tr>'; return; }
+        tb.innerHTML = curErrRow + recs.map((r, i) => { const t = r.totals || {}; return `<tr style="border-bottom:1px solid var(--c-line);${r.live ? ' background:var(--c-accent-soft, #EEF4FF);' : ''}">
+            <td style="padding:6px;">${r.live ? '<b>진행 중</b><div class="t-3" style="font-size:11px;">마감 전</div>' : ''}${esc(r.id)}${r.partialOf ? `<div class="t-3" style="font-size:11px;">${esc(r.partialOf)} 뒤 추가분</div>` : ''}</td><td style="padding:6px;">${esc((r.ships || []).map(fmtMD).join(', '))}</td>
+            <td style="padding:6px;">${r.live ? `<span class="t-3">${esc(mdhm(r.closedAtMs))} 기준</span>` : r.closedAtMs ? esc(mdhm(r.closedAtMs)) : ''}</td><td style="padding:6px;">${esc(n(t.codes))}</td>
             <td style="padding:6px;">${esc(n(t.arr))}</td><td style="padding:6px;">${esc(n(t.conf))}</td><td style="padding:6px;">${esc(n(t.floor2))}</td>
             <td style="padding:6px;"><span class="t-risk">${esc(n(t.short))}</span> · <span class="t-accent">${esc(n(t.over))}</span></td>
             <td style="padding:6px;"><button type="button" class="d-btn d-btn-sm live-arch-dl" data-i="${i}">엑셀 받기</button> <button type="button" class="d-btn d-btn-sm live-arch-scan" data-i="${i}">스캔 내역</button></td></tr>`; }).join('');
@@ -790,7 +812,7 @@ export function startLive(ctx) {
             const r = recs[+btn.dataset.i];
             const X = window.XLSX;
             if (!X) { showToast('⚠️ 엑셀 라이브러리를 못 불러옴'); return; }
-            const bad = writeXls(X, [{ name: '지난작업', aoa: archiveAoa(r) }], `지난작업_${r.id}.xls`);
+            const bad = writeXls(X, [{ name: r.live ? '진행중작업' : '지난작업', aoa: archiveAoa(r) }], `${r.live ? '진행중작업' : '지난작업'}_${r.id}.xls`);
             if (bad) alert(bad);
         }));
     }
