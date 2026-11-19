@@ -8,9 +8,9 @@
 // 문서: integrations/shipTransmit.applied[YYYY-MM-DD][업무 id] = { name, value, phase, action, … }(자동화 스크립트만 쓴다, 직원 읽기)
 // 이름·값만 읽는다. 구독은 한 번, 로그아웃 때 unsubscribeShipAuto 로 푼다(js/app.js).
 import { doc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import * as State from './state.js?v=202611191043';
-import { getTodayDateString } from './utils.js?v=202611191043';
-import { canonicalTaskName } from './lib/task-ids.js?v=202611191043';
+import * as State from './state.js?v=202611191103';
+import { getTodayDateString } from './utils.js?v=202611191103';
+import { canonicalTaskName } from './lib/task-ids.js?v=202611191103';
 
 const AUTO_UNTIL_MIN = 17 * 60 + 40;   // 처리량자동입력 저녁 창 끝(설정.json windows.저녁) — 이 뒤엔 칸 값을 실적으로 본다
 
@@ -42,6 +42,20 @@ export function unsubscribeShipAuto() {
     if (unsub) { try { unsub(); } catch (e) {} }
     unsub = null;
     applied = {};
+}
+
+/** 오늘 아침 자동 입력값 중 '계획 예상값'(국내배송 — basis '계획 스냅샷 …')인 업무 이름 Set.
+ *  이 값은 그날 처리할 양의 어림일 뿐이라, 업무가 끝나 보여도(진행 중인 사람 없음) 실적으로 보지 않는다(2026-11-19 —
+ *  점심 등으로 모두 멈출 때마다 카드가 실측·계산을 오갔다). 저녁 창이 끝났으면 빈 Set(= 칸 값을 실적으로). */
+export function morningForecastToday(now = new Date()) {
+    const out = new Set();
+    if (now.getHours() * 60 + now.getMinutes() >= AUTO_UNTIL_MIN) return out;
+    const day = applied[getTodayDateString()];
+    if (!day || typeof day !== 'object') return out;
+    Object.values(day).forEach(e => {
+        if (e && e.phase === '아침' && e.name && /^계획/.test(String(e.basis || ''))) out.add(canonicalTaskName(String(e.name), State.appConfig));
+    });
+    return out;
 }
 
 /** 오늘 아침 자동 입력값 — { 지금 업무명: 값 }. 저녁 창이 끝났거나 없거나 못 읽었으면 {} (= 칸 값을 그대로 실적으로 본다) */
