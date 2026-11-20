@@ -8,20 +8,21 @@
 // 저장 위치: artifacts/team-work-logger-v2/calendarEvents/{YYYY-MM-DD__rand}
 //   문서 ID 앞에 날짜를 넣어, 보이는 달만 documentId 범위 조회로 읽는다(읽기 비용 절감).
 
-import * as State from './state.js?v=202611191411';
-import { leaveTypeLabel, OTHER_LEAVE_TYPE, PERSISTENT_LEAVE_TYPES, LEGACY_LEAVE_TYPES } from './state.js?v=202611191411';
-import { showToast, getTodayDateString, getRegularMembersForCount, getActiveTeamMembers, escapeHtml as esc, getHolidayName } from './utils.js?v=202611191411';
-import { getIncomingDetailsByDateFromCache } from './widget-incoming-schedule.js?v=202611191411';
-import { notifyLeaveScheduleChanged, onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202611191411';
-import { updateLeaveSchedule } from './config.js?v=202611191411';
-import { upsertById, removeByIds } from './lib/leave-ops.js?v=202611191411';
+import * as State from './state.js?v=202611200925';
+import { leaveTypeLabel, OTHER_LEAVE_TYPE, PERSISTENT_LEAVE_TYPES, LEGACY_LEAVE_TYPES, TIME_BASED_LEAVE_TYPES } from './state.js?v=202611200925';
+import { showToast, getTodayDateString, getCurrentTime, getRegularMembersForCount, getActiveTeamMembers, escapeHtml as esc, getHolidayName } from './utils.js?v=202611200925';
+import { dailyLeaveRanges, pastRangeForMonth } from './lib/cal-daily-leave.js?v=202611200925';
+import { getIncomingDetailsByDateFromCache } from './widget-incoming-schedule.js?v=202611200925';
+import { notifyLeaveScheduleChanged, onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202611200925';
+import { updateLeaveSchedule } from './config.js?v=202611200925';
+import { upsertById, removeByIds } from './lib/leave-ops.js?v=202611200925';
 import {
     REL_OPTIONS, MAX_REMINDERS, relOption, computeAt, buildReminders, buildRemindTo, eventOverAt,
     reminderSummary, shortAt, nowKst, newId
-} from './lib/cal-reminder.js?v=202611191411';
-import { desktopNotifyPermission, askDesktopNotifyPermission } from './desktop-noti.js?v=202611191411';
+} from './lib/cal-reminder.js?v=202611200925';
+import { desktopNotifyPermission, askDesktopNotifyPermission } from './desktop-noti.js?v=202611200925';
 import {
-    collection, doc, setDoc, deleteDoc, getDocs,
+    collection, doc, setDoc, deleteDoc, getDocs, getDoc,
     query, where, documentId
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
@@ -35,7 +36,7 @@ export const EVENT_TYPES = [
     { id: 'outbound',  label: '출고',     color: '#a855f7' },
     { id: 'inventory', label: '재고조사', color: '#14b8a6' },
     { id: 'meeting',   label: '회의',     color: '#6366f1' },
-    { id: 'etc',       label: '기타',     color: '#6b7280' }
+    { id: 'etc',       label: '기타',     color: '#A16207' }    // 갈색(2026-11-20 — 회색은 글자·테두리와 구분이 안 됐다)
 ];
 const typeOf = (id) => EVENT_TYPES.find(t => t.id === id) || EVENT_TYPES[0];
 
@@ -148,6 +149,66 @@ async function removeEvent(id) {
     await loadEvents(viewMonth, { force: true });
 }
 
+// ── 당일 근태(외출·조퇴·지각) — 지난 날짜는 history/{날짜}.onLeaveMembers 를 읽기만 한다 ──
+//   달마다 한 번(앞뒤 7일 포함, 어제까지) 읽고 같은 범위는 다시 읽지 않는다. 오늘 것은 실시간 값.
+const pastDailyLeaves = {};      // 'YYYY-MM-DD' → onLeaveMembers[]
+const loadedPastRanges = new Set();
+async function loadPastDailyLeaves(monthDate) {
+    if (!State.db || !State.auth?.currentUser) return false;
+    const r = pastRangeForMonth(monthDate, getTodayDateString());
+    if (!r) return false;
+    const key = r.from + '~' + r.to;
+    if (loadedPastRanges.has(key)) return false;
+    loadedPastRanges.add(key);
+    try {
+        const q = query(collection(State.db, ...APP_PATH, 'history'),
+            where(documentId(), '>=', r.from), where(documentId(), '<=', r.to));
+        const snap = await getDocs(q);
+        snap.forEach(d => {
+            const list = d.data()?.onLeaveMembers;
+            pastDailyLeaves[d.id] = pickTimeLeaves(list);
+        });
+        return true;
+    } catch (e) {
+        loadedPastRanges.delete(key);   // 다음에 다시 시도
+        console.warn('[calendar] 지난 당일 근태 로드 실패:', e);
+        return false;
+    }
+}
+/** 달 이동 뒤 지난 당일 근태를 받아 오면 다시 그린다(달력은 먼저 그려 두고 기다리지 않는다) */
+function loadPastDailyLeavesThenRender(monthDate) {
+    loadPastDailyLeaves(monthDate).then(changed => { if (changed && viewMonth) renderCalendar(); });
+}
+// 실시간 값이 가리키는 날짜 — app-sync 가 구독 중인 날(자정이 지나도 새로고침 전까지는 어제다)
+let liveDailyDate = null;
+// 마감된 날의 당일 근태 — 마감하면 daily_data 가 지워져 실시간 값이 비므로 history/{그날}(closedAt 있음)에서 한 번 읽는다
+const closedDayLeaves = {};      // 'YYYY-MM-DD' → onLeaveMembers[]
+let lastLiveCount = -1;
+const pickTimeLeaves = (list) => Array.isArray(list)
+    ? list.filter(l => l && TIME_BASED_LEAVE_TYPES.includes(l.type)).map(l => ({ id: l.id, member: l.member, type: l.type, startTime: l.startTime, endTime: l.endTime }))
+    : [];
+/** 실시간 목록이 (처음이거나 비지 않았다가) 비면, 그날이 마감됐는지 보고 마감 기록의 당일 근태를 가져온다 */
+async function checkClosedDay(date, count) {
+    const becameEmpty = count === 0 && lastLiveCount !== 0;
+    lastLiveCount = count;
+    if (!becameEmpty || !date || !State.db || !State.auth?.currentUser) return;
+    try {
+        const s = await getDoc(doc(State.db, ...APP_PATH, 'history', date));
+        const d = s.exists() ? s.data() : null;
+        if (d && d.closedAt) { closedDayLeaves[date] = pickTimeLeaves(d.onLeaveMembers); refreshWorkCalendar(); }
+    } catch (e) { console.warn('[calendar] 마감 기록 당일 근태 로드 실패:', e); }
+}
+function dailyLeaveItems() {
+    const today = getTodayDateString();
+    const liveDate = liveDailyDate || today;
+    const live = State.appState?.dailyOnLeaveMembers || [];
+    const byDate = { ...pastDailyLeaves };
+    // 실시간 날짜는 실시간 값만(비었고 마감된 날이면 마감 기록)
+    byDate[liveDate] = live.length ? live : (closedDayLeaves[liveDate] || []);
+    return dailyLeaveRanges(byDate, TIME_BASED_LEAVE_TYPES, { today: liveDate, now: liveDate === today ? getCurrentTime() : '' })
+        .map(it => ({ ...it, color: LEAVE_COLOR }));
+}
+
 // ── 근태(persistent_data/leaveSchedule) 읽기/쓰기 ──
 //   쓰기는 config.updateLeaveSchedule(트랜잭션) — 동시에 저장해도 다른 사람 근태가 사라지지 않게.
 
@@ -198,7 +259,7 @@ const hexToRgba = (hex, a) => {
 };
 
 function toneOf(item) {
-    if (item.kind === 'leave') return KIND_TONE.leave;
+    if (item.kind === 'leave' || item.kind === 'dleave') return KIND_TONE.leave;
     if (item.kind === 'holiday') return KIND_TONE.holiday;
     if (item.kind === 'incoming') return KIND_TONE.incoming;
     return {
@@ -254,6 +315,8 @@ function allRanges() {
         });
     });
 
+    out.push(...dailyLeaveItems());   // 당일 근태(외출·조퇴·지각) — 읽기 전용
+
     const incoming = getIncomingDetailsByDateFromCache();
     Object.keys(incoming).forEach(date => {
         const inc = incoming[date];
@@ -269,7 +332,7 @@ function allRanges() {
 
     // 시작 이른 것 → 기간 긴 것 → 종류(공휴일·일정·근태·입고) 순으로 두면 레인 배치가 안정적이다.
     // (같은 날·같은 길이에서 항상 -1 을 돌려주던 비교는 정렬 기준이 일관되지 않아 순서가 흔들렸다)
-    const KIND_ORDER = { holiday: 0, event: 1, leave: 2, incoming: 3 };
+    const KIND_ORDER = { holiday: 0, event: 1, leave: 2, dleave: 2, incoming: 3 };
     return out.sort((a, b) =>
         a.start.localeCompare(b.start) ||
         (dayDiff(b.start, b.end) - dayDiff(a.start, a.end)) ||
@@ -1075,6 +1138,7 @@ async function submitModal() {
         if (target.getMonth() !== viewMonth.getMonth() || target.getFullYear() !== viewMonth.getFullYear()) {
             viewMonth = new Date(target.getFullYear(), target.getMonth(), 1);
             await loadEvents(viewMonth, { force: true });
+            loadPastDailyLeavesThenRender(viewMonth);
         }
         renderCalendar();
         closeModal();
@@ -1186,6 +1250,7 @@ function bind() {
             }
             await loadEvents(viewMonth);
             renderCalendar();
+            loadPastDailyLeavesThenRender(viewMonth);
             return;
         }
 
@@ -1207,7 +1272,7 @@ function bind() {
             const cellEl = itemEl.closest('[data-cal-date]');
             selectedDate = itemEl.dataset.calItemStart
                 || (cellEl ? cellEl.dataset.calDate : getTodayDateString());
-            if (kind === 'incoming' || kind === 'holiday') { openDayModal(selectedDate); return; }   // 읽기전용
+            if (kind === 'incoming' || kind === 'holiday' || kind === 'dleave') { openDayModal(selectedDate); return; }   // 읽기전용
             if (!openViewModal(kind, itemEl.dataset.calItemId)) openDayModal(selectedDate);
             return;
         }
@@ -1294,9 +1359,22 @@ export async function initWorkCalendarWidget() {
 
     // 🔗 근태가 다른 화면에서 바뀌어도 달력에 즉시 반영
     onLeaveScheduleChanged('calendar', () => refreshWorkCalendar());
+    // 오늘 당일 근태(외출·조퇴·지각)가 실시간으로 바뀌면 다시 그린다(js/app-sync.js 가 알림)
+    if (!document.__calDailyLeaveBound) {
+        document.__calDailyLeaveBound = true;
+        document.addEventListener('daily-leaves-updated', (e) => {
+            const det = (e && e.detail) || {};
+            if (det.date) liveDailyDate = det.date;
+            refreshWorkCalendar();
+            checkClosedDay(det.date || getTodayDateString(), Number(det.count) || 0);
+        });
+    }
 
     await loadEvents(viewMonth);
     renderCalendar();
+    loadPastDailyLeavesThenRender(viewMonth);
+    // 첫 실시간 알림이 달력보다 먼저 왔을 수 있다 — 마감 뒤에 연 화면도 오늘 기록이 보이게 한 번 본다
+    if (lastLiveCount === -1) checkClosedDay(liveDailyDate || getTodayDateString(), (State.appState?.dailyOnLeaveMembers || []).length);
 }
 
 /** 외부(근태 저장 등)에서 달력을 다시 그리고 싶을 때 */

@@ -1,20 +1,20 @@
 // === js/app-sync.js ===
-import { nameWithPosition } from './lib/member-title.js?v=202611191411';
-import * as State from './state.js?v=202611191411';
-import { isPersistentLeaveType } from './state.js?v=202611191411';
-import * as DOM from './dom-elements.js?v=202611191411';
-import { getTodayDateString, getCurrentTime, showToast } from './utils.js?v=202611191411';
+import { nameWithPosition } from './lib/member-title.js?v=202611200925';
+import * as State from './state.js?v=202611200925';
+import { isPersistentLeaveType } from './state.js?v=202611200925';
+import * as DOM from './dom-elements.js?v=202611200925';
+import { getTodayDateString, getCurrentTime, showToast } from './utils.js?v=202611200925';
 // ✨ limit가 추가되었습니다.
 import { doc, onSnapshot, collection, query, where, limit, writeBatch, getDocs, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { renderDashboardLayout, renderTaskSelectionModal } from './ui.js?v=202611191411';
-import { renderTodoList } from './inspection-logic.js?v=202611191411';
-import { renderNotificationList } from './app-notifications.js?v=202611191411';
-import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202611191411';
-import { PRIVATE_CONFIG_KEYS } from './config.js?v=202611191411';
-import { isAutomation, loadDismissed, pickPopup, findOpenModal } from './lib/noti-popup.js?v=202611191411';
-import { desktopNotify } from './desktop-noti.js?v=202611191411';
-import { migrateDashboardTaskItems } from './lib/task-config-sync.js?v=202611191411';
-import { planForceEnd } from './lib/leave-timing.js?v=202611191411';
+import { renderDashboardLayout, renderTaskSelectionModal } from './ui.js?v=202611200925';
+import { renderTodoList } from './inspection-logic.js?v=202611200925';
+import { renderNotificationList } from './app-notifications.js?v=202611200925';
+import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202611200925';
+import { PRIVATE_CONFIG_KEYS } from './config.js?v=202611200925';
+import { isAutomation, loadDismissed, pickPopup, findOpenModal } from './lib/noti-popup.js?v=202611200925';
+import { desktopNotify } from './desktop-noti.js?v=202611200925';
+import { migrateDashboardTaskItems } from './lib/task-config-sync.js?v=202611200925';
+import { planForceEnd } from './lib/leave-timing.js?v=202611200925';
 
 let unsubConfig = null;
 let unsubToday = null;
@@ -168,6 +168,13 @@ export function setupFirebaseListeners(renderCallback, markDirtyCallback, force 
         State.appState.inspectionDone = data.inspectionDone || [];
         State.appState.inspPicked = data.inspPicked || {};   // 샘플 피킹 체크(새창 [가져옴], 모든 기기 공유)
         State.appState.dailyOnLeaveMembers = data.onLeaveMembers || [];
+        // 업무 캘린더가 오늘 당일 근태(외출·조퇴·지각)를 그린다(js/widget-calendar.js).
+        //   메모리 값을 먼저 고치는 경로(복귀·취소)가 있어 '바뀌었을 때만' 비교는 못 믿는다 — 매번 알린다(다시 그리기만 함).
+        try {
+            document.dispatchEvent(new CustomEvent('daily-leaves-updated', {
+                detail: { date: subscribedDate, count: State.appState.dailyOnLeaveMembers.length }
+            }));
+        } catch (_) { /* 이벤트 미지원 환경 */ }
         // ⚠️ 이 값을 되읽지 않으면 메모리에는 늘 빈 배열이 남는다.
         //    그 상태로 1분 자동저장이 돌면 '0으로 확인' 표시가 통째로 지워진다.
         State.appState.confirmedZeroTasks = data.confirmedZeroTasks || [];
