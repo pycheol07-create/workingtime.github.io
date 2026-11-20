@@ -1,32 +1,34 @@
-import { initializeFirebase, loadAppConfig } from './config.js?v=202611201405';
+import { initializeFirebase, loadAppConfig } from './config.js?v=202611201435';
 import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, writeBatch, getDocs, query, where, documentId, deleteField, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { escapeHtml as escAttr } from './utils.js?v=202611201405';
-import { cleanRaw, isCostCol, isDroppedHeader, supplierCodeOf } from './lib/sensitive-cols.js?v=202611201405';
-import { multiLocGroups, reserveLocIds, normLocId } from './lib/multi-loc.js?v=202611201405';
-import { codeOfRowB, pickRowB, checkUploadB, checkPermanent, newLocIds } from './lib/upload-check.js?v=202611201405';
-import { orderKeyMap } from './lib/order-hash.js?v=202611201405';
-import { setShellContext } from './app-shell-bridge.js?v=202611201405';
-import { memberNameFor } from './app-shell-data.js?v=202611201405';
-import { menuConfigOf } from './lib/perm.js?v=202611201405';
-import { readHash, writeHash, onHashNav } from './hash-state.js?v=202611201405';
-import { initPageNav } from './page-nav.js?v=202611201405';
-import { initRefillCard } from './refill-card.js?v=202611201405';
-import { initLocRecCard } from './locrec-card.js?v=202611201405';
-import { getLocRecStore, peekLocRecStore } from './locrec-store.js?v=202611201405';   // 오늘 변경 추천 예정 자리·최근 [처리함] 이동(엑셀 경고)
-import { initRebuildBar } from './rebuild-bar.js?v=202611201405';
-import { mountRouteSlot } from './locrec-route-card.js?v=202611201405';
-import { whenPerm, onPerm, canFeature } from './feature-gate.js?v=202611201405';   // 권한 개편 5단계 — 카드는 권한이 확인된 뒤에만 시작
-import { mountBusyBanner, createUploadStatus } from './busy-banner.js?v=202611201405';
-import { uploadBlockText } from './lib/busy-view.js?v=202611201405';
-import { uploadStockView, ezStockView, stockSrcOf, countAuto, autoBadge } from './lib/ez-stock-view.js?v=202611201405';
-import { INCOMING_WAIT_MAX_MS, SHEET_REQ_DAILY_MAX, incomingReadAt, requestServerMs, judgeIncomingSnap, createRunGuard, guardedRun, once, waitTimeoutText } from './lib/incoming-wait.js?v=202611201405';
-import { angleSizeOf, SERVER_DEFAULTS, makeRankers, isEtcLocObj } from './lib/loc-recommend.js?v=202611201405';
-import { comboOf, isExcludedSlot, slotDigits, parseCards } from './lib/loc-cards.js?v=202611201405';   // 자리 → 'A-1' 조합(카드 이름·제외 조합 같은 규칙)
-import { initLocSetPanel } from './locset-panel.js?v=202611201405';   // 환경설정 '추천·채우기' 탭(변경 추천 설정·채우기 설정)
+import { escapeHtml as escAttr } from './utils.js?v=202611201435';
+import { cleanRaw, isCostCol, isDroppedHeader, supplierCodeOf } from './lib/sensitive-cols.js?v=202611201435';
+import { multiLocGroups, reserveLocIds, normLocId } from './lib/multi-loc.js?v=202611201435';
+import { codeOfRowB, pickRowB, checkUploadB, checkPermanent, newLocIds } from './lib/upload-check.js?v=202611201435';
+import { orderKeyMap } from './lib/order-hash.js?v=202611201435';
+import { setShellContext } from './app-shell-bridge.js?v=202611201435';
+import { memberNameFor } from './app-shell-data.js?v=202611201435';
+import { menuConfigOf } from './lib/perm.js?v=202611201435';
+import { readHash, writeHash, onHashNav } from './hash-state.js?v=202611201435';
+import { initPageNav } from './page-nav.js?v=202611201435';
+import { initRefillCard } from './refill-card.js?v=202611201435';
+import { initLocRecCard } from './locrec-card.js?v=202611201435';
+import { getLocRecStore, peekLocRecStore } from './locrec-store.js?v=202611201435';   // 오늘 변경 추천 예정 자리·최근 [처리함] 이동(엑셀 경고)
+import { initRebuildBar } from './rebuild-bar.js?v=202611201435';
+import { mountRouteSlot } from './locrec-route-card.js?v=202611201435';
+import { whenPerm, onPerm, canFeature } from './feature-gate.js?v=202611201435';   // 권한 개편 5단계 — 카드는 권한이 확인된 뒤에만 시작
+import { mountBusyBanner, createUploadStatus } from './busy-banner.js?v=202611201435';
+import { uploadBlockText } from './lib/busy-view.js?v=202611201435';
+import { uploadStockView, ezStockView, stockSrcOf, countAuto, autoBadge } from './lib/ez-stock-view.js?v=202611201435';
+import { INCOMING_WAIT_MAX_MS, SHEET_REQ_DAILY_MAX, incomingReadAt, requestServerMs, judgeIncomingSnap, createRunGuard, guardedRun, once, waitTimeoutText } from './lib/incoming-wait.js?v=202611201435';
+import { angleSizeOf, SERVER_DEFAULTS, makeRankers, isEtcLocObj } from './lib/loc-recommend.js?v=202611201435';
+import { comboOf, isExcludedSlot, slotDigits, parseCards } from './lib/loc-cards.js?v=202611201435';   // 자리 → 'A-1' 조합(카드 이름·제외 조합 같은 규칙)
+import { initLocSetPanel } from './locset-panel.js?v=202611201435';   // 환경설정 '추천·채우기' 탭(변경 추천 설정·채우기 설정)
 // 변경 추천 [처리함]이 옮긴 자리의 하루 표시(locRecMove)·오늘 재고 올리기 전 충돌 경고 — 계획·판정은 js/lib/locrec-apply.js
-import { zoneDocIdOf, moveBadge, uploadMoveConflicts, uploadConflictText, isDesignatedEmpty } from './lib/locrec-apply.js?v=202611201405';
-import { dayKey as kstDayKey } from './lib/refill-view.js?v=202611201405';
+import { zoneDocIdOf, moveBadge, uploadMoveConflicts, uploadConflictText, isDesignatedEmpty } from './lib/locrec-apply.js?v=202611201435';
+import { dayKey as kstDayKey } from './lib/refill-view.js?v=202611201435';
+// 마지막 출고일(integrations/locLastOut, 로케이션추천\최근출고.py) — 업로드 '마지막출고.배송일'과 더 최근 값으로 합친다(2026-11-20)
+import { normDay, parseLastOut, laterDay, ezLastOf, cleanupDecision } from './lib/last-out.js?v=202611201435';
 
 // 🔐 onclick="fn('...')" 안에 데이터를 넣을 때 반드시 통과시킬 것.
 //    작은따옴표만 막으면 상품명에 " < 역슬래시가 들어올 때 버튼이 동작하지 않거나
@@ -423,6 +425,44 @@ function setupEzStockStatusListener() {
     }, failed);
 }
 
+// 📦 이지어드민 마지막 출고일(t·z·a) — 빈칸확보·분포는 업로드 날짜와 더 최근 값, 단종 페어 정리는 지우지 않는 데만 쓴다.
+//   문서가 없거나 모양이 다르면 null → 지금처럼 업로드 날짜만.
+let _lastOut = null;
+let _lastOutReady = false;
+let _lastOutSig = null;   // 마지막으로 그린 codesJson — 실패 기록(ok:false)처럼 날짜가 안 바뀐 갱신은 다시 그리지 않는다
+const LAST_OUT_REF = () => doc(db, 'artifacts', 'team-work-logger-v2', 'integrations', 'locLastOut');
+function logLastOutMatch() {
+    if (!_lastOut) { console.log('[lastOut] 문서 없음 — 업로드 날짜만'); return; }
+    const screen = new Set((originalData || []).map(l => String(l.code || '').trim()).filter(Boolean));
+    let m = 0;
+    for (const c of screen) if (_lastOut.codes.has(c)) m++;
+    console.log(`[lastOut] 코드 ${_lastOut.codes.size} · 화면 코드와 일치 ${m}`);
+}
+function setupLastOutListener() {
+    onSnapshot(LAST_OUT_REF(), (snap) => {
+        const data = snap.exists() ? snap.data() : null;
+        _lastOut = data ? parseLastOut(data) : null;
+        _lastOutReady = true;
+        const sig = _lastOut && data ? String(data.codesJson || '') : '';
+        if (sig === _lastOutSig) return;
+        _lastOutSig = sig;
+        logLastOutMatch();
+        const dashEl = document.getElementById('view-locdash');
+        if (dashEl && dashEl.style.display !== 'none' && typeof window.renderLocationDashboard === 'function') window.renderLocationDashboard();
+        // 빈칸확보 창이 열려 있으면 다시 계산하지 않는다(고른 줄·정렬이 풀린다) — 다음에 열 때 새 날짜로
+    }, (error) => { console.warn('마지막 출고일 읽기 실패:', error && error.code); });
+}
+// 단종 페어 정리 전용 — 업로드 직후(100ms) 실행이라 구독이 아직 안 왔으면 한 번 읽는다. 못 읽거나 문서가 없으면 null → 정리는 그 회차를 건너뛴다
+async function ensureLastOut() {
+    if (_lastOutReady) return;
+    try {
+        const snap = await getDoc(LAST_OUT_REF());
+        if (!_lastOutReady) { _lastOut = snap.exists() ? parseLastOut(snap.data()) : null; _lastOutReady = true; }
+    } catch (e) {
+        console.warn('마지막 출고일 읽기 실패:', e && e.code);
+    }
+}
+
 // 헤더 상태 색(오늘/어제/2일+)은 날짜가 바뀌면 달라진다 — 데이터를 다시 읽지 않고 마지막 값으로 1분마다·탭 복귀 때 다시 칠한다
 function refreshHeaderStatusTone() {
     if (!_hdrStatusReady) return;
@@ -678,6 +718,7 @@ window.openZikjinDetail = function () {
 
 function setupRealtimeListenerA() {
     setupEzStockStatusListener();
+    setupLastOutListener();
     onSnapshot(doc(db, LOC_COLLECTION, 'INFO_CONFIG'), (docSnap) => {
         clearSyncError('config');
         if(docSnap.exists()) {
@@ -1057,7 +1098,7 @@ function __getLastMoveDate(rd) {
     ['마지막배송일', '마지막출고일'].forEach(key => {
         const val = get2FRawVal(rd, key);
         if (val) {
-            const norm = String(val).replace(/\./g, '-');
+            const norm = normDay(val);   // YYYY.MM.DD·YYYY-MM-DD·시각 붙은 값 → YYYY-MM-DD, 못 풀면 '' (last-out.js)
             if (norm > result) result = norm;
         }
     });
@@ -1162,6 +1203,7 @@ window.calc2FList = function() {
             const val = __getLastMoveDate(loc.rawData);
             if (val && val > lastDelivery) lastDelivery = val;
         }
+        lastDelivery = laterDay(lastDelivery, ezLastOf(_lastOut, code));   // 이지어드민 마지막 출고일(t·z·a)과 더 최근 값
 
         // 옵션추가항목1 값
         let extraOpt = '';
@@ -5001,6 +5043,23 @@ window.cleanupDeprecatedPairs = async function() {
     console.log('[cleanup] 단종 페어 정리 시작...');
     
     try {
+        await ensureLastOut();   // 이지어드민 마지막 출고일 — 30일 안에 나간 상품은 지우지 않는다(cleanupDecision 'keep-ez')
+        // 안전장치(2026-11-20): 마지막 출고일 문서를 못 읽었거나 없으면 이 회차 정리를 건너뛴다 — 보호 없이 넓어진 날짜 기준(형식 맞춤)으로 지우지 않게
+        if (!_lastOut) {
+            console.warn('[cleanup] 이지어드민 마지막 출고일을 읽지 못해 정리 건너뜀(다음 업로드 때 다시).');
+            return;
+        }
+        // 서버 계산이 며칠째 실패해 마지막 출고일이 오래됐으면(toDay 가 4일보다 전 — 보통 어제) 보호가 빠지므로 정리하지 않는다
+        {
+            const t = String(_lastOut.toDay || '');
+            const m = /^(\d{4})(\d{2})(\d{2})$/.exec(t);
+            const ageDays = m ? (Date.now() - new Date(+m[1], +m[2] - 1, +m[3]).getTime()) / 86400000 : Infinity;
+            if (ageDays > 4) {
+                console.warn('[cleanup] 이지어드민 마지막 출고일이 오래됨(서버 계산 실패 의심) — 정리 건너뜀.');
+                return;
+            }
+        }
+        let protectedN = 0, reformN = 0, badDateN = 0;
         // 1. 안전장치: OrderPairsChunks 비어있으면 종료
         const pairsSnap = await getDocs(collection(db, ORDER_PAIRS_COLL));
         if (pairsSnap.empty) {
@@ -5032,8 +5091,10 @@ window.cleanupDeprecatedPairs = async function() {
         }
         
         // 3. incomingTotalByCode 상태 점검 (경고만)
+        //   2026-11-20: 경고만 하던 것을 멈춤으로 — 입고대기를 모르면 재입고 예정 상품까지 지울 수 있다
         if (!incomingTotalByCode || Object.keys(incomingTotalByCode).length === 0) {
-            console.warn('[cleanup] incomingTotalByCode가 비어있음. 시트 동기화를 먼저 수행하지 않았다면 단종 판정이 부정확할 수 있음.');
+            console.warn('[cleanup] incomingTotalByCode가 비어있음 — 입고대기를 몰라 정리 건너뜀(다음 업로드 때 다시).');
+            return;
         }
         
         // 4. 30일 cutoff 날짜 계산
@@ -5042,17 +5103,23 @@ window.cleanupDeprecatedPairs = async function() {
         const cutoffStr = toDateStr(cutoff);
         
         // 5. 상품코드별로 그룹핑 (마지막배송일, 재고 합계 집계)
-        const codeMap = {}; // { code: { lastDelivery, totalStock, locIds: [] } }
+        const codeMap = {}; // { code: { lastDelivery, rawLast, raws: [], totalStock, locIds: [] } }
         originalData.forEach(loc => {
             const code = (loc.code || '').toString().trim();
             if (!code || code === loc.id) return;
             
-            if (!codeMap[code]) codeMap[code] = { lastDelivery: '', totalStock: 0, locIds: [] };
+            if (!codeMap[code]) codeMap[code] = { lastDelivery: '', rawLast: '', raws: [], totalStock: 0, locIds: [] };
             
             // 마지막배송일: 가장 최근 값 (마지막배송일 우선, 없으면 마지막입고일 fallback)
+            //   2026-11-20: 'YYYY-MM-DD' 로 맞춘 뒤 비교(normDay). 못 푸는 값이 있으면 판정에서 지우지 않는다(cleanupDecision)
             let val = getRawVal(loc.rawData, '마지막배송일');
             if (!val) val = getRawVal(loc.rawData, '마지막입고일');
-            if (val && val > codeMap[code].lastDelivery) codeMap[code].lastDelivery = val;
+            if (val) {
+                codeMap[code].raws.push(val);
+                if (val > codeMap[code].rawLast) codeMap[code].rawLast = val;   // 옛 판정(글자 비교) — 새로 대상이 된 건수 세기용
+                const norm = normDay(val);
+                if (norm > codeMap[code].lastDelivery) codeMap[code].lastDelivery = norm;
+            }
             
             codeMap[code].totalStock += Number(loc.stock || 0);
             codeMap[code].locIds.push(loc.id);
@@ -5065,11 +5132,12 @@ window.cleanupDeprecatedPairs = async function() {
         for (const code in codeMap) {
             const info = codeMap[code];
             
-            // 조건 1: 마지막배송일 빈칸 → 신규 상품으로 간주, 제외
-            if (!info.lastDelivery) continue;
-            
-            // 조건 1: 마지막배송일 30일+ 경과
-            if (info.lastDelivery >= cutoffStr) continue;
+            // 조건 1: 날짜 판정 — 업로드 날짜(정규화)·이지어드민 마지막 출고일 중 최근 값이 30일+ 경과일 때만 (js/lib/last-out.js cleanupDecision)
+            //   빈칸 → 신규 상품으로 간주, 제외 · 못 푸는 날짜 → 제외 · 업로드 날짜 30일 안 → 제외 · 이지어드민 출고 30일 안 → 조건 4 에서 제외
+            const ezLastOut = ezLastOf(_lastOut, code);
+            const dateDec = cleanupDecision(info.raws, ezLastOut, cutoffStr);
+            if (dateDec === 'keep-bad') badDateN++;
+            if (dateDec !== 'delete' && dateDec !== 'keep-ez') continue;
             
             // 조건 2: 재고 0
             if (info.totalStock > 0) continue;
@@ -5078,16 +5146,22 @@ window.cleanupDeprecatedPairs = async function() {
             const incomingQty = Number(incomingTotalByCode[code] || 0);
             if (incomingQty > 0) continue;
             
+            // 조건 4: 이지어드민 마지막 출고일(t·z·a)이 30일 안이면 지우지 않는다(업로드 날짜가 늦게 갱신되는 경우 보호)
+            if (dateDec === 'keep-ez') { protectedN++; continue; }
+            
             // 모두 만족 → 단종으로 판정
+            if (info.rawLast >= cutoffStr) reformN++;   // 옛 글자 비교로는 지우지 않던 상품(날짜 형식 맞춤으로 새로 대상)
             deprecatedSet.add(code);
             deprecatedDetail.push({
                 code,
                 lastDelivery: info.lastDelivery,
                 totalStock: info.totalStock,
                 incomingQty,
-                locIds: info.locIds.join(', ')
+                locIds: info.locIds.join(', '),
+                ...(ezLastOut ? { ezLastOut } : {})
             });
         }
+        console.log(`[cleanup] 이지어드민 출고로 보호 ${protectedN}건 · 날짜 형식 맞춤으로 새로 대상 ${reformN}건 · 못 푸는 날짜로 제외 ${badDateN}건`);
 
         // ===== v3.97c: 자리 없는 페어 정리 (사각지대 해결) =====
         // 페어 데이터에는 있지만 originalData에 자리 없는 상품 검사
@@ -5261,7 +5335,7 @@ window.cleanupDeprecatedPairs = async function() {
             }
         }, { merge: true });
         
-        console.log(`[cleanup] 완료: 단종 ${deprecatedSet.size}건 정리, 페어 ${deletedPairCount}개 삭제, 통계 ${deletedStatCount}개 삭제.`);
+        console.log(`[cleanup] 완료: 단종 ${deprecatedSet.size}건 정리, 페어 ${deletedPairCount}개 삭제, 통계 ${deletedStatCount}개 삭제, 이지어드민 출고로 보호 ${protectedN}건, 날짜 형식 맞춤으로 새로 대상 ${reformN}건.`);
         console.log(`[cleanup] 상세 로그: DeprecatedLog/${logDocId}`);
         
         // v3.98: 페어 캐시 갱신 — 이미 읽어 둔 경우만(안 읽었으면 나중에 필요할 때 ensure 가 정리된 최신본을 읽는다)
@@ -6941,6 +7015,7 @@ function __dashInferDelivery(code, locs) {
         const val = __getLastMoveDate(loc.rawData || {});
         if (val && val > lastDelivery) lastDelivery = val;
     });
+    lastDelivery = laterDay(lastDelivery, ezLastOf(_lastOut, code));   // 이지어드민 마지막 출고일(t·z·a)과 더 최근 값
 
     // weeklyData YYYYMMDD 키 중 출고수량 > 0 인 가장 최근 날짜를 후보로
     if (code && weeklyData && weeklyData[code]) {
