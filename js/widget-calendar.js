@@ -8,19 +8,19 @@
 // 저장 위치: artifacts/team-work-logger-v2/calendarEvents/{YYYY-MM-DD__rand}
 //   문서 ID 앞에 날짜를 넣어, 보이는 달만 documentId 범위 조회로 읽는다(읽기 비용 절감).
 
-import * as State from './state.js?v=202611201343';
-import { leaveTypeLabel, OTHER_LEAVE_TYPE, PERSISTENT_LEAVE_TYPES, LEGACY_LEAVE_TYPES, TIME_BASED_LEAVE_TYPES } from './state.js?v=202611201343';
-import { showToast, getTodayDateString, getCurrentTime, getRegularMembersForCount, getActiveTeamMembers, escapeHtml as esc, getHolidayName } from './utils.js?v=202611201343';
-import { dailyLeaveRanges, pastRangeForMonth } from './lib/cal-daily-leave.js?v=202611201343';
-import { getIncomingDetailsByDateFromCache } from './widget-incoming-schedule.js?v=202611201343';
-import { notifyLeaveScheduleChanged, onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202611201343';
-import { updateLeaveSchedule } from './config.js?v=202611201343';
-import { upsertById, removeByIds } from './lib/leave-ops.js?v=202611201343';
+import * as State from './state.js?v=202611201346';
+import { leaveTypeLabel, OTHER_LEAVE_TYPE, PERSISTENT_LEAVE_TYPES, LEGACY_LEAVE_TYPES, TIME_BASED_LEAVE_TYPES } from './state.js?v=202611201346';
+import { showToast, getTodayDateString, getCurrentTime, getRegularMembersForCount, getActiveTeamMembers, escapeHtml as esc, getHolidayName } from './utils.js?v=202611201346';
+import { dailyLeaveRanges, pastRangeForMonth } from './lib/cal-daily-leave.js?v=202611201346';
+import { getIncomingDetailsByDateFromCache } from './widget-incoming-schedule.js?v=202611201346';
+import { notifyLeaveScheduleChanged, onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202611201346';
+import { updateLeaveSchedule } from './config.js?v=202611201346';
+import { upsertById, removeByIds } from './lib/leave-ops.js?v=202611201346';
 import {
     REL_OPTIONS, MAX_REMINDERS, relOption, computeAt, buildReminders, buildRemindTo, eventOverAt,
     reminderSummary, shortAt, nowKst, newId
-} from './lib/cal-reminder.js?v=202611201343';
-import { desktopNotifyPermission, askDesktopNotifyPermission } from './desktop-noti.js?v=202611201343';
+} from './lib/cal-reminder.js?v=202611201346';
+import { desktopNotifyPermission, askDesktopNotifyPermission } from './desktop-noti.js?v=202611201346';
 import {
     collection, doc, setDoc, deleteDoc, getDocs, getDoc,
     query, where, documentId
@@ -46,7 +46,7 @@ const CAL_LEAVE_TYPES = ['연차', '반차', ...PERSISTENT_LEAVE_TYPES.filter(t 
 // 근태는 초록(ok) — 빨강은 공휴일 차지다(달력 관습: 빨간 날 = 쉬는 날). 2026-10-07 에 빨강→초록으로 바꿈.
 // 2026-10-13 D안 토큰으로: 근태 ok · 입고 warn · 공휴일 risk
 const LEAVE_COLOR = '#5A9E96';
-const INCOMING_COLOR = '#D2A266';
+const INCOMING_COLOR = '#EA580C';   // 진한 주황(2026-11-20 — 옛 황토색이 기타(갈색)와 구분이 안 됐다)
 const HOLIDAY_COLOR = '#C9808A';
 
 const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -248,7 +248,7 @@ async function removeLeaveEntry(id) {
 const KIND_TONE = {
     leave:    { bg: '#E5F0EE', fg: '#3D756F', bar: '#5A9E96', darkBg: 'rgba(90,158,150,.22)',  darkFg: '#8CC9C0' },
     holiday:  { bg: '#F4E3E5', fg: '#A0525C', bar: '#C9808A', darkBg: 'rgba(201,128,138,.22)', darkFg: '#E0A3AB' },
-    incoming: { bg: '#F4EADB', fg: '#8A5E28', bar: '#D2A266', darkBg: 'rgba(210,162,102,.22)', darkFg: '#E2BE8C' }
+    incoming: { bg: '#FFE4CC', fg: '#C2410C', bar: '#EA580C', darkBg: 'rgba(234,88,12,.30)', darkFg: '#FDBA74' }
 };
 
 /** 업무 일정은 분류 색에서 톤을 만든다(배경은 옅게, 글자는 진하게). */
