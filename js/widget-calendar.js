@@ -8,19 +8,19 @@
 // 저장 위치: artifacts/team-work-logger-v2/calendarEvents/{YYYY-MM-DD__rand}
 //   문서 ID 앞에 날짜를 넣어, 보이는 달만 documentId 범위 조회로 읽는다(읽기 비용 절감).
 
-import * as State from './state.js?v=202611200941';
-import { leaveTypeLabel, OTHER_LEAVE_TYPE, PERSISTENT_LEAVE_TYPES, LEGACY_LEAVE_TYPES, TIME_BASED_LEAVE_TYPES } from './state.js?v=202611200941';
-import { showToast, getTodayDateString, getCurrentTime, getRegularMembersForCount, getActiveTeamMembers, escapeHtml as esc, getHolidayName } from './utils.js?v=202611200941';
-import { dailyLeaveRanges, pastRangeForMonth } from './lib/cal-daily-leave.js?v=202611200941';
-import { getIncomingDetailsByDateFromCache } from './widget-incoming-schedule.js?v=202611200941';
-import { notifyLeaveScheduleChanged, onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202611200941';
-import { updateLeaveSchedule } from './config.js?v=202611200941';
-import { upsertById, removeByIds } from './lib/leave-ops.js?v=202611200941';
+import * as State from './state.js?v=202611200946';
+import { leaveTypeLabel, OTHER_LEAVE_TYPE, PERSISTENT_LEAVE_TYPES, LEGACY_LEAVE_TYPES, TIME_BASED_LEAVE_TYPES } from './state.js?v=202611200946';
+import { showToast, getTodayDateString, getCurrentTime, getRegularMembersForCount, getActiveTeamMembers, escapeHtml as esc, getHolidayName } from './utils.js?v=202611200946';
+import { dailyLeaveRanges, pastRangeForMonth } from './lib/cal-daily-leave.js?v=202611200946';
+import { getIncomingDetailsByDateFromCache } from './widget-incoming-schedule.js?v=202611200946';
+import { notifyLeaveScheduleChanged, onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202611200946';
+import { updateLeaveSchedule } from './config.js?v=202611200946';
+import { upsertById, removeByIds } from './lib/leave-ops.js?v=202611200946';
 import {
     REL_OPTIONS, MAX_REMINDERS, relOption, computeAt, buildReminders, buildRemindTo, eventOverAt,
     reminderSummary, shortAt, nowKst, newId
-} from './lib/cal-reminder.js?v=202611200941';
-import { desktopNotifyPermission, askDesktopNotifyPermission } from './desktop-noti.js?v=202611200941';
+} from './lib/cal-reminder.js?v=202611200946';
+import { desktopNotifyPermission, askDesktopNotifyPermission } from './desktop-noti.js?v=202611200946';
 import {
     collection, doc, setDoc, deleteDoc, getDocs, getDoc,
     query, where, documentId
