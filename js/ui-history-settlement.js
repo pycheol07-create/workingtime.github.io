@@ -3,12 +3,12 @@
 // 한 화면에 상세하게 요약해서 보여주는 보고서 탭. 각 섹션의 실제 계산은 기존 모듈의 재사용 함수를 그대로 사용하고,
 // 이 파일은 "기간 해석 + 심층 집계 + 보고서 렌더링"을 담당한다.
 
-import * as State from './state.js?v=202611200925';
-import { LEAVE_TYPES } from './state.js?v=202611200925';
-import { getRegularMembersForCount, formatDuration, buildMemberHourlyWageMap, getTodayDateString, escapeHtml, escapeHtml as esc } from './utils.js?v=202611200925';   // escapeHtml 도 같이(2026-11-12 이스케이프 수정이 이름으로 불러 정산 화면이 깨졌다)
+import * as State from './state.js?v=202611200941';
+import { LEAVE_TYPES } from './state.js?v=202611200941';
+import { getRegularMembersForCount, formatDuration, buildMemberHourlyWageMap, getTodayDateString, escapeHtml, escapeHtml as esc } from './utils.js?v=202611200941';   // escapeHtml 도 같이(2026-11-12 이스케이프 수정이 이름으로 불러 정산 화면이 깨졌다)
 import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { matchesFilter, hasFilter, filterCount, openFloatingFilter, closeFloatingFilter } from './table-filter.js?v=202611200925';
-import { bindDrillListeners, drillWrap } from './settlement-drill.js?v=202611200925';
+import { matchesFilter, hasFilter, filterCount, openFloatingFilter, closeFloatingFilter } from './table-filter.js?v=202611200941';
+import { bindDrillListeners, drillWrap } from './settlement-drill.js?v=202611200941';
 
 import {
     calculateReportKPIs,
@@ -18,14 +18,14 @@ import {
     calculateBenchmarkOEE,
     generateProductivityDiagnosis,
     analyzeUnitCost
-} from './ui-history-reports-logic.js?v=202611200925';
+} from './ui-history-reports-logic.js?v=202611200941';
 
-import { aggregateManagementData } from './ui-history-management.js?v=202611200925';
-import { ensureMilestonesLoaded, getMilestoneSummariesForPeriod } from './ui-history-milestones.js?v=202611200925';
-import { D } from './d-chart.js?v=202611200925';
-import { aliasHistoryView } from './lib/task-alias-view.js?v=202611200925';
-import { baselineSpeeds, lastDayIdOf, opsSummary, OEE_LEVELS } from './lib/ops-metrics.js?v=202611200925';
-import { revenueTotalOf } from './revenue-channels.js?v=202611200925';
+import { aggregateManagementData } from './ui-history-management.js?v=202611200941';
+import { ensureMilestonesLoaded, getMilestoneSummariesForPeriod } from './ui-history-milestones.js?v=202611200941';
+import { D } from './d-chart.js?v=202611200941';
+import { aliasHistoryView } from './lib/task-alias-view.js?v=202611200941';
+import { baselineSpeeds, lastDayIdOf, opsSummary, OEE_LEVELS } from './lib/ops-metrics.js?v=202611200941';
+import { revenueTotalOf } from './revenue-channels.js?v=202611200941';
 // 엑셀(결산 xlsx)로 옮길 때 — 화면용 HTML 글(태그·escape 된 글자)을 보통 글자로
 const htmlToText = (h) => String(h == null ? '' : h).replace(/<[^>]+>/g, '').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&');
 
@@ -354,7 +354,7 @@ function computeInspectionSummary(productHistoryCache, from, to) {
     const productStats = {};
     const defectReasonCounts = {};
     const normalValues = ['정상', '양호', '동일', '없음', '해당없음', '통과', '-', ''];
-    const labelMap = { fabric: '원단', color: '컬러', distortion: '뒤틀림', unraveling: '올풀림', finishing: '마감', zipper: '지퍼', button: '단추', lining: '안감', pilling: '보풀', dye: '이염' };
+    const labelMap = { fabric: '원단', color: '컬러', distortion: '뒤틀림', unraveling: '올풀림', finishing: '마감', zipper: '지퍼', button: '단추', lining: '안감', pilling: '보풀', dye: '이염', brushed: '기모' };
 
     (productHistoryCache || []).forEach(product => {
         const pName = product.id;

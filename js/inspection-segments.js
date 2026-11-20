@@ -4,7 +4,7 @@
 //   option 마다 큰 버튼을 만들어 누르면 select 값을 바꾸고 change 이벤트를 보낸다.
 //   코드가 select 값을 직접 바꾼 뒤에는 syncInspSegments() 로 버튼 표시를 다시 맞춘다.
 
-import { ALL_NORMAL } from './lib/insp-flow.js?v=202611200925';
+import { ALL_NORMAL, hasBrushed } from './lib/insp-flow.js?v=202611200941';
 
 const BTN_BASE = 'insp-seg-btn border rounded-lg text-sm font-bold px-3 py-2 min-h-[44px] transition';
 const BTN_ON = ['bg-indigo-600', 'border-indigo-600', 'text-white'];
@@ -44,8 +44,23 @@ const paint = (sel) => {
     });
 };
 
-/** select 값으로 버튼 상태를 다시 그린다(폼 초기화·이전 기록 불러오기 뒤에 부른다). */
+/** 기모 칸 — 상품명에 '기모'가 있을 때만 보인다. 숨길 때는 값도 비운다(저장·'모두 정상'·바뀐 내용 비교에 안 섞이게). */
+export function syncBrushedField(name) {
+    const field = document.getElementById('insp-brushed-field');
+    if (!field) return;
+    const nm = name !== undefined ? name : (document.getElementById('insp-product-name')?.value || '');
+    const show = hasBrushed(nm);
+    field.classList.toggle('hidden', !show);
+    if (!show) {
+        const sel = document.getElementById('insp-check-brushed');
+        if (sel && sel.value) sel.value = '';
+        field.classList.remove('insp-missing');
+    }
+}
+
+/** select 값으로 버튼 상태를 다시 그린다(폼 초기화·이전 기록 불러오기 뒤에 부른다). 기모 칸 보이기도 같이 맞춘다. */
 export function syncInspSegments() {
+    syncBrushedField();
     segSelects().forEach(paint);
 }
 
@@ -77,12 +92,21 @@ export function initInspSegments() {
         paint(sel);
     });
 
+    // 상품명을 직접 고칠 때도 기모 칸을 바로 맞춘다
+    const nameInput = document.getElementById('insp-product-name');
+    if (nameInput && !nameInput.dataset.brushedBound) {
+        nameInput.dataset.brushedBound = '1';
+        nameInput.addEventListener('input', () => syncBrushedField());
+    }
+
     const allNormalBtn = document.getElementById('insp-all-normal-btn');
     if (allNormalBtn && !allNormalBtn.dataset.segReady) {
         allNormalBtn.dataset.segReady = '1';
         allNormalBtn.addEventListener('click', () => {
             // 두께(thickness)는 ALL_NORMAL 에 없어서 건드리지 않는다
             segSelects().forEach(sel => {
+                const field = sel.closest('[data-insp-field]');
+                if (field && field.classList.contains('hidden')) return;   // 숨은 칸(기모 아닌 상품의 기모)은 채우지 않는다
                 const v = ALL_NORMAL[sel.dataset.seg];
                 if (v === undefined) return;
                 if (!Array.from(sel.options).some(o => o.value === v)) return; // option 에 없는 값은 넣지 않는다

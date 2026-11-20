@@ -194,7 +194,7 @@
 
                 <h4 class="insp-sec-title text-sm font-bold text-gray-800 mb-3 border-b pb-2 flex justify-between items-center gap-2">
                     <span>품질 체크리스트</span>
-                    <button id="insp-all-normal-btn" type="button" class="bg-green-50 border border-green-300 hover:bg-green-100 text-green-700 text-xs font-bold px-3 rounded shadow-sm transition min-h-[44px]" title="두께를 뺀 10개 항목을 모두 정상 값으로">모두 정상</button>
+                    <button id="insp-all-normal-btn" type="button" class="bg-green-50 border border-green-300 hover:bg-green-100 text-green-700 text-xs font-bold px-3 rounded shadow-sm transition min-h-[44px]" title="두께를 뺀 보이는 항목을 모두 정상 값으로">모두 정상</button>
                 </h4>
                 <!-- 선택 항목: select 는 값 보관용(sr-only), 화면은 js/inspection-segments.js 가 만드는 버튼. option 값은 바꾸지 말 것(저장·판정이 이 값을 쓴다) -->
                 <div class="insp-2col grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-4 bg-gray-50 p-4 rounded-lg border border-gray-200">
@@ -301,6 +301,17 @@
                             <option value="있음">있음 (심각)</option>
                         </select>
                         <div class="insp-seg-group flex flex-wrap gap-1.5" data-seg-buttons="dye" role="group" aria-label="이염 여부"></div>
+                    </div>
+                    <!-- 기모: 상품명에 '기모'가 있을 때만 보인다(js/inspection-segments.js syncBrushedField) -->
+                    <div data-insp-field="brushed" id="insp-brushed-field" class="hidden">
+                        <label for="insp-check-brushed" class="block text-xs font-bold text-gray-600 mb-1">기모 상태</label>
+                        <select id="insp-check-brushed" data-seg="brushed" class="sr-only w-full p-2 border border-gray-300 rounded text-sm bg-white">
+                            <option value="" selected disabled>선택...</option>
+                            <option value="양호">양호 (고르게 기모)</option>
+                            <option value="불량">불량 (빠짐·뭉침·얇음)</option>
+                            <option value="해당없음">해당 없음</option>
+                        </select>
+                        <div class="insp-seg-group flex flex-wrap gap-1.5" data-seg-buttons="brushed" role="group" aria-label="기모 상태"></div>
                     </div>
                 </div>
 
@@ -502,6 +513,15 @@
                     <select id="edit-insp-check-dye" class="w-full p-2 border border-gray-300 rounded text-sm bg-white">
                         <option value="없음">없음</option>
                         <option value="있음">있음 (심각)</option>
+                    </select>
+                </div>
+                <div id="edit-insp-brushed-field" class="hidden">
+                    <label class="block text-xs font-bold text-gray-600 mb-1">기모 상태</label>
+                    <select id="edit-insp-check-brushed" class="w-full p-2 border border-gray-300 rounded text-sm bg-white">
+                        <option value="">(기록 없음)</option>
+                        <option value="양호">양호 (고르게 기모)</option>
+                        <option value="불량">불량 (빠짐·뭉침·얇음)</option>
+                        <option value="해당없음">해당 없음</option>
                     </select>
                 </div>
             </div>

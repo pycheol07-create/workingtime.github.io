@@ -1,11 +1,12 @@
 // === js/inspection-editor.js ===
-import * as DOM from './dom-elements.js?v=202611200925';
-import * as State from './state.js?v=202611200925';
-import { showToast, getCurrentTime, getTodayDateString } from './utils.js?v=202611200925';
+import * as DOM from './dom-elements.js?v=202611200941';
+import * as State from './state.js?v=202611200941';
+import { showToast, getCurrentTime, getTodayDateString } from './utils.js?v=202611200941';
 import { doc, getDoc, setDoc, updateDoc, deleteDoc, arrayUnion, serverTimestamp, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { renderInspectionHistoryTable, renderInspectionLogTable, renderExpandedInspectionLog } from './ui-history-inspection.js?v=202611200925';
-import { getUniqueInboundCount } from './inspection-logic.js?v=202611200925';
-import { manualImageBase64, clearManualImageState, uploadInspectionPhoto, dataUrlToBlob } from './inspection-media.js?v=202611200925';
+import { renderInspectionHistoryTable, renderInspectionLogTable, renderExpandedInspectionLog } from './ui-history-inspection.js?v=202611200941';
+import { getUniqueInboundCount } from './inspection-logic.js?v=202611200941';
+import { LABELS as CHECK_LABELS, hasBrushed } from './lib/insp-flow.js?v=202611200941';
+import { manualImageBase64, clearManualImageState, uploadInspectionPhoto, dataUrlToBlob } from './inspection-media.js?v=202611200941';
 
 export let currentProductLogs = [];
 // 수동 사전등록 사진을 올린 결과 — 저장이 실패해 다시 누를 때 같은 사진을 또 올리지 않게
@@ -109,6 +110,10 @@ export const prepareEditInspectionLog = (productName, index) => {
     setEditSelect('edit-insp-check-lining', checklist.lining);
     setEditSelect('edit-insp-check-pilling', checklist.pilling);
     setEditSelect('edit-insp-check-dye', checklist.dye);
+    // 기모: 기록에 있거나 기모 상품이면 보인다. 첫 칸 '(기록 없음)'은 저장하지 않는다(옛 기록에 값이 저절로 붙지 않게)
+    const brushedField = getEl('edit-insp-brushed-field');
+    if (brushedField) brushedField.classList.toggle('hidden', !(('brushed' in checklist) || hasBrushed(productName)));
+    if (getEl('edit-insp-check-brushed')) getEl('edit-insp-check-brushed').value = checklist.brushed || '';
 
     const editModal = document.getElementById('inspection-log-editor-modal');
     if (editModal) editModal.classList.remove('hidden');
@@ -138,14 +143,14 @@ export const updateInspectionLog = async () => {
         pilling: getEditVal('edit-insp-check-pilling'),
         dye: getEditVal('edit-insp-check-dye')
     };
+    const brushedEditField = document.getElementById('edit-insp-brushed-field');
+    if (brushedEditField && !brushedEditField.classList.contains('hidden') && getEditVal('edit-insp-check-brushed')) {
+        checklist.brushed = getEditVal('edit-insp-check-brushed');
+    }
 
     const defectsFound = [];
     const NORMAL_VALUES = ['정상', '양호', '동일', '없음', '해당없음'];
-    const labelMap = {
-        fabric: '원단', color: '컬러', distortion: '뒤틀림',
-        unraveling: '올풀림', finishing: '마감', zipper: '지퍼', button: '단추',
-        lining: '안감', pilling: '보풀', dye: '이염'
-    };
+    const labelMap = CHECK_LABELS;   // js/lib/insp-flow.js 한 벌(기모 포함)
     Object.entries(checklist).forEach(([key, value]) => {
         if (key === 'thickness') return;
         if (!NORMAL_VALUES.includes(value)) {
@@ -296,6 +301,7 @@ export const savePreInspectionNote = async () => {
         pilling: getVal('manual-insp-check-pilling'),
         dye: getVal('manual-insp-check-dye')
     };
+    if (hasBrushed(productName)) checklist.brushed = getVal('manual-insp-check-brushed') || '양호';   // 기모 상품만
 
     if (!checklist.thickness || Object.values(checklist).some(v => v === "" || v === null)) {
         alert("⚠️ 두께 기준을 포함한 모든 품질 체크리스트 항목을 확인해주세요.");
@@ -314,11 +320,7 @@ export const savePreInspectionNote = async () => {
     const defectsFound = [];
     const NORMAL_VALUES = ['정상', '양호', '동일', '없음', '해당없음'];
     
-    const labelMap = {
-        fabric: '원단', color: '컬러', distortion: '뒤틀림',
-        unraveling: '올풀림', finishing: '마감', zipper: '지퍼', button: '단추',
-        lining: '안감', pilling: '보풀', dye: '이염'
-    };
+    const labelMap = CHECK_LABELS;   // js/lib/insp-flow.js 한 벌(기모 포함)
 
     Object.entries(checklist).forEach(([key, value]) => {
         if (key === 'thickness') return;

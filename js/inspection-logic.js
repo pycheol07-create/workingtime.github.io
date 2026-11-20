@@ -1,22 +1,22 @@
 // === js/inspection-logic.js ===
-import * as DOM from './dom-elements.js?v=202611200925';
-import * as State from './state.js?v=202611200925';
-import { updateDailyData } from './app-data.js?v=202611200925';
-import { showToast, getCurrentTime, getTodayDateString, escapeHtml, showConfirm } from './utils.js?v=202611200925';
+import * as DOM from './dom-elements.js?v=202611200941';
+import * as State from './state.js?v=202611200941';
+import { updateDailyData } from './app-data.js?v=202611200941';
+import { showToast, getCurrentTime, getTodayDateString, escapeHtml, showConfirm } from './utils.js?v=202611200941';
 import { doc, getDoc, setDoc, updateDoc, arrayUnion, serverTimestamp, increment, runTransaction, deleteField } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // 분리된 모듈 가져오기
-import { clearImageState, setExistingPhoto, resolvePhotoForSave, isPhotoBusy, bumpPhotoEpoch } from './inspection-media.js?v=202611200925';
-import { syncInspSegments } from './inspection-segments.js?v=202611200925';
-import { moveDoneItems } from './lib/insp-day.js?v=202611200925';
-import { openManualAdd } from './inspection-manual.js?v=202611200925';   // [조회]에서 리스트에 없는 상품 → 개별 추가 창(2026-11-17)
-import { historyId } from './lib/insp-manual.js?v=202611200925';
-import { TASK, tName } from './task-names.js?v=202611200925';
+import { clearImageState, setExistingPhoto, resolvePhotoForSave, isPhotoBusy, bumpPhotoEpoch } from './inspection-media.js?v=202611200941';
+import { syncInspSegments, syncBrushedField } from './inspection-segments.js?v=202611200941';
+import { moveDoneItems } from './lib/insp-day.js?v=202611200941';
+import { openManualAdd } from './inspection-manual.js?v=202611200941';   // [조회]에서 리스트에 없는 상품 → 개별 추가 창(2026-11-17)
+import { historyId } from './lib/insp-manual.js?v=202611200941';
+import { TASK, tName } from './task-names.js?v=202611200941';
 import {
-    CHECK_KEYS, LABELS, judge, missingFields, nextPendingIndex, prevIndex, progress,
+    CHECK_KEYS, BRUSHED_KEY, checkKeysFor, LABELS, judge, missingFields, nextPendingIndex, prevIndex, progress,
     logIdentity, upsertLog, findLogForItem, addDefectSummary, defectSummaryOf, uniqueInboundCount,
     applyDoneToList, applyDoneByKey, todoCardHtml, doneCardHtml, itemKey, relocateIndex, pickKey, isPicked, pickProgress, windowOrder, WINDOW_SORTS, windowSortOf
-} from './lib/insp-flow.js?v=202611200925';
+} from './lib/insp-flow.js?v=202611200941';
 
 // 상태 변수
 export let todayInspectionList = [];
@@ -29,6 +29,7 @@ let shownList = null;         // 저장 직후 화면에만 쓰는 대기 리스
 let todoCollapsed = false;    // 휴대폰 대기 리스트 접힘 — app-sync 실시간 재렌더 때도 유지
 let openedSnapshot = '';      // 상품을 열었을 때의 입력값(이전 이동 때 '바뀐 내용 버릴까' 확인용)
 let saving = false;
+let editingHadBrushed = false;   // 지금 고치는 기록에 기모 값이 있었나(옛 기록 구분)
 let selectSeq = 0;           // 상품을 고를 때마다 +1 — 늦게 끝난 앞 상품 불러오기가 지금 상품을 덮지 않게
 let historySeq = 0;          // 이력 조회마다 +1 — 늦게 온 앞 조회 결과가 지금 상품의 이력 칸을 덮지 않게
 
@@ -203,7 +204,7 @@ const clearMissingMarks = () => {
 /** 입력값 묶음(이전 이동 때 바뀌었는지 비교용). 사진은 미리보기 주소로 본다. */
 const formSnapshot = () => {
     const ids = ['insp-inbound-date', 'insp-inbound-qty', 'insp-sample-qty', 'insp-notes', 'insp-check-thickness',
-        ...CHECK_KEYS.map(k => `insp-check-${k}`)];
+        ...CHECK_KEYS.map(k => `insp-check-${k}`), `insp-check-${BRUSHED_KEY}`];
     const vals = ids.map(id => { const el = document.getElementById(id); return el ? el.value : ''; });
     const box = DOM.inspImagePreviewBox;
     const img = DOM.inspImagePreviewImg;
@@ -213,6 +214,7 @@ const formSnapshot = () => {
 
 export const resetEditingState = () => {
     editingLogIndex = -1;
+    editingHadBrushed = false;
     editingIdentity = '';
     setSaveBtnLabel();
     clearImageState();
@@ -810,6 +812,9 @@ const loadCompletedInspectionData = async (item, seq = selectSeq) => {
                 setSelect('insp-check-lining', cl.lining);
                 setSelect('insp-check-pilling', cl.pilling);
                 setSelect('insp-check-dye', cl.dye);
+                const brushedSel = document.getElementById('insp-check-brushed');
+                if (brushedSel) brushedSel.value = cl.brushed || '';
+                editingHadBrushed = !!cl.brushed;   // 기모 칸이 생기기 전 기록이면 고칠 때 기모를 묻지 않는다
                 syncInspSegments();
 
                 setExistingPhoto(log.image || null);
@@ -1049,10 +1054,15 @@ export const saveInspectionAndNext = async () => {
     }
     const productName = rawName.replace(/\//g, '-');
 
+    // 기모 상품이면 '기모'도 검수 항목(이름을 고친 뒤 바로 저장해도 칸이 맞게 먼저 맞춘다)
+    syncBrushedField(rawName);
+    let keys = checkKeysFor(rawName);
+    // 옛 기록(기모 칸 없이 저장됨)을 고칠 때 기모를 안 골랐으면 묻지도 저장하지도 않는다(검수이력 수정 창과 같게)
+    if (editingLogIndex !== -1 && !editingHadBrushed && !getVal(`insp-check-${BRUSHED_KEY}`)) keys = CHECK_KEYS;
     const checklist = { thickness: getVal('insp-check-thickness') };
-    CHECK_KEYS.forEach(k => { checklist[k] = getVal(`insp-check-${k}`); });
+    keys.forEach(k => { checklist[k] = getVal(`insp-check-${k}`); });
 
-    const missing = missingFields({ thickness: checklist.thickness, checklist });
+    const missing = missingFields({ thickness: checklist.thickness, checklist, keys });
     if (missing.length > 0) {
         markMissing(missing);
         return;
@@ -1354,5 +1364,5 @@ export const clearTodayList = async () => {
     renderTodayInspectionList();
 };
 
-export { toggleScanner, handleImageSelect, clearImageState, handleManualImageSelect, clearManualImageState } from './inspection-media.js?v=202611200925';
-export { loadAllInspectionHistory, loadInspectionLogs, prepareEditInspectionLog, updateInspectionLog, deleteInspectionLog, deleteProductHistory, savePreInspectionNote } from './inspection-editor.js?v=202611200925';
+export { toggleScanner, handleImageSelect, clearImageState, handleManualImageSelect, clearManualImageState } from './inspection-media.js?v=202611200941';
+export { loadAllInspectionHistory, loadInspectionLogs, prepareEditInspectionLog, updateInspectionLog, deleteInspectionLog, deleteProductHistory, savePreInspectionNote } from './inspection-editor.js?v=202611200941';

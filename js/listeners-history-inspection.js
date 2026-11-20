@@ -1,26 +1,27 @@
 // === js/listeners-history-inspection.js ===
-import * as DOM from './dom-elements.js?v=202611200925';
-import * as State from './state.js?v=202611200925';
-import { showToast, getTodayDateString, showConfirm } from './utils.js?v=202611200925';
-import { dayInspItems } from './lib/insp-day.js?v=202611200925';
-import { TASK, tName } from './task-names.js?v=202611200925';
+import * as DOM from './dom-elements.js?v=202611200941';
+import * as State from './state.js?v=202611200941';
+import { showToast, getTodayDateString, showConfirm } from './utils.js?v=202611200941';
+import { dayInspItems } from './lib/insp-day.js?v=202611200941';
+import { hasBrushed } from './lib/insp-flow.js?v=202611200941';
+import { TASK, tName } from './task-names.js?v=202611200941';
 
 import { 
     renderInspectionHistoryTable, 
     renderInspectionLayout,
     renderInspectionListMode
-} from './ui-history.js?v=202611200925'; 
-import { clearInspResultCache, seedInspResultCache, fetchTotalInspLogs, totalInspLogsTruncated, TOTAL_LOG_LIMIT } from './ui-history-inspection.js?v=202611200925';   // 정상여부 캐시 · 전량 기록
-import { mergeIntoProductHistory, nameKey, totalHistoryLogsOf, bulkSummary, bulkMessage } from './lib/total-insp.js?v=202611200925';
-import { editTotalLog, deleteTotalLog, listDayLogs, listProductLogs, deleteTotalDay, deleteTotalProduct, askTotalLogEdit, fetchAccDocs, removeOrRevertOne, setAccStatus, deleteAccDocIfEmpty } from './total-insp-edit.js?v=202611200925';
-import { historyRangeStart } from './lib/history-window.js?v=202611200925';
+} from './ui-history.js?v=202611200941'; 
+import { clearInspResultCache, seedInspResultCache, fetchTotalInspLogs, totalInspLogsTruncated, TOTAL_LOG_LIMIT } from './ui-history-inspection.js?v=202611200941';   // 정상여부 캐시 · 전량 기록
+import { mergeIntoProductHistory, nameKey, totalHistoryLogsOf, bulkSummary, bulkMessage } from './lib/total-insp.js?v=202611200941';
+import { editTotalLog, deleteTotalLog, listDayLogs, listProductLogs, deleteTotalDay, deleteTotalProduct, askTotalLogEdit, fetchAccDocs, removeOrRevertOne, setAccStatus, deleteAccDocIfEmpty } from './total-insp-edit.js?v=202611200941';
+import { historyRangeStart } from './lib/history-window.js?v=202611200941';
 
 import { 
     setSortState, 
     renderQCStatsMode, 
     currentInspTypeFilter, 
     setInspTypeFilter 
-} from './ui-history-inspection.js?v=202611200925';
+} from './ui-history-inspection.js?v=202611200941';
 
 import {
     loadInspectionLogs,
@@ -32,7 +33,7 @@ import {
     savePreInspectionNote,
     handleManualImageSelect, 
     clearManualImageState    
-} from './inspection-logic.js?v=202611200925';
+} from './inspection-logic.js?v=202611200941';
 
 import { collection, getDocs, doc, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
@@ -344,6 +345,15 @@ export function setupHistoryInspectionListeners() {
                     const getEl = (id) => document.getElementById(id);
                     if (getEl('manual-insp-type')) getEl('manual-insp-type').value = 'sample'; // 기본값 세팅
                     if (getEl('manual-insp-product-name')) getEl('manual-insp-product-name').value = '';
+                    if (getEl('manual-insp-brushed-field')) getEl('manual-insp-brushed-field').classList.add('hidden');
+                    if (getEl('manual-insp-check-brushed')) getEl('manual-insp-check-brushed').value = '양호';
+                    if (getEl('manual-insp-product-name') && !getEl('manual-insp-product-name').dataset.brushedBound) {
+                        getEl('manual-insp-product-name').dataset.brushedBound = '1';
+                        getEl('manual-insp-product-name').addEventListener('input', (ev) => {
+                            const f = document.getElementById('manual-insp-brushed-field');
+                            if (f) f.classList.toggle('hidden', !hasBrushed(ev.target.value));
+                        });
+                    }
                     if (getEl('manual-insp-code')) getEl('manual-insp-code').value = '';
                     if (getEl('manual-insp-option')) getEl('manual-insp-option').value = '';
                     if (getEl('manual-insp-qty')) getEl('manual-insp-qty').value = '';

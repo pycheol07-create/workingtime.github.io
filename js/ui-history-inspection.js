@@ -1,12 +1,12 @@
 // === js/ui-history-inspection.js ===
-import * as DOM from './dom-elements.js?v=202611200925';
-import * as State from './state.js?v=202611200925';
-import { getWeekOfYear, escapeHtml, getTodayDateString } from './utils.js?v=202611200925';
-import { dayInspItems, packDatesLabel } from './lib/insp-day.js?v=202611200925';
-import { inspTypeLabel } from './lib/insp-manual.js?v=202611200925';
+import * as DOM from './dom-elements.js?v=202611200941';
+import * as State from './state.js?v=202611200941';
+import { getWeekOfYear, escapeHtml, getTodayDateString } from './utils.js?v=202611200941';
+import { dayInspItems, packDatesLabel } from './lib/insp-day.js?v=202611200941';
+import { inspTypeLabel } from './lib/insp-manual.js?v=202611200941';
 import { doc, getDoc, runTransaction, collection, getDocs, query, where, orderBy, limit as fsLimit } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { itemKey, patchItemsByKey } from './lib/insp-flow.js?v=202611200925';
-import { dayRows, inspectorLabel, logDefectQty, periodLabel, accDocRow, DONE } from './lib/total-insp.js?v=202611200925';
+import { itemKey, patchItemsByKey } from './lib/insp-flow.js?v=202611200941';
+import { dayRows, inspectorLabel, logDefectQty, periodLabel, accDocRow, DONE } from './lib/total-insp.js?v=202611200941';
 
 // 전량검수 저장 기록(2026-11-17) — artifacts/team-work-logger-v2/total_inspection_logs where date >= fromDate(보기 기간 시작일),
 //   최근 날짜부터 최대 TOTAL_LOG_LIMIT 건. 검수이력 탭(js/listeners-history-inspection.js)이 탭에 들어올 때·[새로고침] 때 force 로 읽고,
@@ -821,7 +821,7 @@ export const renderExpandedInspectionLog = (targetTr, logsIn, productName, total
                     checklistStr.push(`<span class="inline-block bg-white px-1.5 py-0.5 rounded text-[11px] text-gray-600 border border-gray-200 shadow-sm mr-1 mb-1">두께: <strong class="text-indigo-600">${escapeHtml(cl.thickness)}</strong></span>`);
                 }
                 
-                const labelMap = { fabric: '원단', color: '컬러', distortion: '뒤틀림', unraveling: '올풀림', finishing: '마감', zipper: '지퍼', button: '단추', lining: '안감', pilling: '보풀', dye: '이염' };
+                const labelMap = { fabric: '원단', color: '컬러', distortion: '뒤틀림', unraveling: '올풀림', finishing: '마감', zipper: '지퍼', button: '단추', lining: '안감', pilling: '보풀', dye: '이염', brushed: '기모' };
                 
                 Object.entries(cl).forEach(([key, val]) => {
                     if (key !== 'thickness' && val) {
@@ -1019,7 +1019,7 @@ export const renderQCStatsMode = (historyData, periodType = 'month', selectedPer
                     }
 
                     if (log.checklist) {
-                        const labelMap = { fabric: '원단', color: '컬러', distortion: '뒤틀림', unraveling: '올풀림', finishing: '마감', zipper: '지퍼', button: '단추', lining: '안감', pilling: '보풀', dye: '이염' };
+                        const labelMap = { fabric: '원단', color: '컬러', distortion: '뒤틀림', unraveling: '올풀림', finishing: '마감', zipper: '지퍼', button: '단추', lining: '안감', pilling: '보풀', dye: '이염', brushed: '기모' };
                         Object.entries(log.checklist).forEach(([key, val]) => {
                             if (key !== 'thickness' && val) {
                                 const cleanVal = String(val).trim();

@@ -2,8 +2,8 @@
 // 샘플검수 창의 순수 함수 — DOM·Firestore 없음(node --test 대상).
 // 판정·저장 규칙은 js/inspection-logic.js 의 saveInspectionAndNext 를 그대로 옮겼다(동작을 바꾸지 않는 것이 원칙).
 // 화면 카드 HTML 은 모든 값을 escapeHtml 로 통과시킨다.
-import { escapeHtml } from '../utils.js?v=202611200925';
-import { isManualOnly, inspTypeLabel } from './insp-manual.js?v=202611200925';
+import { escapeHtml } from '../utils.js?v=202611200941';
+import { isManualOnly, inspTypeLabel } from './insp-manual.js?v=202611200941';
 
 /** 체크리스트 키 — 화면(components/modals-form-inspection.html) 순서. 두께(thickness)는 판정에서 빠진다. */
 export const CHECK_KEYS = ['fabric', 'color', 'distortion', 'unraveling', 'finishing', 'zipper', 'button', 'lining', 'pilling', 'dye'];
@@ -12,8 +12,20 @@ export const CHECK_KEYS = ['fabric', 'color', 'distortion', 'unraveling', 'finis
 export const LABELS = {
     fabric: '원단', color: '컬러', distortion: '뒤틀림',
     unraveling: '올풀림', finishing: '마감', zipper: '지퍼', button: '단추',
-    lining: '안감', pilling: '보풀', dye: '이염'
+    lining: '안감', pilling: '보풀', dye: '이염', brushed: '기모'
 };
+
+/** 기모 — 상품명에 '기모'가 들어간 상품에만 붙는 추가 항목(2026-11-20). CHECK_KEYS 에는 넣지 않는다(다른 상품·옛 기록은 그대로). */
+export const BRUSHED_KEY = 'brushed';
+/** 상품명에 '기모'가 있나 — '노기모'·'무기모'·'노 기모'(기모 없음)와 '기모노'(옷 이름)는 빼고 본다.
+ *  '노기모/기모' 처럼 따로 기모가 또 있으면 기모. */
+export function hasBrushed(name) {
+    return String(name || '').replace(/[노무]\s*기모|기모노/g, '').includes('기모');
+}
+/** 이 상품에서 검수할 항목 키(화면 순서) — 기모 상품이면 끝에 brushed. */
+export function checkKeysFor(name) {
+    return hasBrushed(name) ? [...CHECK_KEYS, BRUSHED_KEY] : CHECK_KEYS;
+}
 
 /** 이 값이면 정상(원본 NORMAL_VALUES). 그 밖의 값은 전부 불량으로 센다. */
 export const NORMAL_VALUES = ['정상', '양호', '동일', '없음', '해당없음'];
@@ -21,7 +33,7 @@ export const NORMAL_VALUES = ['정상', '양호', '동일', '없음', '해당없
 /** '모두 정상' 한 번에 채우기용 — 각 값은 #insp-check-<키> select 의 option value 와 같아야 한다(테스트로 확인). */
 export const ALL_NORMAL = {
     fabric: '정상', color: '동일', distortion: '없음', unraveling: '없음', finishing: '양호',
-    zipper: '양호', button: '양호', lining: '양호', pilling: '없음', dye: '없음'
+    zipper: '양호', button: '양호', lining: '양호', pilling: '없음', dye: '없음', brushed: '양호'
 };
 
 const DONE = '완료';
@@ -42,11 +54,11 @@ export function judge(checklist) {
 }
 
 /** 비어 있는 입력 → ['thickness', 'fabric', …] (화면 순서). 원본은 '' 또는 null 을 빈 값으로 봤다. */
-export function missingFields({ thickness, checklist } = {}) {
+export function missingFields({ thickness, checklist, keys = CHECK_KEYS } = {}) {
     const cl = checklist || {};
     const out = [];
     if (isBlank(thickness)) out.push('thickness');
-    CHECK_KEYS.forEach(k => { if (isBlank(cl[k])) out.push(k); });
+    keys.forEach(k => { if (isBlank(cl[k])) out.push(k); });
     return out;
 }
 

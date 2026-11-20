@@ -1,13 +1,13 @@
 // === js/history-excel-inspection.js ===
-import { db, allHistoryData, appConfig } from './state.js?v=202611200925';
-import { showToast, getTodayDateString } from './utils.js?v=202611200925';
-import { fitToColumn } from './history-excel-utils.js?v=202611200925';
-import { dayInspItems } from './lib/insp-day.js?v=202611200925';
-import { csvSafeSheet, csvSafeBook } from './lib/csv-safe.js?v=202611200925';
-import { inspTypeLabel } from './lib/insp-manual.js?v=202611200925';   // '유형' 열 — 전량 / 샘플 / 샘플(개별) / 요청확인(화면과 같은 이름)
-import { EXCEL_HEADERS, excelRow } from './lib/total-insp.js?v=202611200925';
-import { historyRangeStart } from './lib/history-window.js?v=202611200925';
-import { fetchTotalInspLogs, totalInspLogsTruncated, TOTAL_LOG_LIMIT } from './ui-history-inspection.js?v=202611200925';
+import { db, allHistoryData, appConfig } from './state.js?v=202611200941';
+import { showToast, getTodayDateString } from './utils.js?v=202611200941';
+import { fitToColumn } from './history-excel-utils.js?v=202611200941';
+import { dayInspItems } from './lib/insp-day.js?v=202611200941';
+import { csvSafeSheet, csvSafeBook } from './lib/csv-safe.js?v=202611200941';
+import { inspTypeLabel } from './lib/insp-manual.js?v=202611200941';   // '유형' 열 — 전량 / 샘플 / 샘플(개별) / 요청확인(화면과 같은 이름)
+import { EXCEL_HEADERS, excelRow } from './lib/total-insp.js?v=202611200941';
+import { historyRangeStart } from './lib/history-window.js?v=202611200941';
+import { fetchTotalInspLogs, totalInspLogsTruncated, TOTAL_LOG_LIMIT } from './ui-history-inspection.js?v=202611200941';
 import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // 전량검수 기록(total_inspection_logs, 2026-11-17) — '전량검수_기록' 시트. 작업자는 이름만(lib/total-insp.js inspectorLabel).
@@ -98,12 +98,12 @@ const downloadProductInspectionHistory = async (format = 'xlsx') => {
              XLSX.writeFile(workbook, `검수이력_상품별_${getTodayDateString()}.csv`); return;
         }
 
-        const sheet2Headers = ['상품명', '유형', '공급처 상품명', '일시(날짜)', '일시(시간)', '담당', '입고일자/패킹No', '코드', '옵션', '수량', '상태', '특이사항', '두께(실측)', '원단 상태', '컬러', '뒤틀림', '올 풀림', '실밥 마감', '지퍼', '단추', '안감', '보풀', '이염'];
+        const sheet2Headers = ['상품명', '유형', '공급처 상품명', '일시(날짜)', '일시(시간)', '담당', '입고일자/패킹No', '코드', '옵션', '수량', '상태', '특이사항', '두께(실측)', '원단 상태', '컬러', '뒤틀림', '올 풀림', '실밥 마감', '지퍼', '단추', '안감', '보풀', '이염', '기모'];
         const allLogs = inspectionData.flatMap(item => {
             const logs = item.logs || [];
             return logs.map(log => ({
                 '상품명': item.id, '유형': inspTypeLabel(log), '공급처 상품명': log.supplierCode || log.supplierName || item.lastSupplierCode || item.lastSupplierName || '-', '일시(날짜)': log.date || '-', '일시(시간)': log.time || '-', '담당': log.inspector || '-', '입고일자/패킹No': log.inboundDate || log.packingNo || '-', '코드': log.code || '-', '옵션': log.option || '-', '수량': log.inboundQty || 0, '상태': log.status || '-', '특이사항': (log.defects?.length > 0 ? `[${log.defects.join(', ')}] ` : '') + (log.note || ''),
-                '두께(실측)': log.checklist?.thickness || '-', '원단 상태': log.checklist?.fabric || '-', '컬러': log.checklist?.color || '-', '뒤틀림': log.checklist?.distortion || '-', '올 풀림': log.checklist?.unraveling || '-', '실밥 마감': log.checklist?.finishing || '-', '지퍼': log.checklist?.zipper || '-', '단추': log.checklist?.button || '-', '안감': log.checklist?.lining || '-', '보풀': log.checklist?.pilling || '-', '이염': log.checklist?.dye || '-'
+                '두께(실측)': log.checklist?.thickness || '-', '원단 상태': log.checklist?.fabric || '-', '컬러': log.checklist?.color || '-', '뒤틀림': log.checklist?.distortion || '-', '올 풀림': log.checklist?.unraveling || '-', '실밥 마감': log.checklist?.finishing || '-', '지퍼': log.checklist?.zipper || '-', '단추': log.checklist?.button || '-', '안감': log.checklist?.lining || '-', '보풀': log.checklist?.pilling || '-', '이염': log.checklist?.dye || '-', '기모': log.checklist?.brushed || '-'
             }));
         }).sort((a, b) => b['일시(날짜)'].localeCompare(a['일시(날짜)']));
 
