@@ -25,11 +25,11 @@
 //
 // DOM·State 를 쓰지 않는다(appConfig·이력은 인자로) — node 시험(tests/ops-metrics.test.js)과 비교 도구(tools/ops-metrics-compare.mjs)가 그대로 부른다.
 
-import { buildMemberHourlyWageMap, getWeekOfYear, toDateString } from '../utils.js?v=202611201003';
-import { attendedMembers, presenceStats, isAttendanceEstimated, systemAccountSet, validMemberNames } from '../attendance-stats.js?v=202611201003';
-import { dailyTaskStats, taskSpeedPerMinute } from '../task-throughput.js?v=202611201003';
-import { revenueTotalOf, orderCountTotalOf } from '../revenue-channels.js?v=202611201003';
-import { TASK, isTask } from './task-ids.js?v=202611201003';
+import { buildMemberHourlyWageMap, getWeekOfYear, toDateString } from '../utils.js?v=202611201019';
+import { attendedMembers, presenceStats, isAttendanceEstimated, systemAccountSet, validMemberNames } from '../attendance-stats.js?v=202611201019';
+import { dailyTaskStats, taskSpeedPerMinute } from '../task-throughput.js?v=202611201019';
+import { revenueTotalOf, orderCountTotalOf } from '../revenue-channels.js?v=202611201019';
+import { TASK, isTask } from './task-ids.js?v=202611201019';
 
 const trim = (v) => (v == null ? '' : String(v).trim());
 const arr = (v) => (Array.isArray(v) ? v : (v && typeof v === 'object' ? Object.values(v) : []));

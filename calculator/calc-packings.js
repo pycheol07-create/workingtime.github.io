@@ -11,10 +11,10 @@
 //   docOk = 문서의 ok(마지막 시트 반영이 실패했으면 false — 목록은 마지막 성공분).
 // 다시 읽기: window.__reloadCalcPackings({ quiet }) — 목록을 펼칠 때 PackPicker.js 가 조용히 다시 읽는다.
 // 공통 상단바 로그인 표시(setShellContext)는 logis-defaults.js 가 이미 한다 — 여기서는 부르지 않는다.
-import { db, auth } from './firebase-init.js?v=202611201003';
+import { db, auth } from './firebase-init.js?v=202611201019';
 import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { parsePacks } from '../js/lib/calc-pack-map.js?v=202611201003';
+import { parsePacks } from '../js/lib/calc-pack-map.js?v=202611201019';
 
 const DOC_PATH = 'artifacts/team-work-logger-v2/integrations/calcPackings';
 

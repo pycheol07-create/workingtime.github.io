@@ -23,20 +23,12 @@ const CustomsCalculator = ({ exchangeRates, onRateChange, isActive, customsInfo,
         memRef.current = calcMemLoad('customs', MEM_KEYS.concat(Object.keys(AVG_FIELDS)));
         Object.keys(AVG_FIELDS).forEach(f => { if (typeof memRef.current[f] === 'string') touchedRef.current[f] = true; });
       }
+      // 코드 상수 기본값(관세 8·LCL·수수료 퍼센트 0 …)은 js/lib/customs-cost.js CUSTOMS_FORM_DEFAULTS — 물류장부가 같은 값을 쓴다
       const customsDefaults = () => ({
-        calculationMode: 'product',
-        productQuantity: '1000',
+        ...window.CustomsCost.CUSTOMS_FORM_DEFAULTS,
         unitPrice: avgOf('unitPrice'),
         quantityPerBox: avgOf('quantityPerBox'),
-        boxQuantity: '',
-        totalProductPrice: '',
         weightPerBox: avgOf('weightPerBox'),
-        tariffRate: '8',
-        tariffHs: '',
-        shippingType: 'LCL',
-        containerCost: '',
-        commissionType: 'percentage',
-        commissionValue: '0',
       });
 
       const [calculationMode, setCalculationMode] = React.useState(() => (memRef.current.calculationMode === 'box' ? 'box' : 'product'));
@@ -277,83 +269,10 @@ const CustomsCalculator = ({ exchangeRates, onRateChange, isActive, customsInfo,
       const remitMissing = missingRateFields(currentRates, ['usdKrw']);
       const remitMissingKey = remitMissing.join(',');
 
-      const results = React.useMemo(() => {
-          if (customsRateMissing || remitMissingKey) return null;
-          const DOCS_FEE = settings.common.docsFee;
-          const CO_FEE = settings.common.coFee;
-          const OCEAN_FREIGHT_RATE_PER_CBM = settings.common.oceanFreightPerCbm;
-          const CBM_WEIGHT_DIVISOR = settings.common.cbmWeightDivisor;
-          const VAT_RATE = settings.common.vatRate;
-          const MIN_CBM = settings.common.minCbm || 0;
-
-          const tariffRateValue = parseNum(formData.tariffRate) / 100;
-          const { shippingType, containerCost, commissionType, commissionValue } = formData;
-          const weightPerBox = parseNum(formData.weightPerBox) || 0;
-
-          let totalBoxes;
-          let totalProductPriceUSD;
-          let totalWeight;
-          let productQuantity = 0;
-          let costPerItem = 0;
-          let commissionAmountKRW = 0;
-
-          if (calculationMode === 'product') {
-              productQuantity = parseNum(formData.productQuantity) || 0;
-              const unitPrice = parseNum(formData.unitPrice) || 0;
-              const quantityPerBox = parseNum(formData.quantityPerBox) || 1;
-              if (productQuantity === 0 || unitPrice === 0 || quantityPerBox === 0) return null;
-              totalBoxes = Math.ceil(productQuantity / quantityPerBox);
-              totalProductPriceUSD = productQuantity * unitPrice;
-          } else {
-              totalBoxes = parseNum(formData.boxQuantity) || 0;
-              totalProductPriceUSD = parseNum(formData.totalProductPrice) || 0;
-              if (totalBoxes === 0 || totalProductPriceUSD === 0) return null;
-          }
-
-          totalWeight = totalBoxes * weightPerBox;
-          const cbm = totalWeight / CBM_WEIGHT_DIVISOR;
-
-          let oceanFreightKRW;
-          if (shippingType === 'FCL') {
-              oceanFreightKRW = parseNum(containerCost) || 0;
-          } else {
-              const chargeableCbm = Math.max(cbm, MIN_CBM);
-              oceanFreightKRW = chargeableCbm * OCEAN_FREIGHT_RATE_PER_CBM;
-          }
-
-          // 세금계산을 위해 해운비를 USD로 역산 (고시환율 사용)
-          const oceanFreightUSDForTax = oceanFreightKRW / currentRates.customs;
-          const taxableBaseUSD = totalProductPriceUSD + oceanFreightUSDForTax;
-
-          // 과세표준(Taxable Base) 및 관/부가세 산출 (고시환율 사용)
-          const taxableBaseKRW = taxableBaseUSD * currentRates.customs;
-          const tariffAmountKRW = taxableBaseKRW * tariffRateValue;
-          const vatBaseKRW = taxableBaseKRW + tariffAmountKRW;
-          const vatAmountKRW = vatBaseKRW * VAT_RATE;
-          const totalTaxes = tariffAmountKRW + vatAmountKRW;
-
-          // 실제 물품대금 결제는 원-달러(송금) 환율 적용
-          const totalProductPriceKRW = totalProductPriceUSD * currentRates.usdKrw;
-
-          const commissionValueNum = parseNum(commissionValue) || 0;
-          if (commissionType === 'percentage') {
-              commissionAmountKRW = totalProductPriceKRW * (commissionValueNum / 100);
-          } else if (commissionType === 'perItem' && calculationMode === 'product' && productQuantity > 0) {
-              commissionAmountKRW = commissionValueNum * productQuantity;
-          }
-
-          const totalCost = DOCS_FEE + CO_FEE + oceanFreightKRW + totalTaxes + commissionAmountKRW;
-
-          if (calculationMode === 'product' && productQuantity > 0) {
-              costPerItem = (totalProductPriceKRW + totalCost) / productQuantity;
-          }
-
-          return {
-            totalProductPriceUSD, totalProductPriceKRW, totalBoxes, totalWeight, cbm, oceanFreightKRW,
-            taxableBase: taxableBaseKRW, tariffAmount: tariffAmountKRW, vatAmount: vatAmountKRW, totalTaxes,
-            docsFee: DOCS_FEE, coFee: CO_FEE, commissionAmountKRW, totalCost, costPerItem,
-          };
-      }, [formData, calculationMode, currentRates, settings, customsRateMissing, remitMissingKey]);
+      // 계산식은 js/lib/customs-cost.js 한 벌(물류장부 패킹 출고 예상도 같은 식 — 계약 시험 tests/customs-cost.test.js). 여기선 부르기만
+      const results = React.useMemo(
+          () => window.CustomsCost.customsCost(formData, calculationMode, settings.common, currentRates),
+          [formData, calculationMode, currentRates, settings, customsRateMissing, remitMissingKey]);
 
       // 휴대폰 하단 요약 바 — 결과 카드가 화면에 보이면 숨긴다
       React.useEffect(() => {
