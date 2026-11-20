@@ -32,13 +32,13 @@ import {
     dayKey, parseRecDay, rowState, dayOptions, defaultDay, canMark, excelRows, EXCEL_COLS, SHEET_NAME, fileNameOf,
     stripRows, fileNameAll, recReqUi, tsMs, TABS, dayVer, movedToday, PENDING_TEXT, plannedSlots, HOLD_UNDO_TEXT,
     sizeFreeList, sizeFreeSet, sizeFreeWrite, sizeFreeCode, sizeFreeToast
-} from './lib/locrec-view.js?v=202611201346';
-import { laterMs } from './lib/rebuild-view.js?v=202611201346';
+} from './lib/locrec-view.js?v=202611201405';
+import { laterMs } from './lib/rebuild-view.js?v=202611201405';
 import { docIdsForRow, docIdsForApplied, planApply, planUndo, planClearMoves, applyFailText, undoFailText, bulkSummaryText, markOnlyOk, reasonText,
          dstBlocked, altOk, altRow, blockOf, altConfirmText, bulkAltText, EZ_REMIND_TEXT, BLOCKED_STATE,
-         recentAppliedMoves } from './lib/locrec-apply.js?v=202611201346';
-import { pickAltTarget, prioritiesOf } from './lib/loc-recommend.js?v=202611201346';
-import { uploadView, uploadBlockText } from './lib/busy-view.js?v=202611201346';
+         recentAppliedMoves } from './lib/locrec-apply.js?v=202611201405';
+import { pickAltTarget, prioritiesOf } from './lib/loc-recommend.js?v=202611201405';
+import { uploadView, uploadBlockText } from './lib/busy-view.js?v=202611201405';
 
 const APP = 'artifacts/team-work-logger-v2';
 const LATEST_PATH = `${APP}/integrations/locRecLatest`;
@@ -743,7 +743,7 @@ function createLocRecStore({ db, auth, getMemberName, sizeOf, altCtx, notify, li
         if (!X || !X.utils) { alert('엑셀 도구를 불러오지 못했습니다. 새로고침 후 다시 해 주세요.'); return; }
         if (!rows.length) return;
         const ws = X.utils.json_to_sheet(excelRows(rows, { sizeOf: sizeOfFn }), { header: EXCEL_COLS });   // 로케이션(칸수) — sizeOf 는 옛 문서 행 보충(location.js)
-        ws['!cols'] = [{ wch: 20 }, { wch: 15 }, { wch: 40 }, { wch: 25 }, { wch: 15 }];   // 기존 [변경 추천] 엑셀과 같은 폭
+        ws['!cols'] = [{ wch: 20 }, { wch: 15 }, { wch: 40 }, { wch: 25 }, { wch: 15 }, { wch: 26 }];   // 기존 [변경 추천] 엑셀과 같은 폭 + 로케이션(자리/ 코드)
         const wb = X.utils.book_new();
         X.utils.book_append_sheet(wb, ws, sheetName);
         X.writeFile(wb, fileName);

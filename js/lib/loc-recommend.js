@@ -45,9 +45,9 @@
 //
 // ⚠️ 이 파일을 고치면 서버(로케이션추천)도 바로 바뀐다 — 서버는 배포본이 아니라 v.수정본 소스를 node 로 읽는다.
 
-import { isEtcLocObj } from './mibal2-rows.js?v=202611201346';
-import { capacityFor } from './mibal2-calc.js?v=202611201346';
-import { parseCards, comboOf, isExcludedSlot, slotCard } from './loc-cards.js?v=202611201346';
+import { isEtcLocObj } from './mibal2-rows.js?v=202611201405';
+import { capacityFor } from './mibal2-calc.js?v=202611201405';
+import { parseCards, comboOf, isExcludedSlot, slotCard } from './loc-cards.js?v=202611201405';
 
 export { isEtcLocObj };
 
@@ -1204,7 +1204,7 @@ export function simulateRoute({ locs, daily, priorities, rows = [], gainRows, sk
 // 행 · 엑셀
 // ─────────────────────────────────────────────────────────────
 
-export const EXCEL_COLS = ['현재로케이션', '변경로케이션', '상품명', '옵션', '상품코드'];
+export const EXCEL_COLS = ['현재로케이션', '변경로케이션', '상품명', '옵션', '상품코드', '로케이션'];   // 로케이션 = '변경로케이션/ 상품코드'(2026-11-20 사용자 요청 — 자리 표 붙이기용). 서버 rowsJson.cols(앱기록.py)는 5열 그대로
 
 /** 추천 키 — 단독 S:{code}:{from}>{to} · 맞바꾸기 W:{A}@{자리}~{B}@{자리}(코드 사전순) · 페어 P:{A}:{B}(사전순)
  *  · 뒤로 보내기 B:{code}:{from}(보낼 자리는 날마다 바뀔 수 있어 키에 넣지 않는다 — '안 함'·만료가 그 상품·자리에 붙게) */
@@ -1223,7 +1223,8 @@ export function recKeyOf(row) {
 }
 
 /**
- * 결과 행 → 엑셀 5열 행 [{현재로케이션, 변경로케이션, 상품명, 옵션, 상품코드}].
+ * 결과 행 → 엑셀 6열 행 [{현재로케이션, 변경로케이션, 상품명, 옵션, 상품코드, 로케이션}].
+ *   로케이션 = '변경로케이션/ 상품코드' — 예 'Z-4-0807(4)/ S555112'(2026-11-20 사용자 요청). 변경로케이션이나 코드가 비면 빈 칸.
  *   단독 1행 · 맞바꾸기 2행(A: from→to, B: from2→to2) · 페어 2행(A, B).
  *   행 모양: {type, code, name, option, from, to, code2?, name2?, option2?, from2?, to2?, fromSize?, toSize?, fromSize2?, toSize2?}
  *   로케이션 칸은 화면 표와 같이 칸수를 괄호로 붙인다 — '★★-003(4)'(칸수 없으면 자리만, 2026-11-03 사용자 요청).
@@ -1239,10 +1240,14 @@ export function excelRows(rows, opts = {}) {
         if (!s && sizeOf) { try { s = String(sizeOf(s0) || '').trim(); } catch (e) { s = ''; } }
         return s ? `${s0}(${s})` : s0;
     };
-    const one = (from, to, name, option, code) => ({
-        '현재로케이션': from, '변경로케이션': to,
-        '상품명': name == null ? '' : name, '옵션': option == null ? '' : option, '상품코드': code == null ? '' : code
-    });
+    const one = (from, to, name, option, code) => {
+        const c = code == null ? '' : String(code);
+        return {
+            '현재로케이션': from, '변경로케이션': to,
+            '상품명': name == null ? '' : name, '옵션': option == null ? '' : option, '상품코드': code == null ? '' : code,
+            '로케이션': to && c ? `${to}/ ${c}` : ''
+        };
+    };
     (rows || []).forEach(r => {
         if (!r) return;
         out.push(one(loc(r.from, r.fromSize), loc(r.to, r.toSize), r.name, r.option, r.code));

@@ -9,7 +9,7 @@
 import {
     PANELS, GRID_COLS, GAP, ROW_UNIT,
     defaultLayout, effectiveSpan, rowSpan, placeItems, STORAGE_KEY,
-} from './lib/dash-layout.js?v=202611201346';
+} from './lib/dash-layout.js?v=202611201405';
 
 const grid = document.getElementById('dash-grid');
 const layout = defaultLayout();
