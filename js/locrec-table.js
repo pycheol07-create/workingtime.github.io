@@ -17,14 +17,14 @@
 // 칸수 무관 허용(2026-11-13): 상품 줄마다 [칸수 무관 허용]/[끄기](지금 자리에 칸수가 있는 줄·이미 허용한 상품) — store.setSizeFree.
 //   허용한 상품은 줄에 '칸수 무관' 배지. 도구 줄 '칸수 무관 N건 보기'를 켜면 허용 목록 전체(오늘 표에 없는 상품 포함)가 표 끝에 나와 끌 수 있다.
 //   날짜·새 판 대기와 상관없이 누를 수 있다(추천 표시가 아니라 다음 계산 설정이라서).
-import { escapeHtml } from './utils.js?v=202611201643';
+import { escapeHtml } from './utils.js?v=202611201655';
 import { fmtHM, tabCounts, tabCarried, TABS, TAB_LABEL, fmtNum, canMark, tabMeta, dayLabel, rowLines, dayMessage, fmtGain, ROUTE_OUT_LABEL, ROUTE_OUT_HELP, locLabel, bulkDoneKeys, CARRIED_LABEL, qtyCellOf, PENDING_TEXT,
-    shownTabs, BACK_TAB_HELP, BACK_GAIN_LABEL, BACK_SCORE_HELP, backReasonTitle, BLOCKED_LABEL, SKIP_HELP, holdRows, HOLD_ROW_LABEL, HOLD_UNDO_TEXT,
-    SIZE_FREE_LABEL, SIZE_FREE_HELP, sizeFreeShown, fmtMDHM } from './lib/locrec-view.js?v=202611201643';
-import { NO_NAME, todayKey } from './locrec-store.js?v=202611201643';
-import { higherOpenThan } from './modal-above.js?v=202611201643';
-import { undoConfirmText } from './lib/locrec-apply.js?v=202611201643';
-import { SORT_COLS, sortRows, nextSort, isLowStockRow, lineTotal } from './lib/locrec-sort.js?v=202611201643';
+    shownTabs, fmtDaily1, BACK_TAB_HELP, BACK_GAIN_LABEL, BACK_SCORE_HELP, backReasonTitle, BLOCKED_LABEL, SKIP_HELP, holdRows, HOLD_ROW_LABEL, HOLD_UNDO_TEXT,
+    SIZE_FREE_LABEL, SIZE_FREE_HELP, sizeFreeShown, fmtMDHM } from './lib/locrec-view.js?v=202611201655';
+import { NO_NAME, todayKey } from './locrec-store.js?v=202611201655';
+import { higherOpenThan } from './modal-above.js?v=202611201655';
+import { undoConfirmText } from './lib/locrec-apply.js?v=202611201655';
+import { SORT_COLS, sortRows, nextSort, isLowStockRow, lineTotal } from './lib/locrec-sort.js?v=202611201655';
 
 // location.html 의 #locrec-modal 과 같은 마크업(바꾸면 둘 다)
 const TEMPLATE = `
@@ -228,7 +228,7 @@ export function mountLocRecTable({ store, sizeOf }) {
                 + `<td class="locrec-loc locrec-from">${escapeHtml(fromTxt)}</td>`
                 + `<td class="locrec-loc"${toTitle}><b class="locrec-to">${escapeHtml(toTxt)}</b></td>`
                 + qtyCell(l)
-                + `<td class="locrec-num locrec-daily">${escapeHtml(l.daily == null ? '' : fmtNum(l.daily))}</td>`;
+                + `<td class="locrec-num locrec-daily">${escapeHtml(l.daily == null ? '' : (isBack ? fmtDaily1(l.daily) : fmtNum(l.daily)))}</td>`;
             if (j > 0) return `<tr class="${trCls} locrec-sub"${trAttr}>${cells}${sfTd}</tr>`;
             return `<tr class="${trCls}"${trAttr}>`
                 + `<td class="locrec-rank"${span}>${escapeHtml(carried ? '' : (r.rank == null ? i0 + 1 : r.rank))}</td>`     // 이월 행은 순위 없음 · 정렬해도 원래 순위

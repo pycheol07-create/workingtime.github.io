@@ -34,8 +34,8 @@
 //                                     이월 행은 띠 건수·요약·엑셀·[전체 처리함]에서 뺀다(표에는 흐리게 보인다).
 // import 는 같은 lib 의 refill-view.js(날짜·시각, KST)·loc-recommend.js(엑셀 5열) 만 — 같은 규칙을 두 벌 두지 않는다.
 
-import { tsMs, dayKey, keyMs, lastDays, dayLabel, fmtHM, kstParts, waitInfo } from './refill-view.js?v=202611201643';
-import { excelRows, EXCEL_COLS } from './loc-recommend.js?v=202611201643';
+import { tsMs, dayKey, keyMs, lastDays, dayLabel, fmtHM, kstParts, waitInfo } from './refill-view.js?v=202611201655';
+import { excelRows, EXCEL_COLS } from './loc-recommend.js?v=202611201655';
 
 export { tsMs, dayKey, keyMs, lastDays, dayLabel, fmtHM, excelRows, EXCEL_COLS };
 
@@ -62,9 +62,14 @@ export function shownTabs(latest, parsed) {
 }
 
 /** 뒤로 보내기 사유 배지 툴팁 — '최근 하루 0.1개 · 29~90일 전 출고 12개' */
+/** 뒤로 보내기 일출고 — 늘 소수 첫째 자리(0 → '0.0', 0.14 → '0.1', 2026-11-20 사용자 요청) */
+export function fmtDaily1(v) {
+    const n = num(v);
+    return n == null ? '-' : n.toFixed(1);
+}
 export function backReasonTitle(r) {
     const d = num(r && r.daily), h = num(r && r.hist);
-    return `최근 하루 ${d == null ? '-' : fmtNum(d, 2)}개 · 29~90일 전 출고 ${h == null ? '-' : fmtNum(h)}개`;
+    return `최근 하루 ${d == null ? '-' : fmtDaily1(d)}개 · 29~90일 전 출고 ${h == null ? '-' : fmtNum(h)}개`;
 }
 export const DAYS_SHOWN = 14;            // 날짜 선택 칸 수(결과 문서 보관 14일)
 export const SKIP_HIDE_DAYS = 30;        // '안 함' 은 30일 숨김
