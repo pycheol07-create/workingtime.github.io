@@ -1,7 +1,7 @@
 // === js/listeners-form-total-inspection.js ===
 // 설명: 전량검수 창(진행 목록, 2026-11-17) 리스너 + 샘플검수 [전량검수로 전환] 버튼. 동작은 js/total-inspection-logic.js.
 
-import * as DOM from './dom-elements.js?v=202611200946';
+import * as DOM from './dom-elements.js?v=202611201003';
 import {
     triggerTotalInspectionFromSample,
     closeTotalInspection,
@@ -18,7 +18,7 @@ import {
     toggleTotalListCollapsed,
     toggleTotalFullscreen,
     syncTotalStock
-} from './total-inspection-logic.js?v=202611200946';
+} from './total-inspection-logic.js?v=202611201003';
 
 export function setupTotalInspectionListeners() {
 
@@ -42,6 +42,16 @@ export function setupTotalInspectionListeners() {
         });
     }
     if (DOM.totalInspSearchBtn) DOM.totalInspSearchBtn.addEventListener('click', onTotalSearchEnter);
+    // [엑셀 업로드] — 머리글 상품코드·수량(js/total-insp-excel-ui.js)
+    const excelBtn = document.getElementById('total-insp-excel-btn');
+    const excelFile = document.getElementById('total-insp-excel-file');
+    if (excelBtn && excelFile) {
+        excelBtn.addEventListener('click', () => { excelFile.value = ''; excelFile.click(); });
+        excelFile.addEventListener('change', () => {
+            const f = excelFile.files && excelFile.files[0];
+            if (f) import('./total-insp-excel-ui.js?v=202611201003').then(m => m.uploadTotalExcel(f));
+        });
+    }
 
     // 목록 줄 고르기(위임 한 번) · 완료 보기
     if (DOM.totalInspList) DOM.totalInspList.addEventListener('click', onTotalListClick);

@@ -14,7 +14,7 @@ const int = (v) => {
 
 export const ON = '진행중';
 export const DONE = '완료';
-export const ORIGINS = Object.freeze(['manual', 'typed', 'sample']);
+export const ORIGINS = Object.freeze(['manual', 'typed', 'sample', 'excel']);   // excel = [엑셀 업로드](2026-11-20)
 
 /** 상품 이력 문서 id 규칙(js/lib/insp-manual.js historyId 와 같다 — 이 파일은 import 를 쓰지 않아 한 줄을 옮겨 둔다). */
 export const nameKey = (name) => str(name).trim().replace(/\//g, '-');
@@ -93,7 +93,7 @@ export function newTotalDoc(item, { reason = '', by = '', now = '', today = '' }
         endDate: '',
         supplierCode: supplierCodeOnly(it.supplierCode),
         reason: str(reason).trim(),
-        totalStock: 0,
+        totalStock: int(it.totalStock) > 0 ? int(it.totalStock) : 0,   // 엑셀 업로드는 수량을 검수수량으로(그 밖엔 0 — 나중에 입력)
         accumulatedNormal: 0,
         accumulatedDefective: 0,
         accumulatedTotal: 0,
@@ -113,7 +113,8 @@ export function newTotalDoc(item, { reason = '', by = '', now = '', today = '' }
 export function reopenRound(cur, item, { reason = '', by = '', now = '', today = '' } = {}) {
     const c = cur || {};
     // 새 회차의 검수일자는 오늘부터(앞 회차 시작·종료일은 기록에 남아 있다)
-    const fresh = newTotalDoc({ ...c, ...(item || {}), name: c.name || (item && item.name), startDate: '' }, { reason: str(reason).trim() || c.reason, by, now, today });
+    // 검수수량은 앞 회차 값을 이어받지 않는다(넣는 상품에 있을 때만 — 엑셀 업로드)
+    const fresh = newTotalDoc({ ...c, ...(item || {}), name: c.name || (item && item.name), startDate: '', totalStock: (item && item.totalStock) || 0 }, { reason: str(reason).trim() || c.reason, by, now, today });
     ['location', 'code', 'supplierCode'].forEach(k => { if (!fresh[k] && c[k]) fresh[k] = k === 'supplierCode' ? supplierCodeOnly(c[k]) : str(c[k]); });
     fresh.round = Math.max(1, int(c.round) || 1) + 1;
     return fresh;
@@ -127,10 +128,19 @@ export function startOrReopen(cur, item, opts = {}) {
     if (!cur) return { action: 'create', doc: newTotalDoc(item, opts) };
     if (!sameProduct(cur, item)) return { action: 'conflict', doc: null };
     if (cur.status === DONE) return { action: 'reopen', doc: reopenRound(cur, item, opts) };
+    const qty = int(item && item.totalStock);
+    // 검수수량이 아직 0 이고 넣는 수량(엑셀 업로드)이 지금까지 누적보다 크면 채운다 — 이미 정한 검수수량은 바꾸지 않는다
+    const canFill = int(cur.totalStock) <= 0 && qty > int(cur.accumulatedTotal);
     if (cur.status !== ON) {
         const f = fillMissing(cur, item, opts);
-        return { action: 'upgrade', doc: f.patch, merge: true, dropSupplier: f.dropSupplier };
+        if (canFill) f.patch.totalStock = qty;   // 옛 문서(totalStock 0)도 엑셀 수량으로
+        else if ('totalStock' in f.patch) f.patch.totalStock = 0;   // 누적보다 작은 엑셀 수량이 빈 칸 채우기로 들어가지 않게(예전처럼 0)
+        // 엑셀 수량을 못 넣었으면 따로 알린다(문서는 빠진 칸만 채워 연다)
+        return { action: !canFill && qty > 0 ? 'stockKept' : 'upgrade', doc: f.patch, merge: true, dropSupplier: f.dropSupplier };
     }
+    if (canFill) return { action: 'stock', doc: { totalStock: qty }, merge: true };
+    // 엑셀 수량이 지금 검수수량과 다른데 바꾸지 않은 경우 — 따로 알린다(창에서 고치게)
+    if (qty > 0 && qty !== int(cur.totalStock)) return { action: 'stockKept', doc: null };
     return { action: 'open', doc: null };
 }
 

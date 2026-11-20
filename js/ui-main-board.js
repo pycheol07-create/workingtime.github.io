@@ -1,15 +1,15 @@
 // === js/ui-main-board.js ===
-import { formatTimeTo24H, formatDuration, calcTotalPauseMinutes, getTodayDateString, isMemberActiveOn, getCurrentTime, escapeHtml } from './utils.js?v=202611200946';
-import * as State from './state.js?v=202611200946';
-import { leaveTypeLabel } from './state.js?v=202611200946';
-import { leaveNthLabel } from './ui-modals.js?v=202611200946';
-import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202611200946';
-import { getLeaveDisplayLabel } from './ui-main-utils.js?v=202611200946';
-import { myWorkState, recentTasksFor } from './lib/my-work.js?v=202611200946';
-import { isLeaveActiveAt, isLeavePendingAt } from './lib/leave-timing.js?v=202611200946';
-import { isRefillTask, refillAllowed, refillProgressText, refillProgressTone, syncRefillDash } from './refill-dash.js?v=202611200946';
-import { isLocRecTask, locRecAllowed, syncLocRecDash } from './locrec-dash.js?v=202611200946';
-import { TASK, tName, isT } from './task-names.js?v=202611200946';
+import { formatTimeTo24H, formatDuration, calcTotalPauseMinutes, getTodayDateString, isMemberActiveOn, getCurrentTime, escapeHtml } from './utils.js?v=202611201003';
+import * as State from './state.js?v=202611201003';
+import { leaveTypeLabel } from './state.js?v=202611201003';
+import { leaveNthLabel } from './ui-modals.js?v=202611201003';
+import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202611201003';
+import { getLeaveDisplayLabel } from './ui-main-utils.js?v=202611201003';
+import { myWorkState, recentTasksFor } from './lib/my-work.js?v=202611201003';
+import { isLeaveActiveAt, isLeavePendingAt } from './lib/leave-timing.js?v=202611201003';
+import { isRefillTask, refillAllowed, refillProgressText, refillProgressTone, syncRefillDash } from './refill-dash.js?v=202611201003';
+import { isLocRecTask, locRecAllowed, syncLocRecDash } from './locrec-dash.js?v=202611201003';
+import { TASK, tName, isT } from './task-names.js?v=202611201003';
 
 // ===== 업무현황 카드 커버플로우(coverflow) 컨트롤러 =====
 // 가운데 업무 카드 1개만 크고 선명하게, 양옆 카드는 작고 흐리게 뒤로 물러남.
@@ -464,6 +464,9 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
                     : ''}
                 ${showLocRec && isLocRecTask(task)
                     ? `<button type="button" data-action="open-locrec" class="mt-3 d-btn d-btn-sm d-btn-accent flex items-center gap-1" title="로케이션 변경 추천 표 열기">변경추천</button>`
+                    : ''}
+                ${isT(task, TASK.full)
+                    ? `<button type="button" data-action="open-total-inspection" class="mt-3 d-btn d-btn-sm d-btn-accent flex items-center gap-1" title="업무를 시작하지 않아도 전량검수 창을 엽니다">전량검수 창</button>`
                     : ''}
             `;
         }

@@ -12,21 +12,21 @@
 //   · [완료 처리]·[다시 진행]·[목록에서 빼기](누적 0 인 줄만).
 // 순수 규칙은 js/lib/total-insp.js. 공급처는 코드만(supplierCode) — 이름 칸은 쓰지 않는다(CLAUDE.md 3절).
 // ⚠️ 이 창은 index.html·history.html 에 붙는다 — role="dialog"·data-act·end-shift-* 를 쓰지 않는다(업무마감봇 선택자).
-import * as DOM from './dom-elements.js?v=202611200946';
-import * as State from './state.js?v=202611200946';
-import { showToast, getTodayDateString, getCurrentTime, escapeHtml, showConfirm } from './utils.js?v=202611200946';
+import * as DOM from './dom-elements.js?v=202611201003';
+import * as State from './state.js?v=202611201003';
+import { showToast, getTodayDateString, getCurrentTime, escapeHtml, showConfirm } from './utils.js?v=202611201003';
 import {
     doc, getDoc, collection, query, where, limit as fsLimit, onSnapshot, runTransaction, serverTimestamp, increment, deleteField
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { TASK, tName } from './task-names.js?v=202611200946';
-import { openManualAdd } from './inspection-manual.js?v=202611200946';
-import { S as PS, loadLoc, locOf, fmtDateTime, tsMs } from './products-store.js?v=202611200946';   // [재고 연동] — 위치·재고 요약(ProductLoc, IndexedDB 캐시 같이 씀)
-import { getCurrentInspItem } from './inspection-logic.js?v=202611200946';
-import { listKeyLogs, removeOrRevertOne } from './total-insp-edit.js?v=202611200946';   // 잘못 연 회차 되돌리기(직전 회차 기록 합산)
+import { TASK, tName } from './task-names.js?v=202611201003';
+import { openManualAdd } from './inspection-manual.js?v=202611201003';
+import { S as PS, loadLoc, locOf, fmtDateTime, tsMs } from './products-store.js?v=202611201003';   // [재고 연동] — 위치·재고 요약(ProductLoc, IndexedDB 캐시 같이 씀)
+import { getCurrentInspItem } from './inspection-logic.js?v=202611201003';
+import { listKeyLogs, removeOrRevertOne } from './total-insp-edit.js?v=202611201003';   // 잘못 연 회차 되돌리기(직전 회차 기록 합산)
 import {
     ON, DONE, canRevertRound, reopenConfirmText, isDoneToday, totalKey, startOrReopen, applySave, applyInfoSave, isInfoOnly, periodLabel, ymd, markDone, markReopen, progressOf, todayQtyOf,
     sortList, nextOnKey, filterRows, exactRow, logOf, fromSampleItem, stockFromLoc, infoChangedLabels, stockBasisText, removePlan, removeCounts, removeMessage
-} from './lib/total-insp.js?v=202611200946';
+} from './lib/total-insp.js?v=202611201003';
 
 const APP = ['artifacts', 'team-work-logger-v2'];
 const COL = 'total_inspections_accumulated';
@@ -433,6 +433,8 @@ async function addItems(items, { reason = '', stay = false, label = '' } = {}) {
         const parts = [];
         if (n('create')) parts.push(`${n('create')}개 넣음`);
         if (n('reopen')) parts.push(`완료였던 ${n('reopen')}개 새 회차로`);
+        if (n('stock')) parts.push(`진행 중 ${n('stock')}개는 검수수량만 채움`);
+        if (n('stockKept')) parts.push(`진행 중 ${n('stockKept')}개는 검수수량을 바꾸지 않음(창에서 고치세요)`);
         if (n('open') + n('upgrade')) parts.push(`이미 진행 중 ${n('open') + n('upgrade')}개`);
         if (n('conflict')) parts.push(`같은 목록 키의 다른 상품(옵션 표기 차이 등)이 있어 못 넣음 ${n('conflict')}개`);
         if (n('keptDone')) parts.push(`완료 상품 ${n('keptDone')}개는 넣지 않음`);
@@ -440,6 +442,12 @@ async function addItems(items, { reason = '', stay = false, label = '' } = {}) {
         const first = res.find(r => r.action !== 'conflict' && r.action !== 'keptDone');
         openTotalInspection({ selectId: first ? first.id : '' });
     };
+}
+
+/** [엑셀 업로드](js/total-insp-excel-ui.js) — 상품코드로 찾은 상품들을 사유와 함께 넣고 창을 다시 그린다. 수량은 item.totalStock(검수수량). */
+export async function addTotalItemsFromExcel(items, reason) {
+    const after = await addItems(items, { reason });
+    if (typeof after === 'function') after();
 }
 
 /** [+ 개별 추가] · 검색칸에서 목록에 없는 글자. */
