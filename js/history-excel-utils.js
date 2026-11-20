@@ -1,5 +1,5 @@
 // === js/history-excel-utils.js ===
-import { showToast } from './utils.js?v=202611201435';
+import { showToast } from './utils.js?v=202611201642';
 
 export const fitToColumn = (ws) => {
     const objectMaxLength = [];

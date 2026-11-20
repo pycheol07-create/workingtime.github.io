@@ -10,10 +10,10 @@
 
 import {
     planSettingsOf, nextWeekRange, weekDaysOf, fillMix, shortRuns, confidenceOf, addDaysStr, dowOf
-} from './plan-week.js?v=202611201435';
-import { buildRisks, leaveCrowdDays, holidaySurgeDays, RISK_LEVELS } from './plan-risks.js?v=202611201435';
-import { buildMeeting } from './plan-rhythm.js?v=202611201435';
-import { weekConfidence } from './plan-confidence.js?v=202611201435';
+} from './plan-week.js?v=202611201642';
+import { buildRisks, leaveCrowdDays, holidaySurgeDays, RISK_LEVELS } from './plan-risks.js?v=202611201642';
+import { buildMeeting } from './plan-rhythm.js?v=202611201642';
+import { weekConfidence } from './plan-confidence.js?v=202611201642';
 
 export const ACTION_LIMIT = 10;
 const CONF_FACTOR = { high: 1, mid: 0.7, low: 0.4 };

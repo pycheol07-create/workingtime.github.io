@@ -2,8 +2,8 @@
 // 전량검수 [엑셀 업로드](2026-11-20 사용자 요청) — 순수 함수(DOM·Firestore 없음, node --test 대상).
 //   엑셀 머리글은 '상품코드', '수량' 두 칸. 상품코드(옵션 상품코드 또는 바코드)로 상품 DB 에서 상품명·옵션·로케이션을 채우고,
 //   수량은 검수수량(칸 이름 totalStock)으로 넣는다. 넣기(트랜잭션)는 js/total-inspection-logic.js addItems.
-import { findCandidates, totalItemOf } from './insp-manual.js?v=202611201435';
-import { totalKey } from './total-insp.js?v=202611201435';
+import { findCandidates, totalItemOf } from './insp-manual.js?v=202611201642';
+import { totalKey } from './total-insp.js?v=202611201642';
 
 const str = (v) => (v == null ? '' : String(v));
 const squash = (v) => str(v).replace(/\s/g, '');

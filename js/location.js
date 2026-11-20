@@ -1,34 +1,34 @@
-import { initializeFirebase, loadAppConfig } from './config.js?v=202611201435';
+import { initializeFirebase, loadAppConfig } from './config.js?v=202611201642';
 import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, writeBatch, getDocs, query, where, documentId, deleteField, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { escapeHtml as escAttr } from './utils.js?v=202611201435';
-import { cleanRaw, isCostCol, isDroppedHeader, supplierCodeOf } from './lib/sensitive-cols.js?v=202611201435';
-import { multiLocGroups, reserveLocIds, normLocId } from './lib/multi-loc.js?v=202611201435';
-import { codeOfRowB, pickRowB, checkUploadB, checkPermanent, newLocIds } from './lib/upload-check.js?v=202611201435';
-import { orderKeyMap } from './lib/order-hash.js?v=202611201435';
-import { setShellContext } from './app-shell-bridge.js?v=202611201435';
-import { memberNameFor } from './app-shell-data.js?v=202611201435';
-import { menuConfigOf } from './lib/perm.js?v=202611201435';
-import { readHash, writeHash, onHashNav } from './hash-state.js?v=202611201435';
-import { initPageNav } from './page-nav.js?v=202611201435';
-import { initRefillCard } from './refill-card.js?v=202611201435';
-import { initLocRecCard } from './locrec-card.js?v=202611201435';
-import { getLocRecStore, peekLocRecStore } from './locrec-store.js?v=202611201435';   // 오늘 변경 추천 예정 자리·최근 [처리함] 이동(엑셀 경고)
-import { initRebuildBar } from './rebuild-bar.js?v=202611201435';
-import { mountRouteSlot } from './locrec-route-card.js?v=202611201435';
-import { whenPerm, onPerm, canFeature } from './feature-gate.js?v=202611201435';   // 권한 개편 5단계 — 카드는 권한이 확인된 뒤에만 시작
-import { mountBusyBanner, createUploadStatus } from './busy-banner.js?v=202611201435';
-import { uploadBlockText } from './lib/busy-view.js?v=202611201435';
-import { uploadStockView, ezStockView, stockSrcOf, countAuto, autoBadge } from './lib/ez-stock-view.js?v=202611201435';
-import { INCOMING_WAIT_MAX_MS, SHEET_REQ_DAILY_MAX, incomingReadAt, requestServerMs, judgeIncomingSnap, createRunGuard, guardedRun, once, waitTimeoutText } from './lib/incoming-wait.js?v=202611201435';
-import { angleSizeOf, SERVER_DEFAULTS, makeRankers, isEtcLocObj } from './lib/loc-recommend.js?v=202611201435';
-import { comboOf, isExcludedSlot, slotDigits, parseCards } from './lib/loc-cards.js?v=202611201435';   // 자리 → 'A-1' 조합(카드 이름·제외 조합 같은 규칙)
-import { initLocSetPanel } from './locset-panel.js?v=202611201435';   // 환경설정 '추천·채우기' 탭(변경 추천 설정·채우기 설정)
+import { escapeHtml as escAttr } from './utils.js?v=202611201642';
+import { cleanRaw, isCostCol, isDroppedHeader, supplierCodeOf } from './lib/sensitive-cols.js?v=202611201642';
+import { multiLocGroups, reserveLocIds, normLocId } from './lib/multi-loc.js?v=202611201642';
+import { codeOfRowB, pickRowB, checkUploadB, checkPermanent, newLocIds } from './lib/upload-check.js?v=202611201642';
+import { orderKeyMap } from './lib/order-hash.js?v=202611201642';
+import { setShellContext } from './app-shell-bridge.js?v=202611201642';
+import { memberNameFor } from './app-shell-data.js?v=202611201642';
+import { menuConfigOf } from './lib/perm.js?v=202611201642';
+import { readHash, writeHash, onHashNav } from './hash-state.js?v=202611201642';
+import { initPageNav } from './page-nav.js?v=202611201642';
+import { initRefillCard } from './refill-card.js?v=202611201642';
+import { initLocRecCard } from './locrec-card.js?v=202611201642';
+import { getLocRecStore, peekLocRecStore } from './locrec-store.js?v=202611201642';   // 오늘 변경 추천 예정 자리·최근 [처리함] 이동(엑셀 경고)
+import { initRebuildBar } from './rebuild-bar.js?v=202611201642';
+import { mountRouteSlot } from './locrec-route-card.js?v=202611201642';
+import { whenPerm, onPerm, canFeature } from './feature-gate.js?v=202611201642';   // 권한 개편 5단계 — 카드는 권한이 확인된 뒤에만 시작
+import { mountBusyBanner, createUploadStatus } from './busy-banner.js?v=202611201642';
+import { uploadBlockText } from './lib/busy-view.js?v=202611201642';
+import { uploadStockView, ezStockView, stockSrcOf, countAuto, autoBadge } from './lib/ez-stock-view.js?v=202611201642';
+import { INCOMING_WAIT_MAX_MS, SHEET_REQ_DAILY_MAX, incomingReadAt, requestServerMs, judgeIncomingSnap, createRunGuard, guardedRun, once, waitTimeoutText } from './lib/incoming-wait.js?v=202611201642';
+import { angleSizeOf, SERVER_DEFAULTS, makeRankers, isEtcLocObj } from './lib/loc-recommend.js?v=202611201642';
+import { comboOf, isExcludedSlot, slotDigits, parseCards } from './lib/loc-cards.js?v=202611201642';   // 자리 → 'A-1' 조합(카드 이름·제외 조합 같은 규칙)
+import { initLocSetPanel } from './locset-panel.js?v=202611201642';   // 환경설정 '추천·채우기' 탭(변경 추천 설정·채우기 설정)
 // 변경 추천 [처리함]이 옮긴 자리의 하루 표시(locRecMove)·오늘 재고 올리기 전 충돌 경고 — 계획·판정은 js/lib/locrec-apply.js
-import { zoneDocIdOf, moveBadge, uploadMoveConflicts, uploadConflictText, isDesignatedEmpty } from './lib/locrec-apply.js?v=202611201435';
-import { dayKey as kstDayKey } from './lib/refill-view.js?v=202611201435';
+import { zoneDocIdOf, moveBadge, uploadMoveConflicts, uploadConflictText, isDesignatedEmpty } from './lib/locrec-apply.js?v=202611201642';
+import { dayKey as kstDayKey } from './lib/refill-view.js?v=202611201642';
 // 마지막 출고일(integrations/locLastOut, 로케이션추천\최근출고.py) — 업로드 '마지막출고.배송일'과 더 최근 값으로 합친다(2026-11-20)
-import { normDay, parseLastOut, laterDay, ezLastOf, cleanupDecision } from './lib/last-out.js?v=202611201435';
+import { normDay, parseLastOut, laterDay, ezLastOf, cleanupDecision } from './lib/last-out.js?v=202611201642';
 
 // 🔐 onclick="fn('...')" 안에 데이터를 넣을 때 반드시 통과시킬 것.
 //    작은따옴표만 막으면 상품명에 " < 역슬래시가 들어올 때 버튼이 동작하지 않거나
@@ -1215,7 +1215,8 @@ window.calc2FList = function() {
         const locIds = locs.map(l => l.id).join(', ');
         const name = firstLoc.name || '';
         const option = firstLoc.option || '';
-        const changeValue = `2F-${code}${extraOpt ? ' ' + extraOpt : ''}`;
+        // 변경값 = 옵션추가항목1(비축 위치)만 — 2F 창고를 안 써서 '2F-코드' 를 뺐다(2026-11-20 사용자 결정). 없으면 빈 값
+        const changeValue = String(extraOpt || '').trim();
 
         window.current2FList.push({
             code, name, option, supplier, totalStock, lastDelivery: lastDelivery || '기록없음',
