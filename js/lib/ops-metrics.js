@@ -25,11 +25,11 @@
 //
 // DOM·State 를 쓰지 않는다(appConfig·이력은 인자로) — node 시험(tests/ops-metrics.test.js)과 비교 도구(tools/ops-metrics-compare.mjs)가 그대로 부른다.
 
-import { buildMemberHourlyWageMap, getWeekOfYear, toDateString } from '../utils.js?v=202611231557';
-import { attendedMembers, presenceStats, isAttendanceEstimated, systemAccountSet, validMemberNames } from '../attendance-stats.js?v=202611231557';
-import { dailyTaskStats, taskSpeedPerMinute, RECENT_SPEED } from '../task-throughput.js?v=202611231557';
-import { revenueTotalOf, orderCountTotalOf } from '../revenue-channels.js?v=202611231557';
-import { TASK, isTask } from './task-ids.js?v=202611231557';
+import { buildMemberHourlyWageMap, getWeekOfYear, toDateString } from '../utils.js?v=202611231612';
+import { attendedMembers, presenceStats, isAttendanceEstimated, systemAccountSet, validMemberNames } from '../attendance-stats.js?v=202611231612';
+import { dailyTaskStats, taskSpeedPerMinute, RECENT_SPEED } from '../task-throughput.js?v=202611231612';
+import { revenueTotalOf, orderCountTotalOf } from '../revenue-channels.js?v=202611231612';
+import { TASK, isTask } from './task-ids.js?v=202611231612';
 
 const trim = (v) => (v == null ? '' : String(v).trim());
 const arr = (v) => (Array.isArray(v) ? v : (v && typeof v === 'object' ? Object.values(v) : []));
@@ -192,7 +192,11 @@ export function dayStaff(day, appConfig, speeds = null) {
     const stdHours = stdDailyHoursOf(day?.id, appConfig);
     const presence = presenceStats(day, appConfig, attended);
     const usedPresence = presence.counted > 0;
-    const availHours = usedPresence ? presence.avgMinutesPerPerson / 60 : stdHours;
+    // 1인 재실시간 — 퇴근 기록이 있는 사람은 재실시간, 없는 사람은 표준 근무시간으로 섞어 평균한다(2026-11-23).
+    //   예전엔 퇴근을 찍은 한두 명의 짧은 재실(최소 1시간)만으로 평균을 내, 그날 필요 인원이 수십~수백 명으로 튀었다(12/11·12/22 등)
+    const notCounted = Math.max(0, attended.size - presence.counted);
+    const availHours = !usedPresence ? stdHours
+        : (presence.avgMinutesPerPerson * presence.counted + stdHours * 60 * notCounted) / ((presence.counted + notCounted) * 60);
 
     // 손실·가동률의 분자·분모는 같은 사람 집합 — 재실시간은 퇴근 기록이 있는 사람만 잡힌다
     let potential, workedForLoss, potentialMembers;
@@ -247,7 +251,7 @@ export function staffing(days, appConfig, { speeds = null } = {}) {
         sumWorked += s.workers.size;
         if (s.estimated) estimatedDays++;
         offRosterMinutes += s.offRosterMinutes;
-        if (s.usedPresence) { sumPresenceMinutes += s.presence.avgMinutesPerPerson; presenceDays++; }
+        if (s.usedPresence) { sumPresenceMinutes += s.availHours * 60; presenceDays++; }   // 필요 인원과 같은 1인 재실(퇴근 기록 없는 사람 = 표준시간, 2026-11-23)
         else stdHourDays++;
         sumRequired += s.requiredFTE;
         donutWorkMinutes += s.workedForLoss;

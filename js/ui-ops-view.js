@@ -9,23 +9,23 @@
 // 담당 변화(직원 이름·사람별 UPH)는 data.reports(ctx.canOwner)일 때만 그린다 — 없으면 '권한이 없습니다', 요약은 건수만.
 // ⚠️ role=dialog·data-act 금지(업무마감봇 선택자). 직원 이름·금액을 콘솔에 찍지 않는다. 모델에는 직원 이름이 없다.
 
-import * as State from './state.js?v=202611231557';
-import { escapeHtml, escapeHtml as esc, getTodayDateString } from './utils.js?v=202611231557';   // escapeHtml 도 같이(2026-11-12 이스케이프 수정이 이름으로 불러 요약 탭이 깨졌다)
-import { aliasHistoryView } from './lib/task-alias-view.js?v=202611231557';
-import { buildOpsModel, opsModelInputs, OPS_VIEW_LEVELS } from './lib/ops-view-model.js?v=202611231557';
-import { revenueTotalOf } from './revenue-channels.js?v=202611231557';
-import { D, alpha } from './d-chart.js?v=202611231557';
-import { renderStaffingOutlook } from './ui-history-staffing.js?v=202611231557';
-import { ensureMibalHistory, ensureCorrectCtx } from './ui-history-prediction.js?v=202611231557';
-import { fetchPlannedData } from './history-data-manager.js?v=202611231557';
-import { renderFillErrorSection, destroyFillErrorCharts } from './ui-history-productivity.js?v=202611231557';
-import { renderReportDaily, renderReportWeekly, renderReportMonthly, renderReportYearly } from './ui-history-reports.js?v=202611231557';
-import { taskListOf } from './lib/task-owner.js?v=202611231557';
-import { TASK, tName } from './task-names.js?v=202611231557';
-import { higherOpenThan } from './modal-above.js?v=202611231557';
-import { buildOwnerAdvice, adviceForOutput } from './lib/plan-owner-advice.js?v=202611231557';
-import { PEOPLE_NOTE } from './lib/plan-skills.js?v=202611231557';
-import { nextWeekAvailable } from './ui-ops-plan-people.js?v=202611231557';
+import * as State from './state.js?v=202611231612';
+import { escapeHtml, escapeHtml as esc, getTodayDateString } from './utils.js?v=202611231612';   // escapeHtml 도 같이(2026-11-12 이스케이프 수정이 이름으로 불러 요약 탭이 깨졌다)
+import { aliasHistoryView } from './lib/task-alias-view.js?v=202611231612';
+import { buildOpsModel, opsModelInputs, OPS_VIEW_LEVELS } from './lib/ops-view-model.js?v=202611231612';
+import { revenueTotalOf } from './revenue-channels.js?v=202611231612';
+import { D, alpha } from './d-chart.js?v=202611231612';
+import { renderStaffingOutlook } from './ui-history-staffing.js?v=202611231612';
+import { ensureMibalHistory, ensureCorrectCtx } from './ui-history-prediction.js?v=202611231612';
+import { fetchPlannedData } from './history-data-manager.js?v=202611231612';
+import { renderFillErrorSection, destroyFillErrorCharts } from './ui-history-productivity.js?v=202611231612';
+import { renderReportDaily, renderReportWeekly, renderReportMonthly, renderReportYearly } from './ui-history-reports.js?v=202611231612';
+import { taskListOf } from './lib/task-owner.js?v=202611231612';
+import { TASK, tName } from './task-names.js?v=202611231612';
+import { higherOpenThan } from './modal-above.js?v=202611231612';
+import { buildOwnerAdvice, adviceForOutput } from './lib/plan-owner-advice.js?v=202611231612';
+import { PEOPLE_NOTE } from './lib/plan-skills.js?v=202611231612';
+import { nextWeekAvailable } from './ui-ops-plan-people.js?v=202611231612';
 
 const $ = (id) => document.getElementById(id);
 
@@ -343,7 +343,7 @@ function renderStaffing(host, foldsHost, c) {
         </div>`;
         // 처리량 입력 전인 날은 빼고(모델 집계 shortAll·spareAll 과 같게)
         const rows = m.staffDays.filter(d => ok(d.gap) && d.required > 0 && d.qty > 0 && (d.gap < -0.5 || d.gap > 1)).map(d => `<tr class="${d.gap < -0.5 ? 'is-short' : ''}">
-            <td>${fmtDay(d.date)}${d.estimated ? ' <span class="opv-chip" title="출퇴근 기록이 없어 추정">추정</span>' : ''}</td>
+            <td>${dayLinkHtml(d.date, fmtDay(d.date))}${d.estimated ? ' <span class="opv-chip" title="출퇴근 기록이 없어 추정">추정</span>' : ''}</td>
             <td class="r">${escapeHtml(n0(d.attended))}</td><td class="r">${escapeHtml(n0(d.worked))}</td><td class="r">${escapeHtml(n1(d.required))}</td>
             <td class="r"><b class="${d.gap < -0.5 ? 'opv-down' : 'opv-up'}">${escapeHtml(signed1(d.gap))}</b></td>
             <td>${verdictHtml(d.verdict)}</td></tr>`).join('');
@@ -422,8 +422,19 @@ function renderCost(host, c) {
  * 탭 하나 그리기. ctx = { gran, key, canCost, canTaskTable }.
  * 그리기 전에 이 화면 차트를 정리한다(지금 보이는 탭만 차트가 있다).
  */
+/** 스크롤되는 칸 — 운영 리포트는 #ops-panel 안의 지금 보이는 탭 칸(.ops-pane, overflow-y:auto)이 스크롤된다 */
+function scrollHostOf(panelEl) {
+    return panelEl ? panelEl.querySelector('.ops-pane:not(.hidden)') : null;
+}
+
 export function renderOpsTab(tab, ctx) {
     bindOnce();
+    // 다른 날짜·기간을 골라 다시 그려도 펼쳐 둔 칸(부족·여유 일자 등)과 스크롤 위치를 그대로 둔다(2026-11-23 사용자 요청 —
+    //   예전엔 innerHTML 을 새로 넣으며 접히고, 내용이 짧아져 화면이 맨 위로 갔다)
+    const panelEl = $('ops-panel');
+    const openFolds = panelEl ? [...panelEl.querySelectorAll('details.opv-fold[open]')].map(d => d.dataset.fold).filter(Boolean) : [];
+    const sh = panelEl ? scrollHostOf(panelEl) : null;
+    const keepTop = sh ? sh.scrollTop : 0;
     destroyOpsCharts();
     const c = modelFor(ctx);
     lastCtx = ctx || {};
@@ -436,6 +447,18 @@ export function renderOpsTab(tab, ctx) {
     else if (tab === 'cost') renderCost($('ops-cost-body'), c);
     // 업무 상세가 열린 채 기간이 바뀌었으면 머리 숫자도 새 기간으로
     if (isTaskDetailOpen() && detailTask) fillDetailHead(detailTask);
+    // 펼쳐 둔 칸 다시 펼치기(toggle 이 차트를 그린다) · 스크롤 되돌리기
+    if (panelEl && openFolds.length) {
+        panelEl.querySelectorAll('details.opv-fold').forEach(d => { if (openFolds.includes(d.dataset.fold) && !d.open) d.open = true; });
+    }
+    if (sh && keepTop > 0) { sh.scrollTop = keepTop; requestAnimationFrame(() => { sh.scrollTop = keepTop; }); }
+}
+
+/** 날짜 → 그날 업무 이력(업무 기록·처리량) 화면 주소 — 데이터 관리 해시 이동(js/view-state.js, js/hash-state.js) */
+function dayLinkHtml(id, label) {
+    const href = `history.html#tab=rawdata&sub=work&gran=day&date=${encodeURIComponent(id)}`;
+    const onHistory = !!document.getElementById('history-section-nav') && !document.getElementById('dash-root');   // 데이터 관리 페이지(대시보드 안 창이 아님)
+    return `<a class="opv-day-link" href="${escapeHtml(href)}"${onHistory ? '' : ' target="_blank" rel="noopener"'} title="이 날 업무 이력(업무 기록·처리량) 보기">${label}</a>`;
 }
 
 /** 상세 표(옛 업무 리포트의 표 4개) — 펼쳐 보기를 열었을 때와 기간이 바뀌었을 때. 단위별 칸 하나만 보인다. */
@@ -486,7 +509,7 @@ export function openTaskDetail(task, ctx = null) {
         if (sec) sec.innerHTML = empty('권한이 없습니다. 담당 변화는 리포트 권한이 있어야 보입니다.');
     } else if (task && cache && cache.ownerTasks && !cache.ownerTasks.has(task)) {
         if (sec) sec.innerHTML = empty('이 업무는 담당 변화 대상이 아닙니다(관리자 개별업무 또는 최근 13개월 기록 없음).');
-    } else import('./ui-history-task-owner.js?v=202611231557').then(mod => {
+    } else import('./ui-history-task-owner.js?v=202611231612').then(mod => {
         mod.renderTaskOwnerTab(task ? { task } : {});
     }).catch(err => {
         console.error('taskowner module load failed:', err && err.message);
@@ -576,7 +599,7 @@ function bindOnce() {
             const host = $('ops-milestones-widget');
             if (host && !host.dataset.done) {
                 host.dataset.done = '1';
-                import('./ui-history-milestones.js?v=202611231557').then(mod => mod.renderMilestonesInsightWidget(host))
+                import('./ui-history-milestones.js?v=202611231612').then(mod => mod.renderMilestonesInsightWidget(host))
                     .catch(err => { console.warn('milestones widget load failed:', err && err.message); host.innerHTML = empty('마일스톤을 불러오지 못했습니다.'); });
             }
         }
