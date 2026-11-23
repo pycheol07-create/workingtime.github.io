@@ -138,6 +138,12 @@ export const overallUph = (days) => {
     return minutes > 0 ? qty / (minutes / 60) : 0;
 };
 
+/** 최근 속도(평상시 속도) 기준 — 업무 예상(js/ui-history-prediction.js computeTaskUPHs)과 운영 리포트·운영 계획
+ *  (js/lib/ops-metrics.js baselineSpeeds recentDays)이 **같이** 쓰는 한 벌(2026-11-23 사용자 요청: 같은 내용이니 늘 맞게).
+ *  최근 28일 · 하루 속도의 가운데값(종료 안 누른 기록이 합계를 끌어내리는 것을 막음) · 10분 미만 기록 날 제외 · 표본 3일 미만이면 합계.
+ *  minTaskMinutes = 그 창에서 이보다 적게 한 업무는 표본이 모자람(업무 예상: 새 업무 0, 운영 리포트: 전체 기간 합계로). */
+export const RECENT_SPEED = Object.freeze({ days: 28, mode: 'dailyMedian', minMinutes: 10, minSamples: 3, minTaskMinutes: 60 });
+
 /** 최근 N일(달력 기준) 만 남긴다. 기준일을 넘기지 않으면 오늘. */
 export const recentDays = (days, windowDays, todayStr) => {
     const base = todayStr || new Date().toISOString().slice(0, 10);

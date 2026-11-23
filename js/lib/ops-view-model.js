@@ -12,13 +12,13 @@
 
 import {
     opsSummary, periodMetrics, partSummary, baselineSpeeds, lastDayIdOf, previousPeriodOf, rollingBaselineOf,
-    periodDaysOf, PARTS, OEE_LEVELS, OVERLOAD_UTIL, overloadUtilOf
-} from './ops-metrics.js?v=202611231535';
-import { taskNameOf, TASK } from './task-ids.js?v=202611231535';
-import { aliasTaskName } from './task-alias-view.js?v=202611231535';
-import { taskListOf, ownerByPeriod, detectOwnerChanges, CAP_MINUTES } from './task-owner.js?v=202611231535';
-import { dailyTaskStats } from '../task-throughput.js?v=202611231535';
-import { AUTO_END_TIME } from './record-close.js?v=202611231535';
+    periodDaysOf, PARTS, OEE_LEVELS, OVERLOAD_UTIL, overloadUtilOf, periodSpeeds
+} from './ops-metrics.js?v=202611231557';
+import { taskNameOf, TASK } from './task-ids.js?v=202611231557';
+import { aliasTaskName } from './task-alias-view.js?v=202611231557';
+import { taskListOf, ownerByPeriod, detectOwnerChanges, CAP_MINUTES } from './task-owner.js?v=202611231557';
+import { dailyTaskStats } from '../task-throughput.js?v=202611231557';
+import { AUTO_END_TIME } from './record-close.js?v=202611231557';
 
 /** 판정 기준 — 진단 문장·부족/여유 일자가 같이 쓴다. */
 export const OPS_VIEW_LEVELS = Object.freeze({
@@ -306,10 +306,12 @@ export function buildOpsModel({
 } = {}) {
     const list = Array.isArray(days) ? days : [];
     const L = OPS_VIEW_LEVELS;
-    const speeds = baselineSpeeds(allDays, { skipDate: today, until: lastDayIdOf(list) });
-    const sum = opsSummary(list, prevDays, allDays, cfg, { speeds, skipDate: today });
+    // 평상시 속도 = 각 기간 직전 최근 4주(2026-11-23 사용자 결정 — 전체 기간 평균은 요즘보다 느려 필요 인원이 많게 나왔다).
+    //   이번 기간·전기·평소 비교가 각자 자기 직전 4주로 잰다(periodSpeeds) — 한쪽만 자기 기간이 섞이지 않게
+    const speeds = periodSpeeds(allDays, list, { skipDate: today });
+    const sum = opsSummary(list, prevDays, allDays, cfg, { speeds, prevSpeeds: periodSpeeds(allDays, prevDays, { skipDate: today }), skipDate: today });
     const { cur, prev, wageMap } = sum;
-    const base = periodMetrics(baselineDays || [], cfg, { speeds, wageMap });
+    const base = periodMetrics(baselineDays || [], cfg, { speeds: periodSpeeds(allDays, baselineDays, { skipDate: today }), wageMap });
     const hasPrev = prev.staffing.dayCount > 0;
     const hasBase = base.staffing.dayCount > 0;
     const hasBaseline = cur.staffing.hasBaseline;

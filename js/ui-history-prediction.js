@@ -3,51 +3,52 @@
 //  - renderPredictionTab: 실적 예측 탭 (차트/KPI)
 //  - renderForecastTab: 업무 예상 탭 (시뮬레이션·요약 카드)
 
-import { predictFutureTrends } from './analysis-logic.js?v=202611231535';
+import { predictFutureTrends } from './analysis-logic.js?v=202611231557';
 import { doc, getDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { mibalByArrival, makeArrivalLookup, makeArrivalsLookup } from './lib/mibal-forecast.js?v=202611231535';
-import { parseInspPacks, sampleCardsByArrival } from './lib/insp-packs.js?v=202611231535';
-import { inspListCountFor } from './lib/insp-day.js?v=202611231535';
-import { getSubscribedDate } from './app-sync.js?v=202611231535';
-import { runDay } from './lib/refill-view.js?v=202611231535';
-import { parseRecDay, pickRecDay, recCount, applyLocRecCount, dayKey as recDayKey } from './lib/locrec-view.js?v=202611231535';
-import { LOCREC_TASK } from './lib/feature-catalog.js?v=202611231535';
-import { TASK, tName, isT, tQty } from './task-names.js?v=202611231535';
-import { systemIdOfName, taskIdOf } from './lib/task-ids.js?v=202611231535';
+import { mibalByArrival, makeArrivalLookup, makeArrivalsLookup } from './lib/mibal-forecast.js?v=202611231557';
+import { parseInspPacks, sampleCardsByArrival } from './lib/insp-packs.js?v=202611231557';
+import { inspListCountFor } from './lib/insp-day.js?v=202611231557';
+import { getSubscribedDate } from './app-sync.js?v=202611231557';
+import { runDay } from './lib/refill-view.js?v=202611231557';
+import { parseRecDay, pickRecDay, recCount, applyLocRecCount, dayKey as recDayKey } from './lib/locrec-view.js?v=202611231557';
+import { LOCREC_TASK } from './lib/feature-catalog.js?v=202611231557';
+import { TASK, tName, isT, tQty } from './task-names.js?v=202611231557';
+import { systemIdOfName, taskIdOf } from './lib/task-ids.js?v=202611231557';
 import { LEGACY_SIM_TASKS, legacySimTasksOf, namesOf, timeTaskExcludeOf, DEFAULT_SIM_ALWAYS_TASKS, DEFAULT_SIM_ZERO_TASKS,
          DEFAULT_FORECAST_EXCLUDED_TASKS, DEFAULT_LOADOUT_SOURCES, defaultAutoModeOf, defaultTimeTaskDepsOf,
-         isDefaultNextDayDep, defaultPrecursorMapOf, transmitTaskIdOf } from './lib/forecast-task-ids.js?v=202611231535';
-import { summarizeTransmitChunks, transmitValueFor, transmitNoneFor, lastWorkedDayBefore, lockedTransmitNone, mergeTransmitByDate, TRANSMIT_SOURCES } from './lib/ship-transmit.js?v=202611231535';
-import { precursorOffGate, noneNextStats, noneNextObs, precursorStateOfDay as precursorStateOfDayLib, looksRecorded } from './lib/cadence-gate.js?v=202611231535';
-import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202611231535';
-import * as State from './state.js?v=202611231535';
-import { saveView } from './view-state.js?v=202611231535';
-import { getTodayDateString, getRegularMembersForCount, showToast, showConfirm, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202611231535';
-import { groupIncomingRowsByArrival } from './widget-incoming-schedule.js?v=202611231535';
+         isDefaultNextDayDep, defaultPrecursorMapOf, transmitTaskIdOf } from './lib/forecast-task-ids.js?v=202611231557';
+import { summarizeTransmitChunks, transmitValueFor, transmitNoneFor, lastWorkedDayBefore, lockedTransmitNone, mergeTransmitByDate, TRANSMIT_SOURCES } from './lib/ship-transmit.js?v=202611231557';
+import { precursorOffGate, noneNextStats, noneNextObs, precursorStateOfDay as precursorStateOfDayLib, looksRecorded } from './lib/cadence-gate.js?v=202611231557';
+import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202611231557';
+import * as State from './state.js?v=202611231557';
+import { saveView } from './view-state.js?v=202611231557';
+import { getTodayDateString, getRegularMembersForCount, showToast, showConfirm, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202611231557';
+import { groupIncomingRowsByArrival } from './widget-incoming-schedule.js?v=202611231557';
 import { getIncomingQtyByDateFromCache, getIncomingDetailsByDateFromCache,
-         isIncomingCacheFreshToday } from './widget-incoming-schedule.js?v=202611231535';
+         isIncomingCacheFreshToday } from './widget-incoming-schedule.js?v=202611231557';
 import { getPlannedQuantitiesForDate, getPlannedTimeTasksForDate, getPlannedExcludeMinutesForDate, getPlannedAdminWorkersForDate,
          fetchPlannedData, savePlannedQuantities,
          saveForecastSnapshot, saveForecastSnapshotIfAbsent, deleteForecastSnapshot, fetchForecastSnapshots,
-         getForecastSnapshotForDate, historyLoadFailed, hasHistoryLoaded, fetchAllHistoryData } from './history-data-manager.js?v=202611231535';
-import { decomposeAccuracy, summarizeAccuracyRows, aggregateByTask, excludeTasksForAccuracy } from './forecast-accuracy.js?v=202611231535';
+         getForecastSnapshotForDate, historyLoadFailed, hasHistoryLoaded, fetchAllHistoryData } from './history-data-manager.js?v=202611231557';
+import { decomposeAccuracy, summarizeAccuracyRows, aggregateByTask, excludeTasksForAccuracy } from './forecast-accuracy.js?v=202611231557';
 import { computeDayProgress, buildProgressRows, projectFinish, spentMinutesOf,
-         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202611231535';
-import { LUNCH_END_MIN } from './lib/calc.js?v=202611231535';
+         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202611231557';
+import { LUNCH_END_MIN } from './lib/calc.js?v=202611231557';
 import { applyAdminWorkers, normalizeAdminWorkers, ADMIN_TASK_ID, DEFAULT_ADMIN_WORKERS,
-         buildExcludedProgressRows, excludedActualByTask } from './lib/forecast-exclude.js?v=202611231535';
-import { taskUph, recentDays } from './task-throughput.js?v=202611231535';
+         buildExcludedProgressRows, excludedActualByTask } from './lib/forecast-exclude.js?v=202611231557';
+import { taskUph, recentDays, RECENT_SPEED } from './task-throughput.js?v=202611231557';
+import { normalizedUtilization } from './lib/ops-metrics.js?v=202611231557';
 import { foldReasonFor, FOLD_REASON_TEXT, shouldSaveQty, shouldSaveTime,
-         normalizeTimeEntry } from './lib/sim-fold.js?v=202611231535';
+         normalizeTimeEntry } from './lib/sim-fold.js?v=202611231557';
 import { learnCarryPerOffDay, backlogFactor, carryReason, carrySourceNote,
          DEFAULT_CARRY, resolveBacklogTasks, carriedQty,
-         excessOffDays } from './lib/backlog-carry.js?v=202611231535';
-import { D } from './d-chart.js?v=202611231535';
-import { aliasHistoryView, aliasNameMap, aliasSnapshot, aliasTaskName, sameTaskKeys } from './lib/task-alias-view.js?v=202611231535';
-import { withCorrected, correctSnapRange, correctInputOf, NOTE_CALC_FAILED, NOTE_SNAP_FETCH_FAILED } from './lib/forecast-correct-snap.js?v=202611231535';
-import { correctPlan, toAccuracySnap } from './lib/forecast-correct.js?v=202611231535';
+         excessOffDays } from './lib/backlog-carry.js?v=202611231557';
+import { D } from './d-chart.js?v=202611231557';
+import { aliasHistoryView, aliasNameMap, aliasSnapshot, aliasTaskName, sameTaskKeys } from './lib/task-alias-view.js?v=202611231557';
+import { withCorrected, correctSnapRange, correctInputOf, NOTE_CALC_FAILED, NOTE_SNAP_FETCH_FAILED } from './lib/forecast-correct-snap.js?v=202611231557';
+import { correctPlan, toAccuracySnap } from './lib/forecast-correct.js?v=202611231557';
 import { correctedInputs, planBaseOf, noExtraKeysOf, RESERVE_KEY, presenceSureKeys, presenceDoneKeys,
-         maybeAltKeys, maybeBasisOf } from './lib/forecast-correct-apply.js?v=202611231535';
+         maybeAltKeys, maybeBasisOf } from './lib/forecast-correct-apply.js?v=202611231557';
 
 /** 🆔 계산용 이력 — 업무 이름을 바꾼 뒤에도 옛 이름 기록을 지금 이름으로 합쳐 본 사본(업무 id 3단계).
  *  원본(State.allHistoryData)과 저장은 그대로다. 이 파일은 이력을 읽기만 하고 저장하지 않는다.
@@ -442,7 +443,8 @@ const getPlannedTime = (dateStr, taskKey) => {
 };
 
 const LEAVE_OFF_TYPES = new Set(['연차', '결근', '휴직', '출장', '매장근무']);
-const UTILIZATION = 0.8;
+// 가동률 = 설정값(appConfig.utilizationRate, 없으면 80%) — 운영 리포트·운영 계획과 같은 함수(2026-11-23, 같은 내용이니 늘 맞게)
+const UTILIZATION_OF = () => normalizedUtilization(State.appConfig);
 // 업무 제외시간 입력 단위(분)
 const EXCLUDE_STEP_MIN = 10;
 
@@ -559,7 +561,7 @@ const 오늘실적_없이 = (fn) => {
 
 /** 작업별 최근 4주 UPH(개/시) = Σ 처리량 ÷ Σ 그 작업 투입시간.
  *  계산 자체는 js/task-throughput.js 한 곳에 모여 있다(화면마다 다른 답이 나오지 않도록). */
-const UPH_MIN_MINUTES_NEW = 60;   // 새로 편입된 업무의 최소 표본(최근 4주 총 투입시간)
+const UPH_MIN_MINUTES_NEW = RECENT_SPEED.minTaskMinutes;   // 새로 편입된 업무의 최소 표본(최근 4주 총 투입시간) — 운영 리포트와 같은 값
 
 // 빈도형 업무 판정 기준 — '그날 진행할 확률'을 요일 + 연속성으로 추정한다.
 //   과거 데이터 검증: 날짜 적중은 정밀도 66% / 재현율 61%가 한계다(주간 횟수는 잘 맞는다).
@@ -581,7 +583,7 @@ const PRECURSOR_SURE_MIN = 4;
 
 const computeTaskUPHs = (historyData) => {
     const today = getTodayDateString();
-    const days = recentDays(historyData, 28, today);
+    const days = recentDays(historyData, RECENT_SPEED.days, today);   // 창·방식은 운영 리포트와 같은 한 벌(RECENT_SPEED)
     // ⚠️ 합계(Σ물량÷Σ시간)가 아니라 '하루 속도의 가운데값'을 쓴다.
     //    기록을 시작하고 '종료'를 안 누른 건이 쌓여 있어(전체 830건·2,374시간),
     //    그런 날은 그 업무 시간이 하루 끝까지 잡혀 분모가 통째로 부푼다.
@@ -594,7 +596,7 @@ const computeTaskUPHs = (historyData) => {
     //    minSamples 3 — 표본 1~2개짜리 중앙값은 이상치 저항이 0 이라, 그럴 땐 합계로 돌아간다
     //    (실측: 로케이션 동선관리는 표본 2일뿐이라 중앙값이 합계의 절반으로 튀었다)
     const uph = taskUph(days, {
-        mode: 'dailyMedian', minMinutes: 10, skipDate: today, minSamples: 3,
+        mode: RECENT_SPEED.mode, minMinutes: RECENT_SPEED.minMinutes, skipDate: today, minSamples: RECENT_SPEED.minSamples,
         tasks: new Set(SIM_TASKS.map(t => t.key))
     });
 
@@ -2874,7 +2876,7 @@ const simulateOneDay = (dateStr, inputs, taskUPH, config) => {
     //    (예전에는 담당 업무 시간에도 전체 인원이 물량 업무를 하는 것으로 계산돼 시간이 짧게 나왔다)
     const tiedFTE = netDailyHours > 0 ? timeHours / netDailyHours : 0;
     const qtyStaff = Math.max(0, availableTotal - tiedFTE);
-    const qtyRate = qtyStaff * UTILIZATION;                 // 물량 업무에 붙는 팀의 시간당 처리 인시
+    const qtyRate = qtyStaff * UTILIZATION_OF();                 // 물량 업무에 붙는 팀의 시간당 처리 인시
     const staffShortForQty = qtyHours > 0 && qtyRate <= 0;  // 담당 업무가 인원을 다 먹은 경우
     const qtyElapsed = qtyRate > 0 ? qtyHours / qtyRate : 0;
     Object.keys(taskTimes).forEach(k => {
@@ -2883,7 +2885,7 @@ const simulateOneDay = (dateStr, inputs, taskUPH, config) => {
 
     // ④ 필요 인원 — 물량 업무는 가동률을 감안하고, 담당 업무는 실제 시간 그대로 더한다
     const rawRequiredFTE = netDailyHours > 0
-        ? (qtyHours / UTILIZATION + timeHours) / netDailyHours
+        ? (qtyHours / UTILIZATION_OF() + timeHours) / netDailyHours
         : 0;
     const requiredFTE = Math.round(rawRequiredFTE);
     const gap = availableTotal - requiredFTE;
@@ -2895,7 +2897,7 @@ const simulateOneDay = (dateStr, inputs, taskUPH, config) => {
     //  - slackHours   : 다 끝내고 남는 시간(+) / 정규 시간을 넘기는 시간(-)
     const elapsedHours = Math.max(qtyElapsed, timeElapsedFloor);
     const elapsedCappedByTimeTask = timeElapsedFloor > qtyElapsed && timeElapsedFloor > 0;
-    const capacityHours = availableTotal * netDailyHours * UTILIZATION;   // 그날 처리 가능한 인시
+    const capacityHours = availableTotal * netDailyHours * UTILIZATION_OF();   // 그날 처리 가능한 인시
     const slackHours = netDailyHours - elapsedHours;
 
     return {
@@ -3406,7 +3408,7 @@ const renderSimResult = (results, taskUPH, mode, scenario = {}) => {
 
         container.innerHTML = `
         ${cardOpen(`${dayLabel(r.date)}${offDayChip(r, { lead: 'ml-1' })} ${correctionBadge(r)}`,
-                   `기준 UPH 최근 4주 평균 · 1일 ${r.dailyHours}h${r.excludeMinutes > 0 ? ` − 제외 ${fmtMin(r.excludeMinutes)} = ${fmtHM(r.netDailyHours)}` : ''} · 가동률 ${(UTILIZATION*100)|0}%`)}
+                   `기준 UPH 최근 4주 평균 · 1일 ${r.dailyHours}h${r.excludeMinutes > 0 ? ` − 제외 ${fmtMin(r.excludeMinutes)} = ${fmtHM(r.netDailyHours)}` : ''} · 가동률 ${(UTILIZATION_OF()*100)|0}%`)}
             <div class="p-4 md:p-5 space-y-4">
                 <!-- 판단에 필요한 숫자 셋만 크게. 나머지 근거는 아래 '업무별 상세'에 접어 둔다. -->
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
@@ -3619,7 +3621,7 @@ export const getStaffingOutlook = (workDays = 10, opts = {}) => {
             //    taskHours = 업무별 '사람 시간'(필요 인원 계산과 같은 단위: 물량 업무는 가동률로 나눈 값, 시간 업무는 그대로)
             //    → 합 = rawRequiredFTE × netDailyHours.
             const taskHours = {};
-            Object.entries(r.taskTimes || {}).forEach(([k, v]) => { const h = Number(v && v.hours) || 0; if (h > 0) taskHours[k] = (taskHours[k] || 0) + h / UTILIZATION; });
+            Object.entries(r.taskTimes || {}).forEach(([k, v]) => { const h = Number(v && v.hours) || 0; if (h > 0) taskHours[k] = (taskHours[k] || 0) + h / UTILIZATION_OF(); });
             Object.entries(r.timeTaskTimes || {}).forEach(([k, v]) => { const h = Number(v && v.hours) || 0; if (h > 0) taskHours[k] = (taskHours[k] || 0) + h; });
             // 📐 보정 계획의 계획 밖 반복 업무도 그 업무의 사람 시간으로 넣는다. 돌발 여유는 업무가 없어 reserveHours 로만 준다
             //    (보정이 걸린 날은 taskHours 합 + reserveHours = rawRequiredFTE × netDailyHours).
@@ -4052,7 +4054,7 @@ const forecastCardHtml = (label, r, inputs, simLinked = false) => {
         </div>
 
         <div class="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px] text-gray-500 dark:text-gray-400">
-            <span>1일 ${escapeHtml(r.dailyHours)}h${escapeHtml(r.excludeMinutes > 0 ? ` − 제외 ${fmtMin(r.excludeMinutes)}` : '')} · 가동률 ${escapeHtml((UTILIZATION*100)|0)}%</span>
+            <span>1일 ${escapeHtml(r.dailyHours)}h${escapeHtml(r.excludeMinutes > 0 ? ` − 제외 ${fmtMin(r.excludeMinutes)}` : '')} · 가동률 ${escapeHtml((UTILIZATION_OF()*100)|0)}%</span>
             ${(r.timeHours - correctionExtraOf(r)) > 0 ? `<span class="text-gray-300 dark:text-gray-600">·</span><span title="처리량이 없는 담당 업무의 예상 투입시간(실적 평균)">담당 업무 ${escapeHtml(fmtHM(r.timeHours - correctionExtraOf(r)))}</span>` : ''}
             ${correctionExtraOf(r) > 0 ? `<span class="text-gray-300 dark:text-gray-600">·</span><span title="보정 계획이 더한 시간 — 계획 밖 반복 업무 ${escapeHtml(fmtHM(extraTaskHoursOf(r)))} · 돌발 여유 ${escapeHtml(fmtHM(r.correction?.reserveHours || 0))}">보정 추가 ${escapeHtml(fmtHM(correctionExtraOf(r)))}</span>` : ''}
             ${r.correction?.applied && r.raw ? `<span class="text-gray-300 dark:text-gray-600">·</span><span>보정 전 ${escapeHtml(r.raw.requiredFTE)}명 · ${(r.raw.totalHours || 0).toFixed(1)}시간</span>` : ''}

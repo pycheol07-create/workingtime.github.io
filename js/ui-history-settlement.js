@@ -3,12 +3,12 @@
 // 한 화면에 상세하게 요약해서 보여주는 보고서 탭. 각 섹션의 실제 계산은 기존 모듈의 재사용 함수를 그대로 사용하고,
 // 이 파일은 "기간 해석 + 심층 집계 + 보고서 렌더링"을 담당한다.
 
-import * as State from './state.js?v=202611231535';
-import { LEAVE_TYPES } from './state.js?v=202611231535';
-import { getRegularMembersForCount, formatDuration, buildMemberHourlyWageMap, getTodayDateString, escapeHtml, escapeHtml as esc } from './utils.js?v=202611231535';   // escapeHtml 도 같이(2026-11-12 이스케이프 수정이 이름으로 불러 정산 화면이 깨졌다)
+import * as State from './state.js?v=202611231557';
+import { LEAVE_TYPES } from './state.js?v=202611231557';
+import { getRegularMembersForCount, formatDuration, buildMemberHourlyWageMap, getTodayDateString, escapeHtml, escapeHtml as esc } from './utils.js?v=202611231557';   // escapeHtml 도 같이(2026-11-12 이스케이프 수정이 이름으로 불러 정산 화면이 깨졌다)
 import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { matchesFilter, hasFilter, filterCount, openFloatingFilter, closeFloatingFilter } from './table-filter.js?v=202611231535';
-import { bindDrillListeners, drillWrap } from './settlement-drill.js?v=202611231535';
+import { matchesFilter, hasFilter, filterCount, openFloatingFilter, closeFloatingFilter } from './table-filter.js?v=202611231557';
+import { bindDrillListeners, drillWrap } from './settlement-drill.js?v=202611231557';
 
 import {
     calculateReportKPIs,
@@ -18,14 +18,14 @@ import {
     calculateBenchmarkOEE,
     generateProductivityDiagnosis,
     analyzeUnitCost
-} from './ui-history-reports-logic.js?v=202611231535';
+} from './ui-history-reports-logic.js?v=202611231557';
 
-import { aggregateManagementData } from './ui-history-management.js?v=202611231535';
-import { ensureMilestonesLoaded, getMilestoneSummariesForPeriod } from './ui-history-milestones.js?v=202611231535';
-import { D } from './d-chart.js?v=202611231535';
-import { aliasHistoryView } from './lib/task-alias-view.js?v=202611231535';
-import { baselineSpeeds, lastDayIdOf, opsSummary, OEE_LEVELS } from './lib/ops-metrics.js?v=202611231535';
-import { revenueTotalOf } from './revenue-channels.js?v=202611231535';
+import { aggregateManagementData } from './ui-history-management.js?v=202611231557';
+import { ensureMilestonesLoaded, getMilestoneSummariesForPeriod } from './ui-history-milestones.js?v=202611231557';
+import { D } from './d-chart.js?v=202611231557';
+import { aliasHistoryView } from './lib/task-alias-view.js?v=202611231557';
+import { periodSpeeds, lastDayIdOf, opsSummary, OEE_LEVELS } from './lib/ops-metrics.js?v=202611231557';
+import { revenueTotalOf } from './revenue-channels.js?v=202611231557';
 // 엑셀(결산 xlsx)로 옮길 때 — 화면용 HTML 글(태그·escape 된 글자)을 보통 글자로
 const htmlToText = (h) => String(h == null ? '' : h).replace(/<[^>]+>/g, '').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&');
 
@@ -171,8 +171,9 @@ function computeCoreMetrics(currentDays, previousDays, appConfig) {
     // 효율·필요 인원의 기준은 평상시 속도(전체 이력, 오늘 제외). 예전엔 그 기간의 속도를 써서 효율이 구조상 100% 근처였다.
     const allDays = aliasHistoryView(State.allHistoryData, appConfig);   // 🆔 지금 이름으로
     // until = 기간 끝 날짜 — 옛 기간 결산에 그 뒤 시점의 속도가 섞이지 않게
-    const speeds = baselineSpeeds(allDays, { skipDate: getTodayDateString(), until: lastDayIdOf(currentDays) });
-    const ops = opsSummary(currentDays, previousDays, allDays, appConfig, { speeds, wageMap });
+    //   2026-11-23: 평상시 속도 = 기간 직전 최근 4주(운영 리포트·업무 예상과 같은 기준), 전기는 전기 직전 4주
+    const speeds = periodSpeeds(allDays, currentDays, { skipDate: getTodayDateString() });
+    const ops = opsSummary(currentDays, previousDays, allDays, appConfig, { speeds, prevSpeeds: periodSpeeds(allDays, previousDays, { skipDate: getTodayDateString() }), wageMap });
     const curProd = ops.cur;
     const prevProd = ops.prev;
 

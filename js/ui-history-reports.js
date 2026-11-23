@@ -1,7 +1,7 @@
 // === js/ui-history-reports.js ===
-import { buildMemberHourlyWageMap, getTodayDateString } from './utils.js?v=202611231535';
-import { aliasHistoryView } from './lib/task-alias-view.js?v=202611231535';
-import { baselineSpeeds, previousPeriodOf, periodDaysOf, lastDayIdOf } from './lib/ops-metrics.js?v=202611231535';
+import { buildMemberHourlyWageMap, getTodayDateString } from './utils.js?v=202611231557';
+import { aliasHistoryView } from './lib/task-alias-view.js?v=202611231557';
+import { periodSpeeds, previousPeriodOf, periodDaysOf, lastDayIdOf } from './lib/ops-metrics.js?v=202611231557';
 
 import {
     calculateReportKPIs,
@@ -12,11 +12,11 @@ import {
     calculateAdvancedProductivity,
     calculateBenchmarkOEE,
     calculateAverageStaffing
-} from './ui-history-reports-logic.js?v=202611231535';
+} from './ui-history-reports-logic.js?v=202611231557';
 
 import {
     renderGenericReport
-} from './ui-history-reports-renderer.js?v=202611231535';
+} from './ui-history-reports-renderer.js?v=202611231557';
 
 
 const _prepareReportData = (currentDaysData, previousDaysData, appConfig) => {
@@ -42,7 +42,8 @@ const _prepareReportData = (currentDaysData, previousDaysData, appConfig) => {
 /** 평상시 기준 속도(이력 전체, 기간 끝 날짜까지, 오늘 제외) — 효율·필요 인원·업무 표 '평상시 속도' 열의 기준
  *  (운영 지표 표준, js/lib/ops-metrics.js). 예전엔 그 기간의 속도를 기준으로 써서 효율이 구조상 100% 근처였다.
  *  until 을 기간 끝으로 둬 옛 기간에 그 뒤 시점의 속도가 섞이지 않게 한다. */
-const _baselineSpeeds = (allHistoryData, until) => baselineSpeeds(allHistoryData, { skipDate: getTodayDateString(), until });
+//   2026-11-23: 운영 리포트·업무 예상과 같은 기준 — 그 기간 직전 최근 4주(periodSpeeds). 전기는 전기 직전 4주로 따로 잰다.
+const _periodSpeeds = (allHistoryData, days) => periodSpeeds(allHistoryData, (days || []).filter(Boolean), { skipDate: getTodayDateString() });
 
 /** 인원·비업무 시간 칸을 운영 지표 표준 값으로 — 투입 인원 = 출근 인원 평균, 비업무 = 재실시간 − 업무 기록.
  *  옛 값(명부 − 휴가, 명부 × 8시간 − 기록)은 rosterMembersCount 로 참고만 남긴다. */
@@ -95,9 +96,9 @@ export const renderReportDaily = (dateKey, allHistoryData, appConfig, context, o
         prevAggr.taskSummary[t].avgDailyStaff = prevAvgStaff[t] || 0;
     });
 
-    const speeds = _baselineSpeeds(allHistoryData, dateKey);
+    const speeds = _periodSpeeds(allHistoryData, [data]);
     const todayStaffing = calculateAdvancedProductivity([data], todayAggr, speeds, appConfig, wageMap);
-    const prevStaffing = calculateAdvancedProductivity([previousDayData].filter(Boolean), prevAggr, speeds, appConfig, wageMap);
+    const prevStaffing = calculateAdvancedProductivity([previousDayData].filter(Boolean), prevAggr, _periodSpeeds(allHistoryData, [previousDayData]), appConfig, wageMap);
     _applyOpsStaff(todayKPIs, todayStaffing);
     _applyOpsStaff(prevKPIs, prevStaffing);
 
@@ -163,9 +164,9 @@ export const renderReportWeekly = (weekKey, allHistoryData, appConfig, context, 
         prevAggr.taskSummary[t].avgDailyStaff = prevAvgStaff[t] || 0;
     });
 
-    const speeds = _baselineSpeeds(allHistoryData, lastDayIdOf(currentWeekDays));
+    const speeds = _periodSpeeds(allHistoryData, currentWeekDays);
     const todayStaffing = calculateAdvancedProductivity(currentWeekDays, todayAggr, speeds, appConfig, wageMap);
-    const prevStaffing = calculateAdvancedProductivity(prevWeekDays, prevAggr, speeds, appConfig, wageMap);
+    const prevStaffing = calculateAdvancedProductivity(prevWeekDays, prevAggr, _periodSpeeds(allHistoryData, prevWeekDays), appConfig, wageMap);
     _applyOpsStaff(todayKPIs, todayStaffing);
     _applyOpsStaff(prevKPIs, prevStaffing);
     
@@ -231,9 +232,9 @@ export const renderReportMonthly = (monthKey, allHistoryData, appConfig, context
         prevAggr.taskSummary[t].avgDailyStaff = prevAvgStaff[t] || 0;
     });
 
-    const speeds = _baselineSpeeds(allHistoryData, lastDayIdOf(currentMonthDays));
+    const speeds = _periodSpeeds(allHistoryData, currentMonthDays);
     const todayStaffing = calculateAdvancedProductivity(currentMonthDays, todayAggr, speeds, appConfig, wageMap);
-    const prevStaffing = calculateAdvancedProductivity(prevMonthDays, prevAggr, speeds, appConfig, wageMap);
+    const prevStaffing = calculateAdvancedProductivity(prevMonthDays, prevAggr, _periodSpeeds(allHistoryData, prevMonthDays), appConfig, wageMap);
     _applyOpsStaff(todayKPIs, todayStaffing);
     _applyOpsStaff(prevKPIs, prevStaffing);
 
@@ -318,9 +319,9 @@ export const renderReportYearly = (yearKey, allHistoryData, appConfig, context, 
         prevAggr.taskSummary[t].avgDailyStaff = prevAvgStaff[t] || 0;
     });
 
-    const speeds = _baselineSpeeds(allHistoryData, lastDayIdOf(currentYearDays));
+    const speeds = _periodSpeeds(allHistoryData, currentYearDays);
     const todayStaffing = calculateAdvancedProductivity(currentYearDays, todayAggr, speeds, appConfig, wageMap);
-    const prevStaffing = calculateAdvancedProductivity(prevYearDays, prevAggr, speeds, appConfig, wageMap);
+    const prevStaffing = calculateAdvancedProductivity(prevYearDays, prevAggr, _periodSpeeds(allHistoryData, prevYearDays), appConfig, wageMap);
     _applyOpsStaff(todayKPIs, todayStaffing);
     _applyOpsStaff(prevKPIs, prevStaffing);
 

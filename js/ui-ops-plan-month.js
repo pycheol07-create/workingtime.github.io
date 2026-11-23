@@ -3,16 +3,16 @@
 //   추세 = 물량 추세 예측(analysis-logic predictFutureTrends trend.deliveryFactor), 공급 = 업무 예상 가용 인원(수만).
 //   금액·직원 이름 없음(담당 변경 과제도 업무 이름만). ⚠️ role=dialog·data-act 금지.
 
-import * as State from './state.js?v=202611231535';
-import { aliasHistoryView } from './lib/task-alias-view.js?v=202611231535';
-import { buildOpsModel } from './lib/ops-view-model.js?v=202611231535';
-import { baselineSpeeds, normalizedUtilization } from './lib/ops-metrics.js?v=202611231535';
-import { taskNameOf, TASK } from './lib/task-ids.js?v=202611231535';
-import { buildMonthPlan, ownerDropsOf, nextMonthRange } from './lib/plan-month.js?v=202611231535';
-import { planSettingsOf, addDaysStr, OVERTIME_LAW_NOTE } from './lib/plan-week.js?v=202611231535';
-import { predictFutureTrends } from './analysis-logic.js?v=202611231535';
-import { availableStaffOf } from './ui-history-prediction.js?v=202611231535';
-import { esc, n0, n1, pct0, fmtDay, card, kpi } from './ui-ops-plan-parts.js?v=202611231535';
+import * as State from './state.js?v=202611231557';
+import { aliasHistoryView } from './lib/task-alias-view.js?v=202611231557';
+import { buildOpsModel } from './lib/ops-view-model.js?v=202611231557';
+import { baselineSpeeds, normalizedUtilization, RECENT_SPEED_DAYS } from './lib/ops-metrics.js?v=202611231557';
+import { taskNameOf, TASK } from './lib/task-ids.js?v=202611231557';
+import { buildMonthPlan, ownerDropsOf, nextMonthRange } from './lib/plan-month.js?v=202611231557';
+import { planSettingsOf, addDaysStr, OVERTIME_LAW_NOTE } from './lib/plan-week.js?v=202611231557';
+import { predictFutureTrends } from './analysis-logic.js?v=202611231557';
+import { availableStaffOf } from './ui-history-prediction.js?v=202611231557';
+import { esc, n0, n1, pct0, fmtDay, card, kpi } from './ui-ops-plan-parts.js?v=202611231557';
 
 /** 월간 계획 입력 모으기 → buildMonthPlan. models = { recentModel, prevModel, baseModel } (주간 쪽과 같이 씀), confirmedErrs = 지난 확정본 대비 오차(plan-compare monthErrsOf) */
 export function computeMonthPlan(today, models, cfgPlan = null, confirmedErrs = []) {
@@ -29,7 +29,7 @@ export function computeMonthPlan(today, models, cfgPlan = null, confirmedErrs = 
     const H = base ? Object.fromEntries((base.headline || []).map(h => [h.key, h])) : {};
     return buildMonthPlan({
         today, cfg, history: view, range: nextMonthRange(today),
-        speeds: baselineSpeeds(view, { skipDate: today }), utilization: normalizedUtilization(cfg),
+        speeds: baselineSpeeds(view, { skipDate: today, recentDays: RECENT_SPEED_DAYS }), utilization: normalizedUtilization(cfg),   // 최근 4주 속도(2026-11-23)
         trendFactor: trend, supplyOf: availableStaffOf,
         prepNames: S.prepTaskIds.map(id => taskNameOf(id, cfg)).filter(Boolean),
         recentModel: models.recentModel, prevModel: models.prevModel,

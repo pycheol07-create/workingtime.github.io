@@ -9,11 +9,11 @@
 
 import { doc, collection, getDocs, query, where, documentId, setDoc, serverTimestamp }
     from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import * as State from './state.js?v=202611231535';
-import { aliasHistoryView } from './lib/task-alias-view.js?v=202611231535';
-import { baselineSpeeds } from './lib/ops-metrics.js?v=202611231535';
-import { monthlySummaryOf, needRebuild, finishedMonths, monthDates, sameSummary, MONTHLY_SCHEMA } from './lib/plan-monthly.js?v=202611231535';
-import { getTodayDateString } from './utils.js?v=202611231535';
+import * as State from './state.js?v=202611231557';
+import { aliasHistoryView } from './lib/task-alias-view.js?v=202611231557';
+import { periodSpeeds } from './lib/ops-metrics.js?v=202611231557';
+import { monthlySummaryOf, needRebuild, finishedMonths, monthDates, sameSummary, MONTHLY_SCHEMA } from './lib/plan-monthly.js?v=202611231557';
+import { getTodayDateString } from './utils.js?v=202611231557';
 
 export const MONTHLY_COL = 'OpsMonthly';
 const CACHE_KEY = 'opsMonthlyCache';
@@ -85,8 +85,8 @@ async function plannedDaysOf(ym) {
 //   그 달 전체 원본(예: 입고 이력 문서)이 생기기 전까지는 null 로 고정한다(schema 4). TODO: 입고 이력 원본이 생기면 연결.
 /** 한 달 요약 만들기 — days 는 지금 이름 사본. 속도는 그 달 말일까지의 이력(allView)으로. 예정 물량 날 수는 plannedDaysOf. */
 async function summaryFor(ym, days, allView, cfg) {
-    const last = monthDates(ym).slice(-1)[0];
-    const speeds = baselineSpeeds(allView, { until: last });
+    // 평상시 속도 = 그 달 직전 최근 4주(2026-11-23 — 운영 리포트·업무 예상과 같은 기준, periodSpeeds)
+    const speeds = periodSpeeds(allView, monthDates(ym).map(id => ({ id })), { skipDate: getTodayDateString() });
     const scheduleLeave = (State.persistentLeaveSchedule && State.persistentLeaveSchedule.onLeaveMembers) || [];
     return monthlySummaryOf(days, cfg, { ym, speeds, scheduleLeave, plannedDays: await plannedDaysOf(ym), incoming: null });
 }

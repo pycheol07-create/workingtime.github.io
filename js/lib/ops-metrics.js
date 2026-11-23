@@ -25,11 +25,11 @@
 //
 // DOM·State 를 쓰지 않는다(appConfig·이력은 인자로) — node 시험(tests/ops-metrics.test.js)과 비교 도구(tools/ops-metrics-compare.mjs)가 그대로 부른다.
 
-import { buildMemberHourlyWageMap, getWeekOfYear, toDateString } from '../utils.js?v=202611231535';
-import { attendedMembers, presenceStats, isAttendanceEstimated, systemAccountSet, validMemberNames } from '../attendance-stats.js?v=202611231535';
-import { dailyTaskStats, taskSpeedPerMinute } from '../task-throughput.js?v=202611231535';
-import { revenueTotalOf, orderCountTotalOf } from '../revenue-channels.js?v=202611231535';
-import { TASK, isTask } from './task-ids.js?v=202611231535';
+import { buildMemberHourlyWageMap, getWeekOfYear, toDateString } from '../utils.js?v=202611231557';
+import { attendedMembers, presenceStats, isAttendanceEstimated, systemAccountSet, validMemberNames } from '../attendance-stats.js?v=202611231557';
+import { dailyTaskStats, taskSpeedPerMinute, RECENT_SPEED } from '../task-throughput.js?v=202611231557';
+import { revenueTotalOf, orderCountTotalOf } from '../revenue-channels.js?v=202611231557';
+import { TASK, isTask } from './task-ids.js?v=202611231557';
 
 const trim = (v) => (v == null ? '' : String(v).trim());
 const arr = (v) => (Array.isArray(v) ? v : (v && typeof v === 'object' ? Object.values(v) : []));
@@ -64,12 +64,60 @@ export function wageMapOf(appConfig, days = []) {
     return map;
 }
 
-/** 평상시 기준 속도(개/분) — 이력 전체의 합계 비율. 선택 기간과 무관해야 효율이 100% 로 붙지 않는다.
- *  until 을 주면 그날까지만 본다(옛 기간에 뒤 시점 속도가 섞이지 않게). skipDate 는 보통 오늘(물량이 덜 참). */
-export function baselineSpeeds(allDays, { skipDate = null, until = null } = {}) {
+/** 최근 속도 창 — 운영 리포트·운영 계획의 평상시 속도(2026-11-23 사용자 결정: 전체 기간 평균 → 최근 4주).
+ *  창 길이·계산 방식은 업무 예상과 같은 한 벌(js/task-throughput.js RECENT_SPEED) */
+export const RECENT_SPEED_DAYS = RECENT_SPEED.days;
+
+/**
+ * 기간 하나의 평상시 속도 — 그 기간 첫날 직전 최근 4주(업무 예상과 같은 방식, RECENT_SPEED).
+ * 운영 리포트·옛 리포트·결산·월 요약 기록·인력 탭이 같이 쓴다(2026-11-23 — 같은 내용이니 늘 같은 숫자).
+ * 이번 기간·전기·평소 비교는 각자 자기 기간 직전 4주로 잰다(한쪽만 자기 기간이 섞여 효율이 100% 로 붙지 않게).
+ */
+export function periodSpeeds(allDays, days, { skipDate = null } = {}) {
+    let from = null, to = null;
+    (days || []).forEach(d => {
+        if (!d || typeof d.id !== 'string') return;
+        if (!from || d.id < from) from = d.id;
+        if (!to || d.id > to) to = d.id;
+    });
+    return baselineSpeeds(allDays, { skipDate, until: to, recentDays: RECENT_SPEED.days, from });
+}
+
+/** 'YYYY-MM-DD' ± n일(달력 날짜, 시간대 무관) */
+function shiftDayId(id, n) {
+    const [y, m, d] = String(id).split('-').map(Number);
+    const t = new Date(Date.UTC(y, m - 1, d + n));
+    return `${t.getUTCFullYear()}-${String(t.getUTCMonth() + 1).padStart(2, '0')}-${String(t.getUTCDate()).padStart(2, '0')}`;
+}
+
+/** 평상시 기준 속도(개/분). 선택 기간과 무관해야 효율이 100% 로 붙지 않는다.
+ *  기본 = 이력 전체의 합계 비율(Σ처리량 ÷ Σ기록 분). until 을 주면 그날까지만(옛 기간에 뒤 시점 속도가 섞이지 않게). skipDate 는 보통 오늘.
+ *  recentDays 를 주면 업무 예상과 같은 방식(RECENT_SPEED — 하루 속도 가운데값 등)으로 최근 그 일수만 본다 —
+ *    from(기간 첫날)이 있으면 그 전날까지(기간 직전), 없으면 until(없으면 이력 끝)까지.
+ *    그 창에서 RECENT_SPEED.minTaskMinutes 분 미만인 업무는 전체 합계(until 까지)로 돌아간다. */
+export function baselineSpeeds(allDays, { skipDate = null, until = null, recentDays = 0, from = null } = {}) {
     const list = Array.isArray(allDays) ? allDays : [];
     const use = until ? list.filter(d => d && typeof d.id === 'string' && d.id <= until) : list;
-    return taskSpeedPerMinute(use, { mode: 'total', skipDate });
+    const all = taskSpeedPerMinute(use, { mode: 'total', skipDate });
+    if (!(recentDays > 0)) return all;
+    let end = from ? shiftDayId(from, -1) : until;
+    if (!end) end = use.reduce((m, d) => (d && typeof d.id === 'string' && (!m || d.id > m) ? d.id : m), null);
+    if (!end) return all;
+    // 창 끝이 오늘(skipDate) 이후면 어제까지 — 오늘은 빼므로 그대로 두면 창이 하루 짧아진다(업무 예상 recentDays 와 같은 28일)
+    if (skipDate && end >= skipDate) end = shiftDayId(skipDate, -1);
+    const start = shiftDayId(end, -(recentDays - 1));
+    const win = list.filter(d => d && typeof d.id === 'string' && d.id >= start && d.id <= end);
+    const recent = taskSpeedPerMinute(win, { mode: RECENT_SPEED.mode, minMinutes: RECENT_SPEED.minMinutes, minSamples: RECENT_SPEED.minSamples, skipDate });
+    const minutes = {};
+    win.forEach(d => {
+        if (skipDate && d.id === skipDate) return;
+        Object.entries(dailyTaskStats(d)).forEach(([task, s]) => { minutes[task] = (minutes[task] || 0) + s.minutes; });
+    });
+    const out = { ...all };
+    Object.entries(recent).forEach(([task, v]) => {
+        if ((minutes[task] || 0) >= RECENT_SPEED.minTaskMinutes && v > 0) out[task] = v;
+    });
+    return out;
 }
 
 /** 기간 하루 문서들 중 마지막 날 id — baselineSpeeds 의 until 로 넘긴다(옛 기간에 뒤 시점 속도가 섞이지 않게). 없으면 null. */
@@ -79,12 +127,15 @@ export function lastDayIdOf(days) {
     return last;
 }
 
-/** 가동률 설정 정규화. 0.8 도 80 도 받아 준다. 이상값이면 기본 0.8. */
+/** 가동률 기본값 — 설정(appConfig.utilizationRate)이 없을 때. 업무 예상·운영 리포트·운영 계획이 같이 쓴다.
+ *  2026-11-23 사용자 결정 80% → 85%(실측 84~88%: 9/1~11/20 평균 84%, 1인 기록 없는 시간 하루 약 1시간) */
+export const DEFAULT_UTILIZATION = 0.85;
+/** 가동률 설정 정규화. 0.8 도 80 도 받아 준다. 없거나 이상값이면 DEFAULT_UTILIZATION. */
 export function normalizedUtilization(appConfig) {
     let u = Number(appConfig && appConfig.utilizationRate);
-    if (!isFinite(u) || u <= 0) return 0.8;
+    if (!isFinite(u) || u <= 0) return DEFAULT_UTILIZATION;
     if (u > 1) u = u / 100;
-    return (u > 0 && u <= 1) ? u : 0.8;
+    return (u > 0 && u <= 1) ? u : DEFAULT_UTILIZATION;
 }
 
 /** 그날 1인 표준 근무시간(h) — 재실시간을 못 구할 때의 폴백. 토·일은 주말 시간. */
@@ -635,11 +686,12 @@ export function rollingBaselineOf(granularity, selectedKey, allHistoryData) {
  * 현재·전기 한 쌍. days·prevDays 는 지금 이름으로 합친 사본(aliasHistoryView)을 넘길 것.
  * opts.speeds 가 없으면 allDays 에서 평상시 속도를 만든다(skipDate·until).
  */
-export function opsSummary(days, prevDays, allDays, appConfig, { speeds = null, wageMap = null, skipDate = null, until = null } = {}) {
+export function opsSummary(days, prevDays, allDays, appConfig, { speeds = null, prevSpeeds = null, wageMap = null, skipDate = null, until = null } = {}) {
     const sp = speeds || baselineSpeeds(allDays, { skipDate, until });
     const wages = wageMap || wageMapOf(appConfig, [...(days || []), ...(prevDays || [])]);
     const cur = periodMetrics(days, appConfig, { speeds: sp, wageMap: wages });
-    const prev = periodMetrics(prevDays, appConfig, { speeds: sp, wageMap: wages });
+    // 전기는 자기 기간 직전 속도(prevSpeeds — periodSpeeds) — 없으면 예전처럼 같은 속도
+    const prev = periodMetrics(prevDays, appConfig, { speeds: prevSpeeds || sp, wageMap: wages });
     const hasPrev = prev.staffing.dayCount > 0;   // 전기가 비면 증감은 전부 null
     const pct = (a, b) => (hasPrev && b > 0 ? ((a - b) / b) * 100 : null);
     const pp = (a, b) => (hasPrev ? a - b : null);

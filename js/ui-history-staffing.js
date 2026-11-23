@@ -1,12 +1,12 @@
 // === js/ui-history-staffing.js ===
-import * as State from './state.js?v=202611231535';
-import { getStaffingOutlook, ensureMibalHistory, ensureCorrectCtx } from './ui-history-prediction.js?v=202611231535';
-import { fetchPlannedData } from './history-data-manager.js?v=202611231535';
-import { getTodayDateString, escapeHtml } from './utils.js?v=202611231535';
-import { staffing as opsStaffing, baselineSpeeds as opsBaselineSpeeds, lastDayIdOf } from './lib/ops-metrics.js?v=202611231535';
-import { D } from './d-chart.js?v=202611231535';
-import { aliasHistoryView } from './lib/task-alias-view.js?v=202611231535';
-import { TASK, tName } from './task-names.js?v=202611231535';
+import * as State from './state.js?v=202611231557';
+import { getStaffingOutlook, ensureMibalHistory, ensureCorrectCtx } from './ui-history-prediction.js?v=202611231557';
+import { fetchPlannedData } from './history-data-manager.js?v=202611231557';
+import { getTodayDateString, escapeHtml } from './utils.js?v=202611231557';
+import { staffing as opsStaffing, periodSpeeds, lastDayIdOf } from './lib/ops-metrics.js?v=202611231557';
+import { D } from './d-chart.js?v=202611231557';
+import { aliasHistoryView } from './lib/task-alias-view.js?v=202611231557';
+import { TASK, tName } from './task-names.js?v=202611231557';
 
 let staffingChartInstance = null;
 
@@ -31,9 +31,9 @@ const staffingBasketOf = (appConfig) => {
 /** 평상시 기준 속도(개/분). 이력 전체(선택 기간의 마지막 날까지)에서 뽑으므로 선택 기간 실적에 끌려가지 않는다 — 순환을 끊는 핵심.
  *  until = 기간 끝 날짜: 옛 기간을 볼 때 그 뒤 시점의 속도가 섞이지 않게.
  *  계산은 운영 지표 표준(js/lib/ops-metrics.js baselineSpeeds = mode 'total'). */
-const baselineSpeeds = (until) => opsBaselineSpeeds(aliasHistoryView(State.allHistoryData, State.appConfig), {   // 🆔 지금 이름으로
-    skipDate: getTodayDateString(),   // 오늘은 물량이 덜 차 속도가 튄다
-    until
+//   2026-11-23: 운영 리포트·업무 예상과 같은 기준 — 선택 기간 직전 최근 4주(periodSpeeds). 인자는 선택 기간 하루 문서들
+const baselineSpeeds = (days) => periodSpeeds(aliasHistoryView(State.allHistoryData, State.appConfig), days, {   // 🆔 지금 이름으로
+    skipDate: getTodayDateString()   // 오늘은 물량이 덜 차 속도가 튄다
 });
 
 /** textContent 안전 세팅 — HTML 조각 로드 실패로 요소가 없어도 뒤 코드가 죽지 않게. */
@@ -69,7 +69,7 @@ export function renderStaffingTab(filteredData, appConfig) {
     // 기준 속도는 선택 기간이 아니라 '전체 이력'에서 뽑는다.
     // 예전엔 선택 기간의 실적을 기준으로 삼아 물량이 약분돼 사라졌고,
     // 그래서 필요 인원이 실제 인원과 항상 붙어 버렸다(= 과부족이 안 보였다).
-    const speeds = baselineSpeeds(lastDayIdOf(filteredData));
+    const speeds = baselineSpeeds(filteredData);
 
     // 계산은 운영 지표 표준(js/lib/ops-metrics.js staffing) — 요약·생산성·리포트·결산이 같은 정의를 쓴다.
     //  · 운영일 = 출근 기록이 있거나 업무 기록이 있는 날(세 지표의 분모를 하나로)

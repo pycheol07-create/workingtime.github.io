@@ -1,15 +1,15 @@
 // === js/ui-history-reports-productivity.js ===
-import { isWeekday, getTodayDateString, toDateString, buildMemberHourlyWageMap } from './utils.js?v=202611231535';
-import { getAsArray } from './ui-history-reports-utils.js?v=202611231535';
-import { calculateReportKPIs, calculateReportAggregations, calculateStandardThroughputs } from './ui-history-reports-calculations.js?v=202611231535';
-import { TASK, isT } from './task-names.js?v=202611231535';
-import { unitCost, periodMetrics, benchmarkOEE, baselineSpeeds, OEE_LEVELS, OVERLOAD_UTIL, overloadUtilOf } from './lib/ops-metrics.js?v=202611231535';
+import { isWeekday, getTodayDateString, toDateString, buildMemberHourlyWageMap } from './utils.js?v=202611231557';
+import { getAsArray } from './ui-history-reports-utils.js?v=202611231557';
+import { calculateReportKPIs, calculateReportAggregations, calculateStandardThroughputs } from './ui-history-reports-calculations.js?v=202611231557';
+import { TASK, isT } from './task-names.js?v=202611231557';
+import { unitCost, periodMetrics, benchmarkOEE, baselineSpeeds, OEE_LEVELS, OVERLOAD_UTIL, overloadUtilOf, RECENT_SPEED_DAYS } from './lib/ops-metrics.js?v=202611231557';
 
 /** 🎯 최근 운영일 30일의 하루 OEE 평균 — 운영 지표 표준(js/lib/ops-metrics.js benchmarkOEE, 평상시 속도 기준). */
 export const calculateBenchmarkOEE = (allHistoryData, appConfig) => {
     if (!allHistoryData || allHistoryData.length === 0) return null;
     const skipDate = getTodayDateString();
-    return benchmarkOEE(allHistoryData, appConfig, { speeds: baselineSpeeds(allHistoryData, { skipDate }), skipDate });
+    return benchmarkOEE(allHistoryData, appConfig, { speeds: baselineSpeeds(allHistoryData, { skipDate, recentDays: RECENT_SPEED_DAYS }), skipDate });   // 최근 4주 속도(2026-11-23)
 };
 
 /** 옛 벤치마크(그 기간 bestDays 속도·명부 인원 기준) — 비교 도구 전용. TODO(운영 리포트 2단계·비교표 승인 뒤): 지운다. */
