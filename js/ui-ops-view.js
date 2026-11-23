@@ -9,23 +9,23 @@
 // 담당 변화(직원 이름·사람별 UPH)는 data.reports(ctx.canOwner)일 때만 그린다 — 없으면 '권한이 없습니다', 요약은 건수만.
 // ⚠️ role=dialog·data-act 금지(업무마감봇 선택자). 직원 이름·금액을 콘솔에 찍지 않는다. 모델에는 직원 이름이 없다.
 
-import * as State from './state.js?v=202611230907';
-import { escapeHtml, escapeHtml as esc, getTodayDateString } from './utils.js?v=202611230907';   // escapeHtml 도 같이(2026-11-12 이스케이프 수정이 이름으로 불러 요약 탭이 깨졌다)
-import { aliasHistoryView } from './lib/task-alias-view.js?v=202611230907';
-import { buildOpsModel, opsModelInputs } from './lib/ops-view-model.js?v=202611230907';
-import { revenueTotalOf } from './revenue-channels.js?v=202611230907';
-import { D, alpha } from './d-chart.js?v=202611230907';
-import { renderStaffingOutlook } from './ui-history-staffing.js?v=202611230907';
-import { ensureMibalHistory, ensureCorrectCtx } from './ui-history-prediction.js?v=202611230907';
-import { fetchPlannedData } from './history-data-manager.js?v=202611230907';
-import { renderFillErrorSection, destroyFillErrorCharts } from './ui-history-productivity.js?v=202611230907';
-import { renderReportDaily, renderReportWeekly, renderReportMonthly, renderReportYearly } from './ui-history-reports.js?v=202611230907';
-import { taskListOf } from './lib/task-owner.js?v=202611230907';
-import { TASK, tName } from './task-names.js?v=202611230907';
-import { higherOpenThan } from './modal-above.js?v=202611230907';
-import { buildOwnerAdvice, adviceForOutput } from './lib/plan-owner-advice.js?v=202611230907';
-import { PEOPLE_NOTE } from './lib/plan-skills.js?v=202611230907';
-import { nextWeekAvailable } from './ui-ops-plan-people.js?v=202611230907';
+import * as State from './state.js?v=202611231437';
+import { escapeHtml, escapeHtml as esc, getTodayDateString } from './utils.js?v=202611231437';   // escapeHtml 도 같이(2026-11-12 이스케이프 수정이 이름으로 불러 요약 탭이 깨졌다)
+import { aliasHistoryView } from './lib/task-alias-view.js?v=202611231437';
+import { buildOpsModel, opsModelInputs, OPS_VIEW_LEVELS } from './lib/ops-view-model.js?v=202611231437';
+import { revenueTotalOf } from './revenue-channels.js?v=202611231437';
+import { D, alpha } from './d-chart.js?v=202611231437';
+import { renderStaffingOutlook } from './ui-history-staffing.js?v=202611231437';
+import { ensureMibalHistory, ensureCorrectCtx } from './ui-history-prediction.js?v=202611231437';
+import { fetchPlannedData } from './history-data-manager.js?v=202611231437';
+import { renderFillErrorSection, destroyFillErrorCharts } from './ui-history-productivity.js?v=202611231437';
+import { renderReportDaily, renderReportWeekly, renderReportMonthly, renderReportYearly } from './ui-history-reports.js?v=202611231437';
+import { taskListOf } from './lib/task-owner.js?v=202611231437';
+import { TASK, tName } from './task-names.js?v=202611231437';
+import { higherOpenThan } from './modal-above.js?v=202611231437';
+import { buildOwnerAdvice, adviceForOutput } from './lib/plan-owner-advice.js?v=202611231437';
+import { PEOPLE_NOTE } from './lib/plan-skills.js?v=202611231437';
+import { nextWeekAvailable } from './ui-ops-plan-people.js?v=202611231437';
 
 const $ = (id) => document.getElementById(id);
 
@@ -313,6 +313,21 @@ function drawBubble(m) {
 // ─────────────────────────────────────────────────────────────────
 // 인력
 // ─────────────────────────────────────────────────────────────────
+const VERDICT_CHIP = { bad: 'is-risk', warn: 'is-warn', good: 'is-ok', info: '' };
+/** 부족·여유 날의 실제 결과 칸 — 앞 말(실제 부족·여유 확인 등)은 칩, 나머지는 글자 */
+function verdictHtml(v) {
+    if (!v) return '';
+    const [head, ...rest] = String(v.text).split(' · ');
+    return `<span class="opv-chip ${VERDICT_CHIP[v.tone] || ''}">${escapeHtml(head)}</span>${rest.length ? ` <span class="opv-note">${escapeHtml(rest.join(' · '))}</span>` : ''}`;
+}
+/** 접힌 제목 옆 요약 — 부족 N일(늦게 마감 a · 빨리 처리 b) · 여유 N일(확인 c) */
+function daysHint(P) {
+    const sv = P.shortVerdicts || {}, pv = P.spareVerdicts || {};
+    const part = (pairs) => { const t = pairs.filter(([, n]) => n > 0).map(([l, n]) => `${l} ${n}`).join(' · '); return t ? `(${t})` : ''; };
+    return `부족 ${P.shortDayCount}일${part([['실제 부족', sv.shortLate || 0], ['빨리 처리해 메움', sv.shortFast || 0]])}`
+        + ` · 여유 ${P.spareDayCount}일${part([['여유 확인', pv.spareOk || 0], ['여유 아님', pv.spareLate || 0]])}`;
+}
+
 function renderStaffing(host, foldsHost, c) {
     const m = c.model;
     const S = m.staffing;
@@ -330,10 +345,12 @@ function renderStaffing(host, foldsHost, c) {
         const rows = m.staffDays.filter(d => ok(d.gap) && d.required > 0 && d.qty > 0 && (d.gap < -0.5 || d.gap > 1)).map(d => `<tr class="${d.gap < -0.5 ? 'is-short' : ''}">
             <td>${fmtDay(d.date)}${d.estimated ? ' <span class="opv-chip" title="출퇴근 기록이 없어 추정">추정</span>' : ''}</td>
             <td class="r">${escapeHtml(n0(d.attended))}</td><td class="r">${escapeHtml(n0(d.worked))}</td><td class="r">${escapeHtml(n1(d.required))}</td>
-            <td class="r"><b class="${d.gap < -0.5 ? 'opv-down' : 'opv-up'}">${escapeHtml(signed1(d.gap))}</b></td></tr>`).join('');
+            <td class="r"><b class="${d.gap < -0.5 ? 'opv-down' : 'opv-up'}">${escapeHtml(signed1(d.gap))}</b></td>
+            <td>${verdictHtml(d.verdict)}</td></tr>`).join('');
         const days = !m.meta.hasBaseline ? '<p class="opv-note">평상시 속도가 없어 필요 인원을 계산하지 못했습니다.</p>'
             : rows ? `<div class="opv-table-wrap"><table class="opv-table">
-                <thead><tr><th>날짜</th><th class="r">출근</th><th class="r">실근무</th><th class="r">필요</th><th class="r">과부족</th></tr></thead><tbody>${rows}</tbody></table></div>`
+                <thead><tr><th>날짜</th><th class="r">출근</th><th class="r">실근무</th><th class="r">필요</th><th class="r">과부족</th><th title="실제 종료 시각(퇴근·업무 기록 중 가장 늦은 것)·늦게 퇴근한 사람·그날 처리 속도(평상시 대비)로 본 실제 결과">실제 결과</th></tr></thead><tbody>${rows}</tbody></table></div>
+                <p class="opv-note">실제 결과: 퇴근·업무 기록 중 가장 늦은 시각이 ${esc(OPS_VIEW_LEVELS.dayEnd)} + ${OPS_VIEW_LEVELS.lateGraceMin}분을 넘으면 늦게 끝난 날로 봅니다(마감 버튼을 늦게 누른 것은 보지 않음). 제시간에 끝났으면 그날 처리 속도(평상시 대비)와 기록 없는 시간으로 나눕니다.</p>`
                 : '<p class="opv-note">부족(−0.5명 미만)·여유(+1명 초과)인 날이 없습니다.</p>';
         const step = (label, v, note) => `<tr><td>${esc(label)}</td><td class="r">${escapeHtml(n1(v))}명</td><td class="opv-note">${esc(note)}</td></tr>`;
         const fte = `<div class="opv-table-wrap"><table class="opv-table"><tbody>
@@ -343,7 +360,7 @@ function renderStaffing(host, foldsHost, c) {
             ${step('유효 인력', S.effective, '실작업 × 효율 × 품질')}
             ${step('명부(참고)', S.rosterAvg, '명부 − 휴가')}
         </tbody></table></div><p class="opv-note">1인 평균 재실 ${escapeHtml(n1(S.avgPresenceHours))}시간</p>`;
-        if (foldsHost) foldsHost.innerHTML = fold('days', '부족 · 여유 일자', days, `부족 ${m.problems.shortDayCount}일 · 여유 ${m.problems.spareDayCount}일`)
+        if (foldsHost) foldsHost.innerHTML = fold('days', '부족 · 여유 일자', days, daysHint(m.problems))
             + fold('fte', 'FTE 단계', fte);
     }
     // 앞날 전망은 선택 기간과 무관하다(예정 물량 기반) — 위쪽이 비어도 그린다. 예정 물량·미발 이력이 실리면 한 번 더.
@@ -469,7 +486,7 @@ export function openTaskDetail(task, ctx = null) {
         if (sec) sec.innerHTML = empty('권한이 없습니다. 담당 변화는 리포트 권한이 있어야 보입니다.');
     } else if (task && cache && cache.ownerTasks && !cache.ownerTasks.has(task)) {
         if (sec) sec.innerHTML = empty('이 업무는 담당 변화 대상이 아닙니다(관리자 개별업무 또는 최근 13개월 기록 없음).');
-    } else import('./ui-history-task-owner.js?v=202611230907').then(mod => {
+    } else import('./ui-history-task-owner.js?v=202611231437').then(mod => {
         mod.renderTaskOwnerTab(task ? { task } : {});
     }).catch(err => {
         console.error('taskowner module load failed:', err && err.message);
@@ -559,7 +576,7 @@ function bindOnce() {
             const host = $('ops-milestones-widget');
             if (host && !host.dataset.done) {
                 host.dataset.done = '1';
-                import('./ui-history-milestones.js?v=202611230907').then(mod => mod.renderMilestonesInsightWidget(host))
+                import('./ui-history-milestones.js?v=202611231437').then(mod => mod.renderMilestonesInsightWidget(host))
                     .catch(err => { console.warn('milestones widget load failed:', err && err.message); host.innerHTML = empty('마일스톤을 불러오지 못했습니다.'); });
             }
         }

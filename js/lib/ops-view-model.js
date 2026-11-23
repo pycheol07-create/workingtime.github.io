@@ -13,10 +13,12 @@
 import {
     opsSummary, periodMetrics, partSummary, baselineSpeeds, lastDayIdOf, previousPeriodOf, rollingBaselineOf,
     periodDaysOf, PARTS, OEE_LEVELS, OVERLOAD_UTIL, overloadUtilOf
-} from './ops-metrics.js?v=202611230907';
-import { taskNameOf, TASK } from './task-ids.js?v=202611230907';
-import { aliasTaskName } from './task-alias-view.js?v=202611230907';
-import { taskListOf, ownerByPeriod, detectOwnerChanges, CAP_MINUTES } from './task-owner.js?v=202611230907';
+} from './ops-metrics.js?v=202611231437';
+import { taskNameOf, TASK } from './task-ids.js?v=202611231437';
+import { aliasTaskName } from './task-alias-view.js?v=202611231437';
+import { taskListOf, ownerByPeriod, detectOwnerChanges, CAP_MINUTES } from './task-owner.js?v=202611231437';
+import { dailyTaskStats } from '../task-throughput.js?v=202611231437';
+import { AUTO_END_TIME } from './record-close.js?v=202611231437';
 
 /** 판정 기준 — 진단 문장·부족/여유 일자가 같이 쓴다. */
 export const OPS_VIEW_LEVELS = Object.freeze({
@@ -26,7 +28,12 @@ export const OPS_VIEW_LEVELS = Object.freeze({
     effBad: 90,           // 이 이하면 느림
     utilLow: 80,          // 가동률(%) 이 이 미만이면 '기록 없는 시간 많음'
     lossMinMinutes: 30,   // 손실 상위 업무로 꼽는 최소 손실 분
-    topN: 3               // 손실 상위 업무·부족/여유 일자를 몇 개까지
+    topN: 3,              // 손실 상위 업무·부족/여유 일자를 몇 개까지
+    // 부족·여유 일자의 '실제 결과' 판정(2026-11-23 사용자 결정 — 마감시각 + 그날 속도)
+    dayEnd: AUTO_END_TIME, // 업무일 종료(자동마감 시각과 같은 값)
+    lateGraceMin: 10,     // 마감·퇴근이 종료 + 이 분을 넘으면 '늦게 마감'
+    fastEff: 105,         // 그날 효율이 이 이상이면 '평소보다 빨리 처리'
+    idleHours: 1          // 1인 기록 없는 시간(시간)이 이 이상이면 여유 확인
 });
 
 const num = (v) => Number(v) || 0;
@@ -35,6 +42,74 @@ const pct = (a, b) => (a != null && b != null && b > 0 ? ((a - b) / b) * 100 : n
 const pp = (a, b) => (a != null && b != null ? a - b : null);
 const uphOf = (qty, minutes) => (minutes > 0 && qty > 0 ? qty / (minutes / 60) : null);
 const r1 = (v) => (Math.round(v * 10) / 10).toFixed(1);
+
+const hhmmOk = (v) => (typeof v === 'string' && /^\d{2}:\d{2}$/.test(v) ? v : null);
+const toMin = (t) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
+
+/**
+ * 그날 실제 결과 — 실제로 일이 끝난 시각 = 출근자 퇴근(outTime)·업무 기록 종료(endTime) 중 가장 늦은 것
+ *   (둘 다 없을 때만 마감 버튼 시각 closeEndTime — 마감은 '누른 시각' 이라 늦게 눌러도 늦게 일한 게 아니다).
+ * 늦게 퇴근한 사람 수 · 그날 효율 · 1인 기록 없는 시간. 이름은 담지 않는다(사람 수만).
+ */
+export function dayResultOf(day, s, speeds) {
+    const L = OPS_VIEW_LEVELS;
+    const limit = toMin(L.dayEnd) + L.lateGraceMin;
+    const later = (a, b) => (!a ? b : !b ? a : (b > a ? b : a));
+    let lastWork = null, lateOut = 0;
+    arr(day && day.workRecords).forEach(r => { lastWork = later(lastWork, hhmmOk(r && r.endTime)); });
+    // 출근자로 센 사람만(시스템 계정·명부 밖 제외 — s.attended 와 같은 집합)
+    const counted = s && s.attended instanceof Set ? s.attended : new Set();
+    const att = (day && day.dailyAttendance && typeof day.dailyAttendance === 'object') ? day.dailyAttendance : {};
+    Object.entries(att).forEach(([name, a]) => {
+        if (!counted.has(String(name).trim())) return;
+        const o = hhmmOk(a && typeof a.outTime === 'string' ? a.outTime.trim().slice(0, 5) : null);
+        if (!o) return;
+        lastWork = later(lastWork, o);
+        if (toMin(o) > limit) lateOut++;
+    });
+    const closeAt = hhmmOk(day && day.closeEndTime);
+    const endAt = lastWork || closeAt;
+    // 그날 효율 — 처리량·평상시 속도가 다 있는 업무만(표준 분 ÷ 실제 분)
+    let stdMin = 0, actMin = 0;
+    Object.entries(dailyTaskStats(day)).forEach(([task, t]) => {
+        const spd = num(speeds && speeds[task]);
+        if (spd > 0 && t.qty > 0 && t.minutes > 0) { stdMin += t.qty / spd; actMin += t.minutes; }
+    });
+    // 기록 없는 시간(lossMinutes)은 potentialMembers 기준으로 셌다 — 같은 사람 수로 나눈다
+    const n = s && s.potentialMembers ? s.potentialMembers.size : 0;
+    return {
+        endAt, endFrom: lastWork ? 'work' : (closeAt ? 'close' : null),
+        late: !!(endAt && toMin(endAt) > limit),
+        lateOut,
+        efficiency: actMin > 0 ? (stdMin / actMin) * 100 : null,
+        idleHoursPerPerson: n > 0 ? s.lossMinutes / n / 60 : null
+    };
+}
+
+/**
+ * 부족·여유 날의 실제 판정. kind = 'short' | 'spare'.
+ * @returns {{code, tone, text}} code: shortLate(실제 부족) · shortFast(빨리 처리해 메움) · shortCalc(계산만 부족)
+ *   · spareLate(늦게 끝남 — 여유 아님) · spareOk(여유 확인) · spareCalc(계산만 여유) · open(진행 중) · noEnd(종료 기록 없음)
+ */
+export function dayVerdictOf(kind, res, { isToday = false } = {}) {
+    const L = OPS_VIEW_LEVELS;
+    if (isToday) return { code: 'open', tone: 'info', text: '진행 중' };
+    const eff = res.efficiency != null ? `효율 ${Math.round(res.efficiency)}%` : null;
+    const endTxt = res.endAt ? `${res.endAt} 종료` : '';
+    const lateTxt = [endTxt, res.lateOut > 0 ? `늦게 퇴근 ${res.lateOut}명` : ''].filter(Boolean).join(' · ');
+    const idle = res.idleHoursPerPerson != null && res.idleHoursPerPerson >= L.idleHours ? `기록 없는 시간 1인 ${r1(res.idleHoursPerPerson)}시간` : null;
+    const join = (...xs) => xs.filter(Boolean).join(' · ');
+    if (kind === 'short') {
+        if (res.late) return { code: 'shortLate', tone: 'bad', text: join('실제 부족', lateTxt) };
+        if (!res.endAt) return { code: 'noEnd', tone: 'info', text: join('종료 기록 없음', eff) };
+        if (res.efficiency != null && res.efficiency >= L.fastEff) return { code: 'shortFast', tone: 'warn', text: join(`제시간 종료(${res.endAt})`, `평소보다 빨리 처리해 메움(${eff})`) };
+        return { code: 'shortCalc', tone: 'info', text: join(`제시간 종료(${res.endAt})`, '계산상만 부족', eff) };
+    }
+    if (res.late) return { code: 'spareLate', tone: 'bad', text: join('여유 아님', lateTxt) };
+    if (!res.endAt) return { code: 'noEnd', tone: 'info', text: join('종료 기록 없음', eff, idle) };
+    if ((res.efficiency != null && res.efficiency <= L.effBad) || idle) return { code: 'spareOk', tone: 'good', text: join('여유 확인', endTxt, eff, idle) };
+    return { code: 'spareCalc', tone: 'info', text: join(endTxt, '계산상만 여유', eff) };
+}
 
 /** 기간 하루 문서들의 첫날·마지막 날 id. */
 function rangeOf(days) {
@@ -259,12 +334,17 @@ export function buildOpsModel({
         qty: Object.values(day.taskQuantities || {}).reduce((t, v) => t + num(v), 0),
         lossMinutes: s.lossMinutes,
         estimated: !!s.estimated,
-        usedPresence: !!s.usedPresence
+        usedPresence: !!s.usedPresence,
+        result: dayResultOf(day, s, speeds)
     })).sort((a, b) => (a.date < b.date ? -1 : 1));
     // 부족·여유는 처리량이 있고 필요 인원을 계산한 날만 — 처리량 입력 전인 날은 필요 인원이 '기록 시간' 으로만 잡혀 여유로 보인다
     const withReq = hasBaseline ? staffDays.filter(d => d.required > 0 && d.qty > 0) : [];
     const shortAll = withReq.filter(d => d.gap < -L.shortGap).sort((a, b) => a.gap - b.gap);
     const spareAll = withReq.filter(d => d.gap > L.spareGap).sort((a, b) => b.gap - a.gap);
+    // 실제 결과 판정(마감시각 + 그날 속도) — 부족·여유 날에만 붙인다
+    shortAll.forEach(d => { d.verdict = dayVerdictOf('short', d.result, { isToday: d.date === today }); });
+    spareAll.forEach(d => { d.verdict = dayVerdictOf('spare', d.result, { isToday: d.date === today }); });
+    const countCode = (list) => list.reduce((o, d) => { o[d.verdict.code] = (o[d.verdict.code] || 0) + 1; return o; }, {});
 
     // ── 업무 표 · 손실 상위 ──
     const tasks = taskRows(cur, prev, speeds, qtySet, canCost);
@@ -333,10 +413,12 @@ export function buildOpsModel({
     }
     const problems = {
         lossTasks,
-        shortDays: shortAll.slice(0, L.topN).map(d => ({ date: d.date, attended: d.attended, required: d.required, gap: d.gap })),
-        spareDays: spareAll.slice(0, L.topN).map(d => ({ date: d.date, attended: d.attended, required: d.required, gap: d.gap })),
+        shortDays: shortAll.slice(0, L.topN).map(d => ({ date: d.date, attended: d.attended, required: d.required, gap: d.gap, verdict: d.verdict })),
+        spareDays: spareAll.slice(0, L.topN).map(d => ({ date: d.date, attended: d.attended, required: d.required, gap: d.gap, verdict: d.verdict })),
         shortDayCount: shortAll.length,
         spareDayCount: spareAll.length,
+        shortVerdicts: countCode(shortAll),   // {shortLate, shortFast, shortCalc, noEnd, open: 날 수}
+        spareVerdicts: countCode(spareAll),
         ownerChangedTasks: owner ? owner.changedTasks : null,
         ownerInPeriodTasks: owner ? owner.inPeriodTasks : null
     };

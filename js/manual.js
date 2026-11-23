@@ -3,13 +3,13 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { getFirestore, collection, doc, setDoc, getDoc, getDocs, deleteDoc, serverTimestamp, query, orderBy, where, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
-import { firebaseConfig, loadAppConfig } from './config.js?v=202611230907';
-import { connectEmulatorsIfEnabled } from './firebase-emulator.js?v=202611230907';
-import { setShellContext, goHome, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202611230907';
-import { memberNameFor } from './app-shell-data.js?v=202611230907';
-import { menuConfigOf } from './lib/perm.js?v=202611230907';
-import { escapeHtml, friendlyFirebaseError } from './utils.js?v=202611230907';
-import { checkAttachment, checkInlineImage, accessFieldsFor, backfillPatchFor, canViewManual as canViewManualFor, mergeManualLists } from './lib/manual-access.js?v=202611230907';
+import { firebaseConfig, loadAppConfig } from './config.js?v=202611231437';
+import { connectEmulatorsIfEnabled } from './firebase-emulator.js?v=202611231437';
+import { setShellContext, goHome, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202611231437';
+import { memberNameFor } from './app-shell-data.js?v=202611231437';
+import { menuConfigOf } from './lib/perm.js?v=202611231437';
+import { escapeHtml, friendlyFirebaseError } from './utils.js?v=202611231437';
+import { checkAttachment, checkInlineImage, accessFieldsFor, backfillPatchFor, canViewManual as canViewManualFor, mergeManualLists } from './lib/manual-access.js?v=202611231437';
 
 let app, db, auth, storage;
 let appConfig = {};
