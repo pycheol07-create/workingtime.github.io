@@ -13,12 +13,12 @@
 import {
     opsSummary, periodMetrics, partSummary, baselineSpeeds, lastDayIdOf, previousPeriodOf, rollingBaselineOf,
     periodDaysOf, PARTS, OEE_LEVELS, OVERLOAD_UTIL, overloadUtilOf
-} from './ops-metrics.js?v=202611231519';
-import { taskNameOf, TASK } from './task-ids.js?v=202611231519';
-import { aliasTaskName } from './task-alias-view.js?v=202611231519';
-import { taskListOf, ownerByPeriod, detectOwnerChanges, CAP_MINUTES } from './task-owner.js?v=202611231519';
-import { dailyTaskStats } from '../task-throughput.js?v=202611231519';
-import { AUTO_END_TIME } from './record-close.js?v=202611231519';
+} from './ops-metrics.js?v=202611231535';
+import { taskNameOf, TASK } from './task-ids.js?v=202611231535';
+import { aliasTaskName } from './task-alias-view.js?v=202611231535';
+import { taskListOf, ownerByPeriod, detectOwnerChanges, CAP_MINUTES } from './task-owner.js?v=202611231535';
+import { dailyTaskStats } from '../task-throughput.js?v=202611231535';
+import { AUTO_END_TIME } from './record-close.js?v=202611231535';
 
 /** 판정 기준 — 진단 문장·부족/여유 일자가 같이 쓴다. */
 export const OPS_VIEW_LEVELS = Object.freeze({
