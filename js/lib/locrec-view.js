@@ -34,8 +34,8 @@
 //                                     이월 행은 띠 건수·요약·엑셀·[전체 처리함]에서 뺀다(표에는 흐리게 보인다).
 // import 는 같은 lib 의 refill-view.js(날짜·시각, KST)·loc-recommend.js(엑셀 5열) 만 — 같은 규칙을 두 벌 두지 않는다.
 
-import { tsMs, dayKey, keyMs, lastDays, dayLabel, fmtHM, kstParts, waitInfo } from './refill-view.js?v=202611231437';
-import { excelRows, EXCEL_COLS } from './loc-recommend.js?v=202611231437';
+import { tsMs, dayKey, keyMs, lastDays, dayLabel, fmtHM, kstParts, waitInfo } from './refill-view.js?v=202611231519';
+import { excelRows, EXCEL_COLS } from './loc-recommend.js?v=202611231519';
 
 export { tsMs, dayKey, keyMs, lastDays, dayLabel, fmtHM, excelRows, EXCEL_COLS };
 
@@ -806,6 +806,22 @@ export function bulkDoneKeys(items) {
     const skip = new Set(['처리됨', '만료', '자리 바뀜', OTHER_MOVED_LABEL, DST_TAKEN_LABEL]);
     return (Array.isArray(items) ? items : [])
         .filter(x => x && x.r && x.r.recKey && !x.r.carried && x.st && !x.st.hidden && !x.st.mark && !skip.has(x.st.label))
+        .map(x => x.r.recKey);
+}
+
+/**
+ * 표 창 [전체 되돌리기] 대상 — 지금 탭의 [{r, st}] 중 **오늘** '처리함'으로 표시한(state done) 추천의 recKey(2026-11-23).
+ *   오늘 = 반영 기록(applied.day)이 오늘, 반영 기록이 없으면 표시 시각(at)이 오늘(KST). 지난 날 표시(이월 줄 등)는 뺀다.
+ *   '안 함'·'자리 막힘' 표시와, 같은 상품을 다른 추천으로 옮긴 줄(st.other — 그 추천 줄에서 되돌린다)도 뺀다.
+ *   순서 = 나중에 처리한 것부터(applied.at → at 늦은 순) — 같은 자리를 이어 쓴 추천은 거꾸로 되돌려야 자리가 맞는다.
+ */
+export function bulkUndoKeys(items, todayKey) {
+    const today = String(todayKey || '');
+    const whenOf = (mk) => (mk.applied && Number(mk.applied.at)) || tsMs(mk.at);
+    const isToday = (mk) => !!today && (mk.applied ? String(mk.applied.day || '') === today : (tsMs(mk.at) > 0 && dayKey(tsMs(mk.at)) === today));
+    return (Array.isArray(items) ? items : [])
+        .filter(x => x && x.r && x.r.recKey && x.st && x.st.mark && x.st.mark.state === 'done' && isToday(x.st.mark))
+        .sort((a, b) => whenOf(b.st.mark) - whenOf(a.st.mark))
         .map(x => x.r.recKey);
 }
 

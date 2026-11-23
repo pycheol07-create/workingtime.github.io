@@ -2,17 +2,17 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <script src="js/theme-boot.js?v=202611231437"></script>
+    <script src="js/theme-boot.js?v=202611231519"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>중국제작 부족수량 관리</title>
     <!-- 신규 미발계산기(병행 비교용). 설계: 업무자동화\앱\미발계산기2\설계.md
          기존 china-stock-goods.html 과 데이터를 공유하지만 기존 데이터(ChinaStockGoods*·ScanDB)에는 쓰지 않는다.
          스캐너 연동(시험)·위치지정(시험)은 읽기 전용 — 쓰기 버튼은 disabled(js/china-mibal2-scan.js, js/china-mibal2-loc.js, tests/mibal2-readonly.test.js). -->
     <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="css/suit.css?v=202611231437">
-    <link rel="stylesheet" href="css/app-shell.css?v=202611231437">
-    <link rel="stylesheet" href="css/d-theme.css?v=202611231437">
-    <link rel="stylesheet" href="css/busy-banner.css?v=202611231437">
+    <link rel="stylesheet" href="css/suit.css?v=202611231519">
+    <link rel="stylesheet" href="css/app-shell.css?v=202611231519">
+    <link rel="stylesheet" href="css/d-theme.css?v=202611231519">
+    <link rel="stylesheet" href="css/busy-banner.css?v=202611231519">
     <style>
         /* 색·모서리는 css/d-theme.css 의 D안 토큰(--c-*)을 쓴다 */
         :root { --primary: var(--c-accent); --bg: var(--c-bg); --card: var(--c-surface); }
@@ -121,6 +121,7 @@
         .list-table th.sortable:hover { color: var(--c-accent-deep); }
         .list-table th.new-col { background: var(--c-accent-row); }
         .list-table td.name-cell { text-align: left; max-width: 240px; overflow: hidden; text-overflow: ellipsis; }
+        .list-table td.opt-cell { text-align: left; max-width: 160px; overflow: hidden; text-overflow: ellipsis; }
         .list-table td.code-cell { font-weight: 600; color: var(--c-accent-deep); }
         .list-table td.new-mibal { font-weight: 700; color: var(--c-accent-deep); background: var(--c-accent-row); }
         .list-table tbody tr.data-row { cursor: pointer; }
@@ -134,7 +135,7 @@
         .list-table.cols-fixed { table-layout: fixed; min-width: 0 !important; }
         .list-table.cols-fixed th { box-sizing: border-box; }   /* 잰 너비(테두리·여백 포함)를 그대로 width 로 쓴다 */
         .list-table.cols-fixed th, .list-table.cols-fixed tr:not(.detail-row) > td { overflow: hidden; text-overflow: ellipsis; }
-        .list-table.cols-fixed td.name-cell { max-width: none; }
+        .list-table.cols-fixed td.name-cell, .list-table.cols-fixed td.opt-cell { max-width: none; }
         body.col-resizing, body.col-resizing * { cursor: col-resize !important; user-select: none !important; }
         .list-table td .cap-kind { font-size: 10.5px; color: var(--c-text-3); margin-left: 3px; }
         .list-table tbody tr.diff-some td.diff-cell { background: var(--c-warn-bg); color: var(--c-warn-text); font-weight: 600; }
@@ -397,7 +398,8 @@
                 <tr>
                     <th>No</th>
                     <th class="sortable" data-sort="code">코드</th>
-                    <th class="sortable" data-sort="name" style="min-width:160px;">상품명 / 옵션</th>
+                    <th class="sortable" data-sort="name" style="min-width:140px;">상품명</th>
+                    <th class="sortable" data-sort="option" style="min-width:90px;">옵션</th>
                     <th class="sortable" data-sort="loc">피킹로케이션</th>
                     <th class="sortable" data-sort="cap" title="적재량 = 대표 피킹자리(첫 자리 하나)의 적재량. 작은 글자 = 출처(개별 수정값 · 구역 설정 · ★기본 · 구역 기본 · 없음)">적재량(출처)</th>
                     <th class="sortable" data-sort="arr" title="도착 A = 선택한 출고일의 이번 입고 도착수량">도착</th>
@@ -423,7 +425,7 @@
                 </tr>
             </thead>
             <tbody id="table-body">
-                <tr><td colspan="25" class="t-3" style="text-align:center; padding:50px;">불러오는 중…</td></tr>
+                <tr><td colspan="26" class="t-3" style="text-align:center; padding:50px;">불러오는 중…</td></tr>
             </tbody>
         </table>
     </div>
@@ -582,9 +584,9 @@
     <!-- 엑셀 받기(btn-excel) — china-stock-goods.html 과 같은 주소·버전 -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" integrity="sha384-vtjasyidUo0kW94K5MXDXntzOJpQgBKXmE7e2Ga4LG0skTTLeBi97eFAXsqewJjw" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
     <!-- 로그인 게이트는 기존 china-stock-goods.html 과 같은 파일·같은 주소 -->
-    <script type="module" src="js/china-stock-gate.js?v=202611231437"></script>
-    <script type="module" src="js/china-mibal2.js?v=202611231437"></script>
-    <script type="module" src="js/page-gate.js?v=202611231437" data-perm-page="china.mibal2"></script>
-    <script type="module" src="js/app-shell.js?v=202611231437"></script>
+    <script type="module" src="js/china-stock-gate.js?v=202611231519"></script>
+    <script type="module" src="js/china-mibal2.js?v=202611231519"></script>
+    <script type="module" src="js/page-gate.js?v=202611231519" data-perm-page="china.mibal2"></script>
+    <script type="module" src="js/app-shell.js?v=202611231519"></script>
 </body>
 </html>

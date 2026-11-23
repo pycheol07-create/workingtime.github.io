@@ -3,12 +3,12 @@
 // 한 화면에 상세하게 요약해서 보여주는 보고서 탭. 각 섹션의 실제 계산은 기존 모듈의 재사용 함수를 그대로 사용하고,
 // 이 파일은 "기간 해석 + 심층 집계 + 보고서 렌더링"을 담당한다.
 
-import * as State from './state.js?v=202611231437';
-import { LEAVE_TYPES } from './state.js?v=202611231437';
-import { getRegularMembersForCount, formatDuration, buildMemberHourlyWageMap, getTodayDateString, escapeHtml, escapeHtml as esc } from './utils.js?v=202611231437';   // escapeHtml 도 같이(2026-11-12 이스케이프 수정이 이름으로 불러 정산 화면이 깨졌다)
+import * as State from './state.js?v=202611231519';
+import { LEAVE_TYPES } from './state.js?v=202611231519';
+import { getRegularMembersForCount, formatDuration, buildMemberHourlyWageMap, getTodayDateString, escapeHtml, escapeHtml as esc } from './utils.js?v=202611231519';   // escapeHtml 도 같이(2026-11-12 이스케이프 수정이 이름으로 불러 정산 화면이 깨졌다)
 import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { matchesFilter, hasFilter, filterCount, openFloatingFilter, closeFloatingFilter } from './table-filter.js?v=202611231437';
-import { bindDrillListeners, drillWrap } from './settlement-drill.js?v=202611231437';
+import { matchesFilter, hasFilter, filterCount, openFloatingFilter, closeFloatingFilter } from './table-filter.js?v=202611231519';
+import { bindDrillListeners, drillWrap } from './settlement-drill.js?v=202611231519';
 
 import {
     calculateReportKPIs,
@@ -18,14 +18,14 @@ import {
     calculateBenchmarkOEE,
     generateProductivityDiagnosis,
     analyzeUnitCost
-} from './ui-history-reports-logic.js?v=202611231437';
+} from './ui-history-reports-logic.js?v=202611231519';
 
-import { aggregateManagementData } from './ui-history-management.js?v=202611231437';
-import { ensureMilestonesLoaded, getMilestoneSummariesForPeriod } from './ui-history-milestones.js?v=202611231437';
-import { D } from './d-chart.js?v=202611231437';
-import { aliasHistoryView } from './lib/task-alias-view.js?v=202611231437';
-import { baselineSpeeds, lastDayIdOf, opsSummary, OEE_LEVELS } from './lib/ops-metrics.js?v=202611231437';
-import { revenueTotalOf } from './revenue-channels.js?v=202611231437';
+import { aggregateManagementData } from './ui-history-management.js?v=202611231519';
+import { ensureMilestonesLoaded, getMilestoneSummariesForPeriod } from './ui-history-milestones.js?v=202611231519';
+import { D } from './d-chart.js?v=202611231519';
+import { aliasHistoryView } from './lib/task-alias-view.js?v=202611231519';
+import { baselineSpeeds, lastDayIdOf, opsSummary, OEE_LEVELS } from './lib/ops-metrics.js?v=202611231519';
+import { revenueTotalOf } from './revenue-channels.js?v=202611231519';
 // 엑셀(결산 xlsx)로 옮길 때 — 화면용 HTML 글(태그·escape 된 글자)을 보통 글자로
 const htmlToText = (h) => String(h == null ? '' : h).replace(/<[^>]+>/g, '').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&');
 
@@ -1422,6 +1422,7 @@ async function downloadSettlementPdf(periodLabel, btnArg = null) {
         if (holder.scrollHeight < 50) {
             throw new Error('내용 높이를 계산하지 못했습니다 (' + holder.scrollHeight + 'px)');
         }
+        holder.classList.add('term-help-plain');   // 용어 설명 점선 밑줄(js/term-help.js)은 PDF 에 안 찍는다
         await html2pdf().from(holder).set(opt).save();
     } catch (e) {
         console.error('결산 PDF 저장 실패:', e);

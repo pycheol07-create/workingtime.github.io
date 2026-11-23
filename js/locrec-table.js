@@ -17,14 +17,14 @@
 // 칸수 무관 허용(2026-11-13): 상품 줄마다 [칸수 무관 허용]/[끄기](지금 자리에 칸수가 있는 줄·이미 허용한 상품) — store.setSizeFree.
 //   허용한 상품은 줄에 '칸수 무관' 배지. 도구 줄 '칸수 무관 N건 보기'를 켜면 허용 목록 전체(오늘 표에 없는 상품 포함)가 표 끝에 나와 끌 수 있다.
 //   날짜·새 판 대기와 상관없이 누를 수 있다(추천 표시가 아니라 다음 계산 설정이라서).
-import { escapeHtml } from './utils.js?v=202611231437';
-import { fmtHM, tabCounts, tabCarried, TABS, TAB_LABEL, fmtNum, canMark, tabMeta, dayLabel, rowLines, dayMessage, fmtGain, ROUTE_OUT_LABEL, ROUTE_OUT_HELP, locLabel, bulkDoneKeys, CARRIED_LABEL, qtyCellOf, PENDING_TEXT,
+import { escapeHtml } from './utils.js?v=202611231519';
+import { fmtHM, tabCounts, tabCarried, TABS, TAB_LABEL, fmtNum, canMark, tabMeta, dayLabel, rowLines, dayMessage, fmtGain, ROUTE_OUT_LABEL, ROUTE_OUT_HELP, locLabel, bulkDoneKeys, bulkUndoKeys, CARRIED_LABEL, qtyCellOf, PENDING_TEXT,
     shownTabs, fmtDaily1, BACK_TAB_HELP, BACK_GAIN_LABEL, BACK_SCORE_HELP, backReasonTitle, BLOCKED_LABEL, SKIP_HELP, holdRows, HOLD_ROW_LABEL, HOLD_UNDO_TEXT,
-    SIZE_FREE_LABEL, SIZE_FREE_HELP, sizeFreeShown, fmtMDHM } from './lib/locrec-view.js?v=202611231437';
-import { NO_NAME, todayKey } from './locrec-store.js?v=202611231437';
-import { higherOpenThan } from './modal-above.js?v=202611231437';
-import { undoConfirmText } from './lib/locrec-apply.js?v=202611231437';
-import { SORT_COLS, sortRows, nextSort, isLowStockRow, lineTotal } from './lib/locrec-sort.js?v=202611231437';
+    SIZE_FREE_LABEL, SIZE_FREE_HELP, sizeFreeShown, fmtMDHM } from './lib/locrec-view.js?v=202611231519';
+import { NO_NAME, todayKey } from './locrec-store.js?v=202611231519';
+import { higherOpenThan } from './modal-above.js?v=202611231519';
+import { undoConfirmText } from './lib/locrec-apply.js?v=202611231519';
+import { SORT_COLS, sortRows, nextSort, isLowStockRow, lineTotal } from './lib/locrec-sort.js?v=202611231519';
 
 // location.html 의 #locrec-modal 과 같은 마크업(바꾸면 둘 다)
 const TEMPLATE = `
@@ -38,6 +38,7 @@ const TEMPLATE = `
                 <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
                     <label class="refill-sub locrec-skipchk" id="locrec-skip-wrap" hidden><input type="checkbox" id="locrec-show-skip"> <span id="locrec-skip-txt" style="vertical-align:middle;">안 함도 보기</span></label>
                     <button type="button" class="btn btn-secondary btn-sm" id="locrec-all-btn" data-locrec-act="doneAll" title="지금 탭에서 아직 표시 안 한 추천을 모두 '처리함'으로 표시하고 데이터 리스트 자리도 추천대로 옮김(안 함·처리됨·만료·자리 바뀜은 제외)" hidden>전체 처리함</button>
+                    <button type="button" class="btn btn-ghost btn-sm" id="locrec-undoall-btn" data-locrec-act="undoAll" title="지금 탭에서 오늘 '처리함'으로 표시한 추천을 모두 되돌림(데이터 리스트 자리도 원래대로)" hidden>전체 되돌리기</button>
                     <button type="button" class="btn btn-primary btn-sm" id="locrec-dl-btn" data-locrec-act="download" title="지금 탭(안 함도 보기면 그것까지)">엑셀 받기</button>
                 </div>
             </div>
@@ -73,7 +74,7 @@ export function mountLocRecTable({ store, sizeOf }) {
     const q = (id) => document.getElementById(id);
     const mTitle = q('locrec-modal-title'), mMeta = q('locrec-modal-meta'), mTabs = q('locrec-tabs');
     const mSkipWrap = q('locrec-skip-wrap'), mSkip = q('locrec-show-skip'), mSkipTxt = q('locrec-skip-txt');
-    const mDl = q('locrec-dl-btn'), mTbody = q('locrec-tbody'), mAll = q('locrec-all-btn');
+    const mDl = q('locrec-dl-btn'), mTbody = q('locrec-tbody'), mAll = q('locrec-all-btn'), mUndoAll = q('locrec-undoall-btn');
     const mBand = q('locrec-new-band'), mBandTxt = q('locrec-new-txt'), mReqNote = q('locrec-req-note');
     const ALL_TITLE = mAll ? mAll.title : '';            // [전체 처리함] 원래 툴팁(새 판 대기 중에는 PENDING_TEXT)
     let tab = 'single', showSkipped = false, lastTabsHtml = '';
@@ -339,12 +340,21 @@ export function mountLocRecTable({ store, sizeOf }) {
         const sfPart = showSf ? sizeFreeHtml(S, sfList, inDay) : '';
         // [전체 처리함] — 처음 보여 주는 날짜에서, 지금 탭에 아직 표시 안 한 추천이 있을 때만
         const bulk = loaded && editable ? bulkDoneKeys(all.filter(x => keepRow(x.r))) : [];   // 빼기로 숨긴 추천은 [전체 처리함]에서도 뺀다
+        // [전체 되돌리기] — 지금 탭에 오늘 '처리함' 표시가 있을 때만 눌림(새 판 대기 중에도 된다 — 줄 [되돌리기]와 같음)
+        const undoKeys = loaded && editable ? bulkUndoKeys(all, todayKey()) : [];
+        const undoing = !!(S.applying && S.applying.kind === 'undo');
+        if (mUndoAll) {
+            mUndoAll.hidden = !(loaded && editable);   // [전체 처리함]과 같이 — 되돌릴 것이 없으면 잠금
+            mUndoAll.disabled = !undoKeys.length || !!S.applying;
+            mUndoAll.textContent = undoing ? `되돌리는 중 ${S.applying.i}/${S.applying.n}`
+                : undoKeys.length ? `전체 되돌리기 (${undoKeys.length})` : '전체 되돌리기';
+        }
         if (mAll) {
             mAll.hidden = !(loaded && editable);
             mAll.disabled = !bulk.length || !!S.applying || !!pd;
             if (pd) mAll.title = PENDING_TEXT;
             else if (mAll.title === PENDING_TEXT) mAll.title = ALL_TITLE;
-            mAll.textContent = S.applying ? `반영 중 ${S.applying.i}/${S.applying.n}`
+            mAll.textContent = S.applying && !undoing ? `반영 중 ${S.applying.i}/${S.applying.n}`
                 : bulk.length ? `전체 처리함 (${bulk.length})` : '전체 처리함';
         }
         if (!loaded) {
@@ -406,6 +416,12 @@ export function mountLocRecTable({ store, sizeOf }) {
             if (keys.length && confirm(`${TAB_LABEL[tab]} 탭의 추천 ${keys.length}건을 모두 '처리함'으로 표시할까요?
 데이터 리스트도 바뀝니다 — 상품을 추천한 자리로 옮깁니다(한 건씩 차례로).
 (오늘 안에는 줄마다 [되돌리기]로 자리까지 되돌릴 수 있습니다)`)) store.markMany(keys, 'done');
+        }
+        else if (act === 'undoAll') {
+            const keys = bulkUndoKeys(store.visibleRows(tab), todayKey());
+            if (keys.length && confirm(`${TAB_LABEL[tab]} 탭에서 '처리함'으로 표시한 ${keys.length}건을 모두 되돌릴까요?
+데이터 리스트 자리도 옮기기 전으로 되돌립니다(한 건씩 차례로).
+반영 뒤 데이터 리스트가 바뀐 건은 자리는 두고 표시만 지울지 끝에 한 번 묻습니다.`)) store.undoMany(keys);
         }
         else if (act === 'done') {
             const r = store.get().day && TABS.flatMap(t => (store.get().day.parsed[t] || [])).find(x => x.recKey === key);

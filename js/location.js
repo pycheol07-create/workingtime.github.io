@@ -1,34 +1,34 @@
-import { initializeFirebase, loadAppConfig } from './config.js?v=202611231437';
+import { initializeFirebase, loadAppConfig } from './config.js?v=202611231519';
 import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, writeBatch, getDocs, query, where, documentId, deleteField, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { escapeHtml as escAttr } from './utils.js?v=202611231437';
-import { cleanRaw, isCostCol, isDroppedHeader, supplierCodeOf } from './lib/sensitive-cols.js?v=202611231437';
-import { multiLocGroups, reserveLocIds, normLocId } from './lib/multi-loc.js?v=202611231437';
-import { codeOfRowB, pickRowB, checkUploadB, checkPermanent, newLocIds } from './lib/upload-check.js?v=202611231437';
-import { orderKeyMap } from './lib/order-hash.js?v=202611231437';
-import { setShellContext } from './app-shell-bridge.js?v=202611231437';
-import { memberNameFor } from './app-shell-data.js?v=202611231437';
-import { menuConfigOf } from './lib/perm.js?v=202611231437';
-import { readHash, writeHash, onHashNav } from './hash-state.js?v=202611231437';
-import { initPageNav } from './page-nav.js?v=202611231437';
-import { initRefillCard } from './refill-card.js?v=202611231437';
-import { initLocRecCard } from './locrec-card.js?v=202611231437';
-import { getLocRecStore, peekLocRecStore } from './locrec-store.js?v=202611231437';   // 오늘 변경 추천 예정 자리·최근 [처리함] 이동(엑셀 경고)
-import { initRebuildBar } from './rebuild-bar.js?v=202611231437';
-import { mountRouteSlot } from './locrec-route-card.js?v=202611231437';
-import { whenPerm, onPerm, canFeature } from './feature-gate.js?v=202611231437';   // 권한 개편 5단계 — 카드는 권한이 확인된 뒤에만 시작
-import { mountBusyBanner, createUploadStatus } from './busy-banner.js?v=202611231437';
-import { uploadBlockText } from './lib/busy-view.js?v=202611231437';
-import { uploadStockView, ezStockView, stockSrcOf, countAuto, autoBadge } from './lib/ez-stock-view.js?v=202611231437';
-import { INCOMING_WAIT_MAX_MS, SHEET_REQ_DAILY_MAX, incomingReadAt, requestServerMs, judgeIncomingSnap, createRunGuard, guardedRun, once, waitTimeoutText } from './lib/incoming-wait.js?v=202611231437';
-import { angleSizeOf, SERVER_DEFAULTS, makeRankers, isEtcLocObj } from './lib/loc-recommend.js?v=202611231437';
-import { comboOf, isExcludedSlot, slotDigits, parseCards } from './lib/loc-cards.js?v=202611231437';   // 자리 → 'A-1' 조합(카드 이름·제외 조합 같은 규칙)
-import { initLocSetPanel } from './locset-panel.js?v=202611231437';   // 환경설정 '추천·채우기' 탭(변경 추천 설정·채우기 설정)
+import { escapeHtml as escAttr } from './utils.js?v=202611231519';
+import { cleanRaw, isCostCol, isDroppedHeader, supplierCodeOf } from './lib/sensitive-cols.js?v=202611231519';
+import { multiLocGroups, reserveLocIds, normLocId } from './lib/multi-loc.js?v=202611231519';
+import { codeOfRowB, pickRowB, checkUploadB, checkPermanent, newLocIds } from './lib/upload-check.js?v=202611231519';
+import { orderKeyMap } from './lib/order-hash.js?v=202611231519';
+import { setShellContext } from './app-shell-bridge.js?v=202611231519';
+import { memberNameFor } from './app-shell-data.js?v=202611231519';
+import { menuConfigOf } from './lib/perm.js?v=202611231519';
+import { readHash, writeHash, onHashNav } from './hash-state.js?v=202611231519';
+import { initPageNav } from './page-nav.js?v=202611231519';
+import { initRefillCard } from './refill-card.js?v=202611231519';
+import { initLocRecCard } from './locrec-card.js?v=202611231519';
+import { getLocRecStore, peekLocRecStore } from './locrec-store.js?v=202611231519';   // 오늘 변경 추천 예정 자리·최근 [처리함] 이동(엑셀 경고)
+import { initRebuildBar } from './rebuild-bar.js?v=202611231519';
+import { mountRouteSlot } from './locrec-route-card.js?v=202611231519';
+import { whenPerm, onPerm, canFeature } from './feature-gate.js?v=202611231519';   // 권한 개편 5단계 — 카드는 권한이 확인된 뒤에만 시작
+import { mountBusyBanner, createUploadStatus } from './busy-banner.js?v=202611231519';
+import { uploadBlockText } from './lib/busy-view.js?v=202611231519';
+import { uploadStockView, ezStockView, stockSrcOf, countAuto, autoBadge } from './lib/ez-stock-view.js?v=202611231519';
+import { INCOMING_WAIT_MAX_MS, SHEET_REQ_DAILY_MAX, incomingReadAt, requestServerMs, judgeIncomingSnap, createRunGuard, guardedRun, once, waitTimeoutText } from './lib/incoming-wait.js?v=202611231519';
+import { angleSizeOf, SERVER_DEFAULTS, makeRankers, isEtcLocObj } from './lib/loc-recommend.js?v=202611231519';
+import { comboOf, isExcludedSlot, slotDigits, parseCards } from './lib/loc-cards.js?v=202611231519';   // 자리 → 'A-1' 조합(카드 이름·제외 조합 같은 규칙)
+import { initLocSetPanel } from './locset-panel.js?v=202611231519';   // 환경설정 '추천·채우기' 탭(변경 추천 설정·채우기 설정)
 // 변경 추천 [처리함]이 옮긴 자리의 하루 표시(locRecMove)·오늘 재고 올리기 전 충돌 경고 — 계획·판정은 js/lib/locrec-apply.js
-import { zoneDocIdOf, moveBadge, uploadMoveConflicts, uploadConflictText, isDesignatedEmpty } from './lib/locrec-apply.js?v=202611231437';
-import { dayKey as kstDayKey } from './lib/refill-view.js?v=202611231437';
+import { zoneDocIdOf, moveBadge, uploadMoveConflicts, uploadConflictText, isDesignatedEmpty } from './lib/locrec-apply.js?v=202611231519';
+import { dayKey as kstDayKey } from './lib/refill-view.js?v=202611231519';
 // 마지막 출고일(integrations/locLastOut, 로케이션추천\최근출고.py) — 업로드 '마지막출고.배송일'과 더 최근 값으로 합친다(2026-11-20)
-import { normDay, parseLastOut, laterDay, ezLastOf, cleanupDecision } from './lib/last-out.js?v=202611231437';
+import { normDay, parseLastOut, laterDay, ezLastOf, cleanupDecision } from './lib/last-out.js?v=202611231519';
 
 // 🔐 onclick="fn('...')" 안에 데이터를 넣을 때 반드시 통과시킬 것.
 //    작은따옴표만 막으면 상품명에 " < 역슬래시가 들어올 때 버튼이 동작하지 않거나
@@ -919,6 +919,15 @@ const escHtmlLite = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ 
 //   채우기자동화 규칙.py pick_label 도 angleSize 만 본다(같은 기준). 숫자 0·false 등 빈 값은 칸수 없음.
 //   규칙은 lib/loc-recommend.js angleSizeOf 한 곳 — 변경 추천 행의 fromSize/toSize 도 같은 함수로 만든다.
 const locAngleSize = angleSizeOf;
+/** 추가 항목 열(cus_*) 필터·정렬 값 — 화면 칸과 같은 값. 칸수는 자리에 저장된 칸수(위 규칙), 입고대기는 오더+사입 합계, 그 밖은 업로드 원본 */
+function cusCellValue(d, key) {
+    if (key === '칸수') { const a = locAngleSize(d); return a ? String(a).trim() : ''; }
+    if (key === '입고대기') {
+        const code = (d.code && d.code !== d.id) ? d.code : '';
+        return code && incomingTotalByCode[code] ? incomingTotalByCode[code].toString() : '';
+    }
+    return (d.rawData && d.rawData[key]) ? d.rawData[key].toString().trim() : '';
+}
 
 // ★ 메인 테이블 엑셀 다운로드 (HTML 테이블 .xls 형식)
 window.downloadMainExcel = async function() {
@@ -2918,15 +2927,8 @@ function setupFilterPopups() {
         }
 
         // ★ 값 수집
-        const vals = [...new Set(originalData.map(d => {
-            // ★ v3.57fix: 입고대기는 incomingTotalByCode 기준으로 필터값 수집
-            if (key === '입고대기') {
-                const code = (d.code && d.code !== d.id) ? d.code : '';
-                const v = code && incomingTotalByCode[code] ? incomingTotalByCode[code].toString() : '';
-                return v;
-            }
-            return (d.rawData && d.rawData[key]) ? d.rawData[key].toString().trim() : '';
-        }))].filter(Boolean);
+        // 입고대기·칸수는 화면 칸과 같은 값(cusCellValue) — 칸수는 업로드 원본이 아니라 자리에 저장된 칸수(2026-11-23)
+        const vals = [...new Set(originalData.map(d => cusCellValue(d, key)))].filter(Boolean);
 
         // ★ v3.59: 날짜 필터 자동 감지 (70% 이상 YYYY-MM-DD 형식이면 날짜 필터)
         const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
@@ -3445,12 +3447,7 @@ function applyFiltersAndSort() {
             const arr = filters[col];
             if (!Array.isArray(arr) || arr.length === 0) continue;
             const key = col.replace('cus_', '');
-            let val = (item.rawData && item.rawData[key]) ? item.rawData[key].toString().trim() : '';
-            // ★ 입고대기 컬럼은 오더+사입 합계 기준으로 필터
-            if (key === '입고대기') {
-                const code = (item.code && item.code !== item.id) ? item.code : '';
-                val = code && incomingTotalByCode[code] ? incomingTotalByCode[code].toString() : '';
-            }
+            const val = cusCellValue(item, key);   // 입고대기 = 오더+사입 합계, 칸수 = 자리 칸수
             // 매칭: 'empty' / 'not-empty' 특수값 또는 정확 일치 값
             let matched = false;
             for (const f of arr) {
@@ -3478,12 +3475,7 @@ function applyFiltersAndSort() {
             else if (ck === 'category') cv = item.category || '피킹용';
             else if (ck.startsWith('cus_')) {
                 const key = ck.replace('cus_', '');
-                if (key === '입고대기') {
-                    const c = (item.code && item.code !== item.id) ? item.code : '';
-                    cv = c && incomingTotalByCode[c] ? incomingTotalByCode[c].toString() : '';
-                } else {
-                    cv = (item.rawData && item.rawData[key] != null) ? item.rawData[key] : '';
-                }
+                cv = cusCellValue(item, key);   // 화면 칸과 같은 값(입고대기 = 오더+사입 합계, 칸수 = 자리 칸수)
             }
             if (!String(cv).toLowerCase().includes(q)) return false;
         }
@@ -3499,8 +3491,8 @@ function applyFiltersAndSort() {
         let aVal, bVal;
         if (sortConfig.key.startsWith('cus_')) {
             const key = sortConfig.key.replace('cus_', '');
-            aVal = (a.rawData && a.rawData[key]) ? a.rawData[key].toString() : '';
-            bVal = (b.rawData && b.rawData[key]) ? b.rawData[key].toString() : '';
+            aVal = key === '칸수' ? cusCellValue(a, key) : ((a.rawData && a.rawData[key]) ? a.rawData[key].toString() : '');
+            bVal = key === '칸수' ? cusCellValue(b, key) : ((b.rawData && b.rawData[key]) ? b.rawData[key].toString() : '');
         } else {
             aVal = a[sortConfig.key] || ''; bVal = b[sortConfig.key] || '';
         }

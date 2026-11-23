@@ -32,13 +32,13 @@ import {
     dayKey, parseRecDay, rowState, dayOptions, defaultDay, canMark, excelRows, EXCEL_COLS, SHEET_NAME, fileNameOf,
     stripRows, fileNameAll, recReqUi, tsMs, TABS, dayVer, movedToday, PENDING_TEXT, plannedSlots, HOLD_UNDO_TEXT,
     sizeFreeList, sizeFreeSet, sizeFreeWrite, sizeFreeCode, sizeFreeToast
-} from './lib/locrec-view.js?v=202611231437';
-import { laterMs } from './lib/rebuild-view.js?v=202611231437';
+} from './lib/locrec-view.js?v=202611231519';
+import { laterMs } from './lib/rebuild-view.js?v=202611231519';
 import { docIdsForRow, docIdsForApplied, planApply, planUndo, planClearMoves, applyFailText, undoFailText, bulkSummaryText, markOnlyOk, reasonText,
          dstBlocked, altOk, altRow, blockOf, altConfirmText, bulkAltText, EZ_REMIND_TEXT, BLOCKED_STATE,
-         recentAppliedMoves } from './lib/locrec-apply.js?v=202611231437';
-import { pickAltTarget, prioritiesOf } from './lib/loc-recommend.js?v=202611231437';
-import { uploadView, uploadBlockText } from './lib/busy-view.js?v=202611231437';
+         recentAppliedMoves } from './lib/locrec-apply.js?v=202611231519';
+import { pickAltTarget, prioritiesOf } from './lib/loc-recommend.js?v=202611231519';
+import { uploadView, uploadBlockText } from './lib/busy-view.js?v=202611231519';
 
 const APP = 'artifacts/team-work-logger-v2';
 const LATEST_PATH = `${APP}/integrations/locRecLatest`;
@@ -529,14 +529,9 @@ function createLocRecStore({ db, auth, getMemberName, sizeOf, altCtx, notify, li
         if (confirm(applyFailText(f))) await writeMarks([key], 'done');
     }
 
-    /** [되돌리기] — 반영 기록이 있으면 자리까지 원복(한 트랜잭션). 못 하면 '표시만 지울까요?'(clearMark).
-     *  반영 뒤 오늘 재고를 올렸으면(INFO_CONFIG.lastDataUpdate > applied.at) 엑셀이 이동을 인정했을 수 있어 자리는 되돌리지 않는다 */
-    async function undoMark(key) {
-        S.saving.add(key);
-        emit();
-        let r = null;
-        try {
-            r = await runTransaction(db, async (tx) => {
+    /** 되돌리기 트랜잭션 하나 → {status: blocked|gone|cleared|fail|undone, text?, fail?}. 확인창·알림 없음([전체 되돌리기]가 같이 쓴다) */
+    function txUndo(key) {
+        return runTransaction(db, async (tx) => {
                 const blocked = await uploadBusy(tx);
                 const mk = await tx.get(doc(db, MARKS_PATH));
                 const cur = mk.exists() ? (((mk.data() || {}).marks) || {})[key] : null;
@@ -554,6 +549,15 @@ function createLocRecStore({ db, auth, getMemberName, sizeOf, altCtx, notify, li
                 tx.set(doc(db, MARKS_PATH), { marks: { [key]: del } }, { merge: true });
                 return { status: 'undone' };
             });
+    }
+    /** [되돌리기] — 반영 기록이 있으면 자리까지 원복(한 트랜잭션). 못 하면 '표시만 지울까요?'(clearMark).
+     *  반영 뒤 오늘 재고를 올렸으면(INFO_CONFIG.lastDataUpdate > applied.at) 엑셀이 이동을 인정했을 수 있어 자리는 되돌리지 않는다 */
+    async function undoMark(key) {
+        S.saving.add(key);
+        emit();
+        let r = null;
+        try {
+            r = await txUndo(key);
         } catch (e) {
             alert(`되돌리지 못했습니다(${errCode(e)}). 아무것도 바뀌지 않았습니다 — 다시 눌러 주세요.`);
             return;
@@ -565,9 +569,59 @@ function createLocRecStore({ db, auth, getMemberName, sizeOf, altCtx, notify, li
         if (r.status === 'fail' && confirm(undoFailText(r.fail))) await clearMark(key);
     }
 
+    /** [전체 되돌리기] — 지금 탭의 '처리함' 표시를 차례로 되돌린다(한 건씩 트랜잭션, 진행은 S.applying).
+     *  자리를 못 되돌린 건(반영 뒤 엑셀이 바뀜 등)은 끝에 한 번 '표시만 지울까요?'. 오류·업로드 중이면 거기서 멈춘다(되돌린 건은 그대로) */
+    async function undoMany(keys) {
+        const list = (Array.isArray(keys) ? keys : []).filter(k => k && !S.saving.has(k));
+        if (!list.length || S.applying || !canMark(S.latest, S.key, todayKey())) return;
+        let ok = 0, stopText = '';
+        // 차례로 run(k) — 진행은 S.applying(kind 'undo' — [전체 되돌리기] 버튼이 '되돌리는 중 i/n'). 오류·업로드 중이면 멈춤
+        const pass = async (keys2, run) => {
+            const out = [];
+            keys2.forEach(k => S.saving.add(k));
+            S.applying = { i: 0, n: keys2.length, kind: 'undo' };
+            emit();
+            try {
+                for (let i = 0; i < keys2.length; i++) {
+                    S.applying = { i: i + 1, n: keys2.length, kind: 'undo' };
+                    emit();
+                    let r;
+                    try { r = await run(keys2[i]); }
+                    catch (e) { stopText = `${ok}건 되돌린 뒤 멈췄습니다(${errCode(e)}). 남은 건은 다시 눌러 주세요.`; break; }
+                    if (r.status === 'blocked' || r.status === 'error') { stopText = `${ok}건 되돌린 뒤 멈췄습니다.\n${r.text}`; break; }
+                    out.push({ key: keys2[i], r });
+                }
+            } finally {
+                keys2.forEach(k => S.saving.delete(k));
+                S.applying = null;
+                emit();
+            }
+            return out;
+        };
+        // 1) 나중에 처리한 것부터 되돌린다(bulkUndoKeys 순서) 2) 자리가 바뀌어 못 한 건은 한 번 더 — 앞에서 되돌린 건이 자리를 비웠을 수 있다
+        let fails = [];
+        const take = (res) => res.forEach(({ key, r }) => {
+            if (r.status === 'fail') fails.push(key);
+            else if (r.status === 'undone' || r.status === 'cleared') ok++;
+        });
+        take(await pass(list, txUndo));
+        if (!stopText && fails.length && ok) {
+            const again = fails;
+            fails = [];
+            take(await pass(again, txUndo));
+        }
+        if (stopText) { alert(stopText); return; }
+        if (fails.length && confirm(`${ok}건 되돌렸습니다.\n${fails.length}건은 데이터 리스트가 이미 바뀌었거나 반영한 날이 지나 자리는 되돌리지 않습니다.\n그 ${fails.length}건은 처리함 표시만 지울까요?`)) {
+            await pass(fails, (k) => clearMark(k, { quiet: true }));
+            if (stopText) alert(stopText);
+            return;
+        }
+        if (!fails.length && ok) say(`${ok}건을 되돌렸습니다.`);
+    }
+
     /** 되돌리기 못 한 표시 지우기 — 그 추천이 쓴 자리 locRecMove 만 지우고(상품 칸은 그대로) marks 도 지운다(한 트랜잭션).
      *  그래야 데이터 리스트 배지('엑셀 다름')·다음 업로드 경고가 남지 않는다 */
-    async function clearMark(key) {
+    async function clearMark(key, { quiet = false } = {}) {
         S.saving.add(key);
         emit();
         try {
@@ -585,9 +639,11 @@ function createLocRecStore({ db, auth, getMemberName, sizeOf, altCtx, notify, li
                 tx.set(doc(db, MARKS_PATH), { marks: { [key]: del } }, { merge: true });
                 return { status: 'cleared' };
             });
-            if (r.status === 'blocked') alert(r.text);
+            if (r.status === 'blocked') { if (!quiet) alert(r.text); return r; }
+            return r;
         } catch (e) {
-            alert(`표시를 지우지 못했습니다(${errCode(e)}). 다시 눌러 주세요.`);
+            if (!quiet) alert(`표시를 지우지 못했습니다(${errCode(e)}). 다시 눌러 주세요.`);
+            return { status: 'error', text: `표시를 지우지 못했습니다(${errCode(e)}). 다시 눌러 주세요.` };
         } finally {
             S.saving.delete(key);
             emit();
@@ -770,7 +826,7 @@ function createLocRecStore({ db, auth, getMemberName, sizeOf, altCtx, notify, li
 
     return {
         get: () => S, on, start, stop, setDay, entryOf, loaded, visibleRows,
-        mark, markMany, downloadTab, downloadAll, isStarted: () => started,
+        mark, markMany, undoMany, downloadTab, downloadAll, isStarted: () => started,
         reqState, setHold, applyPending,
         isLite: () => liteMode, upgrade, plannedSlotMap, recentMoves, ensureFresh, unhold,
         setSizeFree, sizeFreeCodes, sizeFreeRows, sizeFreeBusyKey

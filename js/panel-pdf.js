@@ -1,4 +1,4 @@
-import { escapeHtml } from './utils.js?v=202611231437';
+import { escapeHtml } from './utils.js?v=202611231519';
 // === js/panel-pdf.js ===
 // 📄 화면의 패널 하나를 '보이는 그대로' PDF 로 받는다(A4 가로) — 운영 리포트 탭의 [PDF 받기] (2026-11-10).
 //   방식은 팀 결산 PDF(js/ui-history-settlement.js downloadSettlementPdf)와 같다 — 그쪽은 그대로 두고 여기서 일반화했다.
@@ -255,6 +255,7 @@ export async function downloadPanelPdf(panel, o = {}) {
         const clone = panel.cloneNode(true);
         clone.classList.remove('hidden', 'flex-1', 'h-full', 'overflow-y-auto', 'overflow-hidden', 'absolute', 'inset-0');
         clone.style.cssText = 'display:block;position:static;width:100%;height:auto;max-height:none;overflow:visible;';
+        clone.classList.add('term-help-plain');   // 용어 설명 점선 밑줄(js/term-help.js)은 PDF 에 안 찍는다
 
         // 그래프(캔버스)는 복제만으론 빈 사각형 — 픽셀을 옮겨 담는다(지우기 전에, 같은 순서로 짝지어)
         const srcC = panel.querySelectorAll('canvas');

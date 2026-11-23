@@ -9,14 +9,18 @@ export const COLS_PICK_KEY = 'mibal2.colPick';   // 화면 이름(mibal2) 포함
 export const LEGACY_COLS_KEY = 'mibal2.cols';
 
 // thead 순서. key = th data-sort(No·플래그는 'no'·'flags' — js/china-mibal2.js colKey 와 같다)
-export const COLS = ['no', 'code', 'name', 'loc', 'cap', 'arr', 'conf', 'inDiff', 'stock', 'bstock', 'pstock', 'recv', 'inv', 'out',
+export const COLS = ['no', 'code', 'name', 'option', 'loc', 'cap', 'arr', 'conf', 'inDiff', 'stock', 'bstock', 'pstock', 'recv', 'inv', 'out',
     'short', 'mibal', 'unres', 'room', 'third', 'pick', 'resv', 'refill', 'old', 'diff', 'flags'];
 // 예전 '간단히'(No·코드·상품명·피킹로케이션·적재량·도착·입고확인·차이(도착−입고)·총재고·미발수량·남는 부족수량·피킹 적재·비축 적재·플래그)
-export const DEFAULT_ON = ['no', 'code', 'name', 'loc', 'cap', 'arr', 'conf', 'inDiff', 'stock', 'mibal', 'unres', 'pick', 'resv', 'flags'];
-// 끌 수 없는 열 — 상품을 알아보는 코드·상품명, 입고확인(칸을 눌러 고친다)
-export const REQUIRED = ['code', 'name', 'conf'];
+export const DEFAULT_ON = ['no', 'code', 'name', 'option', 'loc', 'cap', 'arr', 'conf', 'inDiff', 'stock', 'mibal', 'unres', 'pick', 'resv', 'flags'];
+// 끌 수 없는 열 — 상품을 알아보는 코드·상품명·옵션, 입고확인(칸을 눌러 고친다)
+//   옵션은 2026-11-23 상품명 칸에서 나눴다(사용자 요청) — 예전에 저장한 칸 설정에도 보이게 필수로 둔다
+export const REQUIRED = ['code', 'name', 'option', 'conf'];
 // 단독 운영(live)에서는 값이 없어 늘 숨기는 비교 열(js/china-mibal2-live.js decorate) — 목록에도 넣지 않는다
 export const LIVE_HIDDEN = ['old', 'diff'];
+
+/** live 에서 늘 숨기는 비교 열(LIVE_HIDDEN) 숨김 CSS — 번호는 COLS 에서 만든다(열을 넣어도 따라감) */
+export const liveHiddenCss = () => `.list-table tr:not(.detail-row) > :is(${LIVE_HIDDEN.map(k => `:nth-child(${COLS.indexOf(k) + 1})`).join(', ')}) { display: none; }`;
 
 /** 고를 수 있는 열(목록 순서) */
 export const pickableCols = (live) => COLS.filter(k => !(live && LIVE_HIDDEN.includes(k)));

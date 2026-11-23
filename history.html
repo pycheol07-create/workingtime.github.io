@@ -32,12 +32,12 @@
     <!-- 팀 결산 보고 '화면 그대로 PDF' 저장용 -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" integrity="sha384-Yv5O+t3uE3hunW8uyrbpPW3iw6/5/Y7HitWJBLgqfMoA36NogMmy+8wWZMpn3HWc" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="css/suit.css?v=202611231437">
-    <link rel="stylesheet" href="css/style.css?v=202611231437">
-    <link rel="stylesheet" href="css/history-d.css?v=202611231437">
-    <link rel="stylesheet" href="css/page-nav.css?v=202611231437">
-    <link rel="stylesheet" href="css/form-d.css?v=202611231437">
-    <link rel="stylesheet" href="css/app-shell.css?v=202611231437">
+    <link rel="stylesheet" href="css/suit.css?v=202611231519">
+    <link rel="stylesheet" href="css/style.css?v=202611231519">
+    <link rel="stylesheet" href="css/history-d.css?v=202611231519">
+    <link rel="stylesheet" href="css/page-nav.css?v=202611231519">
+    <link rel="stylesheet" href="css/form-d.css?v=202611231519">
+    <link rel="stylesheet" href="css/app-shell.css?v=202611231519">
     <style>
         /* 💡 탭 전환 시 hidden 클래스가 충돌하는 문제 방지 */
         .hidden { display: none !important; }
@@ -70,16 +70,16 @@
         /* 💡 화면 깜빡임 방지: 페이드인 효과 */
         #history-modal { 
             position: fixed !important; 
-            inset: var(--as-h, 0px) 0 0 0 !important; /* 공통 상단바(css/app-shell.css --as-h) 아래부터 */
+            inset: var(--as-h, 0px) 0 0 var(--as-l, 0px) !important; /* 공통 상단바(css/app-shell.css --as-h) 아래·접힌 메뉴(--as-l) 옆부터 */
             display: flex !important; 
             flex-direction: column !important;
             background: var(--c-bg) !important; /* 토큰은 css/history-d.css 가 #history-modal 에 둔다 */
-            width: 100vw !important; 
+            width: calc(100vw - var(--as-l, 0px)) !important; 
             height: calc(100vh - var(--as-h, 0px)) !important; 
             height: calc(100dvh - var(--as-h, 0px)) !important; 
             padding: 0 !important; 
             margin: 0 !important;
-            z-index: 50 !important; 
+            z-index: 44 !important; /* 접힌 메뉴(레일 z 45, js/app-shell.js) 아래 — 레일이 이 창 위로 펼쳐지게. 확인창(z 50~)은 그대로 위 */
             opacity: 0; 
             pointer-events: none;
             transition: opacity 0.4s ease-out; 
@@ -218,12 +218,12 @@
             ]);
 
             try {
-                const State = await import('./js/state.js?v=202611231437');
-                try { await import('./js/app.js?v=202611231437'); } catch(e) {} 
+                const State = await import('./js/state.js?v=202611231519');
+                try { await import('./js/app.js?v=202611231519'); } catch(e) {} 
                 
-                const { loadAndRenderHistoryList } = await import('./js/app-history-logic.js?v=202611231437');
-                const { restoreHistoryView } = await import('./js/view-state.js?v=202611231437');
-                const { showSection } = await import('./js/listeners-history-tabs.js?v=202611231437');
+                const { loadAndRenderHistoryList } = await import('./js/app-history-logic.js?v=202611231519');
+                const { restoreHistoryView } = await import('./js/view-state.js?v=202611231519');
+                const { showSection } = await import('./js/listeners-history-tabs.js?v=202611231519');
 
                 const revealModal = () => {
                     const modal = document.getElementById('history-modal');
@@ -337,10 +337,10 @@
 
         initHistoryApp();
     </script>
-    <script src="js/connection-banner.js?v=202611231437"></script>
-    <script src="js/modal-esc.js?v=202611231437"></script>
-    <script type="module" src="js/modal-drag.js?v=202611231437"></script>
-    <script type="module" src="js/page-gate.js?v=202611231437" data-perm-page="data.view"></script>
-    <script type="module" src="js/app-shell.js?v=202611231437"></script>
+    <script src="js/connection-banner.js?v=202611231519"></script>
+    <script src="js/modal-esc.js?v=202611231519"></script>
+    <script type="module" src="js/modal-drag.js?v=202611231519"></script>
+    <script type="module" src="js/page-gate.js?v=202611231519" data-perm-page="data.view"></script>
+    <script type="module" src="js/app-shell.js?v=202611231519"></script>
 </body>
 </html>

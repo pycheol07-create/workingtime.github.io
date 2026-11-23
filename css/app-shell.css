@@ -24,3 +24,9 @@ html.as-emu body[data-shell]:not([data-shell-bar="off"]) { --as-top: 23px; }
     html, body { max-width: 100%; overflow-x: clip; overscroll-behavior-x: none; }
     @supports not (overflow: clip) { html, body { overflow-x: hidden; } }
 }
+
+/* 접힌 메뉴(레일, js/app-shell.js renderRail — 대시보드 밖 PC 화면, 2026-11-23): 왼쪽 52px 를 비운다.
+   펼친 메뉴는 본문 위에 뜨므로 자리는 접힌 폭 그대로 */
+html.as-rail body[data-shell]:not([data-shell-bar="off"]) { --as-l: 52px; padding-left: var(--as-l) !important; }
+/* 화면 전체를 덮는 고정 창(데이터 관리 #history-modal 등)은 left: var(--as-l, 0px) 로 레일 옆에서 시작한다 */
+@media print { html.as-rail body[data-shell] { --as-l: 0px; padding-left: 0 !important; } }

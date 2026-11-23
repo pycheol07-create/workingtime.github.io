@@ -1,5 +1,5 @@
 // === js/app-shell.js ===
-// 공통 상단바 + 메뉴 서랍 (UI 1단계 1a, 2026-10-16). <script type="module" src="js/app-shell.js?v=202611231437"> 로 붙이면 스스로 돈다.
+// 공통 상단바 + 메뉴 서랍 (UI 1단계 1a, 2026-10-16). <script type="module" src="js/app-shell.js?v=202611231519"> 로 붙이면 스스로 돈다.
 //   <body data-shell="페이지ID">              → 위쪽에 바를 얹는다(css/app-shell.css 가 본문을 그만큼 내린다)
 //   <body data-shell="index" data-shell-bar="off"> → 바 없이 메뉴 캐시만 채운다(대시보드)
 // 페이지는 js/app-shell-bridge.js 의 setShellContext 로 로그인 상태를 알려 준다.
@@ -18,10 +18,10 @@
 //   메뉴 이름 + 그 화면 안 탭(app-shell-data.js SUB_DESTINATIONS) + 홈. 같은 화면 안 이동은 해시 이동(뒤로가기로 되돌림),
 //   다른 화면은 navigate(이동 전 저장 훅). 팔레트도 섀도 DOM 안, 열 때 만들고 닫을 때 없앤다.
 
-import { visibleMenuFor } from './menu-catalog.js?v=202611231437';
-import { PAGE_DEFAULTS, HOME_FILE, resolveMenuGroups, absUrl, pageFileOf, currentTitle, shellLinkTarget, buildDestinations, menuLabel } from './app-shell-data.js?v=202611231437';
-import { rank } from './hangul-search.js?v=202611231437';
-import { isAutomation, loadDismissed, addDismissed, pickPopup, findOpenModal, notiLink, notiLinkLabel, sortUnreadFirst } from './lib/noti-popup.js?v=202611231437';
+import { visibleMenuFor } from './menu-catalog.js?v=202611231519';
+import { PAGE_DEFAULTS, HOME_FILE, resolveMenuGroups, absUrl, pageFileOf, currentTitle, shellLinkTarget, buildDestinations, menuLabel } from './app-shell-data.js?v=202611231519';
+import { rank } from './hangul-search.js?v=202611231519';
+import { isAutomation, loadDismissed, addDismissed, pickPopup, findOpenModal, notiLink, notiLinkLabel, sortUnreadFirst } from './lib/noti-popup.js?v=202611231519';
 
 const BASE = new URL('../', import.meta.url).href;      // 앱 폴더(js/ 의 부모)
 const MENU_CACHE_KEY = 'appShell.menu.v2';              // js/app-shell-bridge.js 와 같은 키(v2: 권한 개편)
@@ -31,6 +31,7 @@ const LEAVE_HOOK_TIMEOUT = 3000;
 //   → 여기서 빼도 알림은 켜지지 않는다. 켜려면 계산기가 memberName 을 찾아 넘겨야 한다(직원 목록 읽기 추가).
 const NOTI_OFF_PAGES = ['index', 'scan', 'calculator'];
 const NOTI_DELAY = 2500;            // 페이지가 첫 화면을 그리고 난 뒤에 구독한다
+const TERM_HELP_PAGES = ['index', 'history'];   // 용어 설명(UPH·OEE 등)이 나오는 화면
 const NOTI_LINK = 'index.html#open=noti';
 const POP_WAIT_STEP = 1000;            // 다른 창이 떠 있으면 1초마다 보고
 const POP_READ_WAIT = 1500;            // 알림을 눌러 이동할 때 읽음 표시를 기다리는 최대 시간
@@ -43,6 +44,28 @@ const ICON_CLOSE = 선('<path d="M6 6l12 12M18 6L6 18"/>');
 const ICON_BELL = 선('<path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z"/><path d="M10 20a2 2 0 0 0 4 0"/>');
 const ICON_SEARCH = 선('<circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/>');
 const PALETTE_MAX = 60;
+// 접힌 메뉴(레일, 2026-11-23 사용자 요청 — 중국제작 통합관리처럼): 대시보드 밖 PC 화면 왼쪽에 아이콘만, 마우스를 올리면 펼침.
+//   아이콘은 대시보드 사이드바(js/ui-main-dashboard.js EXTERNAL_LINK_META·index.html)와 같은 선 그림 — 링크로 고른다.
+const RAIL_MQ = '(min-width: 1024px) and (pointer: fine)';
+const RAIL_ICONS = [
+    ['index.html#open=quantity', '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>'],
+    ['index.html#open=leave', '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'],
+    ['history.html', '<ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/>'],
+    ['manual.html', '<path d="M4 4h12l4 4v12H4z"/><path d="M8 12h8M8 16h5"/>'],
+    ['calculator/', '<rect x="5" y="3" width="14" height="18" rx="3"/><path d="M9 7h6M9 12h1M14 12h1M9 16h1M14 16h1"/>'],
+    ['location.html', '<path d="M12 21s7-6.2 7-11.5A7 7 0 0 0 5 9.5C5 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/>'],
+    ['supplies.html', '<path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/>'],
+    ['admin.html', '<path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/>'],
+    ['worktime.html', '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'],
+    ['china-stock-goods.html', '<path d="M4 6h16M4 12h16M4 18h10"/>'],
+    ['china-mibal2.html', '<path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 1.7 3h10.6a2 2 0 0 0 1.7-3l-5-9V3"/><path d="M7.5 15h9"/>'],
+    ['products.html', '<path d="M20.6 13.4l-7.2 7.2a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"/><circle cx="7.5" cy="7.5" r="1.5"/>'],
+    ['scan.html', '<path d="M4 8V5h3M17 5h3v3M20 16v3h-3M7 19H4v-3M8 12h8"/>'],
+    ['approval.html', '<path d="M6 3h9l4 4v14H6z"/><path d="M9 12l2 2 4-4"/>'],
+    ['ship.html', '<path d="M3 7h11v9H3z"/><path d="M14 10h4l3 3v3h-7"/><circle cx="7" cy="18" r="1.6"/><circle cx="17" cy="18" r="1.6"/>']
+];
+const ICON_LINK = 선('<path d="M10 14a4 4 0 0 0 5.66 0l3-3a4 4 0 0 0-5.66-5.66l-1 1"/><path d="M14 10a4 4 0 0 0-5.66 0l-3 3a4 4 0 0 0 5.66 5.66l1-1"/>');
+const railIconOf = (link) => { const m = RAIL_ICONS.find(([k]) => String(link || '').includes(k)); return m ? 선(m[1]) : ICON_LINK; };
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
@@ -116,6 +139,29 @@ nav { position: absolute; top: var(--as-top, 0px); bottom: 0; left: 0; width: 28
 .item svg { color: var(--as-text-3); flex: none; }
 .btn:focus-visible, a:focus-visible { outline: 2px solid var(--as-accent); outline-offset: -2px; }
 .note { margin: 12px 8px 0; font-size: 12px; color: var(--as-text-3); line-height: 1.6; }`;
+
+// 접힌 메뉴(레일) — 늘 52px, 마우스·키보드 초점이 오면 본문 위로 펼친다(자리는 접힌 폭 그대로)
+//   z 45 = 상단바(40) 위·페이지 확인창(z 50~, 어두운 배경이 레일까지 덮음) 아래. 데이터 관리 #history-modal 은 44 로 내려 레일이 그 위에 펼쳐진다
+const RAIL_CSS = `${TOKENS}
+:host { all: initial; position: fixed; left: 0; top: var(--as-h, 40px); bottom: 0; z-index: 45; display: block;
+        font-family: var(--as-font); font-size: 14px; line-height: 1.4; color: var(--as-text); }
+* { box-sizing: border-box; }
+nav { height: 100%; width: 52px; overflow: hidden; display: flex; flex-direction: column;
+      background: var(--as-bg); border-right: 1px solid var(--as-line); transition: width .15s ease, box-shadow .15s ease; }
+nav:hover, nav:has(:focus-visible) { width: 240px; box-shadow: 6px 0 18px rgba(16, 24, 40, .16); }
+.list { flex: 1 1 auto; overflow-y: auto; overflow-x: hidden; padding: 8px 8px 16px; scrollbar-width: thin; }
+.cat { margin: 12px 6px 4px; height: 14px; font-size: 11.5px; font-weight: 600; color: var(--as-text-3); white-space: nowrap; opacity: 0; transition: opacity .1s; }
+nav:hover .cat, nav:has(:focus-visible) .cat { opacity: 1; }
+.item { display: flex; align-items: center; gap: 12px; height: 36px; padding: 0 8px; border-radius: 8px; white-space: nowrap;
+        color: var(--as-text); text-decoration: none; font-weight: 500; }
+.item:hover { background: var(--as-surface-2); }
+.item[aria-current="page"] { background: var(--as-accent-soft); color: var(--as-accent-deep); font-weight: 600; }
+.item svg { color: var(--as-text-3); flex: none; width: 20px; height: 20px; }
+.item[aria-current="page"] svg { color: var(--as-accent-deep); }
+.item span { overflow: hidden; text-overflow: ellipsis; opacity: 0; transition: opacity .1s; }
+nav:hover .item span, nav:has(:focus-visible) .item span { opacity: 1; }
+a:focus-visible { outline: 2px solid var(--as-accent); outline-offset: -2px; }
+@media (prefers-reduced-motion: reduce) { nav, .cat, .item span { transition: none; } }`;
 
 // 안 읽은 알림 팝업 — 띄울 때 만들고 닫을 때 없앤다. role=alertdialog 의 section(섀도 안) — 봇이 찾는 div[role=dialog]·[data-act] 와 겹치지 않게.
 const POP_CSS = `${TOKENS}
@@ -248,13 +294,26 @@ function start() {
         }
         renderBar();
         syncNoti(ctx);
+        if (signedIn === true) loadTermHelp();
     };
+
+    // 어려운 용어 눌러서 설명 보기(js/term-help.js, 2026-11-23) — 대시보드·데이터 관리에서 로그인 뒤 한 번 늦게 불러온다(봇은 그 안에서 끔)
+    let termHelpAsked = false;
+    function loadTermHelp() {
+        if (termHelpAsked || !TERM_HELP_PAGES.includes(pageId)) return;
+        termHelpAsked = true;
+        setTimeout(() => { import('./term-help.js?v=202611231519').then(m => m.start()).catch(e => console.warn('[용어 설명] 불러오지 못함', e)); }, 1200);
+    }
+
+    // 메뉴 서랍·빠른 이동 호스트 — syncTheme 이 읽으므로 그보다 먼저 선언한다(첫 renderBar 의 레일이 syncTheme 을 부른다)
+    let overlayHost = null, prevFocus = null;
+    let paletteHost = null, palettePrev = null;
 
     // ── 바 ──
     let barHost = null, barRoot = null;
     const syncTheme = () => {
         const dark = document.documentElement.classList.contains('dark');
-        [barHost, overlayHost, popHost, paletteHost, panelHost].forEach(h => { if (h) { if (dark) h.setAttribute('data-theme', 'dark'); else h.removeAttribute('data-theme'); } });
+        [barHost, overlayHost, popHost, paletteHost, panelHost, railHost].forEach(h => { if (h) { if (dark) h.setAttribute('data-theme', 'dark'); else h.removeAttribute('data-theme'); } });
     };
 
     function renderBar() {
@@ -265,6 +324,39 @@ function start() {
         barRoot.querySelector('.menu').hidden = !(signedIn === true || (noCtxPage && signedIn === null));
         barRoot.querySelector('.state').hidden = signedIn !== false;
         renderBell();
+        renderRail();
+    }
+
+    // ── 접힌 메뉴(레일, 2026-11-23) — 대시보드 밖 PC 화면. 휴대폰·태블릿·창 안(iframe)은 지금처럼 [≡] 서랍만 ──
+    let railHost = null, railKey = '';
+    const railMq = window.matchMedia ? window.matchMedia(RAIL_MQ) : null;
+    const inFrame = (() => { try { return window.self !== window.top; } catch (e) { return true; } })();
+    function renderRail() {
+        // 봇(업무마감봇·업무예상알림이 history 를 연다 — navigator.webdriver)에는 붙이지 않는다 — 화면 배치를 바꾸지 않게
+        const want = !barOff && !inFrame && !isAutomation() && !!(railMq && railMq.matches) && groups.length > 0
+            && (signedIn === true || (noCtxPage && signedIn === null));
+        if (!want) {
+            if (railHost) { railHost.remove(); railHost = null; railKey = ''; }
+            document.documentElement.classList.remove('as-rail');
+            return;
+        }
+        const html = railHtml();
+        if (!railHost) {
+            railHost = document.createElement('app-shell-rail');
+            railHost.attachShadow({ mode: 'open' });
+            railHost.shadowRoot.addEventListener('click', interceptLink);
+            document.body.appendChild(railHost);
+            syncTheme();
+        }
+        if (html !== railKey) {
+            railHost.shadowRoot.innerHTML = `<style>${RAIL_CSS}</style><nav aria-label="메뉴"><div class="list">${html}</div></nav>`;
+            railKey = html;
+        }
+        document.documentElement.classList.add('as-rail');
+    }
+    if (railMq) {
+        const onMq = () => renderRail();
+        if (railMq.addEventListener) railMq.addEventListener('change', onMq); else if (railMq.addListener) railMq.addListener(onMq);
     }
 
     if (!barOff) {
@@ -335,7 +427,7 @@ function start() {
         noti.timer = setTimeout(async () => {
             noti.timer = null;
             try {
-                const { watchNotifications, markRead, deleteNotis } = await import('./app-shell-noti.js?v=202611231437');
+                const { watchNotifications, markRead, deleteNotis } = await import('./app-shell-noti.js?v=202611231519');
                 if (noti.name !== want) return;   // 그 사이 로그아웃·다른 사람
                 noti.markRead = markRead;
                 noti.deleteNotis = deleteNotis;
@@ -630,8 +722,6 @@ function start() {
     }
 
     // ── 메뉴 서랍 (열 때 만들고 닫을 때 없앤다) ──
-    let overlayHost = null, prevFocus = null;
-    let paletteHost = null, palettePrev = null;
 
     function deepActive() {
         let a = document.activeElement;
@@ -652,6 +742,23 @@ function start() {
             });
         });
         if (signedIn !== true && !groups.length) html += `<div class="note">로그인하면 메뉴가 보입니다.</div>`;
+        return html;
+    }
+
+    /** 레일 목록 — 서랍(menuHtml)과 같은 항목·순서, 아이콘 + 이름(이름은 펼칠 때만 보임, title 로도) */
+    function railHtml() {
+        const home = absUrl(HOME_FILE, BASE);
+        const cur = (rel) => (rel.split('#')[0].split('?')[0] === pageFile && !rel.includes('#')) ? ' aria-current="page"' : '';
+        let html = `<a class="item js-home" href="${esc(home)}" title="홈"${pageFile === HOME_FILE ? ' aria-current="page"' : ''}>${ICON_HOME}<span>홈</span></a>`;
+        groups.forEach(g => {
+            html += `<div class="cat">${esc(g.category)}</div>`;
+            g.items.forEach(i => {
+                if (i.link === HOME_FILE) return;
+                const t = shellLinkTarget(i.link);
+                const label = menuLabel(i.name);
+                html += `<a class="item" href="${esc(absUrl(i.link, BASE))}" title="${esc(label)}"${t ? ` target="${esc(t)}"` : ''}${cur(i.link)}>${railIconOf(i.link)}<span>${esc(label)}</span></a>`;
+            });
+        });
         return html;
     }
 
