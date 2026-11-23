@@ -1,8 +1,11 @@
 // === js/app-version.js === 인앱 버전 표시 + 변경 이력 (의존성 없는 단독 스크립트)
 // ※ 배포 때마다 VERSION 과 CHANGELOG 최상단 항목을 갱신하세요.
 (function () {
-    const VERSION = '2026.11.23h';
+    const VERSION = '2026.11.24';
     const CHANGELOG = [
+    { v: '2026.11.24', items: [
+        '플랫폼 출고: 2단계 진행 기록의 병행 중 안내 줄 삭제'
+    ] },
     { v: '2026.11.23h', items: [
         '플랫폼 출고: 상단의 병행 중 안내 문구 삭제'
     ] },
