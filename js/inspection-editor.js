@@ -1,12 +1,12 @@
 // === js/inspection-editor.js ===
-import * as DOM from './dom-elements.js?v=202611240856';
-import * as State from './state.js?v=202611240856';
-import { showToast, getCurrentTime, getTodayDateString } from './utils.js?v=202611240856';
+import * as DOM from './dom-elements.js?v=202611240857';
+import * as State from './state.js?v=202611240857';
+import { showToast, getCurrentTime, getTodayDateString } from './utils.js?v=202611240857';
 import { doc, getDoc, setDoc, updateDoc, deleteDoc, arrayUnion, serverTimestamp, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { renderInspectionHistoryTable, renderInspectionLogTable, renderExpandedInspectionLog } from './ui-history-inspection.js?v=202611240856';
-import { getUniqueInboundCount } from './inspection-logic.js?v=202611240856';
-import { LABELS as CHECK_LABELS, hasBrushed } from './lib/insp-flow.js?v=202611240856';
-import { manualImageBase64, clearManualImageState, uploadInspectionPhoto, dataUrlToBlob } from './inspection-media.js?v=202611240856';
+import { renderInspectionHistoryTable, renderInspectionLogTable, renderExpandedInspectionLog } from './ui-history-inspection.js?v=202611240857';
+import { getUniqueInboundCount } from './inspection-logic.js?v=202611240857';
+import { LABELS as CHECK_LABELS, hasBrushed } from './lib/insp-flow.js?v=202611240857';
+import { manualImageBase64, clearManualImageState, uploadInspectionPhoto, dataUrlToBlob } from './inspection-media.js?v=202611240857';
 
 export let currentProductLogs = [];
 // 수동 사전등록 사진을 올린 결과 — 저장이 실패해 다시 누를 때 같은 사진을 또 올리지 않게
