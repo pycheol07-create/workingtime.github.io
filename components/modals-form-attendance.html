@@ -88,12 +88,12 @@
                                 <label for="leave-start-time-input" class="block text-xs font-bold text-gray-500 mb-1">시작 시간</label>
                                 <input type="time" id="leave-start-time-input" class="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
                             </div>
-                            <div class="flex-1">
+                            <div class="flex-1" id="leave-end-time-wrap">
                                 <label for="leave-end-time-input" class="block text-xs font-bold text-gray-500 mb-1">종료 시간</label>
                                 <input type="time" id="leave-end-time-input" class="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
                             </div>
                         </div>
-                        <div class="text-xs text-gray-500 text-center">* 오늘 날짜 기준으로 시간이 적용됩니다.</div>
+                        <div class="text-xs text-gray-500 text-center">* 오늘 날짜 기준으로 시간이 적용됩니다.<span id="leave-plan-end-hint"> 외출 종료 시간은 예정 시각이며, 실제 복귀 시각은 [복귀]를 누른 시각으로 기록됩니다.</span></div>
                     </div>
                 </div>
 
@@ -272,6 +272,10 @@
                 <div>
                     <label for="edit-leave-start-time" class="block text-sm font-medium text-gray-700">시작 시간 (HH:MM)</label>
                     <input type="time" id="edit-leave-start-time" class="mt-1 w-full bg-white border border-gray-300 rounded-lg p-2">
+                </div>
+                <div id="edit-leave-plan-end-wrapper">
+                    <label for="edit-leave-plan-end" class="block text-sm font-medium text-gray-700">종료 시간 (HH:MM)</label>
+                    <input type="time" id="edit-leave-plan-end" class="mt-1 w-full bg-white border border-gray-300 rounded-lg p-2">
                 </div>
                 <div id="edit-leave-end-time-wrapper">
                     <label for="edit-leave-end-time" class="block text-sm font-medium text-gray-700">종료 시간 (HH:MM)</label>

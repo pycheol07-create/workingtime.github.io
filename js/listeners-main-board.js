@@ -1,14 +1,14 @@
 // === js/listeners-main-board.js ===
 // 설명: 메인 화면의 '실시간 현황판'(업무 카드, 팀원 현황) 관련 리스너를 담당합니다.
 
-import * as DOM from './dom-elements.js?v=202611201655';
-import * as State from './state.js?v=202611201655';
-import { render } from './app.js?v=202611201655';
-import { showToast, formatTimeTo24H, showConfirm, getCurrentTime } from './utils.js?v=202611201655';
-import { isLeaveActiveAt } from './lib/leave-timing.js?v=202611201655';
-import { renderLeaveTypeModalOptions } from './ui.js?v=202611201655';
-import { nameWithRankPosition } from './lib/member-title.js?v=202611201655';
-import { openTeamSelectForTask } from './listeners-form-team.js?v=202611201655';
+import * as DOM from './dom-elements.js?v=202611230901';
+import * as State from './state.js?v=202611230901';
+import { render } from './app.js?v=202611230901';
+import { showToast, formatTimeTo24H, showConfirm, getCurrentTime } from './utils.js?v=202611230901';
+import { isLeaveActiveAt } from './lib/leave-timing.js?v=202611230901';
+import { renderLeaveTypeModalOptions } from './ui.js?v=202611230901';
+import { nameWithRankPosition } from './lib/member-title.js?v=202611230901';
+import { openTeamSelectForTask } from './listeners-form-team.js?v=202611230901';
 import {
     stopWorkIndividual, pauseWorkGroup, resumeWorkGroup,
     pauseWorkIndividual, resumeWorkIndividual,
@@ -16,13 +16,13 @@ import {
     startWorkGroup,
     addMembersToWorkGroup,
     pauseWorkByTask, resumeWorkByTask
-} from './app-logic.js?v=202611201655';
+} from './app-logic.js?v=202611230901';
 
-import { renderTodayInspectionList, initializeInspectionSession } from './inspection-logic.js?v=202611201655';
-import { openTotalInspection } from './total-inspection-logic.js?v=202611201655';   // 진행 목록 구독은 창이 열린 동안만(닫으면 해제)
-import { isRefillTask, refillAllowed, openRefillFromDash } from './refill-dash.js?v=202611201655';
-import { openLocRecFromDash } from './locrec-dash.js?v=202611201655';
-import { TASK, isT } from './task-names.js?v=202611201655';
+import { renderTodayInspectionList, initializeInspectionSession } from './inspection-logic.js?v=202611230901';
+import { openTotalInspection } from './total-inspection-logic.js?v=202611230901';   // 진행 목록 구독은 창이 열린 동안만(닫으면 해제)
+import { isRefillTask, refillAllowed, openRefillFromDash } from './refill-dash.js?v=202611230901';
+import { openLocRecFromDash } from './locrec-dash.js?v=202611230901';
+import { TASK, isT } from './task-names.js?v=202611230901';
 
 // 근태 설정 모달 열기 헬퍼 함수
 const openLeaveModal = (memberName) => {
@@ -332,7 +332,11 @@ export function setupMainBoardListeners() {
             if (isTimeBased) { startTimeInput.value = currentStartTime || ''; endTimeInput.value = currentEndTime || ''; }
             else { startDateInput.value = currentStartDate || ''; endDateInput.value = currentEndDate || ''; }
             const endTimeWrapper = document.getElementById('edit-leave-end-time-wrapper');
-            if (endTimeWrapper) endTimeWrapper.classList.toggle('hidden', currentType !== '외출');
+            if (endTimeWrapper) endTimeWrapper.classList.add('hidden');   // 실제 복귀(endTime)는 [복귀] 때만 — 종료 시간 칸은 planEnd 하나(2026-11-23)
+            const planEndWrapper = document.getElementById('edit-leave-plan-end-wrapper');
+            if (planEndWrapper) planEndWrapper.classList.toggle('hidden', currentType !== '외출');
+            const planEndInput = document.getElementById('edit-leave-plan-end');
+            if (planEndInput) planEndInput.value = currentType === '외출' ? (editLeaveCard.dataset.planEnd || '') : '';
             // 예약(아직 시작 전) 외출은 종료 시각을 넣지 못하게 — 자동 복귀는 하지 않는다(사용자 결정 ①). 저장 때도 한 번 더 막는다.
             const isPendingLeave = editLeaveCard.dataset.leavePending === '1';
             endTimeInput.disabled = isPendingLeave;

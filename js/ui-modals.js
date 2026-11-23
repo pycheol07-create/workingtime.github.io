@@ -1,10 +1,10 @@
 // === js/ui-modals.js ===
 
-import { appState, appConfig, persistentLeaveSchedule, OTHER_LEAVE_TYPE, TIME_BASED_LEAVE_TYPES, isPersistentLeaveType, leaveTypeLabel } from './state.js?v=202611201655';
+import { appState, appConfig, persistentLeaveSchedule, OTHER_LEAVE_TYPE, TIME_BASED_LEAVE_TYPES, isPersistentLeaveType, leaveTypeLabel } from './state.js?v=202611230901';
 // ✅ getCurrentTime 유틸 함수 추가 임포트
-import { calculateDateDifference, getTodayDateString, calculateWorkingDays, getCurrentTime, isMemberActiveOn, escapeHtml } from './utils.js?v=202611201655';
-import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202611201655';
-import { isLeaveActiveAt } from './lib/leave-timing.js?v=202611201655';
+import { calculateDateDifference, getTodayDateString, calculateWorkingDays, getCurrentTime, isMemberActiveOn, escapeHtml } from './utils.js?v=202611230901';
+import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202611230901';
+import { isLeaveActiveAt } from './lib/leave-timing.js?v=202611230901';
 
 // 근속연수 계산 헬퍼 함수 (#년 #개월 #일째)
 const calculateTenure = (joinDateStr) => {
@@ -713,6 +713,11 @@ export const renderLeaveTypeModalOptions = (leaveTypes = [], initialTab = 'setti
                 
                 const stInput = document.getElementById('leave-start-time-input');
                 if(stInput && !stInput.value) { stInput.value = getCurrentTime(); stInput.dataset.prefilled = '1'; }
+                // 복귀 예상(planEnd)은 외출만 — 조퇴·지각은 끝 시각이 없다(2026-11-23)
+                const etWrap = document.getElementById('leave-end-time-wrap');
+                if (etWrap) etWrap.classList.toggle('hidden', selectedType !== '외출');
+                const peHint = document.getElementById('leave-plan-end-hint');
+                if (peHint) peHint.classList.toggle('hidden', selectedType !== '외출');
                 
             } else {
                 if(dateInputsDiv) dateInputsDiv.classList.add('hidden');

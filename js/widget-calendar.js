@@ -8,19 +8,19 @@
 // 저장 위치: artifacts/team-work-logger-v2/calendarEvents/{YYYY-MM-DD__rand}
 //   문서 ID 앞에 날짜를 넣어, 보이는 달만 documentId 범위 조회로 읽는다(읽기 비용 절감).
 
-import * as State from './state.js?v=202611201655';
-import { leaveTypeLabel, OTHER_LEAVE_TYPE, PERSISTENT_LEAVE_TYPES, LEGACY_LEAVE_TYPES, TIME_BASED_LEAVE_TYPES } from './state.js?v=202611201655';
-import { showToast, getTodayDateString, getCurrentTime, getRegularMembersForCount, getActiveTeamMembers, escapeHtml as esc, getHolidayName } from './utils.js?v=202611201655';
-import { dailyLeaveRanges, pastRangeForMonth } from './lib/cal-daily-leave.js?v=202611201655';
-import { getIncomingDetailsByDateFromCache } from './widget-incoming-schedule.js?v=202611201655';
-import { notifyLeaveScheduleChanged, onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202611201655';
-import { updateLeaveSchedule } from './config.js?v=202611201655';
-import { upsertById, removeByIds } from './lib/leave-ops.js?v=202611201655';
+import * as State from './state.js?v=202611230901';
+import { leaveTypeLabel, OTHER_LEAVE_TYPE, PERSISTENT_LEAVE_TYPES, LEGACY_LEAVE_TYPES, TIME_BASED_LEAVE_TYPES } from './state.js?v=202611230901';
+import { showToast, getTodayDateString, getCurrentTime, getRegularMembersForCount, getActiveTeamMembers, escapeHtml as esc, getHolidayName } from './utils.js?v=202611230901';
+import { dailyLeaveRanges, pastRangeForMonth } from './lib/cal-daily-leave.js?v=202611230901';
+import { getIncomingDetailsByDateFromCache } from './widget-incoming-schedule.js?v=202611230901';
+import { notifyLeaveScheduleChanged, onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202611230901';
+import { updateLeaveSchedule } from './config.js?v=202611230901';
+import { upsertById, removeByIds } from './lib/leave-ops.js?v=202611230901';
 import {
     REL_OPTIONS, MAX_REMINDERS, relOption, computeAt, buildReminders, buildRemindTo, eventOverAt,
     reminderSummary, shortAt, nowKst, newId
-} from './lib/cal-reminder.js?v=202611201655';
-import { desktopNotifyPermission, askDesktopNotifyPermission } from './desktop-noti.js?v=202611201655';
+} from './lib/cal-reminder.js?v=202611230901';
+import { desktopNotifyPermission, askDesktopNotifyPermission } from './desktop-noti.js?v=202611230901';
 import {
     collection, doc, setDoc, deleteDoc, getDocs, getDoc,
     query, where, documentId
@@ -185,7 +185,7 @@ let liveDailyDate = null;
 const closedDayLeaves = {};      // 'YYYY-MM-DD' → onLeaveMembers[]
 let lastLiveCount = -1;
 const pickTimeLeaves = (list) => Array.isArray(list)
-    ? list.filter(l => l && TIME_BASED_LEAVE_TYPES.includes(l.type)).map(l => ({ id: l.id, member: l.member, type: l.type, startTime: l.startTime, endTime: l.endTime }))
+    ? list.filter(l => l && TIME_BASED_LEAVE_TYPES.includes(l.type)).map(l => ({ id: l.id, member: l.member, type: l.type, startTime: l.startTime, endTime: l.endTime, planEnd: l.planEnd }))
     : [];
 /** 실시간 목록이 (처음이거나 비지 않았다가) 비면, 그날이 마감됐는지 보고 마감 기록의 당일 근태를 가져온다 */
 async function checkClosedDay(date, count) {

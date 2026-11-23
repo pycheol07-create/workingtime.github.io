@@ -13,10 +13,10 @@ function clock(v) {
     return m ? `${pad(Number(m[1]))}:${m[2]}` : '';
 }
 
-/** 달력 한 줄 이름 — '홍길동 외출 13:00~14:30' · '홍길동 조퇴 16:00' · '홍길동 지각 09:12' */
+/** 달력 한 줄 이름 — '홍길동 외출 13:00~14:30' · '홍길동 외출 13:00~(예상 14:30)'(복귀 전) · '홍길동 조퇴 16:00' · '홍길동 지각 09:12' */
 export function dailyLeaveLabel(l) {
-    const st = clock(l.startTime), et = clock(l.endTime);
-    const time = st ? (et ? `${st}~${et}` : st) : '';
+    const st = clock(l.startTime), et = clock(l.endTime), pe = clock(l.planEnd);
+    const time = st ? (et ? `${st}~${et}` : (pe ? `${st}~(예상 ${pe})` : st)) : '';
     return `${l.member} ${l.type}${time ? ' ' + time : ''}`;
 }
 

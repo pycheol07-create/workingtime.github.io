@@ -1,15 +1,15 @@
 // === js/ui-main-board.js ===
-import { formatTimeTo24H, formatDuration, calcTotalPauseMinutes, getTodayDateString, isMemberActiveOn, getCurrentTime, escapeHtml } from './utils.js?v=202611201655';
-import * as State from './state.js?v=202611201655';
-import { leaveTypeLabel } from './state.js?v=202611201655';
-import { leaveNthLabel } from './ui-modals.js?v=202611201655';
-import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202611201655';
-import { getLeaveDisplayLabel } from './ui-main-utils.js?v=202611201655';
-import { myWorkState, recentTasksFor } from './lib/my-work.js?v=202611201655';
-import { isLeaveActiveAt, isLeavePendingAt } from './lib/leave-timing.js?v=202611201655';
-import { isRefillTask, refillAllowed, refillProgressText, refillProgressTone, syncRefillDash } from './refill-dash.js?v=202611201655';
-import { isLocRecTask, locRecAllowed, syncLocRecDash } from './locrec-dash.js?v=202611201655';
-import { TASK, tName, isT } from './task-names.js?v=202611201655';
+import { formatTimeTo24H, formatDuration, calcTotalPauseMinutes, getTodayDateString, isMemberActiveOn, getCurrentTime, escapeHtml } from './utils.js?v=202611230901';
+import * as State from './state.js?v=202611230901';
+import { leaveTypeLabel } from './state.js?v=202611230901';
+import { leaveNthLabel } from './ui-modals.js?v=202611230901';
+import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202611230901';
+import { getLeaveDisplayLabel } from './ui-main-utils.js?v=202611230901';
+import { myWorkState, recentTasksFor } from './lib/my-work.js?v=202611230901';
+import { isLeaveActiveAt, isLeavePendingAt } from './lib/leave-timing.js?v=202611230901';
+import { isRefillTask, refillAllowed, refillProgressText, refillProgressTone, syncRefillDash } from './refill-dash.js?v=202611230901';
+import { isLocRecTask, locRecAllowed, syncLocRecDash } from './locrec-dash.js?v=202611230901';
+import { TASK, tName, isT } from './task-names.js?v=202611230901';
 
 // ===== 업무현황 카드 커버플로우(coverflow) 컨트롤러 =====
 // 가운데 업무 카드 1개만 크고 선명하게, 양옆 카드는 작고 흐리게 뒤로 물러남.
@@ -285,7 +285,7 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
         if (!p) return '';
         const t = formatTimeTo24H(p.startTime);
         return `<span role="button" data-action="edit-leave-record" data-leave-pending="1" data-member-name="${escapeHtml(name)}"`
-            + ` data-leave-type="${escapeHtml(p.type)}" data-start-time="${escapeHtml(p.startTime || '')}" data-end-time="" data-start-date="" data-end-date=""`
+            + ` data-leave-type="${escapeHtml(p.type)}" data-start-time="${escapeHtml(p.startTime || '')}" data-end-time="" data-plan-end="${escapeHtml(p.planEnd || '')}" data-start-date="" data-end-date=""`
             + ` class="ms-sub2 text-[10px] mt-0.5 underline cursor-pointer" title="눌러서 근태 수정">${escapeHtml(t)} ${escapeHtml(p.type)} 예정</span>`;
     };
 
@@ -657,7 +657,7 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
                 }
                 
                 const displayLabel = getLeaveDisplayLabel(member, leaveInfo);
-                let detailText = leaveInfo.startTime ? formatTimeTo24H(leaveInfo.startTime) + (leaveInfo.endTime ? ` - ${formatTimeTo24H(leaveInfo.endTime)}` : (leaveInfo.type === '외출' ? ' ~' : '')) : (leaveInfo.startDate ? leaveInfo.startDate.substring(5) + (leaveInfo.endDate && leaveInfo.endDate !== leaveInfo.startDate ? ` ~ ${leaveInfo.endDate.substring(5)}` : '') : '');
+                let detailText = leaveInfo.startTime ? formatTimeTo24H(leaveInfo.startTime) + (leaveInfo.endTime ? ` - ${formatTimeTo24H(leaveInfo.endTime)}` : (leaveInfo.type === '외출' ? (leaveInfo.planEnd ? ` ~ (예상 ${formatTimeTo24H(leaveInfo.planEnd)})` : ' ~') : '')) : (leaveInfo.startDate ? leaveInfo.startDate.substring(5) + (leaveInfo.endDate && leaveInfo.endDate !== leaveInfo.startDate ? ` ~ ${leaveInfo.endDate.substring(5)}` : '') : '');
                 
                 card.innerHTML = `<div class="ms-name text-sm mb-0.5">${escapeHtml(member)}</div><div class="ms-sub text-[11px]">${escapeHtml(displayLabel)}</div>${detailText ? `<div class="ms-sub2 text-[11px] mt-0.5">${escapeHtml(detailText)}</div>` : ''}`;
             } else if (isWorking) {
@@ -735,7 +735,7 @@ export const renderRealtimeStatus = (appState, teamGroups = [], keyTasks = [], i
                 }
 
                 const displayLabel = getLeaveDisplayLabel(pt.name, albaLeaveInfo);
-                let detailText = albaLeaveInfo.startTime ? formatTimeTo24H(albaLeaveInfo.startTime) + (albaLeaveInfo.endTime ? ` - ${formatTimeTo24H(albaLeaveInfo.endTime)}` : (albaLeaveInfo.type === '외출' ? ' ~' : '')) : (albaLeaveInfo.startDate ? albaLeaveInfo.startDate.substring(5) + (albaLeaveInfo.endDate && albaLeaveInfo.endDate !== albaLeaveInfo.startDate ? ` ~ ${albaLeaveInfo.endDate.substring(5)}` : '') : '');
+                let detailText = albaLeaveInfo.startTime ? formatTimeTo24H(albaLeaveInfo.startTime) + (albaLeaveInfo.endTime ? ` - ${formatTimeTo24H(albaLeaveInfo.endTime)}` : (albaLeaveInfo.type === '외출' ? (albaLeaveInfo.planEnd ? ` ~ (예상 ${formatTimeTo24H(albaLeaveInfo.planEnd)})` : ' ~') : '')) : (albaLeaveInfo.startDate ? albaLeaveInfo.startDate.substring(5) + (albaLeaveInfo.endDate && albaLeaveInfo.endDate !== albaLeaveInfo.startDate ? ` ~ ${albaLeaveInfo.endDate.substring(5)}` : '') : '');
                 card.innerHTML = `<div class="ms-name text-sm mb-0.5">${escapeHtml(pt.name)}</div><div class="ms-sub text-[11px]">${escapeHtml(displayLabel)}</div>${detailText ? `<div class="ms-sub2 text-[11px] mt-0.5">${escapeHtml(detailText)}</div>` : ''}`;
             } else if (isAlbaWorking) {
                 card.dataset.action = 'member-toggle-leave';
