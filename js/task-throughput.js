@@ -141,8 +141,64 @@ export const overallUph = (days) => {
 /** 최근 속도(평상시 속도) 기준 — 업무 예상(js/ui-history-prediction.js computeTaskUPHs)과 운영 리포트·운영 계획
  *  (js/lib/ops-metrics.js baselineSpeeds recentDays)이 **같이** 쓰는 한 벌(2026-11-23 사용자 요청: 같은 내용이니 늘 맞게).
  *  최근 28일 · 하루 속도의 가운데값(종료 안 누른 기록이 합계를 끌어내리는 것을 막음) · 10분 미만 기록 날 제외 · 표본 3일 미만이면 합계.
- *  minTaskMinutes = 그 창에서 이보다 적게 한 업무는 표본이 모자람(업무 예상: 새 업무 0, 운영 리포트: 전체 기간 합계로). */
-export const RECENT_SPEED = Object.freeze({ days: 28, mode: 'dailyMedian', minMinutes: 10, minSamples: 3, minTaskMinutes: 60 });
+ *  minTaskMinutes = 그 창에서 이보다 적게 한 새 업무는 업무 예상이 '기준 없음'(0)으로 둔다(운영 리포트는 recentTaskSpeeds 값 그대로). */
+//   refDays = '평소'(3배 판정·표본 모자랄 때 쓰는 가운데값)를 보는 기간 — 대시보드가 받는 최근 100일 안(화면마다 같은 숫자)
+export const RECENT_SPEED = Object.freeze({ days: 28, refDays: 90, mode: 'dailyMedian', minMinutes: 10, minSamples: 3, minTaskMinutes: 60, outlierFactor: 3 });
+
+const shiftId = (id, n) => {
+    const [y, m, d] = String(id).split('-').map(Number);
+    const t = new Date(Date.UTC(y, m - 1, d + n));
+    return `${t.getUTCFullYear()}-${String(t.getUTCMonth() + 1).padStart(2, '0')}-${String(t.getUTCDate()).padStart(2, '0')}`;
+};
+const medianOf = (arr) => {
+    if (!arr.length) return null;
+    const v = [...arr].sort((a, b) => a - b);
+    const m = Math.floor(v.length / 2);
+    return v.length % 2 ? v[m] : (v[m - 1] + v[m]) / 2;
+};
+
+/**
+ * 최근 속도(개/분) — 업무 예상·운영 리포트가 같이 쓰는 한 벌(2026-11-23 사용자 결정: 크게 벗어난 기록은 뺀다).
+ *   end 날까지 최근 RECENT_SPEED.days 일 창에서 업무별 하루 속도(처리량 ÷ 그 업무 기록 분)의 가운데값.
+ *   ① 처리량이 없는 날(시간만 있음 — 처리량 미입력)과 기록 10분 미만인 날은 표본이 아니다
+ *   ② 그 업무의 '평소'(end 까지 최근 refDays 일) 하루 속도 가운데값의 3배 초과·3분의 1 미만인 날은 뺀다('종료' 안 누른 기록·단위 섞임)
+ *   ③ 뺀 뒤 창 표본이 3일 미만이면 평소 가운데값(①②를 거친 값). 그것도 없으면 창의 합계 비율(Σ처리량÷Σ분 — 예전 방식, 업무가 0 으로 사라지지 않게)
+ * @returns {{speeds: object, windowMinutes: object}}  windowMinutes = 창 안 그 업무 기록 분 합(표본 판정과 무관, 새 업무 보호용)
+ */
+export function recentTaskSpeeds(days, { end, skipDate = null, tasks = null } = {}) {
+    const R = RECENT_SPEED;
+    const list = Array.isArray(days) ? days : [];
+    const start = shiftId(end, -(R.days - 1));
+    const refStart = shiftId(end, -(R.refDays - 1));
+    const longS = {}, winS = {}, windowMinutes = {}, winTot = {};
+    list.forEach(d => {
+        if (!d || typeof d.id !== 'string' || d.id > end || d.id < refStart || (skipDate && d.id === skipDate)) return;
+        const inWin = d.id >= start;
+        Object.entries(dailyTaskStats(d)).forEach(([task, s]) => {
+            if (tasks && !tasks.has(task)) return;
+            if (inWin) {
+                windowMinutes[task] = (windowMinutes[task] || 0) + s.minutes;
+                const t = winTot[task] || (winTot[task] = { q: 0, m: 0 });
+                t.q += s.qty; t.m += s.minutes;
+            }
+            if (!(s.qty > 0) || !(s.minutes >= R.minMinutes)) return;
+            const v = s.qty / s.minutes;
+            (longS[task] || (longS[task] = [])).push(v);
+            if (inWin) (winS[task] || (winS[task] = [])).push(v);
+        });
+    });
+    const speeds = {};
+    Object.entries(winTot).forEach(([task, t]) => { if (t.q > 0 && t.m > 0) speeds[task] = t.q / t.m; });   // 바닥값(③ 마지막)
+    Object.entries(longS).forEach(([task, all]) => {
+        const ref = medianOf(all);
+        const ok = (v) => !(ref > 0) || (v <= ref * R.outlierFactor && v >= ref / R.outlierFactor);
+        const win = (winS[task] || []).filter(ok);
+        const long = all.filter(ok);
+        const v = win.length >= R.minSamples ? medianOf(win) : medianOf(long);
+        if (v > 0) speeds[task] = v;
+    });
+    return { speeds, windowMinutes };
+}
 
 /** 최근 N일(달력 기준) 만 남긴다. 기준일을 넘기지 않으면 오늘. */
 export const recentDays = (days, windowDays, todayStr) => {

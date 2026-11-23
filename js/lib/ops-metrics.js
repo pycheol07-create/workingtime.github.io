@@ -25,11 +25,11 @@
 //
 // DOM·State 를 쓰지 않는다(appConfig·이력은 인자로) — node 시험(tests/ops-metrics.test.js)과 비교 도구(tools/ops-metrics-compare.mjs)가 그대로 부른다.
 
-import { buildMemberHourlyWageMap, getWeekOfYear, toDateString } from '../utils.js?v=202611231612';
-import { attendedMembers, presenceStats, isAttendanceEstimated, systemAccountSet, validMemberNames } from '../attendance-stats.js?v=202611231612';
-import { dailyTaskStats, taskSpeedPerMinute, RECENT_SPEED } from '../task-throughput.js?v=202611231612';
-import { revenueTotalOf, orderCountTotalOf } from '../revenue-channels.js?v=202611231612';
-import { TASK, isTask } from './task-ids.js?v=202611231612';
+import { buildMemberHourlyWageMap, getWeekOfYear, toDateString } from '../utils.js?v=202611231626';
+import { attendedMembers, presenceStats, isAttendanceEstimated, systemAccountSet, validMemberNames } from '../attendance-stats.js?v=202611231626';
+import { dailyTaskStats, taskSpeedPerMinute, RECENT_SPEED, recentTaskSpeeds } from '../task-throughput.js?v=202611231626';
+import { revenueTotalOf, orderCountTotalOf } from '../revenue-channels.js?v=202611231626';
+import { TASK, isTask } from './task-ids.js?v=202611231626';
 
 const trim = (v) => (v == null ? '' : String(v).trim());
 const arr = (v) => (Array.isArray(v) ? v : (v && typeof v === 'object' ? Object.values(v) : []));
@@ -92,9 +92,9 @@ function shiftDayId(id, n) {
 
 /** 평상시 기준 속도(개/분). 선택 기간과 무관해야 효율이 100% 로 붙지 않는다.
  *  기본 = 이력 전체의 합계 비율(Σ처리량 ÷ Σ기록 분). until 을 주면 그날까지만(옛 기간에 뒤 시점 속도가 섞이지 않게). skipDate 는 보통 오늘.
- *  recentDays 를 주면 업무 예상과 같은 방식(RECENT_SPEED — 하루 속도 가운데값 등)으로 최근 그 일수만 본다 —
- *    from(기간 첫날)이 있으면 그 전날까지(기간 직전), 없으면 until(없으면 이력 끝)까지.
- *    그 창에서 RECENT_SPEED.minTaskMinutes 분 미만인 업무는 전체 합계(until 까지)로 돌아간다. */
+ *  recentDays 를 주면 업무 예상과 같은 방식(task-throughput.js recentTaskSpeeds — 최근 28일 하루 속도 가운데값,
+ *    처리량 없는 날·평소의 3배 밖인 날 제외, 표본 3일 미만이면 전체 기록 가운데값)으로 본다 —
+ *    from(기간 첫날)이 있으면 그 전날까지(기간 직전), 없으면 until(없으면 이력 끝)까지. 그 방식으로도 없는 업무만 전체 합계. */
 export function baselineSpeeds(allDays, { skipDate = null, until = null, recentDays = 0, from = null } = {}) {
     const list = Array.isArray(allDays) ? allDays : [];
     const use = until ? list.filter(d => d && typeof d.id === 'string' && d.id <= until) : list;
@@ -105,19 +105,8 @@ export function baselineSpeeds(allDays, { skipDate = null, until = null, recentD
     if (!end) return all;
     // 창 끝이 오늘(skipDate) 이후면 어제까지 — 오늘은 빼므로 그대로 두면 창이 하루 짧아진다(업무 예상 recentDays 와 같은 28일)
     if (skipDate && end >= skipDate) end = shiftDayId(skipDate, -1);
-    const start = shiftDayId(end, -(recentDays - 1));
-    const win = list.filter(d => d && typeof d.id === 'string' && d.id >= start && d.id <= end);
-    const recent = taskSpeedPerMinute(win, { mode: RECENT_SPEED.mode, minMinutes: RECENT_SPEED.minMinutes, minSamples: RECENT_SPEED.minSamples, skipDate });
-    const minutes = {};
-    win.forEach(d => {
-        if (skipDate && d.id === skipDate) return;
-        Object.entries(dailyTaskStats(d)).forEach(([task, s]) => { minutes[task] = (minutes[task] || 0) + s.minutes; });
-    });
-    const out = { ...all };
-    Object.entries(recent).forEach(([task, v]) => {
-        if ((minutes[task] || 0) >= RECENT_SPEED.minTaskMinutes && v > 0) out[task] = v;
-    });
-    return out;
+    const { speeds } = recentTaskSpeeds(list, { end, skipDate });
+    return { ...all, ...speeds };
 }
 
 /** 기간 하루 문서들 중 마지막 날 id — baselineSpeeds 의 until 로 넘긴다(옛 기간에 뒤 시점 속도가 섞이지 않게). 없으면 null. */
