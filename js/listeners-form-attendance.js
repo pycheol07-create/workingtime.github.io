@@ -1,17 +1,17 @@
 // === js/listeners-form-attendance.js ===
 // 설명: 근태 설정(연차/외출 등) 및 수정 모달의 폼 로직을 담당합니다.
 
-import * as DOM from './dom-elements.js?v=202611230901';
-import * as State from './state.js?v=202611230901';
-import { isPersistentLeaveType, OTHER_LEAVE_TYPE, leaveTypeLabel } from './state.js?v=202611230901';
-import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=202611230901';
-import { showToast, getTodayDateString, toDateString, getCurrentTime, calculateWorkingDays, isWeekday } from './utils.js?v=202611230901';
-import { saveStateToFirestore } from './app-data.js?v=202611230901';
-import { updateLeaveSchedule } from './config.js?v=202611230901';
-import { removeByIds, removeRecord } from './lib/leave-ops.js?v=202611230901';
-import { renderLeaveTypeModalOptions } from './ui-modals.js?v=202611230901';
-import { findDailyLeaveDup } from './lib/attendance-guard.js?v=202611230901';
-import { normalizeClock } from './lib/clock-in-out.js?v=202611230901';
+import * as DOM from './dom-elements.js?v=202611230907';
+import * as State from './state.js?v=202611230907';
+import { isPersistentLeaveType, OTHER_LEAVE_TYPE, leaveTypeLabel } from './state.js?v=202611230907';
+import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=202611230907';
+import { showToast, getTodayDateString, toDateString, getCurrentTime, calculateWorkingDays, isWeekday } from './utils.js?v=202611230907';
+import { saveStateToFirestore } from './app-data.js?v=202611230907';
+import { updateLeaveSchedule } from './config.js?v=202611230907';
+import { removeByIds, removeRecord } from './lib/leave-ops.js?v=202611230907';
+import { renderLeaveTypeModalOptions } from './ui-modals.js?v=202611230907';
+import { findDailyLeaveDup } from './lib/attendance-guard.js?v=202611230907';
+import { normalizeClock } from './lib/clock-in-out.js?v=202611230907';
 import { doc, setDoc, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // 당일 근태 중복 안내 — 지각·조퇴는 하루 1건, 외출은 같은 시각만 중복
@@ -305,7 +305,7 @@ ${startTime} 이후에 시작한 업무는 그대로 두고, 그 전부터 진�
                         const peRaw = (document.getElementById('leave-end-time-input')?.value || '').trim();
                         planEnd = peRaw ? normalizeClock(peRaw) : null;
                         if (!planEnd) {
-                            showToast('외출은 종료 시간을 입력해 주세요.', true);
+                            showToast('종료(복귀 예상) 시간을 입력해 주세요.', true);
                             DOM.confirmLeaveBtn.disabled = false;
                             DOM.confirmLeaveBtn.textContent = originalBtnText;
                             return;
@@ -362,7 +362,7 @@ ${startTime} 이후에 시작한 업무는 그대로 두고, 그 전부터 진�
                     // 지난 시각으로 끊을 때는 그 시각 이후에 시작한 기록을 건드리지 않는다(onlyStartedBefore).
                     if ((type === '외출' || type === '조퇴') && !isScheduled) {
                         try {
-                            const { forceEndMemberWork } = await import('./app-sync.js?v=202611230901');
+                            const { forceEndMemberWork } = await import('./app-sync.js?v=202611230907');
                             const r = await forceEndMemberWork(memberName, newDailyEntry.startTime, { onlyStartedBefore: true });
                             if (r.ended > 0) {
                                 console.warn(`[외출/조퇴 자동 종료] ${memberName}: ${r.ended}건`, r.summaries);
@@ -498,7 +498,7 @@ ${startTime} 이후에 시작한 업무는 그대로 두고, 그 전부터 진�
                     // 외출 복귀 예상 — 칸이 비면 원본 값을 지우고, 있으면 시작보다 늦어야 한다(외출이 아니면 넣지 않는다)
                     let newPlanEnd = null;
                     if (newType === '외출' && !newPlanEndRaw) {
-                        showToast('외출은 종료 시간을 입력해 주세요.', true);
+                        showToast('종료(복귀 예상) 시간을 입력해 주세요.', true);
                         return;
                     }
                     if (newType === '외출' && newPlanEndRaw) {
