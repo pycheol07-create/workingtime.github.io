@@ -4,12 +4,12 @@
 //   규칙은 js/lib/total-insp-excel.js, 넣기(트랜잭션·완료 상품 새 회차 확인)는 js/total-inspection-logic.js addTotalItemsFromExcel.
 //   ⚠️ 이 창은 index.html·history.html 에 붙는다 — role="dialog"·data-act·end-shift-* 를 쓰지 않는다(업무마감봇 선택자).
 //   엑셀 내용(상품코드·수량)은 화면에만 쓰고 로그·서버에 원본을 남기지 않는다.
-import * as State from './state.js?v=202611240907';
-import { showToast, escapeHtml } from './utils.js?v=202611240907';
-import { S as PS, loadCatalog, loadLoc, locOf } from './products-store.js?v=202611240907';
-import { parseSheetRows, matchRows, buildItems, summaryLines } from './lib/total-insp-excel.js?v=202611240907';
-import { resolveHistory } from './inspection-manual.js?v=202611240907';   // 이력 상품명 찾기 — [개별 추가]와 같은 함수
-import { addTotalItemsFromExcel } from './total-inspection-logic.js?v=202611240907';
+import * as State from './state.js?v=202611240908';
+import { showToast, escapeHtml } from './utils.js?v=202611240908';
+import { S as PS, loadCatalog, loadLoc, locOf } from './products-store.js?v=202611240908';
+import { parseSheetRows, matchRows, buildItems, summaryLines } from './lib/total-insp-excel.js?v=202611240908';
+import { resolveHistory } from './inspection-manual.js?v=202611240908';   // 이력 상품명 찾기 — [개별 추가]와 같은 함수
+import { addTotalItemsFromExcel } from './total-inspection-logic.js?v=202611240908';
 
 const BOX_ID = 'total-insp-excel-box';
 let busy = false;
