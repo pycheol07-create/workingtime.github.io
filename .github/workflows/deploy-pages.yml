@@ -20,7 +20,7 @@ jobs:
   deploy:
     environment:
       name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+      url: ${{ steps.deployment.outputs.page_url || steps.deployment_retry1.outputs.page_url || steps.deployment_retry2.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -35,6 +35,29 @@ jobs:
           # 저장소 루트 전체를 그대로 정적 사이트로 업로드 (Jekyll 처리 없음)
           path: .
 
+      # 배포 단계가 GitHub 쪽 일시 오류로 가끔 실패한다(2026-11 에 4번 —
+      # "No artifacts named github-pages were found"(방금 올린 묶음을 아직 못 찾음) · "Deployment failed, try again later").
+      # 같은 묶음으로 다시 하면 되므로, 실패하면 잠깐 기다렸다가 최대 2번 더 시도한다(2026-11-25).
       - name: Deploy to GitHub Pages
         id: deployment
+        continue-on-error: true
+        uses: actions/deploy-pages@v4
+
+      - name: Wait before retry 1
+        if: steps.deployment.outcome == 'failure'
+        run: sleep 30
+
+      - name: Deploy to GitHub Pages (retry 1)
+        id: deployment_retry1
+        if: steps.deployment.outcome == 'failure'
+        continue-on-error: true
+        uses: actions/deploy-pages@v4
+
+      - name: Wait before retry 2
+        if: steps.deployment.outcome == 'failure' && steps.deployment_retry1.outcome == 'failure'
+        run: sleep 90
+
+      - name: Deploy to GitHub Pages (retry 2)
+        id: deployment_retry2
+        if: steps.deployment.outcome == 'failure' && steps.deployment_retry1.outcome == 'failure'
         uses: actions/deploy-pages@v4
