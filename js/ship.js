@@ -32,33 +32,33 @@
 import { onAuthStateChanged, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { doc, getDocFromServer } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getStorage, ref as sRef, uploadBytes, getBlob, getMetadata } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
-import { initializeFirebase } from './config.js?v=202611240857';
-import { emulatorEnabled, connectStorageEmulatorIfEnabled } from './firebase-emulator.js?v=202611240857';
-import { setShellContext, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202611240857';
-import { memberNameFor } from './app-shell-data.js?v=202611240857';
-import { friendlyFirebaseError } from './utils.js?v=202611240857';
-import { resolve, can } from './lib/perm.js?v=202611240857';
-import { readBook, headerColumns } from './lib/ship-read.js?v=202611240857';
-import { zikjinStep1, zikjinStep2, readZikjinMaster, MASTER_SHEET } from './lib/ship-zikjin.js?v=202611240857';
-import { createMasterFile, MASTER_STATE_TEXT, KEY_MASTER } from './lib/ship-master-file.js?v=202611240857';
-import { ablyStep1, ablyStep2, readAblyRequest } from './lib/ship-ably.js?v=202611240857';
-import { zikjinListBytes, ablyBulkBytes, stockXlsBytes, cleanZikjinTemplate, zikjinTemplateProblem, cleanAblyTemplate, ablyTemplateProblem } from './lib/ship-write.js?v=202611240857';
-import { pickingBytes } from './lib/ship-picking.js?v=202611240857';
-import { kstDay, baseDateWarning, targetArea, STOCK_OUT_MSG, PACK_PREFIX, baseDatePart, packageNameBase } from './lib/ship-core.js?v=202611240857';
-import { peekBook, classifyPeek, assignFiles, routeFiles, SLOTS, KIND, KIND_LABEL } from './lib/ship-assign.js?v=202611240857';
-import { openShipStore, isFileRecord, sizeText, savedText, KEY_TEMPLATE, KEY_OUT_DIR } from './lib/ship-file-store.js?v=202611240857';
-import { createSaver, mimeOf } from './lib/save-file.js?v=202611240857';
-import { normalizeSettings, validateEdit, settingsWrite, parseLimit, activeRuleCount, MAX_RULES } from './lib/ship-settings.js?v=202611240857';
-import { flowState, foldState, modeView, loadMode, tabForMode, MODE_STORE_KEY, MODE_LABEL } from './lib/ship-flow.js?v=202611240857';
-import { summarizeRun, fileSummary, SUMMARY_MAX_BYTES } from './lib/ship-summary.js?v=202611240857';
-import { madeKey, loadMade, findMade, recordMade, madeConfirmText, MADE_STORE_KEY } from './lib/ship-made.js?v=202611240857';
-import { gridOf, comparePairs } from './lib/ship-compare.js?v=202611240857';
-import { batchKeyOf, codeTotals, freshKey, sha256Hex, LEGACY } from './lib/ship-batch.js?v=202611240857';
-import { loadSettings, saveSettings, sendBatch, previewBatches, removeBatch, writeActivity, beatActivity, watchActivity } from './ship-store.js?v=202611240857';
-import { normalizeActivity, findSharedMade, activityBanner, newRunId, BEAT_MS } from './lib/ship-activity.js?v=202611240857';
-import { logHtml, logText, AUTO_MARK } from './lib/ship-log.js?v=202611240857';
-import { autoDecision, autoStartText } from './lib/ship-auto.js?v=202611240857';
-import { isMixed, planMixed, jobLabel, runJobs, queueCounts, pairWaitPlan } from './lib/ship-mixed.js?v=202611240857';
+import { initializeFirebase } from './config.js?v=202611240907';
+import { emulatorEnabled, connectStorageEmulatorIfEnabled } from './firebase-emulator.js?v=202611240907';
+import { setShellContext, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202611240907';
+import { memberNameFor } from './app-shell-data.js?v=202611240907';
+import { friendlyFirebaseError } from './utils.js?v=202611240907';
+import { resolve, can } from './lib/perm.js?v=202611240907';
+import { readBook, headerColumns } from './lib/ship-read.js?v=202611240907';
+import { zikjinStep1, zikjinStep2, readZikjinMaster, MASTER_SHEET } from './lib/ship-zikjin.js?v=202611240907';
+import { createMasterFile, MASTER_STATE_TEXT, KEY_MASTER } from './lib/ship-master-file.js?v=202611240907';
+import { ablyStep1, ablyStep2, readAblyRequest } from './lib/ship-ably.js?v=202611240907';
+import { zikjinListBytes, ablyBulkBytes, stockXlsBytes, cleanZikjinTemplate, zikjinTemplateProblem, cleanAblyTemplate, ablyTemplateProblem } from './lib/ship-write.js?v=202611240907';
+import { pickingBytes } from './lib/ship-picking.js?v=202611240907';
+import { kstDay, baseDateWarning, targetArea, STOCK_OUT_MSG, PACK_PREFIX, baseDatePart, packageNameBase } from './lib/ship-core.js?v=202611240907';
+import { peekBook, classifyPeek, assignFiles, routeFiles, SLOTS, KIND, KIND_LABEL } from './lib/ship-assign.js?v=202611240907';
+import { openShipStore, isFileRecord, sizeText, savedText, KEY_TEMPLATE, KEY_OUT_DIR } from './lib/ship-file-store.js?v=202611240907';
+import { createSaver, mimeOf } from './lib/save-file.js?v=202611240907';
+import { normalizeSettings, validateEdit, settingsWrite, parseLimit, activeRuleCount, MAX_RULES } from './lib/ship-settings.js?v=202611240907';
+import { flowState, foldState, modeView, loadMode, tabForMode, MODE_STORE_KEY, MODE_LABEL } from './lib/ship-flow.js?v=202611240907';
+import { summarizeRun, fileSummary, SUMMARY_MAX_BYTES } from './lib/ship-summary.js?v=202611240907';
+import { madeKey, loadMade, findMade, recordMade, madeConfirmText, MADE_STORE_KEY } from './lib/ship-made.js?v=202611240907';
+import { gridOf, comparePairs } from './lib/ship-compare.js?v=202611240907';
+import { batchKeyOf, codeTotals, freshKey, sha256Hex, LEGACY } from './lib/ship-batch.js?v=202611240907';
+import { loadSettings, saveSettings, sendBatch, previewBatches, removeBatch, writeActivity, beatActivity, watchActivity } from './ship-store.js?v=202611240907';
+import { normalizeActivity, findSharedMade, activityBanner, newRunId, BEAT_MS } from './lib/ship-activity.js?v=202611240907';
+import { logHtml, logText, AUTO_MARK } from './lib/ship-log.js?v=202611240907';
+import { autoDecision, autoStartText } from './lib/ship-auto.js?v=202611240907';
+import { isMixed, planMixed, jobLabel, runJobs, queueCounts, pairWaitPlan } from './lib/ship-mixed.js?v=202611240907';
 
 const $ = (id) => document.getElementById(id);
 const APP_BASE = 'artifacts/team-work-logger-v2';
@@ -688,12 +688,33 @@ function renderTransmit() {
     const el = $('sp-transmit');
     let cls = 'info', text;
     if (!S.settingsRead) { cls = 'warn'; text = '공용 설정을 읽지 못했습니다 — 기본값(봉투 30·25, 지정상품 꺼짐, 전송 끔)으로 만듭니다.'; }
-    else if (!S.settings.transmit) text = '';   // 병행 중(전송 꺼짐) 안내는 2026-11-23 사용자 요청으로 뺐다
-    else text = '전송 켬 — 2단계를 마치면 로케이션 관리에 실제 출고 수량과 봉 수를 보냅니다. 같은 건을 exe 로 또 보내지 마세요.';
+    else text = S.txHelp ? txHelpText() : '';   // 전송 켬/끔은 머리줄 작은 표시(sp-tx-badge)로 — 2026-11-24 사용자 요청. 본문 띠는 경고·배지를 눌렀을 때 설명만
     if (!S.canShip) { cls = 'warn'; text = (text ? text + ' · ' : '') + '이 계정은 「플랫폼 출고」 권한이 없어 설정 저장·전송이 막힙니다.'; }
-    el.className = `pd-alert ${cls}${transmitOn() ? ' sp-chip' : ''}`;   // 전송 켬은 작은 칩(글자 그대로)
+    el.className = `pd-alert ${cls}`;
     el.textContent = text;
     el.hidden = !text;
+    renderTxBadge();
+}
+
+function txHelpText() {
+    if (transmitOn()) return '전송 켬 — 2단계를 마치면 로케이션 관리에 실제 출고 수량과 봉 수를 보냅니다. 같은 건을 exe 로 또 보내지 마세요.';
+    if (S.settings.transmit && !S.canShip) return '전송 끔 — 이 계정은 「플랫폼 출고」 권한이 없어 전송하지 않습니다.';
+    return '전송 끔 — 로케이션 실적·봉 수 기록은 exe 가 합니다(설정에서 켤 수 있음).';
+}
+
+function renderTxBadge() {
+    const b = $('sp-tx-badge');
+    if (!b) return;
+    const on = transmitOn();
+    b.hidden = !S.settingsRead;
+    b.classList.toggle('is-on', on);
+    $('sp-tx-label').textContent = on ? '전송 ON' : '전송 OFF';
+    b.title = txHelpText() + ' (누르면 본문에 설명 표시)';
+    b.setAttribute('aria-expanded', S.txHelp ? 'true' : 'false');
+    if (!b.dataset.bound) {
+        b.dataset.bound = '1';
+        b.addEventListener('click', () => { S.txHelp = !S.txHelp; renderTransmit(); });
+    }
 }
 
 function renderFolder() {

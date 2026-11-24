@@ -2,17 +2,17 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <script src="js/theme-boot.js?v=202611240857"></script>
+    <script src="js/theme-boot.js?v=202611240907"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>플랫폼 출고</title>
     <!-- 플랫폼 출고(2026-11-10 웹 이식) — 옛 출고자동화통합.exe(직진배송·에이블리 1·2단계)를 브라우저로.
          엑셀 파일은 이 PC 브라우저 안에서만 읽고 만든다(서버로 올리지 않음). 예외: 직진 출고리스트·에이블리 대량입고 빈 양식(관리자가 [설정]에서 올림, 머리글만 — Storage ship/templates/zikjin.xlsx·ably.xlsx). 계산은 js/lib/ship-*.js(옛 Python 판과 같은 결과).
          Firestore 쓰기(로케이션 실적·봉 수)는 공용 설정 '전송 켬'(관리자만)일 때만 — js/ship-store.js. 화면 틀은 products.html 과 같다. -->
-    <link rel="stylesheet" href="css/suit.css?v=202611240857">
-    <link rel="stylesheet" href="css/d-theme.css?v=202611240857">
-    <link rel="stylesheet" href="css/products-d.css?v=202611240857">
-    <link rel="stylesheet" href="css/ship-d.css?v=202611240857">
-    <link rel="stylesheet" href="css/app-shell.css?v=202611240857">
+    <link rel="stylesheet" href="css/suit.css?v=202611240907">
+    <link rel="stylesheet" href="css/d-theme.css?v=202611240907">
+    <link rel="stylesheet" href="css/products-d.css?v=202611240907">
+    <link rel="stylesheet" href="css/ship-d.css?v=202611240907">
+    <link rel="stylesheet" href="css/app-shell.css?v=202611240907">
 </head>
 <body data-shell="ship">
     <div id="pd-loading" class="pd-loading">
@@ -27,6 +27,8 @@
                 <div class="pd-sub pd-head-sub">직진배송·에이블리 출고 파일을 만듭니다. 출고 엑셀은 이 PC 안에서만 처리되고 서버에 올라가지 않습니다(관리자가 올리는 빈 기본 양식만 앱에 저장).</div>
             </div>
             <div class="pd-head-actions">
+                <!-- 전송 켬/끔 작은 표시(2026-11-24 사용자 요청 — 본문 안내 줄 대신). 설명은 마우스를 올리거나 누르면(터치·키보드) 본문 띠에 -->
+                <button type="button" id="sp-tx-badge" class="sp-tx-badge" aria-expanded="false" aria-controls="sp-transmit" hidden><i class="sp-tx-dot" aria-hidden="true"></i><span id="sp-tx-label">전송</span></button>
                 <button id="sp-folder" class="d-btn" title="결과 파일을 저장할 폴더">저장 폴더 고르기</button>
                 <!-- 개별 선택(2026-11-12) — 화면은 늘 통합으로 열고, 직진배송·에이블리를 따로 직접 진행할 때만 여기서 고른다(js/lib/ship-flow.js modeView) -->
                 <div class="sp-pick-wrap">
@@ -226,10 +228,10 @@
     <input id="sp-tmpl-input" type="file" accept=".xlsx" hidden>
     <input id="sp-master-input" type="file" accept=".xlsx,.xlsm,.xls" hidden>
 
-    <script src="js/connection-banner.js?v=202611240857"></script>
-    <script src="js/modal-esc.js?v=202611240857"></script>
-    <script type="module" src="js/ship.js?v=202611240857"></script>
-    <script type="module" src="js/page-gate.js?v=202611240857" data-perm-page="ship.platform"></script>
-    <script type="module" src="js/app-shell.js?v=202611240857"></script>
+    <script src="js/connection-banner.js?v=202611240907"></script>
+    <script src="js/modal-esc.js?v=202611240907"></script>
+    <script type="module" src="js/ship.js?v=202611240907"></script>
+    <script type="module" src="js/page-gate.js?v=202611240907" data-perm-page="ship.platform"></script>
+    <script type="module" src="js/app-shell.js?v=202611240907"></script>
 </body>
 </html>
