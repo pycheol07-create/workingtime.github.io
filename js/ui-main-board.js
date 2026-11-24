@@ -1,15 +1,15 @@
 // === js/ui-main-board.js ===
-import { formatTimeTo24H, formatDuration, calcTotalPauseMinutes, getTodayDateString, isMemberActiveOn, getCurrentTime, escapeHtml } from './utils.js?v=202611240908';
-import * as State from './state.js?v=202611240908';
-import { leaveTypeLabel } from './state.js?v=202611240908';
-import { leaveNthLabel } from './ui-modals.js?v=202611240908';
-import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202611240908';
-import { getLeaveDisplayLabel } from './ui-main-utils.js?v=202611240908';
-import { myWorkState, recentTasksFor } from './lib/my-work.js?v=202611240908';
-import { isLeaveActiveAt, isLeavePendingAt } from './lib/leave-timing.js?v=202611240908';
-import { isRefillTask, refillAllowed, refillProgressText, refillProgressTone, syncRefillDash } from './refill-dash.js?v=202611240908';
-import { isLocRecTask, locRecAllowed, syncLocRecDash } from './locrec-dash.js?v=202611240908';
-import { TASK, tName, isT } from './task-names.js?v=202611240908';
+import { formatTimeTo24H, formatDuration, calcTotalPauseMinutes, getTodayDateString, isMemberActiveOn, getCurrentTime, escapeHtml } from './utils.js?v=202611250835';
+import * as State from './state.js?v=202611250835';
+import { leaveTypeLabel } from './state.js?v=202611250835';
+import { leaveNthLabel } from './ui-modals.js?v=202611250835';
+import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202611250835';
+import { getLeaveDisplayLabel } from './ui-main-utils.js?v=202611250835';
+import { myWorkState, recentTasksFor } from './lib/my-work.js?v=202611250835';
+import { isLeaveActiveAt, isLeavePendingAt } from './lib/leave-timing.js?v=202611250835';
+import { isRefillTask, refillAllowed, refillProgressText, refillProgressTone, syncRefillDash } from './refill-dash.js?v=202611250835';
+import { isLocRecTask, locRecAllowed, syncLocRecDash } from './locrec-dash.js?v=202611250835';
+import { TASK, tName, isT } from './task-names.js?v=202611250835';
 
 // ===== 업무현황 카드 커버플로우(coverflow) 컨트롤러 =====
 // 가운데 업무 카드 1개만 크고 선명하게, 양옆 카드는 작고 흐리게 뒤로 물러남.
@@ -200,7 +200,7 @@ export const renderMyWorkBar = (appState) => {
     let actionHtml = '';
     if (record) {
         const pausesJson = escHtml(JSON.stringify(record.pauses || []));
-        taskHtml = `<span class="text-sm font-semibold t-1 truncate max-w-[12rem] md:max-w-none" title="${escHtml(record.task)}">${escHtml(record.task)}</span>
+        taskHtml = `<span class="text-sm font-semibold t-1 truncate max-w-[12rem] md:max-w-none xl:max-w-[10rem]" title="${escHtml(record.task)}">${escHtml(record.task)}</span>
             <span class="text-xs t-2 tabular-nums whitespace-nowrap">${escHtml(formatTimeTo24H(record.startTime))}~
                 <span class="ongoing-duration" data-start-time="${escHtml(record.startTime || '')}" data-status="${state === 'paused' ? 'paused' : 'ongoing'}" data-pauses-json="${pausesJson}"></span></span>`;
         actionHtml = (state === 'paused'
@@ -233,14 +233,15 @@ export const renderMyWorkBar = (appState) => {
             </div>`;
     }
 
+    // 넓은 화면은 '오늘 진행' 과 한 줄(index.html) — 칸 높이가 맞춰지므로 내용을 가운데로
     bar.innerHTML = `
-        <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <div class="h-full flex flex-col justify-center min-w-0"><div class="flex flex-wrap items-center gap-x-3 gap-y-2">
             <span class="text-[13px] font-semibold t-2 whitespace-nowrap">내 업무</span>
             <span class="${pillCls} text-xs">${escHtml(pillText)}</span>
             ${taskHtml}
             ${actionHtml ? `<div class="ml-auto flex items-center gap-2">${actionHtml}</div>` : ''}
         </div>
-        ${chipsHtml}`;
+        ${chipsHtml}</div>`;
     bar.classList.remove('hidden');
 };
 

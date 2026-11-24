@@ -24,12 +24,12 @@
          동기로 window.XLSX 를 찾으므로 지연 로드 대신 defer 만. -->
     <script defer src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" integrity="sha384-vtjasyidUo0kW94K5MXDXntzOJpQgBKXmE7e2Ga4LG0skTTLeBi97eFAXsqewJjw" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="css/suit.css?v=202611240908">
-    <link rel="stylesheet" href="css/style.css?v=202611240908">
-    <link rel="stylesheet" href="css/dash-d.css?v=202611240908">
-    <link rel="stylesheet" href="css/form-d.css?v=202611240908">
-    <link rel="stylesheet" href="css/refill-modal.css?v=202611240908">
-    <link rel="stylesheet" href="css/locrec-modal.css?v=202611240908">
+    <link rel="stylesheet" href="css/suit.css?v=202611250835">
+    <link rel="stylesheet" href="css/style.css?v=202611250835">
+    <link rel="stylesheet" href="css/dash-d.css?v=202611250835">
+    <link rel="stylesheet" href="css/form-d.css?v=202611250835">
+    <link rel="stylesheet" href="css/refill-modal.css?v=202611250835">
+    <link rel="stylesheet" href="css/locrec-modal.css?v=202611250835">
 </head>
 <body class="overflow-hidden transition-colors duration-200" data-shell="index" data-shell-bar="off">
     <div id="toast-container" class="fixed bottom-24 md:bottom-5 right-5 z-[200] space-y-2 w-full max-w-xs"></div>
@@ -173,12 +173,16 @@
 
                 <!-- 내 업무 — 내 상태·지금 업무 [휴식][종료]·최근 업무 칩·(휴대폰) 출근/퇴근. js/ui-main-board.js renderMyWorkBar 가 그린다.
                      휴대폰은 위에 붙어 있다(sticky — 스크롤 칸의 p-4 만큼 -top-4 로 올려 위 틈을 없앤다). ⚠️ role=dialog·data-act 를 넣지 말 것(업무마감봇 선택자) -->
+                <!-- 넓은 화면(xl·1280px 이상)은 '내 업무'(좁게)·'오늘 진행'을 한 줄로(2026-11-25 사용자 요청). 그보다 좁으면 contents 로 풀려 예전처럼 위아래 —
+                     휴대폰 order·sticky 도 그대로 -->
+                <div class="contents xl:flex xl:items-stretch xl:gap-4">
                 <section id="my-work-bar" aria-label="내 업무"
-                         class="hidden order-1 sticky -top-4 z-[25] md:static d-card px-4 py-3 md:px-6 md:py-4"></section>
+                         class="hidden order-1 sticky -top-4 z-[25] md:static d-card px-4 py-3 md:px-6 md:py-4 xl:px-4 xl:py-3 xl:w-[32%] xl:max-w-[26rem] xl:shrink-0 xl:min-w-0"></section>
 
                 <!-- 오늘 진행 — 업무 예상(계획) 대비 지금까지 쓴 시간. 누르면 데이터관리의 '오늘 현황'으로 -->
                 <div id="today-progress-strip"
-                     class="hidden order-3 cursor-pointer d-card is-link px-5 py-4 md:px-7 md:py-5 md:!mt-4"></div>
+                     class="hidden order-3 cursor-pointer d-card is-link px-5 py-4 md:px-7 md:py-5 md:!mt-4 xl:!mt-0 xl:flex-1 xl:min-w-0"></div>
+                </div>
 
                 <!-- 휴대폰은 이 묶음을 풀어(contents) 카드마다 order 를 준다 — '주요 일정 및 알림'만 위(order-1)로. PC 는 그대로 3칸 grid(md:order-none).
                      카드가 세로 flex 의 직접 자식이 되므로 shrink-0 — 없으면 overflow-hidden 카드가 2px 로 눌린다 -->
@@ -543,13 +547,13 @@
             ]);
 
             try {
-                await import('./js/app.js?v=202611240908');
+                await import('./js/app.js?v=202611250835');
             } catch (e) {
                 console.error("메인 앱 스크립트 로딩 실패:", e);
             }
 
             // 📖 화면의 모든 'UPH' 텍스트에 용어 설명 툴팁을 자동으로 붙인다.
-            import('./js/uph-tooltip.js?v=202611240908').catch(e => console.warn('UPH 툴팁 로딩 실패:', e));
+            import('./js/uph-tooltip.js?v=202611250835').catch(e => console.warn('UPH 툴팁 로딩 실패:', e));
         }
 
         initApp();
@@ -629,11 +633,11 @@
     </script>
 
     <script type="module">
-        import { appState } from './js/state.js?v=202611240908';
-        import { addNotice, toggleNotice, deleteNotice, editNotice, noticeMemberNames } from './js/notice-logic.js?v=202611240908';
-        import { renderNoticeWidget } from './js/ui-main.js?v=202611240908';
-        import { initIncomingScheduleWidget } from './js/widget-incoming-schedule.js?v=202611240908';
-        import { initTodayProgressStrip } from './js/widget-today-progress.js?v=202611240908';
+        import { appState } from './js/state.js?v=202611250835';
+        import { addNotice, toggleNotice, deleteNotice, editNotice, noticeMemberNames } from './js/notice-logic.js?v=202611250835';
+        import { renderNoticeWidget } from './js/ui-main.js?v=202611250835';
+        import { initIncomingScheduleWidget } from './js/widget-incoming-schedule.js?v=202611250835';
+        import { initTodayProgressStrip } from './js/widget-today-progress.js?v=202611250835';
 
         // 🚚 입고 예정 위젯 — 캐시부터 그림. 데이터 구독은 로그인 후 app.js 가 시작
         initIncomingScheduleWidget();
@@ -854,11 +858,11 @@
             renderNoticeModalList();
         }
     </script>
-    <script src="js/connection-banner.js?v=202611240908"></script>
-    <script src="js/modal-esc.js?v=202611240908"></script>
-    <script type="module" src="js/modal-drag.js?v=202611240908"></script>
+    <script src="js/connection-banner.js?v=202611250835"></script>
+    <script src="js/modal-esc.js?v=202611250835"></script>
+    <script type="module" src="js/modal-drag.js?v=202611250835"></script>
     <!-- 공통 상단바(대시보드는 바 없이 메뉴 캐시만 채운다 — data-shell-bar="off") -->
-    <script type="module" src="js/app-shell.js?v=202611240908"></script>
-    <script src="js/app-version.js?v=202611240908"></script>
+    <script type="module" src="js/app-shell.js?v=202611250835"></script>
+    <script src="js/app-version.js?v=202611250835"></script>
 </body>
 </html>

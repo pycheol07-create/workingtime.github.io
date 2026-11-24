@@ -8,14 +8,14 @@
 //   (같은 상품명+옵션의 대기 중인 개별 추가 줄은 패킹 카드로 바꾸고, 새 카드는 개별 줄 앞에 넣는다 — 2026-11-17).
 // ⚠️ 이 창은 index.html 에 붙는다 — 업무마감봇 선택자와 겹치지 않게 role="dialog"·data-act·end-shift-* 를 쓰지 않는다. id 는 모두 insp-pack-*.
 // ⚠️ 공급처는 코드만(supplierCode). supplierName 은 빈칸(CLAUDE.md 3절).
-import * as State from './state.js?v=202611240908';
-import { showToast, getTodayDateString, escapeHtml } from './utils.js?v=202611240908';
-import { renderTodoList, openInspectionListWindow } from './inspection-logic.js?v=202611240908';
-import { opt1Of } from './lib/mibal2-live.js?v=202611240908';   // 자리의 '옵션추가항목1'만(rawDataStr 의 다른 칸 — 공급처 등 — 은 돌려주지 않는다)
-import { fetchAllHistoryData } from './history-data-manager.js?v=202611240908';
+import * as State from './state.js?v=202611250835';
+import { showToast, getTodayDateString, escapeHtml } from './utils.js?v=202611250835';
+import { renderTodoList, openInspectionListWindow } from './inspection-logic.js?v=202611250835';
+import { opt1Of } from './lib/mibal2-live.js?v=202611250835';   // 자리의 '옵션추가항목1'만(rawDataStr 의 다른 칸 — 공급처 등 — 은 돌려주지 않는다)
+import { fetchAllHistoryData } from './history-data-manager.js?v=202611250835';
 import { doc, getDoc, getDocs, collection, query, where, documentId, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { parseInspPacks, buildCards, previewCount, existingCount, refsFromDays, thicknessFromHistoryDoc, samplesFromLocations, locsByCode, inspectedKeysFromHistory, packInspected } from './lib/insp-packs.js?v=202611240908';
-import { mergePackCards } from './lib/insp-manual.js?v=202611240908';
+import { parseInspPacks, buildCards, previewCount, existingCount, refsFromDays, thicknessFromHistoryDoc, samplesFromLocations, locsByCode, inspectedKeysFromHistory, packInspected } from './lib/insp-packs.js?v=202611250835';
+import { mergePackCards } from './lib/insp-manual.js?v=202611250835';
 
 const DOC_PATH = ['artifacts', 'team-work-logger-v2', 'integrations', 'inspPacks'];
 const PICKER_ID = 'insp-pack-picker';
