@@ -1,15 +1,15 @@
 // === js/ui-main-board.js ===
-import { formatTimeTo24H, formatDuration, calcTotalPauseMinutes, getTodayDateString, isMemberActiveOn, getCurrentTime, escapeHtml } from './utils.js?v=202611250835';
-import * as State from './state.js?v=202611250835';
-import { leaveTypeLabel } from './state.js?v=202611250835';
-import { leaveNthLabel } from './ui-modals.js?v=202611250835';
-import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202611250835';
-import { getLeaveDisplayLabel } from './ui-main-utils.js?v=202611250835';
-import { myWorkState, recentTasksFor } from './lib/my-work.js?v=202611250835';
-import { isLeaveActiveAt, isLeavePendingAt } from './lib/leave-timing.js?v=202611250835';
-import { isRefillTask, refillAllowed, refillProgressText, refillProgressTone, syncRefillDash } from './refill-dash.js?v=202611250835';
-import { isLocRecTask, locRecAllowed, syncLocRecDash } from './locrec-dash.js?v=202611250835';
-import { TASK, tName, isT } from './task-names.js?v=202611250835';
+import { formatTimeTo24H, formatDuration, calcTotalPauseMinutes, getTodayDateString, isMemberActiveOn, getCurrentTime, escapeHtml } from './utils.js?v=202611250841';
+import * as State from './state.js?v=202611250841';
+import { leaveTypeLabel } from './state.js?v=202611250841';
+import { leaveNthLabel } from './ui-modals.js?v=202611250841';
+import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202611250841';
+import { getLeaveDisplayLabel } from './ui-main-utils.js?v=202611250841';
+import { myWorkState, recentTasksFor } from './lib/my-work.js?v=202611250841';
+import { isLeaveActiveAt, isLeavePendingAt } from './lib/leave-timing.js?v=202611250841';
+import { isRefillTask, refillAllowed, refillProgressText, refillProgressTone, syncRefillDash } from './refill-dash.js?v=202611250841';
+import { isLocRecTask, locRecAllowed, syncLocRecDash } from './locrec-dash.js?v=202611250841';
+import { TASK, tName, isT } from './task-names.js?v=202611250841';
 
 // ===== 업무현황 카드 커버플로우(coverflow) 컨트롤러 =====
 // 가운데 업무 카드 1개만 크고 선명하게, 양옆 카드는 작고 흐리게 뒤로 물러남.
@@ -200,13 +200,18 @@ export const renderMyWorkBar = (appState) => {
     let actionHtml = '';
     if (record) {
         const pausesJson = escHtml(JSON.stringify(record.pauses || []));
-        taskHtml = `<span class="text-sm font-semibold t-1 truncate max-w-[12rem] md:max-w-none xl:max-w-[10rem]" title="${escHtml(record.task)}">${escHtml(record.task)}</span>
+        // 넓은 화면(xl)은 '내 업무' 칸이 좁아(index.html) 업무 이름·시간을 둘째 줄로(order-last + w-full), 버튼은 첫 줄 오른쪽
+        taskHtml = `<span class="flex items-center gap-x-3 min-w-0 xl:order-last xl:w-full"><span class="text-sm font-semibold t-1 truncate max-w-[12rem] md:max-w-none xl:max-w-none min-w-0" title="${escHtml(record.task)}">${escHtml(record.task)}</span>
             <span class="text-xs t-2 tabular-nums whitespace-nowrap">${escHtml(formatTimeTo24H(record.startTime))}~
-                <span class="ongoing-duration" data-start-time="${escHtml(record.startTime || '')}" data-status="${state === 'paused' ? 'paused' : 'ongoing'}" data-pauses-json="${pausesJson}"></span></span>`;
+                <span class="ongoing-duration" data-start-time="${escHtml(record.startTime || '')}" data-status="${state === 'paused' ? 'paused' : 'ongoing'}" data-pauses-json="${pausesJson}"></span></span></span>`;
+        // 업무 카드와 같은 도형 버튼(재개 ▶ · 휴식 ‖ · 종료 ✕ — 2026-11-25 사용자 요청). 작게(w-6)
+        const rid = escHtml(record.id);
+        const ico = (d) => `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="${d}" /></svg>`;
+        const btn = (act, tone, label, d) => `<button type="button" data-action="${act}" data-record-id="${rid}" class="w-6 h-6 flex items-center justify-center d-icobtn ${tone}" title="${label}" aria-label="${label}">${ico(d)}</button>`;
         actionHtml = (state === 'paused'
-            ? `<button type="button" data-action="resume-individual" data-record-id="${escHtml(record.id)}" class="d-btn d-btn-accent">재개</button>`
-            : `<button type="button" data-action="pause-individual" data-record-id="${escHtml(record.id)}" class="d-btn">휴식</button>`)
-            + `<button type="button" data-action="stop-individual" data-record-id="${escHtml(record.id)}" class="d-btn d-btn-risk">종료</button>`;
+            ? btn('resume-individual', 'accent', '재개', 'M5.25 5.25l14.25 6.75-14.25 6.75V5.25z')
+            : btn('pause-individual', 'warn', '휴식', 'M15.75 5.25v13.5m-7.5-13.5v13.5'))
+            + btn('stop-individual', 'risk', '종료', 'M6 18L18 6M6 6l12 12');
     } else if (state === 'before') {
         // 휴대폰은 출퇴근 스위치가 햄버거 메뉴 안에 있어 여기에 버튼을 둔다(PC 는 사이드바 아래 스위치)
         actionHtml = `<button type="button" data-my-act="clock-in" class="md:hidden d-btn d-btn-accent">출근</button>`;
@@ -239,7 +244,7 @@ export const renderMyWorkBar = (appState) => {
             <span class="text-[13px] font-semibold t-2 whitespace-nowrap">내 업무</span>
             <span class="${pillCls} text-xs">${escHtml(pillText)}</span>
             ${taskHtml}
-            ${actionHtml ? `<div class="ml-auto flex items-center gap-2">${actionHtml}</div>` : ''}
+            ${actionHtml ? `<div class="ml-auto flex items-center gap-1.5">${actionHtml}</div>` : ''}
         </div>
         ${chipsHtml}</div>`;
     bar.classList.remove('hidden');
