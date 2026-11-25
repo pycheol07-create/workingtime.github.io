@@ -1,10 +1,10 @@
 // === js/app-notifications.js ===
-import * as State from './state.js?v=202611251333';
+import * as State from './state.js?v=202611251358';
 import { doc, writeBatch, deleteDoc, collection, addDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { showToast, escapeHtml, getActiveTeamMembers } from './utils.js?v=202611251333';
-import { sortUnreadFirst, addDismissed, notiLink, notiLinkLabel } from './lib/noti-popup.js?v=202611251333';
-import { sidebarLinkTarget } from './app-shell-data.js?v=202611251333';
-import { goTo } from './app-shell-bridge.js?v=202611251333';
+import { showToast, escapeHtml, getActiveTeamMembers } from './utils.js?v=202611251358';
+import { sortUnreadFirst, addDismissed, notiLink, notiLinkLabel } from './lib/noti-popup.js?v=202611251358';
+import { sidebarLinkTarget } from './app-shell-data.js?v=202611251358';
+import { goTo } from './app-shell-bridge.js?v=202611251358';
 
 // 알림창에 지금 보이는 안 읽은 알림 id — 창을 닫을 때(×·배경·종·ESC) '닫은 것'으로 기억해
 // 같은 알림으로 창이 다시 저절로 열리지 않게 한다(js/app-sync.js 자동 열기 · js/lib/noti-popup.js).
@@ -41,14 +41,15 @@ export function renderNotificationList() {
     
     // 안 읽은 것은 굵은 파란 테두리 + 왼쪽 띠 + NEW 표시(다크 모드 포함)
     list.innerHTML = notis.map(n => `
-        <li class="p-3 rounded-lg ${n.isRead ? 'border bg-gray-50 border-gray-200 dark:bg-gray-700/50 dark:border-gray-600 text-gray-500 dark:text-gray-400 shadow-sm' : 'border-2 border-l-[6px] bg-blue-50 border-blue-500 dark:bg-blue-900/40 dark:border-blue-400 text-gray-900 dark:text-gray-100 shadow-md'} relative pr-8${notiLink(n) ? ' cursor-pointer' : ''}"${notiLink(n) ? ` data-noti-go="${escapeHtml(n.id)}"` : ''}>
+        <li class="p-3 rounded-lg ${n.isRead ? 'border bg-gray-50 border-gray-200 dark:bg-gray-700/50 dark:border-gray-600 text-gray-500 dark:text-gray-400 shadow-sm' : 'border-2 border-l-[6px] bg-blue-50 border-blue-500 dark:bg-blue-900/40 dark:border-blue-400 text-gray-900 dark:text-gray-100 shadow-md'} relative pr-8${notiLink(n) || !n.isRead ? ' cursor-pointer' : ''}"${notiLink(n) ? ` data-noti-go="${escapeHtml(n.id)}"` : ''}>
             <div class="text-[11px] font-bold mb-1 flex items-center gap-1.5">${n.isRead ? '' : '<span class="px-1.5 rounded bg-blue-600 dark:bg-blue-500 text-white text-[10px] font-extrabold tracking-wide">NEW</span>'}<span class="opacity-70">${escapeHtml(new Date(n.createdAt).toLocaleString('ko-KR', {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'}))}</span></div>
-            <div class="text-sm font-medium leading-snug break-words whitespace-pre-line">${escapeHtml(n.message)}</div>${notiLink(n) ? `<div class="text-xs font-bold text-blue-600 dark:text-blue-300 mt-1">눌러서 ${escapeHtml(notiLinkLabel(n) || '이동')} →</div>` : ''}
+            <div class="text-sm font-medium leading-snug break-words whitespace-pre-line">${escapeHtml(n.message)}</div>${notiLink(n) ? `<div class="text-xs font-bold text-blue-600 dark:text-blue-300 mt-1">눌러서 ${escapeHtml(notiLinkLabel(n) || '이동')} →</div>` : ''}${n.isRead ? '' : `<button type="button" class="read-single-noti-btn mt-2 px-2.5 py-0.5 rounded-md border border-blue-300 dark:border-blue-500 text-xs font-bold text-blue-700 dark:text-blue-200 bg-white/70 dark:bg-gray-800/60 hover:bg-white dark:hover:bg-gray-800 transition" data-id="${escapeHtml(n.id)}" title="이 알림만 읽음으로">읽음</button>`}
             <button class="absolute top-2 right-2 text-gray-400 hover:text-red-500 font-bold text-lg delete-single-noti-btn transition" data-id="${escapeHtml(n.id)}">&times;</button>
         </li>
     `).join('');
 }
 
+let lastReadAt = 0;   // 하나씩 읽음 — 마지막으로 누른 시각(두 번 클릭 막기)
 // 눌러서 이동할 때 그 알림만 읽음 표시 — 오프라인이면 쓰기가 끝나지 않으므로 최대 NOTI_READ_WAIT 만 기다리고, 실패해도 이동한다.
 const NOTI_READ_WAIT = 1500;
 function markOneRead(id) {
@@ -134,6 +135,21 @@ export function setupNotificationListeners() {
             } catch(err) {
                 console.error("개별 알림 삭제 실패:", err);
             }
+            return;
+        }
+        // 하나씩 읽음(2026-11-25 사용자 요청) — [읽음] 단추, 또는 이동 링크가 없는 안 읽은 알림 글을 누르면 그 알림만
+        const direct = e.target.closest('.read-single-noti-btn');
+        const sel = window.getSelection && String(window.getSelection() || '').trim();
+        const textOk = !direct && !e.target.closest('[data-noti-go], button, a') && e.detail <= 1 && !sel
+            && Date.now() - lastReadAt >= 600;   // 두 번 클릭·방금 읽은 직후(다음 알림이 그 자리로 올라옴)·글자 선택은 건너뜀
+        const rdBtn = direct || (textOk ? e.target.closest('li')?.querySelector('.read-single-noti-btn') : null);
+        if (rdBtn) {
+            if (rdBtn.disabled) return;
+            const id = rdBtn.dataset.id;
+            lastReadAt = Date.now();
+            rdBtn.disabled = true;
+            addDismissed([id]);
+            await markOneRead(id);   // 화면은 구독이 바뀌면 다시 그린다
             return;
         }
         // 이동 링크가 있는 알림(비품 등) — 그 알림만 읽음 처리한 뒤 해당 화면으로

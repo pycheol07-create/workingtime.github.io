@@ -12,8 +12,8 @@
 // 순수 모듈(gzip 은 CompressionStream — 브라우저·node 18+). 칸 값은 로그·화면 글에 쓰지 않는다(숫자·날짜·이름만).
 // 테스트: tests/ship-master-app.test.js · tests/ship-zikjin-master.test.js(뽑은 칸만 올라가는지) · 규칙테스트.js(ShipMaster) · tools/ship-check.py
 
-import { sha256Hex } from './ship-batch.js?v=202611251333';
-import { MASTER_FIELDS } from './ship-zikjin.js?v=202611251333';
+import { sha256Hex } from './ship-batch.js?v=202611251358';
+import { MASTER_FIELDS } from './ship-zikjin.js?v=202611251358';
 
 export const MASTER_COLLECTION = 'ShipMaster';
 export const META_ID = 'meta';

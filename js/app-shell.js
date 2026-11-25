@@ -1,5 +1,5 @@
 // === js/app-shell.js ===
-// 공통 상단바 + 메뉴 서랍 (UI 1단계 1a, 2026-10-16). <script type="module" src="js/app-shell.js?v=202611251333"> 로 붙이면 스스로 돈다.
+// 공통 상단바 + 메뉴 서랍 (UI 1단계 1a, 2026-10-16). <script type="module" src="js/app-shell.js?v=202611251358"> 로 붙이면 스스로 돈다.
 //   <body data-shell="페이지ID">              → 위쪽에 바를 얹는다(css/app-shell.css 가 본문을 그만큼 내린다)
 //   <body data-shell="index" data-shell-bar="off"> → 바 없이 메뉴 캐시만 채운다(대시보드)
 // 페이지는 js/app-shell-bridge.js 의 setShellContext 로 로그인 상태를 알려 준다.
@@ -18,10 +18,10 @@
 //   메뉴 이름 + 그 화면 안 탭(app-shell-data.js SUB_DESTINATIONS) + 홈. 같은 화면 안 이동은 해시 이동(뒤로가기로 되돌림),
 //   다른 화면은 navigate(이동 전 저장 훅). 팔레트도 섀도 DOM 안, 열 때 만들고 닫을 때 없앤다.
 
-import { visibleMenuFor } from './menu-catalog.js?v=202611251333';
-import { PAGE_DEFAULTS, HOME_FILE, resolveMenuGroups, absUrl, pageFileOf, currentTitle, shellLinkTarget, buildDestinations, menuLabel } from './app-shell-data.js?v=202611251333';
-import { rank } from './hangul-search.js?v=202611251333';
-import { isAutomation, loadDismissed, addDismissed, pickPopup, findOpenModal, notiLink, notiLinkLabel, sortUnreadFirst } from './lib/noti-popup.js?v=202611251333';
+import { visibleMenuFor } from './menu-catalog.js?v=202611251358';
+import { PAGE_DEFAULTS, HOME_FILE, resolveMenuGroups, absUrl, pageFileOf, currentTitle, shellLinkTarget, buildDestinations, menuLabel } from './app-shell-data.js?v=202611251358';
+import { rank } from './hangul-search.js?v=202611251358';
+import { isAutomation, loadDismissed, addDismissed, pickPopup, findOpenModal, notiLink, notiLinkLabel, sortUnreadFirst } from './lib/noti-popup.js?v=202611251358';
 
 const BASE = new URL('../', import.meta.url).href;      // 앱 폴더(js/ 의 부모)
 const MENU_CACHE_KEY = 'appShell.menu.v2';              // js/app-shell-bridge.js 와 같은 키(v2: 권한 개편)
@@ -204,6 +204,8 @@ li { position: relative; padding-right: 40px; }
 li.read { background: var(--as-surface-2); border-left-color: var(--as-line-strong); color: var(--as-text-2); }
 li.read p { font-weight: 400; }
 li .x { position: absolute; top: 4px; right: 4px; width: 30px; height: 30px; }
+li:not(.read):not(.empty):not(:has(a.go)) { cursor: pointer; }
+li .b.rd { margin-left: 6px; min-height: 30px; padding: 2px 10px; font-size: 12px; }
 .new { display: inline-block; margin-right: 6px; padding: 0 5px; border-radius: 4px; background: var(--as-accent); color: #FFFFFF;
        font-size: 10px; font-weight: 800; vertical-align: 1px; }
 :host([data-theme="dark"]) .new { color: #10141A; }
@@ -302,7 +304,7 @@ function start() {
     function loadTermHelp() {
         if (termHelpAsked || !TERM_HELP_PAGES.includes(pageId)) return;
         termHelpAsked = true;
-        setTimeout(() => { import('./term-help.js?v=202611251333').then(m => m.start()).catch(e => console.warn('[용어 설명] 불러오지 못함', e)); }, 1200);
+        setTimeout(() => { import('./term-help.js?v=202611251358').then(m => m.start()).catch(e => console.warn('[용어 설명] 불러오지 못함', e)); }, 1200);
     }
 
     // 메뉴 서랍·빠른 이동 호스트 — syncTheme 이 읽으므로 그보다 먼저 선언한다(첫 renderBar 의 레일이 syncTheme 을 부른다)
@@ -427,7 +429,7 @@ function start() {
         noti.timer = setTimeout(async () => {
             noti.timer = null;
             try {
-                const { watchNotifications, markRead, deleteNotis } = await import('./app-shell-noti.js?v=202611251333');
+                const { watchNotifications, markRead, deleteNotis } = await import('./app-shell-noti.js?v=202611251358');
                 if (noti.name !== want) return;   // 그 사이 로그아웃·다른 사람
                 noti.markRead = markRead;
                 noti.deleteNotis = deleteNotis;
@@ -608,22 +610,26 @@ function start() {
         // 다시 그리면 목록 버튼이 새로 생긴다 — 포커스가 목록 안에 있었으면 같은 알림(없으면 그 자리 다음 알림, 그것도 없으면 닫기)으로 돌려준다
         const fa = root.activeElement;
         const inList = !!(fa && fa.closest && fa.closest('ul'));
-        const focusKind = inList ? (fa.matches('[data-del]') ? 'del' : 'go') : null;
-        const focusId = inList ? (fa.dataset.del || fa.dataset.notiId || '') : '';
+        const focusKind = inList ? (fa.matches('[data-del]') ? 'del' : fa.matches('[data-read]') ? 'rd' : 'go') : null;
+        const focusId = inList ? (fa.dataset.del || fa.dataset.read || fa.dataset.notiId || '') : '';
         const oldIdx = inList ? Array.from(root.querySelectorAll('ul li')).findIndex(li => li.contains(fa)) : -1;
         panelShown = list.filter(n => !n.isRead).map(n => n.id);
         root.querySelector('h2').textContent = noti.unread > 0 ? `알림 · 안 읽음 ${noti.unread}건` : '알림';
         root.querySelector('ul').innerHTML = list.length ? list.map(n => `<li${n.isRead ? ' class="read"' : ''}>
-                <time>${n.isRead ? '' : '<span class="new">NEW</span>'}${esc(popTime(n.createdAt))}</time><p>${esc(n.message)}</p>${goBtn(n)}
+                <time>${n.isRead ? '' : '<span class="new">NEW</span>'}${esc(popTime(n.createdAt))}</time><p>${esc(n.message)}</p>${goBtn(n)}${n.isRead ? '' : `<button type="button" class="b rd" data-read="${esc(n.id)}" title="이 알림만 읽음으로">읽음</button>`}
                 <button type="button" class="x del" data-del="${esc(n.id)}" aria-label="이 알림 삭제" title="삭제">${ICON_CLOSE}</button></li>`).join('')
             : '<li class="empty">최근 3일 알림이 없습니다.</li>';
         root.querySelector('.readall').disabled = panelBusy || noti.unread === 0;
         root.querySelector('.delall').disabled = panelBusy || list.length === 0;
         if (inList) {
-            const sel = focusKind === 'del' ? `[data-del="${CSS.escape(focusId)}"]` : `a.go[data-noti-id="${CSS.escape(focusId)}"]`;
+            const sel = focusKind === 'del' ? `[data-del="${CSS.escape(focusId)}"]`
+                : focusKind === 'rd' ? `[data-read="${CSS.escape(focusId)}"]` : `a.go[data-noti-id="${CSS.escape(focusId)}"]`;
             const lis = root.querySelectorAll('ul li:not(.empty)');
             const near = lis[Math.min(Math.max(oldIdx, 0), lis.length - 1)];
-            const to = root.querySelector(sel) || (near && near.querySelector('[data-del]')) || root.querySelector('.close');
+            // [읽음]을 눌렀으면 삭제 단추로 보내지 않는다(다음 Enter 가 지우게 되므로) — 그 자리 알림의 [읽음], 없으면 닫기
+            const to = root.querySelector(sel)
+                || (focusKind === 'rd' ? (near && near.querySelector('[data-read]')) : (near && near.querySelector('[data-del]')))
+                || root.querySelector('.close');
             if (to) to.focus({ preventScroll: true });
         } else if (fa && fa.disabled) {
             root.querySelector('.close').focus({ preventScroll: true });   // [모두 읽음]·[전체 삭제]가 잠겼다
@@ -637,12 +643,36 @@ function start() {
         try { await fn(); } finally { panelBusy = false; renderPanel(); }
     }
 
+    // 알림 글을 눌러 읽음 — 이동 링크가 없는 안 읽은 줄에서만. 글자 선택·두 번 클릭·방금 읽은 직후(다음 줄이 올라옴)는 건너뛴다
+    let lastReadAt = 0;
+    function textClickReads(e) {
+        if (e.detail > 1 || Date.now() - lastReadAt < 600) return false;
+        if (e.target.closest('a, button')) return false;
+        const li = e.target.closest('li');
+        if (!li || li.querySelector('a.go')) return false;
+        const sel = (e.target.getRootNode && e.target.getRootNode().getSelection) ? e.target.getRootNode().getSelection() : window.getSelection();
+        return !(sel && String(sel).trim());
+    }
+
     async function onPanelClick(e) {
         const del = e.target.closest('[data-del]');
         if (del) {
             const id = del.dataset.del;
             panelAct(async () => {
                 if (!noti.deleteNotis || !(await noti.deleteNotis([id]))) console.warn('[app-shell] 알림을 지우지 못했습니다.');
+            });
+            return;
+        }
+        // 하나씩 읽음(2026-11-25 사용자 요청) — [읽음] 단추, 또는 이동 링크가 없는 안 읽은 알림 글을 누르면
+        const rd = e.target.closest('[data-read]') || (textClickReads(e) && e.target.closest('li')?.querySelector('[data-read]'));
+        if (rd) {
+            const id = rd.dataset.read;
+            lastReadAt = Date.now();
+            addDismissed([id]);
+            panelAct(async () => {
+                const ok = noti.markRead
+                    ? await Promise.race([noti.markRead([id]), new Promise(r => setTimeout(() => r(false), POP_READ_WAIT))]) : false;
+                if (!ok) console.warn('[app-shell] 알림을 읽음으로 표시하지 못했습니다(연결 확인).');
             });
             return;
         }
