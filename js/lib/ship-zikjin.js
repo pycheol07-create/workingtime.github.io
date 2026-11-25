@@ -16,8 +16,8 @@
 import {
     pyStr, pyStrip, pyTruthy, strip, orEmpty, toInt, isFraction, cleanProductName, sortedBy,
     zikjinSource, packDay, countPacks, checkLimit, splitAndName, overBags, kstDay, fileNames, looksLikeStockOut, STOCK_OUT_MSG,
-} from './ship-core.js?v=202611251258';
-import { headerColumns } from './ship-read.js?v=202611251258';
+} from './ship-core.js?v=202611251333';
+import { headerColumns } from './ship-read.js?v=202611251333';
 
 export const DATA_START_ROW = 8;   // 지그재그양식서: 머리글 7행, 자료 8행부터
 export const TEMPLATE_SHEETS = ['지그재그양식서', '재고로그조회리스트', '패키지번호'];
@@ -166,13 +166,30 @@ export const MASTER_HEADER_ROW = DATA_START_ROW - 1;   // 7행 머리글
 export const MASTER_COLS = Object.freeze({ sku: 3, barcode: 4, name: 5, option: 6, season: 7, factory: 9 });
 const MASTER_HEAD = { sku: (h) => h.toUpperCase().includes('SKU'), barcode: (h) => h.includes('바코드'), name: (h) => h === '상품명', option: (h) => h.startsWith('옵션'), season: (h) => h.includes('시즌'), factory: (h) => h.includes('공장') };
 const MASTER_LABEL = { sku: 'SKU번호', barcode: '바코드', name: '상품명', option: '옵션', season: '시즌', factory: '공장상품명' };
+// 앱 저장본에 올려도 되는 '정확한' 머리글(2026-11-25 리뷰) — MASTER_HEAD 는 어림(예: '공장' 만 들어 있어도 공장상품명)이라
+//   '공장명'·'공장단가' 같은 다른 열이 올라갈 수 있다. 칸 안 공백·줄바꿈은 빼고 견준다. 6칸이 모두 이것으로 찾혀야 올린다(extract 의 exact)
+const squash = (h) => String(h || '').replace(/\s+/g, '');
+export const MASTER_EXACT = Object.freeze({
+    sku: (h) => squash(h).toUpperCase() === 'SKU번호',
+    barcode: (h) => ['상품바코드번호', '바코드'].includes(squash(h)),
+    name: (h) => squash(h) === '상품명',
+    option: (h) => ['옵션정보', '옵션'].includes(squash(h)),
+    season: (h) => squash(h) === '시즌',
+    // 접두어로 받지 않는다 — '공장상품명/공장단가' 같은 머리글이 통과하면 원가·공급처가 올라간다(리뷰 2026-11-25). 실제 양식은 '공장상품명/옵션정보'
+    factory: (h) => ['공장상품명', '공장상품명/옵션정보'].includes(squash(h)),
+});
+
+// 앱 저장본(js/lib/ship-master-app.js, 2026-11-25)과 같은 6칸 순서 — extractZikjinMaster 의 rows 한 줄 = [sku, barcode, name, option, season, factory]
+export const MASTER_FIELDS = Object.freeze(['sku', 'barcode', 'name', 'option', 'season', 'factory']);
 
 /**
- * 원본 책(ship-read.readBook — '지그재그양식서' 시트만 읽어도 됨) → 찾기표 { byBarcode, bySku, rows, cols }.
- *   필요한 6칸만 메모리에 둔다(상품명·옵션은 출고요청에 없는 상품을 원본으로 채울 때 — 2026-11-19). 옛 방식과 같게 바코드는 마지막 행, SKU번호는 첫 행이 이긴다.
+ * 원본 책 → 필요한 6칸만 뽑은 줄(파일 순서, SKU번호·바코드 둘 다 빈 줄은 뺌) — 앱 저장본에 올리는 것도 이것뿐(2026-11-25 사용자 결정).
+ *   열은 7행 머리글로 찾는다(MASTER_HEAD — 옛 자리가 맞으면 그 자리 · 아니면 맞는 첫 열 · 그래도 없으면 옛 자리).
  *   시트가 없거나 8행부터 자료가 하나도 없으면(빈 양식을 고름) 던진다.
+ *   exact = 칸마다 읽은 열의 머리글이 MASTER_EXACT 에 맞나 · allExact = 6칸 모두 맞음(앱 저장본에 올려도 됨 — ship-master-app.masterPayload)
+ * @returns {{ rows: any[][], cols: object, moved: string[], byPos: string[], exact: object, inexact: string[], allExact: boolean }}  cols = 읽은 열 자리 { sku: 3, … }
  */
-export function readZikjinMaster(book, log = []) {
+export function extractZikjinMaster(book, log = []) {
     const ws = book && typeof book.sheet === 'function' ? book.sheet(MASTER_SHEET) : null;
     if (!ws) throw new Error(`원본에 '${MASTER_SHEET}' 시트가 없습니다 — 직진배송출고리스트 원본 파일이 맞는지 확인하세요.`);
     const headAt = (c) => { const v = ws.cell(MASTER_HEADER_ROW, c); return v === null || v === undefined || v === '' ? '' : pyStrip(pyStr(v)); };
@@ -189,13 +206,32 @@ export function readZikjinMaster(book, log = []) {
         cols[k] = c || fixed;
         if (!c) byPos.push(MASTER_LABEL[k]);
     }
-    const byBarcode = new Map(), bySku = new Map();
-    let rows = 0;
+    const exact = {}, inexact = [];
+    for (const k of Object.keys(MASTER_COLS)) {
+        exact[k] = MASTER_EXACT[k](headAt(cols[k]));
+        if (!exact[k]) inexact.push(MASTER_LABEL[k]);
+    }
+    const rows = [];
     for (let r = DATA_START_ROW; r <= ws.maxRow; r++) {
         const sku = ws.cell(r, cols.sku), bc = ws.cell(r, cols.barcode);
         if ((sku === null || sku === '') && (bc === null || bc === '')) continue;
-        rows++;
-        const info = { sku, name: ws.cell(r, cols.name), option: ws.cell(r, cols.option), season: ws.cell(r, cols.season), factory: ws.cell(r, cols.factory) };
+        rows.push(MASTER_FIELDS.map(k => (k === 'sku' ? sku : k === 'barcode' ? bc : ws.cell(r, cols[k]))));
+    }
+    if (!rows.length) throw new Error(`원본 '${MASTER_SHEET}' ${DATA_START_ROW}행부터 상품 자료가 없습니다 — 빈 양식이 아니라 직진배송출고리스트 원본을 골라 주세요.`);
+    return { rows, cols, moved, byPos, exact, inexact, allExact: !inexact.length && !byPos.length };
+}
+
+/**
+ * 6칸 줄(extractZikjinMaster 결과 또는 앱 저장본을 푼 것) → 찾기표 { byBarcode, bySku, rows(줄 수), cols }.
+ *   옛 방식과 같게 바코드는 마지막 행, SKU번호는 첫 행이 이긴다. moved·byPos 가 있으면 로그에 같이 적는다.
+ */
+export function indexZikjinMaster({ rows, cols = null, moved = [], byPos = [] }, log = []) {
+    const list = Array.isArray(rows) ? rows : [];
+    if (!list.length) throw new Error(`원본 '${MASTER_SHEET}' ${DATA_START_ROW}행부터 상품 자료가 없습니다 — 빈 양식이 아니라 직진배송출고리스트 원본을 골라 주세요.`);
+    const byBarcode = new Map(), bySku = new Map();
+    for (const row of list) {
+        const [sku, bc, name, option, season, factory] = row;
+        const info = { sku, name, option, season, factory };
         if (sku !== null) {
             const s = strip(sku);
             if (s && !bySku.has(s)) bySku.set(s, info);
@@ -205,11 +241,18 @@ export function readZikjinMaster(book, log = []) {
             if (b && b !== '-') byBarcode.set(b, info);
         }
     }
-    if (!rows) throw new Error(`원본 '${MASTER_SHEET}' ${DATA_START_ROW}행부터 상품 자료가 없습니다 — 빈 양식이 아니라 직진배송출고리스트 원본을 골라 주세요.`);
-    log.push(`  원본(시즌·공장상품명, 출고요청에 없는 상품의 SKU·상품명·옵션): 상품 ${fmtN(rows)}줄 · 바코드 ${fmtN(byBarcode.size)}건 · SKU번호 ${fmtN(bySku.size)}건`
+    log.push(`  원본(시즌·공장상품명, 출고요청에 없는 상품의 SKU·상품명·옵션): 상품 ${fmtN(list.length)}줄 · 바코드 ${fmtN(byBarcode.size)}건 · SKU번호 ${fmtN(bySku.size)}건`
         + (moved.length ? ` (머리글로 다른 열에서 찾은 칸: ${moved.join('·')})` : '')
         + (byPos.length ? ` (머리글을 못 찾아 옛 자리로 읽은 칸: ${byPos.join('·')})` : ''));
-    return { byBarcode, bySku, rows, cols };
+    return { byBarcode, bySku, rows: list.length, cols };
+}
+
+/**
+ * 원본 책(ship-read.readBook — '지그재그양식서' 시트만 읽어도 됨) → 찾기표 { byBarcode, bySku, rows, cols } = extract + index.
+ *   필요한 6칸만 메모리에 둔다(상품명·옵션은 출고요청에 없는 상품을 원본으로 채울 때 — 2026-11-19).
+ */
+export function readZikjinMaster(book, log = []) {
+    return indexZikjinMaster(extractZikjinMaster(book, log), log);
 }
 
 /**

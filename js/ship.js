@@ -26,41 +26,45 @@
 //   · 2026-11-17 시즌·공장상품명은 다시 원본(직진배송출고ver.5)에서 읽는다 — 원본 파일 위치(핸들)만 이 PC·브라우저에 기억하고(js/lib/ship-master-file.js)
 //     직진 2단계 때마다 최신 내용을 읽어 그 두 칸만 채운다(js/lib/ship-zikjin.js readZikjinMaster, 내용은 메모리에만). 상태 줄 #sp-zg-master.
 //     위치 기억을 못 쓰면(지원 안 함·거절·옮김) 놓은 원본을 이번 화면에서만 쓴다(S.zgm.once, 기억 안 함). 못 읽으면 막지 않고 확인창 + 결과 카드 경고.
+//   · 2026-11-25 원본 '앱 저장본'(Firestore ShipMaster, js/lib/ship-master-app.js · MASTER_APP_ON): 원본에서 6칸만 뽑아 올리고, 원본이 없는 자리는 그 판으로 채운다.
+//     무엇을 쓸지는 planMaster(이 PC 원본 저장 시각·hash ↔ 앱의 판). 이 PC 원본이 새것이면 만들기와 따로 올리고 끝에 20초까지만 기다린다(실패해도 만들기는 그대로).
+//     서식용 원본(임시) 칸 파일은 올리지 않는다. 진행 기록·공유 기록에는 줄 수·시각·이름만(칸 값 없음). 판 목록·되돌리기는 [설정] › 직진 원본 앱 저장본.
 //   · 전송이 꺼져 있으면(transmit false, 병행 초기) Firestore 쓰기 함수를 아예 부르지 않는다 — 기록은 옛 exe 가 한다.
 //   · 라이브러리는 이 페이지에서만 CDN 지연 로드: SheetJS 0.20.3(ESM — 다른 화면의 전역 XLSX 0.18.5 와 섞이지 않게)·JSZip 3.10.2·ExcelJS 4.4.0.
 // 권한: 입장은 js/page-gate.js(ship.platform). 설정 저장·전송은 규칙이 막는다. 전송 켜기(transmit)는 관리자만.
 import { onAuthStateChanged, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { doc, getDocFromServer } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getStorage, ref as sRef, uploadBytes, getBlob, getMetadata } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
-import { initializeFirebase } from './config.js?v=202611251258';
-import { emulatorEnabled, connectStorageEmulatorIfEnabled } from './firebase-emulator.js?v=202611251258';
-import { setShellContext, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202611251258';
-import { memberNameFor } from './app-shell-data.js?v=202611251258';
-import { friendlyFirebaseError } from './utils.js?v=202611251258';
-import { resolve, can } from './lib/perm.js?v=202611251258';
-import { readBook, headerColumns } from './lib/ship-read.js?v=202611251258';
-import { zikjinStep1, zikjinStep2, readZikjinMaster, MASTER_SHEET } from './lib/ship-zikjin.js?v=202611251258';
-import { createMasterFile, MASTER_STATE_TEXT, KEY_MASTER } from './lib/ship-master-file.js?v=202611251258';
-import { ablyStep1, ablyStep2, readAblyRequest } from './lib/ship-ably.js?v=202611251258';
-import { zikjinListBytes, ablyBulkBytes, stockXlsBytes, cleanZikjinTemplate, zikjinTemplateProblem, cleanAblyTemplate, ablyTemplateProblem } from './lib/ship-write.js?v=202611251258';
-import { pickingBytes } from './lib/ship-picking.js?v=202611251258';
-import { kstDay, baseDateWarning, targetArea, STOCK_OUT_MSG, PACK_PREFIX, baseDatePart, packageNameBase } from './lib/ship-core.js?v=202611251258';
-import { peekBook, classifyPeek, assignFiles, routeFiles, SLOTS, KIND, KIND_LABEL } from './lib/ship-assign.js?v=202611251258';
-import { openShipStore, isFileRecord, sizeText, savedText, KEY_TEMPLATE, KEY_OUT_DIR } from './lib/ship-file-store.js?v=202611251258';
-import { createSaver, mimeOf } from './lib/save-file.js?v=202611251258';
-import { normalizeSettings, validateEdit, settingsWrite, parseLimit, activeRuleCount, MAX_RULES } from './lib/ship-settings.js?v=202611251258';
-import { flowState, foldState, modeView, loadMode, tabForMode, MODE_STORE_KEY, MODE_LABEL } from './lib/ship-flow.js?v=202611251258';
-import { summarizeRun, fileSummary, SUMMARY_MAX_BYTES } from './lib/ship-summary.js?v=202611251258';
-import { madeKey, loadMade, findMade, recordMade, madeConfirmText, MADE_STORE_KEY } from './lib/ship-made.js?v=202611251258';
-import { gridOf, comparePairs } from './lib/ship-compare.js?v=202611251258';
-import { batchKeyOf, codeTotals, freshKey, sha256Hex, LEGACY } from './lib/ship-batch.js?v=202611251258';
+import { initializeFirebase } from './config.js?v=202611251333';
+import { emulatorEnabled, connectStorageEmulatorIfEnabled } from './firebase-emulator.js?v=202611251333';
+import { setShellContext, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202611251333';
+import { memberNameFor } from './app-shell-data.js?v=202611251333';
+import { friendlyFirebaseError } from './utils.js?v=202611251333';
+import { resolve, can } from './lib/perm.js?v=202611251333';
+import { readBook, headerColumns } from './lib/ship-read.js?v=202611251333';
+import { zikjinStep1, zikjinStep2, readZikjinMaster, extractZikjinMaster, indexZikjinMaster, MASTER_SHEET } from './lib/ship-zikjin.js?v=202611251333';
+import { masterPayload, encodeMaster, decodeMaster, chunksToGz, normalizeMeta, planMaster, masterAppText, kstShort, PLAN_TEXT } from './lib/ship-master-app.js?v=202611251333';
+import { createMasterFile, MASTER_STATE_TEXT, KEY_MASTER } from './lib/ship-master-file.js?v=202611251333';
+import { ablyStep1, ablyStep2, readAblyRequest } from './lib/ship-ably.js?v=202611251333';
+import { zikjinListBytes, ablyBulkBytes, stockXlsBytes, cleanZikjinTemplate, zikjinTemplateProblem, cleanAblyTemplate, ablyTemplateProblem } from './lib/ship-write.js?v=202611251333';
+import { pickingBytes } from './lib/ship-picking.js?v=202611251333';
+import { kstDay, baseDateWarning, targetArea, STOCK_OUT_MSG, PACK_PREFIX, baseDatePart, packageNameBase } from './lib/ship-core.js?v=202611251333';
+import { peekBook, classifyPeek, assignFiles, routeFiles, SLOTS, KIND, KIND_LABEL } from './lib/ship-assign.js?v=202611251333';
+import { openShipStore, isFileRecord, sizeText, savedText, KEY_TEMPLATE, KEY_OUT_DIR, KEY_MASTER_APP, isMasterCache } from './lib/ship-file-store.js?v=202611251333';
+import { createSaver, mimeOf } from './lib/save-file.js?v=202611251333';
+import { normalizeSettings, validateEdit, settingsWrite, parseLimit, activeRuleCount, MAX_RULES } from './lib/ship-settings.js?v=202611251333';
+import { flowState, foldState, modeView, loadMode, tabForMode, MODE_STORE_KEY, MODE_LABEL } from './lib/ship-flow.js?v=202611251333';
+import { summarizeRun, fileSummary, SUMMARY_MAX_BYTES } from './lib/ship-summary.js?v=202611251333';
+import { madeKey, loadMade, findMade, recordMade, madeConfirmText, MADE_STORE_KEY } from './lib/ship-made.js?v=202611251333';
+import { gridOf, comparePairs } from './lib/ship-compare.js?v=202611251333';
+import { batchKeyOf, codeTotals, freshKey, sha256Hex, LEGACY } from './lib/ship-batch.js?v=202611251333';
 import { loadSettings, saveSettings, sendBatch, previewBatches, removeBatch, writeActivity, beatActivity, watchActivity,
-    writeRunLog, loadRunLog, pruneRunLogs } from './ship-store.js?v=202611251258';
+    writeRunLog, loadRunLog, pruneRunLogs, loadMasterMeta, loadMasterVersion, uploadMasterVersion, rollbackMaster, resetMaster, masterChunkTimeout } from './ship-store.js?v=202611251333';
 import { normalizeActivity, findSharedMade, activityBanner, newRunId, BEAT_MS, slotBoard, runLog, ERR_MAX,
-    cleanLogLines, runLogCutoff } from './lib/ship-activity.js?v=202611251258';
-import { logHtml, logText, AUTO_MARK } from './lib/ship-log.js?v=202611251258';
-import { autoDecision, autoStartText } from './lib/ship-auto.js?v=202611251258';
-import { isMixed, planMixed, jobLabel, runJobs, queueCounts, pairWaitPlan } from './lib/ship-mixed.js?v=202611251258';
+    cleanLogLines, runLogCutoff } from './lib/ship-activity.js?v=202611251333';
+import { logHtml, logText, AUTO_MARK } from './lib/ship-log.js?v=202611251333';
+import { autoDecision, autoStartText } from './lib/ship-auto.js?v=202611251333';
+import { isMixed, planMixed, jobLabel, runJobs, queueCounts, pairWaitPlan } from './lib/ship-mixed.js?v=202611251333';
 
 const $ = (id) => document.getElementById(id);
 const APP_BASE = 'artifacts/team-work-logger-v2';
@@ -81,6 +85,10 @@ const ABLY_TEMPLATE_URL = 'assets/ship/엑셀_대량_입고_양식.xlsx';   // �
 //   false 면 버튼을 막고 '저녁 규칙 게시 뒤 사용' 안내만(규칙 게시 전에는 운영 규칙이 이 경로를 관리자만으로 막지 못할 수 있다).
 const ZG_TEMPLATE_UPLOAD_ON = true; 
 const ZG_UPLOAD_OFF_TEXT = '양식 올리기는 저장소 규칙을 게시한 뒤(오늘 저녁)부터 씁니다.';
+// ★ 직진 원본 앱 저장본 스위치(2026-11-25, Firestore ShipMaster — js/lib/ship-master-app.js). 규칙(firestore.rules ShipMaster)을 배포 전에 게시한다.
+//   게시 전이면 읽기·쓰기가 permission-denied → 이 PC 원본만 쓴다(원본 줄에 '아직 쓸 수 없음(권한 설정 전)', 진행 기록 ℹ 한 줄).
+const MASTER_APP_ON = true;
+const MASTER_UPLOAD_WAIT_MAX_MS = 30000;   // 만들기 끝에 올리기 결과를 기다리는 시간 = 올리기 제한 시간(조각 수에 비례), 이보다 길게는 안 기다림
 const ZG_TEMPLATE_PATH = 'ship/templates/zikjin.xlsx';
 const AB_TEMPLATE_PATH = 'ship/templates/ably.xlsx';
 const ZG_TEMPLATE_MAX = 5 * 1024 * 1024;
@@ -150,6 +158,8 @@ const S = {
     // 직진 원본(시즌·공장상품명, 2026-11-17) — master = createMasterFile(위치 기억), zgm.st = 상태(ship-master-file state + 'loading'),
     //   once = 이번 화면에서만 쓰는 놓은 원본 { name, bytes, size }(기억 안 함), err = 마지막 원본 확인 오류 글
     master: null, zgm: { st: 'loading', once: null, err: '' },
+    // 직진 원본 앱 저장본(2026-11-25) — st 'loading'|'ok'|'none'|'off'(권한)|'error', meta = ship-master-app.normalizeMeta, raw = 문서 값
+    zga: { st: 'loading', meta: null, raw: null, err: '' },
     settings: normalizeSettings(null), settingsRead: false,
     // 화면 방식(2026-11-12) — 'auto' 통합(기본) · 'zikjin'·'ably' 기존 방식. 화면만 바꾸고 만들기·전송은 같은 코드(js/lib/ship-flow.js modeView)
     mode: 'auto',
@@ -258,7 +268,7 @@ function setBusy(on, text = '처리 중…') {
     document.querySelectorAll('#sp-slots button, #sp-tabs button, #sp-steps button, #sp-settings-btn, #sp-folder, #sp-pick-many, #sp-fold button, #sp-batches button, #sp-compare button, #sp-pick-mode, #sp-mode-menu button, #sp-mode-back, #sp-s-tmpl button, #sp-queue button, #sp-zg-master button')
         .forEach(b => { b.disabled = lock; });
     if (lock) closeModeMenu();
-    if (!lock) renderTemplateRows();   // 설정 창 양식 칸 — 잠금(올리기 꺼짐)·관리자 여부는 다시 그려서 맞춘다
+    if (!lock) { renderTemplateRows(); renderMasterVersions(); }   // 설정 창 양식·앱 저장본 칸 — 잠금(올리기 꺼짐)·권한은 다시 그려서 맞춘다
     renderWhy();
 }
 const errText = (e) => (e && e.code ? friendlyFirebaseError(e) : String((e && e.message) || e || '알 수 없는 오류'));
@@ -430,6 +440,7 @@ const MASTER_FROM = { pc: '기억한 위치에서 지금 읽음', once: '이번 
 /**
  * 원본 상태 줄(#sp-zg-master) — 직진 쪽(통합 첫 화면 포함). '원본: 파일이름 · 마지막으로 읽은 시각 · [바꾸기]', 처음이면 [원본 파일 고르기].
  *   기억을 못 쓰면(지원 안 함·거절·옮김) [원본 파일 다시 고르기] + 놓은 원본을 이번만 쓰는 안내.
+ *   (2026-11-25) 아래 줄에 앱 저장본(줄 수·원본 저장 시각·올린 사람, 되돌림 표시). 이 PC 원본이 없어도 앱 저장본이 있으면 노랑이 아니다.
  */
 function renderZgMaster() {
     const el = $('sp-zg-master');
@@ -440,8 +451,10 @@ function renderZgMaster() {
     const Z = S.zgm, M = S.master;
     const name = M ? M.name : '';
     const sup = !!(M && M.supported());
+    const hasApp = MASTER_APP_ON && !!S.zga.meta;
     const btn = (act, label) => `<button class="d-btn d-btn-sm" data-zgm="${act}"${locked() ? ' disabled' : ''}>${esc(label)}</button>`;
     let warn = false, text = '', btns = [];
+    const noPc = hasApp ? ' 이 PC 에 원본이 없으면 앱 저장본(아래 줄)으로 채웁니다.' : ' 없으면 시즌이 빈칸으로 만들어집니다.';
     if (Z.st === 'loading') {
         text = '원본(시즌): 확인하는 중…';
     } else if (Z.st === 'ok') {
@@ -457,27 +470,214 @@ function renderZgMaster() {
         text = `원본: ${name} — 이 브라우저에서 읽기 허용이 필요합니다([읽기 허용]이나 [만들기]를 누르면 브라우저가 묻습니다)`;
         btns = [btn('allow', '읽기 허용'), btn('pick', '바꾸기')];
     } else {
-        warn = true;
+        warn = !hasApp;
         const why = Z.err || MASTER_STATE_TEXT[Z.st] || MASTER_STATE_TEXT.error;
         if (Z.st === 'unsupported') {
-            text = `원본(시즌): ${why} — 직진 2단계 때 직진배송출고ver.5 원본 파일을 같이 놓거나 [원본 파일 선택]으로 넣어 주세요(이번만, 기억 안 함). 없으면 시즌이 빈칸으로 만들어집니다.`;
+            text = `원본(시즌): ${why} — 직진 2단계 때 직진배송출고ver.5 원본 파일을 같이 놓거나 [원본 파일 선택]으로 넣어 주세요(이번만, 기억 안 함).${noPc}`;
             btns = [btn('once', '원본 파일 선택')];
         } else if (Z.st === 'none') {
-            text = '원본(시즌): 직진배송출고ver.5 를 아직 고르지 않았습니다 — 고르지 않으면 시즌이 빈칸으로 만들어집니다. 한 번 고르면 이 PC·브라우저가 위치를 기억하고 매번 최신 내용을 읽습니다.';
+            text = hasApp
+                ? '원본(시즌): 이 PC 에서 직진배송출고ver.5 를 고르지 않았습니다 — 앱 저장본(아래 줄)으로 시즌·공장상품명을 채웁니다. 원본을 고치는 PC 라면 한 번 골라 두세요(고친 내용이 앱 저장본으로 올라갑니다).'
+                : '원본(시즌): 직진배송출고ver.5 를 아직 고르지 않았습니다 — 고르지 않으면 시즌이 빈칸으로 만들어집니다. 한 번 고르면 이 PC·브라우저가 위치를 기억하고 매번 최신 내용을 읽습니다.';
             btns = [btn('pick', '원본 파일 고르기'), btn('once', '이번만 파일 선택')];
         } else {
-            text = `원본: ${name || '(이름 없음)'} — ${why}. 다시 고르거나, 원본 파일을 이 화면에 놓으면 이번만 씁니다(기억 안 함). 없으면 시즌이 빈칸으로 만들어집니다.`;
+            text = `원본: ${name || '(이름 없음)'} — ${why}. 다시 고르거나, 원본 파일을 이 화면에 놓으면 이번만 씁니다(기억 안 함).${noPc}`;
             btns = [btn('pick', '원본 파일 다시 고르기'), btn('once', '이번만 파일 선택')];
         }
     }
+    let app = '';
+    if (MASTER_APP_ON) {
+        const A = S.zga;
+        const t = A.st === 'loading' ? '앱 저장본: 확인하는 중…'
+            : A.meta ? masterAppText(A.meta)
+            : A.st === 'off' ? '앱 저장본: 아직 쓸 수 없음(권한 설정 전) — 이 PC 원본만 씁니다'
+            : A.st === 'error' ? `앱 저장본: 확인하지 못함(${A.err || '연결'})`
+            : '앱 저장본: 아직 없음 — 원본이 있는 PC 에서 직진 2단계를 한 번 만들면 올라갑니다';
+        const rolled = !!(A.meta && A.meta.rolled);
+        app = `<span class="sp-zgm-app${rolled ? ' is-rolled' : ''}">${esc(t)}</span>`;
+    }
     el.className = `pd-alert ${warn ? 'warn' : 'info'} sp-zg-master`;
-    el.innerHTML = `<span class="sp-zgm-text">${esc(text)}</span>${btns.length ? `<span class="sp-zgm-btns">${btns.join('')}</span>` : ''}`;
+    el.innerHTML = `<span class="sp-zgm-text">${esc(text)}</span>${btns.length ? `<span class="sp-zgm-btns">${btns.join('')}</span>` : ''}${app}`;
 }
 /** 원본 책 → 찾기표(필요한 시트만 읽음, 메모리에만). 못 쓰면 던진다 */
 function masterIndexOf(X, bytes, name, log = []) {
     return readZikjinMaster(readBook(X, bytes, name, { sheets: [MASTER_SHEET] }), log);
 }
-/** 기억한 원본을 지금 읽어 확인(고른 직후·[읽기 허용]) — ask: 권한을 지금 묻기(클릭 안에서) */
+/** 원본 책 → 6칸 줄(extractZikjinMaster — 그 시트만 읽음). 못 쓰면 던진다 */
+function masterExtractOf(X, bytes, name, log = []) {
+    return extractZikjinMaster(readBook(X, bytes, name, { sheets: [MASTER_SHEET] }), log);
+}
+
+// ── 직진 원본 앱 저장본(2026-11-25, js/lib/ship-master-app.js · js/ship-store.js ShipMaster) ──
+//   S.zga = { st: 'loading'|'ok'|'none'|'off'(권한 — 규칙 게시 전)|'error', meta(normalizeMeta), raw(meta 문서 값), err }
+//   칸 값은 진행 기록·콘솔에 쓰지 않는다(줄 수·시각·이름만). 올리기는 만들기를 막지 않는다(따로 돌고, 끝에 20초까지만 기다려 결과 한 줄).
+/** meta 다시 읽기 → S.zga. 던지지 않는다 */
+async function refreshMasterApp() {
+    if (!MASTER_APP_ON || !S.db) return;
+    try {
+        const raw = await loadMasterMeta(S.db);
+        const meta = normalizeMeta(raw);
+        Object.assign(S.zga, { st: meta ? 'ok' : 'none', meta, raw, err: '' });
+    } catch (e) {
+        const code = (e && e.code) || (e && e.name) || 'unknown';
+        console.warn('[플랫폼 출고] 앱 저장본 확인 실패:', code);
+        Object.assign(S.zga, code === 'permission-denied' ? { st: 'off', meta: null, raw: null, err: '' } : { st: 'error', err: code });
+        throw e;
+    }
+}
+/** 이 PC 보관본(KEY_MASTER_APP) → 기록 또는 null */
+async function masterCacheGet() {
+    if (!S.store) return null;
+    try { const r = await S.store.get(KEY_MASTER_APP); return isMasterCache(r) ? r : null; } catch (_) { return null; }
+}
+async function masterCachePut(ver, gz) {
+    if (!S.store) return;
+    const u8 = gz instanceof Uint8Array ? gz : new Uint8Array(gz);
+    try { await S.store.put(KEY_MASTER_APP, { id: ver.id, hash: ver.hash, srcMs: ver.srcMs, gz: u8.slice().buffer, at: new Date().toISOString() }); }
+    catch (_) { /* 보관 못 해도 이번에는 쓴다 */ }
+}
+/** 앱 저장본 지금 판 → 내용(보관본이 같은 판이면 그것, 아니면 조각을 받아 보관). 못 읽으면 던진다 */
+async function masterAppPayload(ver) {
+    const c = await masterCacheGet();
+    if (c && c.id === ver.id && c.hash === ver.hash) {
+        try { return await decodeMaster({ gz: c.gz, hash: ver.hash }); } catch (_) { /* 보관본이 깨짐 — 다시 받는다 */ }
+    }
+    const chunks = await loadMasterVersion(S.db, ver);
+    const gz = chunksToGz(chunks);
+    const payload = await decodeMaster({ gz, hash: ver.hash });
+    await masterCachePut(ver, gz);
+    return payload;
+}
+/** 올리기 시작 → { p: 결과 { line, warn } 를 주는 Promise(던지지 않음), waitMs: 끝에서 기다릴 시간 }
+ *   제한 시간은 조각 수에 비례(ship-store masterChunkTimeout) · 끝 대기는 그와 같게, 최대 MASTER_UPLOAD_WAIT_MAX_MS.
+ *   warn = 결과 카드 '확인할 것'에 올릴 글(올리지 못함). 'same'·'stale' 은 경고 아님 */
+function startMasterUpload(local, enc) {
+    const by = S.memberName || '';
+    const byEmail = (S.user && S.user.email) || '';
+    const n = enc.chunks.length;
+    const p = uploadMasterVersion(S.db, { srcMs: local.srcMs, enc, name: local.name, by, byEmail })
+        .then(async (r) => {
+            if (r.status === 'ok') {
+                await masterCachePut({ id: r.id, hash: enc.hash, srcMs: local.srcMs }, enc.gz);
+                try { await refreshMasterApp(); } catch (_) { /* 다음에 */ }
+                return { line: `  ✓ 앱 저장본 올림 — 상품 ${fmt(enc.rows)}줄 · 원본 ${kstShort(local.srcMs)} 저장(원본이 없는 자리도 이 판으로 시즌을 채웁니다)`, warn: '' };
+            }
+            try { await refreshMasterApp(); } catch (_) { /* 다음에 */ }
+            return { line: r.status === 'same' ? '  ℹ 앱 저장본: 다른 자리가 같은 내용을 먼저 올려 올리지 않았습니다'
+                : '  ℹ 앱 저장본: 그사이 더 새 원본이 올라와 올리지 않았습니다', warn: '' };
+        })
+        .catch((e) => {
+            const code = (e && e.code) || (e && e.name) || 'unknown';
+            console.warn('[플랫폼 출고] 앱 저장본 올리기 실패:', code);
+            if (code === 'timeout') {   // 기다리기만 멈춤 — 서버에서는 끝났을 수 있다(다음 만들기 때 meta 로 다시 본다)
+                return { line: '  ℹ 앱 저장본 올리기 응답이 늦습니다 — 끝났는지는 다음 만들기 때 다시 봅니다(만든 파일과 상관없음)', warn: '' };
+            }
+            // meta 를 읽은 뒤의 거절 = 규칙은 게시됐는데 권한이 없거나 PC 시계(저장 시각이 미래)
+            const warn = code === 'permission-denied' ? '앱 저장본에 올리지 못했습니다(권한 또는 PC 시계) — 이번 파일은 이 PC 원본으로 만들었습니다.'
+                : `앱 저장본에 올리지 못했습니다(${code}) — 이번 파일은 이 PC 원본으로 만들었습니다. 다음에 만들 때 다시 올립니다.`;
+            return { line: `  ⚠ ${warn}`, warn };
+        });
+    return { p, waitMs: Math.min(MASTER_UPLOAD_WAIT_MAX_MS, masterChunkTimeout(n)) };
+}
+/** 올리기 결과를 waitMs 까지만 기다림 → { line, warn } (던지지 않음) */
+async function waitMasterUpload(u) {
+    let t;
+    const late = new Promise(ok => { t = setTimeout(() => ok({ line: `  ℹ 앱 저장본 올리기가 ${Math.round(u.waitMs / 1000)}초 안에 끝나지 않았습니다 — 뒤에서 계속합니다(만든 파일과 상관없음)`, warn: '' }), u.waitMs); });
+    try { return await Promise.race([u.p, late]); } finally { clearTimeout(t); }
+}
+/** 이 PC 보관본으로 찾기표 → { index, payload, rec } 또는 null */
+async function masterFromCache() {
+    const c = await masterCacheGet();
+    if (!c) return null;
+    try {
+        const payload = await decodeMaster({ gz: c.gz, hash: c.hash });
+        return { rec: c, payload };
+    } catch (_) { return null; }
+}
+/**
+ * 이 PC 원본(local, 없으면 null)과 앱 저장본 중 무엇으로 만들지 정한다(planMaster) — 읽기만, 올리기는 시작만 한다.
+ * @param {{ from, name, srcMs, ext, mlog }|null} local
+ * @returns {Promise<{ index, log: string[], upload: object|null, app: { srcMs, rolled }|null, appWarns: string[] } | { why: string|null, log: string[], upload?, appWarns? }>}
+ *   why null = 이 PC 원본(local)으로(부르는 쪽이 local 로 찾기표를 만든다)
+ *   planOnly = 정하고 올리기만(앱 저장본 내용은 받지 않음 — 원본 확인 checkMaster)
+ */
+async function masterDecide(local, { planOnly = false } = {}) {
+    const log = [], appWarns = [];
+    const useLocal = (line) => { if (line) log.push(line); return { why: null, log, appWarns }; };
+    const fromCache = async (code, prefix) => {   // 앱 저장본을 못 받았을 때 이 PC 보관본 — 이 PC 원본이 더 새것이면 쓰지 않음
+        const c = await masterFromCache();
+        if (!c || (local && local.srcMs > c.rec.srcMs)) return null;
+        // 앱 저장본 목록을 읽었으면 — 보관본이 아직 남은 판이고 지금 판보다 새것이 아닐 때만(되돌린 틀린 판으로 채우지 않게, 리뷰 2026-11-25)
+        const mm = S.zga && S.zga.meta;
+        if (mm && mm.curVer && (!(mm.ids || []).includes(c.rec.id) || c.rec.srcMs > mm.curVer.srcMs)) return null;
+        const mlog = [];
+        const index = indexZikjinMaster(c.payload, mlog);
+        appWarns.push(`${prefix}(${code}) 이 PC 보관본(원본 ${kstShort(c.rec.srcMs)} 저장)으로 시즌을 채웠습니다 — 그사이 바뀐 원본은 반영되지 않았을 수 있습니다.`);
+        return { index, log: [...log, `  ⚠ ${prefix}(${code}) 보관본(${kstShort(c.rec.srcMs)}) 사용`, ...mlog],
+            upload: null, app: { srcMs: c.rec.srcMs, rolled: false }, appWarns };
+    };
+    if (!MASTER_APP_ON) return useLocal('');
+    let enc = null;
+    if (local) {
+        try { enc = await encodeMaster(masterPayload(local.ext)); }
+        catch (e) {
+            log.push(e && e.code === 'inexact'
+                ? `  ℹ 원본 ${e.message} — 이 PC 에서만 씁니다`
+                : `  ℹ 이 PC 원본을 앱 저장본 모양으로 만들 수 없습니다(${errText(e)}) — 올리지 않습니다`);
+        }
+    }
+    try { await refreshMasterApp(); }
+    catch (e) {
+        const code = (e && e.code) || (e && e.name) || 'unknown';
+        // meta 읽기부터 거절 = 규칙 게시 전 — 조용히 이 PC 원본만
+        if (code === 'permission-denied') return local ? useLocal('  ℹ 앱 저장본: 아직 쓸 수 없음(권한) — 이 PC 원본만 씁니다') : { why: '앱 저장본도 아직 쓸 수 없음(권한)', log };
+        if (local) return useLocal(`  ℹ 앱 저장본을 확인하지 못했습니다(${code}) — 이 PC 원본으로 만들고 올리지 않습니다`);
+        if (planOnly) return { why: null, log };
+        const c = await fromCache(code, '앱 저장본을 확인하지 못해');
+        return c || { why: `앱 저장본을 확인하지 못함(${code})`, log };
+    }
+    const meta = S.zga.meta;
+    const plan = planMaster({ local: local && { srcMs: local.srcMs, hash: enc ? enc.hash : null, from: local.from }, meta, canUpload: S.canShip, now: Date.now() });
+    log.push(`  ℹ 앱 저장본: ${PLAN_TEXT[plan.why] || plan.why}`);
+    if (plan.use === 'none') return { why: null, log };
+    if (planOnly) return { why: null, log, appWarns, upload: plan.upload ? startMasterUpload(local, enc) : null };
+    const timeWarn = () => {   // 저장 시각 0 = 옛 PC 기억 원본 등(시계 문제 아님) · 미래 = PC 시계
+        if (!local || plan.why !== 'bad-time' || local.from === 'temp') return '';
+        return local.srcMs > 0 ? '이 PC 원본 파일의 저장 시각이 지금보다 뒤입니다(PC 시계 확인)' : '이 PC 원본 파일의 저장 시각을 알 수 없습니다';
+    };
+    if (plan.use === 'local') {
+        const tw = timeWarn();
+        if (tw) appWarns.push(`${tw} — 앱 저장본에 올리지 않았고, 이번 파일은 이 PC 원본으로 만들었습니다.`);
+        const upload = plan.upload ? startMasterUpload(local, enc) : null;
+        return { ...useLocal(''), upload };
+    }
+    // 앱 저장본
+    const ver = meta.curVer;
+    try {
+        const payload = await masterAppPayload(ver);
+        const mlog = [];
+        const index = indexZikjinMaster(payload, mlog);
+        if (plan.why === 'older') appWarns.push(`이 PC 원본(${kstShort(local.srcMs)} 저장)이 앱 저장본(${kstShort(ver.srcMs)} 저장)보다 옛것이라 앱 저장본으로 시즌을 채웠습니다 — 이 PC 원본이 맞다면 원본을 다시 저장한 뒤 만드세요.`);
+        if (plan.why === 'rolled') appWarns.push('이 PC 원본은 되돌리기 전 판이라 되돌린 앱 저장본으로 시즌을 채웠습니다.');
+        const tw = timeWarn();
+        if (tw) appWarns.push(`${tw} — 앱 저장본(${kstShort(ver.srcMs)} 저장)으로 시즌을 채웠습니다.`);
+        return { index, log: [...log, `  원본: 앱 저장본 (원본 ${kstShort(ver.srcMs)} 저장 · ${kstShort(ver.atMs)}${ver.by ? ` ${ver.by}` : ''} 올림${meta.rolled ? ' · 되돌린 판' : ''})`, ...mlog],
+            upload: null, app: { srcMs: ver.srcMs, rolled: meta.rolled }, appWarns };
+    } catch (e) {
+        const code = (e && e.code) || (e && e.name) || 'Error';
+        console.warn('[플랫폼 출고] 앱 저장본 받기 실패:', code);
+        const why = errText(e).split('\n')[0];
+        const c = await fromCache(why, '앱 저장본을 받지 못해');
+        if (c) return c;
+        if (local) {
+            appWarns.push('앱 저장본을 받지 못해 이 PC 원본으로 시즌을 채웠습니다.');
+            return useLocal(`  ⚠ 앱 저장본을 받지 못했습니다(${why}) — 이 PC 원본을 씁니다`);
+        }
+        return { why: `앱 저장본을 받지 못함(${why})`, log };
+    }
+}
+
+/** 기억한 원본을 지금 읽어 확인(고른 직후·[읽기 허용]) — ask: 권한을 지금 묻기(클릭 안에서). 앱 저장본보다 새것이면 올린다(20초까지 기다림) */
 async function checkMaster({ ask }) {
     if (!S.master || locked()) return;
     newLogGroup({ kind: 'other', title: '직진 원본 확인' });
@@ -491,10 +691,23 @@ async function checkMaster({ ask }) {
             return;
         }
         const { X } = await loadLibs();
-        const idx = masterIndexOf(X, r.bytes, r.name);
+        const ext = masterExtractOf(X, r.bytes, r.name);
+        const idx = indexZikjinMaster(ext);
         S.zgm.st = 'ok'; S.zgm.err = '';
         logLine(`✓ 직진 원본 '${r.name}' — 상품 ${fmt(idx.rows)}줄. 직진 2단계 때마다 이 파일의 최신 내용을 다시 읽습니다(내용은 저장하지 않음).`);
         toast('원본을 확인했습니다 — 다음부터 이 파일을 읽습니다');
+        if (MASTER_APP_ON) {
+            setBusy(true, '앱 저장본 확인 중…');
+            const d = await masterDecide({ from: 'pc', name: r.name, srcMs: r.lastModified, ext }, { planOnly: true });
+            d.log.forEach(logLine);
+            (d.appWarns || []).forEach(w => logLine(`  ⚠ ${w}`));
+            if (d.upload) {
+                setBusy(true, '앱 저장본 올리는 중…');
+                const u = await waitMasterUpload(d.upload);
+                logLine(u.line);
+                if (u.warn) toast(u.warn, 6000);
+            }
+        }
     } catch (e) {
         S.zgm.st = 'error'; S.zgm.err = `원본으로 쓸 수 없음: ${errText(e)}`;
         logLine(`✗ 원본으로 쓸 수 없습니다: ${errText(e)}`);
@@ -511,7 +724,7 @@ async function pickMaster() {
     if (!picked) return;
     await checkMaster({ ask: false });
 }
-/** [이번만 파일 선택] — 기억하지 않고 이번 화면에서만 */
+/** [이번만 파일 선택] — 기억하지 않고 이번 화면에서만(앱 저장본 올리기는 만들 때 — masterPick) */
 async function useOnceMaster(file) {
     newLogGroup({ kind: 'other', title: '직진 원본(이번만)' });
     setBusy(true, '원본 확인 중…');
@@ -519,7 +732,7 @@ async function useOnceMaster(file) {
         const f = await fileOf(file);
         const { X } = await loadLibs();
         const idx = masterIndexOf(X, f.bytes, f.name);
-        S.zgm.once = { name: f.name, bytes: f.bytes, size: f.size };
+        S.zgm.once = { name: f.name, bytes: f.bytes, size: f.size, lastModified: f.lastModified };
         logLine(`✓ '${f.name}' → 직진 원본(시즌·공장상품명) — 상품 ${fmt(idx.rows)}줄. 이번 화면에서만 씁니다(기억 안 함).`);
         toast('원본을 넣었습니다(이번 화면에서만)');
     } catch (e) {
@@ -535,7 +748,7 @@ function takeZgMaster(judged, notes, tab) {
     if (tab !== 'zikjin') return notes;
     const t = judged.find(f => f.kind === KIND.ZIKJIN_TEMPLATE);
     if (!t) return notes;
-    S.zgm.once = { name: t.name, bytes: t.bytes, size: t.size };
+    S.zgm.once = { name: t.name, bytes: t.bytes, size: t.size, lastModified: Number(t.lastModified) || 0 };
     const hint = S.zgm.st === 'ok' ? ' — 기억한 원본을 읽을 수 있으면 그쪽(최신)을 먼저 씁니다'
         : (S.master && S.master.supported() ? ' — 위치를 기억하려면 원본 줄의 [원본 파일 고르기]' : '');
     logLine(`✓ '${t.name}' → 직진 원본(시즌·공장상품명), 이번 화면에서만 씀(기억 안 함)${hint}`);
@@ -543,8 +756,10 @@ function takeZgMaster(judged, notes, tab) {
 }
 /**
  * 직진 2단계 원본 고르기 — 기억한 위치(지금 읽기) → 놓은 원본(이번만) → 서식용 원본(임시) 칸 순으로,
- *   읽지 못하거나 원본 모양이 아니면(readZikjinMaster 실패) 다음 후보. 권한 요청은 하지 않는다(run 이 먼저 permit).
- * @returns {Promise<{ index, log: string[] } | { why: string, log: string[] }>}
+ *   읽지 못하거나 원본 모양이 아니면(extractZikjinMaster 실패) 다음 후보. 권한 요청은 하지 않는다(run 이 먼저 permit).
+ *   (2026-11-25) 그다음 앱 저장본과 견줘(masterDecide) 무엇으로 만들지 정하고, 이 PC 원본이 새것이면 올리기를 시작한다(기다리지 않음).
+ *   서식용 원본(임시) 칸 파일은 읽기만 하고 올리지 않는다.
+ * @returns {Promise<{ index, log: string[], upload, app, appWarns } | { why: string, log: string[] }>}
  */
 async function masterPick(f, X) {
     const tried = [];
@@ -552,8 +767,9 @@ async function masterPick(f, X) {
     if (S.master && S.master.remembered) cands.push('pc');
     if (S.zgm.once) cands.push('once');
     if (f.template) cands.push('temp');
+    let local = null;
     for (const from of cands) {
-        let bytes, name;
+        let bytes, name, srcMs = 0;
         if (from === 'pc') {
             const r = await S.master.read({ ask: false });
             if (!r.ok) {
@@ -562,20 +778,32 @@ async function masterPick(f, X) {
                 continue;
             }
             ({ bytes, name } = r);
-        } else if (from === 'once') ({ bytes, name } = S.zgm.once);
-        else ({ bytes, name } = f.template);
+            srcMs = r.lastModified;
+        } else if (from === 'once') ({ bytes, name, lastModified: srcMs } = S.zgm.once);
+        else ({ bytes, name, lastModified: srcMs } = f.template);
         try {
             const mlog = [];
-            const index = masterIndexOf(X, bytes, name, mlog);
+            const ext = masterExtractOf(X, bytes, name, mlog);
             if (from === 'pc') { S.zgm.st = 'ok'; S.zgm.err = ''; }
-            return { index, log: [...tried.map(t => `  ℹ 원본 후보 건너뜀: ${t}`), `  원본: '${name}' (${MASTER_FROM[from]})`, ...mlog] };
+            local = { from, name, srcMs: Number(srcMs) || 0, ext, mlog };
+            break;
         } catch (e) {
             tried.push(`'${name}' — 원본으로 쓸 수 없음(${errText(e)})`);
             if (from === 'pc') { S.zgm.st = 'error'; S.zgm.err = `원본으로 쓸 수 없음: ${errText(e)}`; }
         }
     }
-    const why = tried.length ? tried.join(' / ') : (S.master && S.master.supported() ? MASTER_STATE_TEXT.none : MASTER_STATE_TEXT.unsupported);
-    return { why, log: [`  ℹ 원본을 읽지 못해 시즌·공장상품명을 빈칸으로 만듭니다 — ${why}`] };
+    const skipped = tried.map(t => `  ℹ 원본 후보 건너뜀: ${t}`);
+    const d = await masterDecide(local);
+    if (d.index) return { ...d, log: [...skipped, ...d.log] };
+    if (d.why === null && local) {
+        const mlog = [...local.mlog];
+        const index = indexZikjinMaster(local.ext, mlog);
+        return { index, log: [...skipped, ...d.log, `  원본: '${local.name}' (${MASTER_FROM[local.from]})`, ...mlog],
+            upload: d.upload || null, app: null, appWarns: d.appWarns || [] };
+    }
+    const why = [...tried, ...(d.why ? [d.why] : [])].join(' / ')
+        || (S.master && S.master.supported() ? MASTER_STATE_TEXT.none : MASTER_STATE_TEXT.unsupported);
+    return { why, log: [...skipped, ...d.log, `  ℹ 원본을 읽지 못해 시즌·공장상품명을 빈칸으로 만듭니다 — ${why}`] };
 }
 function bindZgMaster() {
     $('sp-zg-master').addEventListener('click', (e) => {
@@ -597,6 +825,62 @@ function bindZgMaster() {
         const file = e.target.files && e.target.files[0];
         if (file && !locked()) useOnceMaster(file);
     });
+}
+
+/** 설정 창 › 직진 원본 앱 저장본(#sp-s-master, 창이 열려 있을 때만) — 남은 판(최대 3개)과 [이 판으로 되돌리기](플랫폼 출고 권한) */
+function renderMasterVersions() {
+    const box = $('sp-s-master');
+    if (!box) return;
+    if (!MASTER_APP_ON) { box.innerHTML = '<div class="pd-note">꺼져 있습니다.</div>'; return; }
+    const A = S.zga, m = A.meta;
+    if (!m) {
+        const t = A.st === 'loading' ? '확인하는 중…' : A.st === 'off' ? '아직 쓸 수 없음(권한 설정 전)' : A.st === 'error' ? `확인하지 못함(${A.err})`
+            : '아직 없음 — 원본이 있는 PC 에서 직진 2단계를 한 번 만들면 올라갑니다.';
+        box.innerHTML = `<div class="pd-note">${esc(t)}</div>`;
+        return;
+    }
+    const can = S.canShip && !locked();
+    box.innerHTML = `<table class="sp-bat-t"><thead><tr><th>원본 저장</th><th class="n">상품 줄</th><th>올림</th><th></th></tr></thead><tbody>${m.vers.map(v => {
+        const isCur = v.id === m.cur;
+        const right = isCur ? `<span class="pd-pill accent">지금 씀</span>${m.rolled ? ' <span class="pd-pill">⟲ 되돌림</span>' : ''}`
+            : `<button class="d-btn d-btn-sm" data-mroll="${esc(v.id)}"${can ? '' : ` disabled${S.canShip ? '' : ' title="「플랫폼 출고」 권한이 필요합니다"'}`}>이 판으로 되돌리기</button>`;
+        return `<tr${isCur ? ' class="is-mine"' : ''}><td>${esc(kstShort(v.srcMs))}</td><td class="n">${fmt(v.rows)}</td>
+            <td>${esc(`${kstShort(v.atMs)}${v.by ? ` ${v.by}` : ''}`)}</td><td class="x">${right}</td></tr>`;
+    }).join('')}</tbody></table>${m.rolled && m.rolledBy ? `<div class="pd-note">${esc(`⟲ ${m.rolledBy}${m.rolledAtMs ? ` ${kstShort(m.rolledAtMs)}` : ''} 되돌림 — 다음에 더 새 원본이 올라오면 그 판을 씁니다.`)}</div>` : ''}
+        ${S.isAdmin ? `<div class="pd-row" style="margin-top:6px;"><div class="pd-grow"></div><button class="d-btn d-btn-sm" data-mreset="1"${locked() ? ' disabled' : ''}>앱 저장본 비우기(관리자)</button></div>` : ''}`;
+}
+/** 관리자 [앱 저장본 비우기] — 판 전부와 조각을 지운다(다음에 원본이 있는 자리에서 만들면 첫 판으로 다시 올라감) */
+async function resetMasterApp() {
+    if (!S.isAdmin || locked() || !S.zga.meta) return;
+    if (!confirm('앱 저장본(남은 판 전부)을 비울까요?\n\n비운 뒤에는 원본 파일이 없는 자리에서 시즌·공장상품명이 빈칸으로 만들어집니다.\n'
+        + '원본이 있는 PC 에서 직진 2단계를 한 번 만들면 다시 올라갑니다.')) return;
+    try {
+        const r = await resetMaster(S.db);
+        if (S.store) { try { await S.store.del(KEY_MASTER_APP); } catch (_) { /* 보관본은 다음에 */ } }
+        toast(`앱 저장본을 비웠습니다(조각 ${fmt(r.dropped)}개 지움)`);
+    } catch (e) {
+        console.warn('[플랫폼 출고] 앱 저장본 비우기 실패:', (e && e.code) || (e && e.name) || 'unknown');
+        toast(e && e.code === 'permission-denied' ? '비울 권한이 없습니다(관리자만, 또는 규칙 게시 전).' : `비우지 못했습니다 — ${errText(e)}`, 6000);
+    }
+    try { await refreshMasterApp(); } catch (_) { /* 표시만 */ }
+    renderMasterVersions();
+    render();
+}
+async function rollbackMasterTo(id) {
+    if (!S.canShip || locked() || !S.zga.meta) return;
+    const v = S.zga.meta.vers.find(x => x.id === id);
+    if (!v) return;
+    if (!confirm(`앱 저장본을 원본 ${kstShort(v.srcMs)} 저장 판(상품 ${fmt(v.rows)}줄)으로 되돌릴까요?\n\n모든 자리가 이 판으로 시즌·공장상품명을 채웁니다. 더 새 원본이 올라오면 그 판을 씁니다.`)) return;
+    try {
+        await rollbackMaster(S.db, id, { name: S.memberName || '', email: (S.user && S.user.email) || '' });
+        toast('되돌렸습니다 — 다음 만들기부터 이 판을 씁니다');
+    } catch (e) {
+        console.warn('[플랫폼 출고] 앱 저장본 되돌리기 실패:', (e && e.code) || (e && e.name) || 'unknown');
+        toast(e && e.code === 'permission-denied' ? '되돌릴 권한이 없습니다(「플랫폼 출고」 권한 또는 규칙 게시 전).' : `되돌리지 못했습니다 — ${errText(e)}`, 6000);
+    }
+    try { await refreshMasterApp(); } catch (_) { /* 표시만 */ }
+    renderMasterVersions();
+    render();
 }
 
 /** 설정 창 › 기본 양식 칸(#sp-s-tmpl, 창이 열려 있을 때만) — 관리자만 올리기, 직원은 상태만 */
@@ -879,6 +1163,7 @@ function render() {
     renderWhy();
     renderResultCard();
     renderTemplateRows();
+    renderMasterVersions();
 }
 
 // ── 해시(#tab=zikjin|ably&step=1|2) ─────────────────────────
@@ -897,7 +1182,7 @@ const resetView = () => { S.foldOpen = false; S.why = ''; S.recog = ''; };
 // ── 파일 넣기 ──────────────────────────────────────────────
 async function fileOf(file, from = 'drop') {
     const buf = new Uint8Array(await file.arrayBuffer());
-    return { name: file.name, bytes: buf, size: buf.byteLength, from };
+    return { name: file.name, bytes: buf, size: buf.byteLength, from, lastModified: Number(file.lastModified) || 0 };
 }
 
 /** 출고요청·출고전표 칸 요약(한 번 읽기, 3MB 넘으면·원본 양식은 건너뜀) — 화면에만 */
@@ -1460,11 +1745,16 @@ async function autoGate(tab, step, { put, ambiguous = null, dupes = 0, mismatch 
     if (d.action === 'wait') { logLine(`  더 넣을 파일: ${missing.join(', ')}`); return null; }
     if (d.action === 'stop') { stopWhy(d.why); return null; }
     // 직진 2단계: 기억한 원본(시즌)이 '허용 필요'면 클릭이 있어야 브라우저가 묻는다 — 저절로 시작하지 않고 [만들기]를 누르게(누르면 묻고 읽음)
+    let masterWarn = '';
     if (tab === 'zikjin' && step === 2 && S.master && S.master.remembered) {
         try { S.zgm.st = await S.master.state(); } catch (_) { /* 그대로 */ }
         if (S.zgm.st === 'prompt' && !S.zgm.once && !S.files.zikjin[2].template) {
-            stopWhy('직진배송 원본(시즌)을 읽으려면 이 브라우저의 읽기 허용이 필요해');
-            return null;
+            // (2026-11-25) 앱 저장본이 있으면 멈추지 않고 그것으로 만들고 경고 — 없으면 예전처럼 [만들기]를 누르게
+            if (MASTER_APP_ON && S.zga.meta) masterWarn = `기억한 원본 '${S.master.name}' 은 읽기 허용이 필요해 앱 저장본으로 시즌을 채웠습니다 — 원본 줄의 [읽기 허용]을 누르면 다음부터 이 PC 원본을 읽습니다.`;
+            else {
+                stopWhy('직진배송 원본(시즌)을 읽으려면 이 브라우저의 읽기 허용이 필요해');
+                return null;
+            }
         }
     }
     let made = null;
@@ -1478,7 +1768,7 @@ async function autoGate(tab, step, { put, ambiguous = null, dupes = 0, mismatch 
         }
         madeOk = step === 2;   // [만들기]에서 확인한 것과 같게 — 전송 때 같은 묶음 확인을 다시 묻지 않는다
     }
-    return { tab, step, madeOk, dateWarn: d.warn, warns: extraWarns.filter(Boolean), n };
+    return { tab, step, madeOk, dateWarn: d.warn, warns: extraWarns.filter(Boolean), n, masterWarn };
 }
 
 /** autoGate 가 시작하라면 '자동 시작' 을 남기고 run, 아니면 [만들기]에 초점 */
@@ -1488,7 +1778,7 @@ async function afterGate(g) {
         logLine(`${AUTO_MARK} ${text} — 필요한 파일이 다 있어 바로 시작합니다.`);
         S.recog = text;
         toast(text);
-        await run({ auto: true, madeOk: g.madeOk, warns: g.warns, dateWarn: g.dateWarn });
+        await run({ auto: true, madeOk: g.madeOk, warns: g.warns, dateWarn: g.dateWarn, masterWarn: g.masterWarn || '' });
     } else if (!S.busy) {
         $('sp-run').focus();
     }
@@ -1720,9 +2010,11 @@ function renderResultCard() {
     const note = $('sp-result-note');
     const dateWarn = L && !L.failed ? (L.dateWarn || '') : '';
     const saveNote = L && !L.failed ? (L.saveNote || '') : '';
-    note.hidden = !dateWarn && !saveNote;
+    const infos = L && !L.failed && L.summary && Array.isArray(L.summary.notes) ? L.summary.notes : [];   // '시즌·공장상품명: 앱 저장본(…) 기준' 등(2026-11-25)
+    note.hidden = !dateWarn && !saveNote && !infos.length;
     note.innerHTML = [dateWarn ? `<div class="pd-alert warn sp-note-date"><b>날짜 확인</b> — ${esc(dateWarn)}</div>` : '',
-        saveNote ? `<div class="pd-alert info sp-note-save">${esc(saveNote)}</div>` : ''].join('');
+        saveNote ? `<div class="pd-alert info sp-note-save">${esc(saveNote)}</div>` : '',
+        ...infos.map(x => `<div class="pd-alert info sp-note-info">${esc(x)}</div>`)].join('');
     // 노란 경고 — 날짜 띠가 있으면 같은 날짜 경고(ship-summary)는 목록에서 뺀다
     const warns = L && !L.failed ? [...L.summary.warns.filter(x => !(dateWarn && x.startsWith('패키지명 날짜'))), ...L.warns] : [];
     const w = $('sp-warn');
@@ -2240,6 +2532,8 @@ async function run(opts = {}) {
     let act = null;   // 여러 자리 같이 보기 기록(actStart)
     let master = null;      // 직진 2단계 원본 찾기표(readZikjinMaster) — null 이면 시즌·공장상품명 빈칸
     let masterLog = [];
+    let masterUpload = null;   // 앱 저장본 올리기(따로 돎 — 끝에 올리기 제한 시간(최대 30초)까지만 기다려 결과 한 줄)
+    let masterApp = null, masterAppWarns = [];
     const zgMaster = tab === 'zikjin' && step === 2;
     S.runCancelWhy = '';    // 확인창에서 취소해 만들지 않았으면 그 이유(섞어 올리기가 '건너뜀'으로 적는다)
     try {
@@ -2271,7 +2565,17 @@ async function run(opts = {}) {
             const { X } = await loadLibs();
             const m = await masterPick(f, X);
             masterLog = m.log;
+            masterUpload = m.upload || null;
+            masterApp = m.app || null;
+            masterAppWarns = [...(m.appWarns || []), ...(opts.masterWarn ? [opts.masterWarn] : [])];
             if (m.index) master = m.index;
+            else if (auto && opts.masterWarn) {
+                // 저절로 시작했는데(기억한 원본은 허용 필요) 앱 저장본도 못 씀 — 시즌 빈칸 파일을 저절로 만들지 않는다(예전처럼 멈춤)
+                masterUpload = null;
+                stopWhy('직진배송 원본(시즌)을 읽으려면 이 브라우저의 읽기 허용이 필요해');
+                S.runCancelWhy = '직진배송 원본을 읽지 못해(읽기 허용 필요) 저절로 만들지 않음';
+                return;
+            }
             else if (!auto) {
                 renderZgMaster();
                 if (!confirm(`⚠ 직진배송 원본(직진배송출고ver.5)을 읽지 못했습니다 — ${m.why}.\n\n`
@@ -2341,6 +2645,10 @@ async function run(opts = {}) {
             });
             masterLog.forEach(logLine);
             r.log.forEach(logLine);
+            if (r.master) {   // 결과 카드 안내·경고(ship-summary) — 앱 저장본으로 채웠나·이 PC 원본이 옛것 등
+                if (masterApp) r.master.app = masterApp;
+                if (masterAppWarns.length) r.master.appWarns = masterAppWarns;
+            }
             setBusy(true, '출고리스트 쓰는 중…');
             setPhase('저장 중');
             await tick();
@@ -2385,6 +2693,15 @@ async function run(opts = {}) {
         $('sp-log-box').open = true;   // 실패하면 진행 기록을 펼친다
         if (S.runLog) S.last = { tab, step, failed: true, summary: null, warns: [], transmit: null };
     } finally {
+        // 앱 저장본 올리기 결과 — 만들기와 따로 돌았다. 20초까지만 기다리고 결과 한 줄(숫자·시각만). 실패해도 이번 만들기는 그대로
+        if (masterUpload) {
+            try {
+                setBusy(true, '앱 저장본 올리는 중…');
+                const u = await waitMasterUpload(masterUpload);
+                logLine(u.line);
+                if (u.warn && S.runLog) S.runWarns.push(u.warn);   // 결과 카드 '확인할 것'(이번 실행이 시작됐을 때만 — 지난 실행 목록에 붙지 않게)
+            } catch (_) { /* waitMasterUpload 는 던지지 않는다 */ }
+        }
         let actRes = ok ? {} : { err: S.runErr || '' };
         // 결과 정리에서 오류가 나도 끝 기록(·beat 타이머 멈춤)은 꼭 한다 — 안 하면 다른 자리에 계속 '만드는 중'으로 보인다
         try { if (ok && summaryIn) {
@@ -2446,6 +2763,12 @@ function openSettings() {
                 올리기 전에 이 PC 에서 머리글만 남기고 자료 행을 지우며, 원래 파일은 올리지 않습니다. 양식은 올리는 즉시 적용됩니다(아래 [저장]과 따로).</p>
             <div id="sp-s-tmpl" class="sp-tmpl-list"></div>
         </div>
+        <div>
+            <h3 class="pd-h3">직진 원본 앱 저장본</h3>
+            <p class="pd-note">직진배송출고ver.5 에서 시즌·공장상품명 등 6칸만 앱에 둡니다(원본 파일은 올리지 않음). 원본이 있는 PC 에서 직진 2단계를 만들 때
+                더 새 원본이면 저절로 올라가고, 원본이 없는 자리는 이 판으로 채웁니다. 최근 3판까지 남고, 잘못 올라갔으면 옛 판으로 되돌립니다(아래 [저장]과 따로, 바로 적용).</p>
+            <div id="sp-s-master" class="sp-tmpl-list"></div>
+        </div>
         <label class="sp-check"><input type="checkbox" id="sp-s-transmit" ${st.transmit ? 'checked' : ''} ${S.isAdmin ? '' : 'disabled'}>
             <span><b>로케이션 실적·봉 수 전송 켬</b><br><span class="pd-note">2단계를 마치면 로케이션 관리(ZikjinData)에 실제 출고 수량을, 비품 예측(봉 수)에 봉 수를 씁니다.
             같은 날 여러 묶음은 묶음마다 더합니다. 병행 기간에는 끄고(exe 가 기록) exe 를 멈출 때 켭니다. ${S.isAdmin ? '' : '<b>관리자만 바꿀 수 있습니다.</b>'}</span></span></label>
@@ -2490,7 +2813,15 @@ function openSettings() {
         }
     });
     renderTemplateRows();
+    renderMasterVersions();
+    $('sp-s-master').addEventListener('click', (e) => {
+        const b = e.target.closest('button[data-mroll]');
+        if (b && !b.disabled) rollbackMasterTo(b.dataset.mroll);
+        const z = e.target.closest('button[data-mreset]');
+        if (z && !z.disabled) resetMasterApp();
+    });
     $('sp-modal').classList.remove('hidden');
+    if (MASTER_APP_ON) refreshMasterApp().catch(() => { /* 표시만 */ }).then(() => { renderMasterVersions(); if (!S.busy) renderZgMaster(); });
     // 양식 상태는 열 때 한 번 다시 확인(정보만 — 내용은 받지 않음)
     Promise.all([refreshTemplate('zikjin'), refreshTemplate('ably')]).then(() => { if (!S.busy) render(); });
 }
@@ -2544,6 +2875,9 @@ async function start(user) {
     // 직진 양식 먼저 — restoreFromPc 가 옛 원본 기억을 지울지(앱 양식 있음) 임시 칸에 넣을지 정한다. 에이블리 양식은 정보만(빈 칸 안내·설정 창)
     await Promise.all([refreshZgTemplate(), refreshTemplate('ably')]);
     await restoreFromPc();
+    // 직진 원본 앱 저장본 상태(2026-11-25) — 기다리지 않는다(원본 줄·설정 창 표시만, 만들 때 다시 읽는다)
+    if (MASTER_APP_ON) refreshMasterApp().catch(() => { /* 상태는 S.zga 에 */ }).then(() => { if (!S.busy) render(); });
+    else S.zga.st = 'none';
     // 늘 통합으로 연다(2026-11-12 사용자 요청) — 예전에 이 PC 가 기억해 둔 방식은 지운다
     S.mode = 'auto';
     try { localStorage.removeItem(MODE_STORE_KEY); } catch (_) { /* 저장공간이 막혀도 통합으로 연다 */ }

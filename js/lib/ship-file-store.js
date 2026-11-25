@@ -4,6 +4,8 @@
 //   KEY_TEMPLATE: 옛 '직진배송출고리스트 원본 PC 기억'(2026-11-10~11-12) 자리 — 원본을 없앤 뒤(2026-11-12) 새로 쓰지 않는다.
 //     화면이 열릴 때 앱 양식(Storage)을 쓸 수 있으면 지우고, 아직 못 쓰면(저장소 규칙 게시 전 임시 길) 원본(임시) 칸에 넣어 준다(js/ship.js restoreFromPc).
 //   'zikjinMasterHandle'(2026-11-17, js/lib/ship-master-file.js KEY_MASTER): 직진 원본(시즌) 파일 핸들·이름·마지막으로 읽은 시각만 — 파일 내용은 두지 않는다.
+//   KEY_MASTER_APP(2026-11-25): 지금 쓰는 직진 원본 앱 저장본 한 판 { id, hash, srcMs, gz(ArrayBuffer — 6칸 gzip), at(ISO) } — 같은 판이면 Firestore 조각을 다시 받지 않고,
+//     인터넷이 끊겼을 때 이것으로 만든다(js/ship.js masterPick). 원본 파일 자체는 두지 않는다. 같은 kv 저장소라 DB_VERSION 은 그대로.
 //   다른 화면의 IndexedDB(상품 관리 등)와 이름을 나눠 쓴다.
 // indexedDB 는 넘겨받을 수 있다(시험). 기본은 globalThis.indexedDB. 테스트: tests/ship-file-store.test.js(이름·설명) · tools/ship-check.py(실제 브라우저)
 
@@ -12,6 +14,11 @@ export const DB_VERSION = 1;
 export const STORE = 'kv';
 export const KEY_TEMPLATE = 'zikjinTemplate';
 export const KEY_OUT_DIR = 'outDir';
+export const KEY_MASTER_APP = 'zikjinMasterApp';
+
+/** 앱 저장본 보관본이 쓸 만한 모양인가 */
+export const isMasterCache = (r) => !!r && typeof r === 'object' && typeof r.id === 'string' && /^[0-9a-f]{64}$/.test(String(r.hash || ''))
+    && Number.isFinite(r.srcMs) && r.gz instanceof ArrayBuffer && typeof r.at === 'string';
 
 const reqP = (req) => new Promise((ok, no) => { req.onsuccess = () => ok(req.result); req.onerror = () => no(req.error); });
 

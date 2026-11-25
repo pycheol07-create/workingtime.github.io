@@ -52,6 +52,9 @@
 .sp-zg-master[hidden] { display: none; }
 .sp-zg-master .sp-zgm-text { flex: 1 1 320px; min-width: 0; overflow-wrap: anywhere; }
 .sp-zg-master .sp-zgm-btns { display: flex; flex-wrap: wrap; gap: 6px; }
+/* 앱 저장본 줄(2026-11-25) — 원본 줄 아래 한 줄 · 되돌린 판이면 굵게 */
+.sp-zg-master .sp-zgm-app { flex: 1 1 100%; min-width: 0; overflow-wrap: anywhere; font-size: 12px; opacity: .85; }
+.sp-zg-master .sp-zgm-app.is-rolled { font-weight: 700; opacity: 1; }
 .sp-slots { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
 
 .sp-slot { border: 1px solid var(--c-line); border-radius: var(--r-inner); padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; background: var(--c-surface); min-width: 0; transition: border-color .15s, background .15s; }

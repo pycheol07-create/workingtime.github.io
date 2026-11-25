@@ -9,10 +9,11 @@
 //   에이블리 2단계: rows(대량입고 행 — 5번 칸 수량) · pickItems[].code · location.rows · packageCount
 //   에이블리 요청 총량: ship-ably.readAblyRequest 의 qty 합(부르는 쪽이 넘긴다)
 
-import { overBags, baseDateWarning, pyTruthy, toInt } from './ship-core.js?v=202611251258';
-import { headerColumns } from './ship-read.js?v=202611251258';
-import { zikjinStep1 } from './ship-zikjin.js?v=202611251258';
-import { readAblyRequest } from './ship-ably.js?v=202611251258';
+import { overBags, baseDateWarning, pyTruthy, toInt } from './ship-core.js?v=202611251333';
+import { headerColumns } from './ship-read.js?v=202611251333';
+import { zikjinStep1 } from './ship-zikjin.js?v=202611251333';
+import { readAblyRequest } from './ship-ably.js?v=202611251333';
+import { kstShort, isOldVersion } from './ship-master-app.js?v=202611251333';
 
 export const SUMMARY_MAX_BYTES = 3 * 1024 * 1024;   // 이보다 큰 파일은 칸 요약을 건너뜀(두 번 읽지 않게)
 
@@ -79,11 +80,14 @@ export function masterMissingText(codes, max = MASTER_LIST_MAX) {
  * @param {Date}   [p.now]
  * @param {number|null} [p.requestTotal]  에이블리 2단계 — 출고요청 총량
  * @param {string[]} [p.log]    이번 실행의 진행 기록 줄(⚠ 줄 수만 센다)
- * @returns {{ title: string, kinds: number, qty: number, bags: number|null, warns: string[] }}
+ *   직진 2단계 result.master.app = { srcMs, rolled } 이면 앱 저장본으로 시즌을 채운 것(js/ship.js 가 붙임, 2026-11-25) — 안내 한 줄(notes) + 오래됨·되돌림 경고.
+ *   result.master.appWarns = 화면이 더하는 경고 글(이 PC 원본이 옛것이라 앱 저장본을 씀 등 — 값 없이)
+ * @returns {{ title: string, kinds: number, qty: number, bags: number|null, warns: string[], notes: string[] }}
  */
 export function summarizeRun({ tab, step, result, base = '', limit = 0, now = new Date(), requestTotal = null, log = [] }) {
     const r = result || {};
     const warns = [];
+    const notes = [];
     let kinds = 0, qty = 0, bags = null;
     if (step === 1) {
         kinds = (r.items || []).length;
@@ -101,6 +105,13 @@ export function summarizeRun({ tab, step, result, base = '', limit = 0, now = ne
             if (!r.master) warns.push('직진배송 원본(직진배송출고ver.5)을 읽지 않아 시즌·공장상품명이 빈칸으로 만들어졌습니다'
                 + (sent > qty ? ' · 출고요청에 없어 빠진 상품도 원본이 있으면 채울 수 있습니다' : '') + ' — 원본을 고른 뒤 다시 만드세요.');
             else if ((r.master.missing || []).length) warns.push(masterMissingText(r.master.missing));
+            const app = r.master && r.master.app;
+            if (app) {
+                notes.push(`시즌·공장상품명: 앱 저장본(${kstShort(app.srcMs)}) 기준`);
+                if (app.rolled) warns.push('앱 저장본이 옛 판으로 되돌려져 있습니다 — 시즌·공장상품명을 되돌린 판으로 채웠습니다. 맞는지 [설정] › 직진 원본 앱 저장본에서 확인하세요.');
+                if (isOldVersion({ srcMs: app.srcMs }, now)) warns.push(`앱 저장본 원본이 7일 넘었습니다(${kstShort(app.srcMs)} 저장) — 원본을 고쳤으면 원본 파일이 있는 PC 에서 한 번 만들어 앱 저장본을 새로 올리세요.`);
+            }
+            for (const w of (r.master && r.master.appWarns) || []) warns.push(String(w));
             const fm = (r.master && r.master.fromRequestMissing) || [];
             if (fm.length) warns.push(`출고요청에 없는 상품 ${fmt(fm.length)}종을 원본 SKU번호·상품명·옵션으로 넣었습니다 — 확인: ${fm.slice(0, 5).join(', ')}${fm.length > 5 ? ' …' : ''}`);
         }
@@ -128,5 +139,5 @@ export function summarizeRun({ tab, step, result, base = '', limit = 0, now = ne
     const warnLines = (log || []).filter(l => String(l).includes('⚠')).length;
     if (warnLines) warns.push(`진행 기록에 ⚠ 표시가 ${fmt(warnLines)}줄 있습니다 — '자세히 보기'에서 확인하세요.`);
     const title = `✅ ${NAME[tab] || ''} ${step}단계 완료 — 상품 ${fmt(kinds)}종 · ${fmt(qty)}개${bags !== null ? ` · ${fmt(bags)}봉` : ''}`;
-    return { title, kinds, qty, bags, warns };
+    return { title, kinds, qty, bags, warns, notes };
 }

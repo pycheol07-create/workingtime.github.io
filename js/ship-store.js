@@ -8,14 +8,18 @@
 //   persistent_data/shipPlatformSettings — 공용 설정(js/lib/ship-settings.js).
 //   persistent_data/shipActivity — 여러 자리 같이 보기(누가 만드는 중·오늘 만든 묶음, js/lib/ship-activity.js, 2026-11-13).
 //                         전송 켬과 상관없이 쓴다(출고 숫자가 아니라 진행 표시뿐). 규칙은 범용 쓰기(등록 직원).
+//   ShipMaster/meta · ShipMaster/{판}_c{n} — 직진 원본 6칸 앱 저장본(js/lib/ship-master-app.js, 2026-11-25). 전송 켬과 상관없다.
+//                         규칙 firestore.rules ShipMaster 블록(읽기 등록 직원 · 쓰기 ship.platform · 비우기 관리자). 제한 시간: meta 8초,
+//                         조각 받기·올리기 8초 + 조각당 2초(masterChunkTimeout) — 넘으면 'timeout' 으로 던진다.
 // 규칙: firestore.rules 의 ship.platform 블록. ⚠️ 전송(transmit)이 꺼져 있으면 부르는 쪽(js/ship.js)이 이 함수들을 부르지 않는다
 //   — ship-tx 도 enabled !== true 면 멈춘다(두 겹).
 import { doc, getDoc, getDocs, collection, runTransaction, setDoc, updateDoc, onSnapshot, Timestamp, FieldPath, deleteField,
-    query, where, limit, deleteDoc }
+    query, where, limit, deleteDoc, serverTimestamp }
     from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { pushLocationWith, recordPacksWith, previewBatchesWith, removeBatchWith, sendBatchWith } from './lib/ship-tx.js?v=202611251258';
-import { SETTINGS_PATH, normalizeSettings } from './lib/ship-settings.js?v=202611251258';
-import { ACTIVITY_PATH, applyRunPatch, RUN_LOG_PATH } from './lib/ship-activity.js?v=202611251258';
+import { pushLocationWith, recordPacksWith, previewBatchesWith, removeBatchWith, sendBatchWith } from './lib/ship-tx.js?v=202611251333';
+import { SETTINGS_PATH, normalizeSettings } from './lib/ship-settings.js?v=202611251333';
+import { ACTIVITY_PATH, applyRunPatch, RUN_LOG_PATH } from './lib/ship-activity.js?v=202611251333';
+import { MASTER_COLLECTION, META_ID, chunkId, metaAfterUpload, metaRollback, metaReset, newVersion } from './lib/ship-master-app.js?v=202611251333';
 
 const FS = { doc, getDoc, getDocs, collection, runTransaction, Timestamp, FieldPath, deleteField };
 const settingsRef = (db) => doc(db, ...SETTINGS_PATH);
@@ -83,4 +87,78 @@ export async function pruneRunLogs(db, beforeDay, n = 20) {
 export function watchActivity(db, onData, onError) {
     return onSnapshot(activityRef(db), (snap) => onData(snap.exists() ? snap.data() : null),
         (e) => { if (onError) onError((e && e.code) || 'unknown'); });
+}
+
+// ── 직진 원본 앱 저장본(ShipMaster, 2026-11-25) ──
+export const MASTER_TIMEOUT_MS = 8000;
+export const MASTER_PER_CHUNK_MS = 2000;
+/** 조각 n개를 받거나 올릴 때 제한 시간(ms) */
+export const masterChunkTimeout = (n) => MASTER_TIMEOUT_MS + MASTER_PER_CHUNK_MS * Math.max(0, Number(n) || 0);
+const metaRef = (db) => doc(db, MASTER_COLLECTION, META_ID);
+/** 8초 안에 안 끝나면 code 'timeout' 오류(기다리기만 멈춘다 — 이미 보낸 쓰기는 서버에서 끝날 수 있다) */
+function withTimeout(p, ms = MASTER_TIMEOUT_MS) {
+    let t;
+    const timer = new Promise((_, no) => { t = setTimeout(() => no(Object.assign(new Error('앱 저장본 응답이 늦습니다'), { code: 'timeout' })), ms); });
+    return Promise.race([p, timer]).finally(() => clearTimeout(t));
+}
+
+/** meta 문서 값(없으면 null) — 서버에서 */
+export async function loadMasterMeta(db) {
+    const snap = await withTimeout(getDoc(metaRef(db)));
+    return snap.exists() ? snap.data() : null;
+}
+
+/** 한 판의 조각 → base64 조각 목록(순서대로). 조각이 빠졌거나 모양이 다르면 던진다 */
+export async function loadMasterVersion(db, ver) {
+    const n = Number(ver && ver.chunks) || 0;
+    if (!(n >= 1)) throw new Error('앱 저장본 조각 수가 없습니다.');
+    const snaps = await withTimeout(Promise.all(Array.from({ length: n }, (_, i) => getDoc(doc(db, MASTER_COLLECTION, chunkId(ver.id, i))))), masterChunkTimeout(n));
+    return snaps.map((s, i) => {
+        const d = s.exists() ? s.data() : null;
+        if (!d || d.v !== ver.id || d.i !== i || typeof d.d !== 'string') throw new Error(`앱 저장본 조각 ${i + 1}/${n} 을 읽지 못했습니다.`);
+        return d.d;
+    });
+}
+
+/**
+ * 새 판 올리기(트랜잭션) — 안에서 meta 를 다시 읽어, 그사이 누가 같은 내용(hash)이나 같거나 새 원본(srcMs)을 올렸으면 쓰지 않는다.
+ *   p = { srcMs, enc(encodeMaster 결과), name, by, byEmail }
+ * @returns {Promise<{ status: 'ok', id, dropped } | { status: 'same'|'stale', id }>}
+ */
+export async function uploadMasterVersion(db, p) {
+    return withTimeout(runTransaction(db, async (tx) => {
+        const snap = await tx.get(metaRef(db));
+        const raw = snap.exists() ? snap.data() : null;
+        const ver = newVersion({ ...p, at: new Date() });
+        const vers = raw && Array.isArray(raw.vers) ? raw.vers : [];
+        if (vers.some(v => v && v.hash === ver.hash)) return { status: 'same', id: ver.id };
+        if (vers.some(v => v && Number(v.srcMs) >= ver.srcMs)) return { status: 'stale', id: ver.id };
+        const { meta, drop } = metaAfterUpload(raw, ver);
+        p.enc.chunks.forEach((d, i) => tx.set(doc(db, MASTER_COLLECTION, chunkId(ver.id, i)), { v: ver.id, i, d }));
+        for (const id of drop) tx.delete(doc(db, MASTER_COLLECTION, id));
+        tx.set(metaRef(db), { ...meta, updatedAt: serverTimestamp() });
+        return { status: 'ok', id: ver.id, dropped: drop.length };
+    }), masterChunkTimeout(p.enc.chunks.length));
+}
+
+/** 관리자 [앱 저장본 비우기] — meta 를 빈 판으로 + 남은 판 조각 모두 지움(트랜잭션) → { status: 'ok', dropped } */
+export async function resetMaster(db) {
+    return withTimeout(runTransaction(db, async (tx) => {
+        const snap = await tx.get(metaRef(db));
+        const { meta, drop } = metaReset(snap.exists() ? snap.data() : null);
+        for (const id of drop) tx.delete(doc(db, MASTER_COLLECTION, id));
+        tx.set(metaRef(db), { ...meta, updatedAt: serverTimestamp() });
+        return { status: 'ok', dropped: drop.length };
+    }), masterChunkTimeout(40));
+}
+
+/** 옛 판으로 되돌리기(트랜잭션) — who = { name, email } */
+export async function rollbackMaster(db, id, who) {
+    return withTimeout(runTransaction(db, async (tx) => {
+        const snap = await tx.get(metaRef(db));
+        if (!snap.exists()) throw new Error('앱 저장본이 없습니다.');
+        const patch = metaRollback(snap.data(), id, who);
+        tx.update(metaRef(db), { ...patch, rolledAt: serverTimestamp(), updatedAt: serverTimestamp() });
+        return { status: 'ok', id };
+    }));
 }
