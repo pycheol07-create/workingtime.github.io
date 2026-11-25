@@ -1,10 +1,10 @@
 // === js/ui-modals.js ===
 
-import { appState, appConfig, persistentLeaveSchedule, OTHER_LEAVE_TYPE, TIME_BASED_LEAVE_TYPES, isPersistentLeaveType, leaveTypeLabel } from './state.js?v=202611250842';
+import { appState, appConfig, persistentLeaveSchedule, OTHER_LEAVE_TYPE, TIME_BASED_LEAVE_TYPES, isPersistentLeaveType, leaveTypeLabel } from './state.js?v=202611251047';
 // ✅ getCurrentTime 유틸 함수 추가 임포트
-import { calculateDateDifference, getTodayDateString, calculateWorkingDays, getCurrentTime, isMemberActiveOn, escapeHtml } from './utils.js?v=202611250842';
-import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202611250842';
-import { isLeaveActiveAt } from './lib/leave-timing.js?v=202611250842';
+import { calculateDateDifference, getTodayDateString, calculateWorkingDays, getCurrentTime, isMemberActiveOn, escapeHtml } from './utils.js?v=202611251047';
+import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202611251047';
+import { isLeaveActiveAt } from './lib/leave-timing.js?v=202611251047';
 
 // 근속연수 계산 헬퍼 함수 (#년 #개월 #일째)
 const calculateTenure = (joinDateStr) => {
@@ -236,6 +236,7 @@ export const renderQuantityModalInputs = (sourceQuantities = {}, quantityTaskTyp
 //   어떤 칸을 채울지는 lib/planned-prefill.js. 채운 칸은 호박색 + '예정값' 안내로 구분하고, 칸을 고치거나 0건 확인을 누르면 표시를 뗀다.
 //   [저장]을 누르면 채운 값이 그대로 처리량으로 저장된다(사용자 결정 — 고치고 저장하라고 안내한다).
 //   renderQuantityModalInputs 바로 뒤에 부른다. 돌려주는 값: 채운 칸 수.
+const plannedHeadText = (n) => `처리량이 비어 있는 ${n}개 업무에 예정 물량을 미리 채웠습니다(호박색 칸). 저장하면 그 값이 처리량으로 저장됩니다.`;
 export const applyPlannedPrefill = (fill = {}) => {
     const container = document.getElementById('modal-task-quantity-inputs');
     if (!container) return 0;
@@ -267,11 +268,55 @@ export const applyPlannedPrefill = (fill = {}) => {
     });
     if (n > 0) {
         const head = document.createElement('p');
-        head.className = 'planned-prefill-note col-span-full mb-1 text-xs text-amber-700 dark:text-amber-300';
-        head.textContent = `처리량이 비어 있는 ${n}개 업무에 예정 물량을 미리 채웠습니다(호박색 칸). 저장하면 그 값이 처리량으로 저장됩니다.`;
+        head.className = 'planned-prefill-note planned-prefill-head col-span-full mb-1 text-xs text-amber-700 dark:text-amber-300';
+        head.textContent = plannedHeadText(n);
         container.prepend(head);
     }
     return n;
+};
+
+// 오늘 처리량 창 — 로케이션 동선관리 칸에 변경 추천 표 오늘 완료 건수를 채운다(2026-11-25 사용자 요청).
+//   칸이 비었거나 예정값(applyPlannedPrefill — 계획 건수)으로 채워진 칸만 바꾼다. 사람이 친 값은 건드리지 않는다.
+//   채운 칸은 하늘색 + 안내로 구분. [저장]을 누르면 그 값이 처리량으로 저장된다. → 채웠으면 true
+export const applyLocRecPrefill = (task, count) => {
+    const container = document.getElementById('modal-task-quantity-inputs');
+    const n = Math.round(Number(count));
+    if (!container || !task || !(n > 0)) return false;
+    const input = container.querySelector(`#${CSS.escape(`modal-quantity-${task}`)}`);
+    if (!input || input.dataset.locrecFilled) return false;
+    const zeroBox = container.querySelector(`#${CSS.escape(`modal-confirm-zero-${task}`)}`);
+    if (zeroBox && zeroBox.checked) return false;      // 사람이 '0건 확인'으로 정했으면 건드리지 않는다
+    const wasPlanned = input.classList.contains('planned-prefill');
+    if (input.value !== '' && !wasPlanned) return false;
+    const label = container.querySelector(`label[for="${CSS.escape(`modal-quantity-${task}`)}"]`);
+    if (wasPlanned) {     // 예정값 표시를 걷어 낸다(그 칸의 안내 글만)
+        input.classList.remove('planned-prefill', '!bg-amber-50', '!border-amber-300', 'dark:!bg-amber-900/30');
+        const pn = input.nextElementSibling;
+        if (pn && pn.classList.contains('planned-prefill-note')) pn.remove();
+        // 맨 위 '예정 물량을 미리 채웠습니다' 안내 — 남은 예정값 칸 수로 고치고, 없으면 지운다
+        const head = container.querySelector('.planned-prefill-head');
+        const left = container.querySelectorAll('input.planned-prefill').length;
+        if (head) { if (left > 0) head.textContent = plannedHeadText(left); else head.remove(); }
+    }
+    input.value = String(n);
+    input.dataset.locrecFilled = '1';
+    input.classList.remove('warning-missing-quantity');
+    if (label) { label.classList.remove('text-yellow-700', 'font-bold'); label.textContent = `${task} (변경 추천 표)`; }
+    input.classList.add('!bg-sky-50', '!border-sky-300', 'dark:!bg-sky-900/30');
+    const note = document.createElement('p');
+    note.className = 'locrec-prefill-note mt-1 text-xs font-medium text-sky-700 dark:text-sky-300';
+    note.textContent = `변경 추천 표에서 오늘 완료한 ${n.toLocaleString()}건 — 저장하면 처리량으로 저장됩니다`;
+    input.insertAdjacentElement('afterend', note);
+    const ac = new AbortController();   // 칸을 고치거나 0건 확인하면 두 리스너를 함께 뗀다
+    const unmark = () => {
+        ac.abort();
+        input.classList.remove('!bg-sky-50', '!border-sky-300', 'dark:!bg-sky-900/30');
+        if (label && label.textContent === `${task} (변경 추천 표)`) label.textContent = task;
+        note.remove();
+    };
+    input.addEventListener('input', unmark, { signal: ac.signal });
+    zeroBox?.addEventListener('change', (e) => { if (e.target.checked) { input.value = ''; unmark(); } }, { signal: ac.signal });
+    return true;
 };
 
 export const renderTaskSelectionModal = (taskGroups = []) => {

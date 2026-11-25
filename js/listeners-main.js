@@ -1,31 +1,34 @@
 // === js/listeners-main.js ===
 // 설명: 메인 화면의 리스너 (실시간 현황판 제외)
 
-import * as DOM from './dom-elements.js?v=202611250842';
-import * as State from './state.js?v=202611250842';
+import * as DOM from './dom-elements.js?v=202611251047';
+import * as State from './state.js?v=202611251047';
 
 // app.js에서는 'render'만, app-data.js에서는 'updateDailyData'를 가져옵니다.
-import { render } from './app.js?v=202611250842';
-import { updateDailyData } from './app-data.js?v=202611250842';
+import { render } from './app.js?v=202611251047';
+import { updateDailyData } from './app-data.js?v=202611251047';
 
-import { calcElapsedMinutes, showToast, showConfirm, getTodayDateString, getCurrentTime, formatTimeTo24H, escapeHtml } from './utils.js?v=202611250842';
-import { AUTO_END_TIME } from './lib/record-close.js?v=202611250842';
-import { applyDueLeaves } from './leave-auto-apply.js?v=202611250842';
+import { calcElapsedMinutes, showToast, showConfirm, getTodayDateString, getCurrentTime, formatTimeTo24H, escapeHtml } from './utils.js?v=202611251047';
+import { AUTO_END_TIME } from './lib/record-close.js?v=202611251047';
+import { applyDueLeaves } from './leave-auto-apply.js?v=202611251047';
 import {
     renderPersonalAnalysis,
     renderQuantityModalInputs,
     applyPlannedPrefill,
+    applyLocRecPrefill,
     renderManualAddModalDatalists,
     renderLeaveTypeModalOptions 
-} from './ui.js?v=202611250842';
+} from './ui.js?v=202611251047';
 import {
     processClockIn, processClockOut, cancelClockOut
-} from './app-logic.js?v=202611250842';
-import { saveProgress, saveDayDataToHistory, previewDayClose, getPlannedQuantitiesForDate, isDayClosedOnServer } from './history-data-manager.js?v=202611250842';
-import { changedQuantities, changedZeroList } from './lib/history-merge.js?v=202611250842';
-import { plannedPrefill, doneTasksOf } from './lib/planned-prefill.js?v=202611250842';
-import { aliasNameMap, aliasTaskName } from './lib/task-alias-view.js?v=202611250842';
-import { checkMissingQuantities } from './analysis-logic.js?v=202611250842';
+} from './app-logic.js?v=202611251047';
+import { saveProgress, saveDayDataToHistory, previewDayClose, getPlannedQuantitiesForDate, isDayClosedOnServer } from './history-data-manager.js?v=202611251047';
+import { changedQuantities, changedZeroList } from './lib/history-merge.js?v=202611251047';
+import { plannedPrefill, doneTasksOf } from './lib/planned-prefill.js?v=202611251047';
+import { aliasNameMap, aliasTaskName } from './lib/task-alias-view.js?v=202611251047';
+import { checkMissingQuantities } from './analysis-logic.js?v=202611251047';
+import { isLocRecTask } from './locrec-dash.js?v=202611251047';
+import { locRecDoneToday, refreshLocRecDone, invalidateLocRecDone } from './locrec-done.js?v=202611251047';
 
 import { 
     doc, updateDoc, collection, query, where, getDocs, setDoc 
@@ -395,6 +398,19 @@ export function setupMainScreenListeners() {
         const canon = (n) => aliasTaskName(n, State.appConfig);
         applyPlannedPrefill(plannedPrefill(State.appState.taskQuantities, aliasNameMap(getPlannedQuantitiesForDate(getTodayDateString()), State.appConfig),
             State.appState.confirmedZeroTasks, doneTasksOf(State.appState.workRecords, State.appConfig.quantityTaskTypes || [], canon), canon));
+        // 로케이션 동선관리 — 변경 추천 표 오늘 완료 건수로 채운다(예정값보다 우선, 2026-11-25). 창을 열 때 새로 읽는다
+        const locTask = (State.appConfig.quantityTaskTypes || []).find(isLocRecTask);
+        // 이미 처리량이 있거나(옛 이름 칸 포함) '0건 확인'이면 채우지 않는다(리뷰 2026-11-25)
+        const locHas = locTask && (Object.keys(그릴때처리량).some(k => 지금이름(k) === locTask && Number(그릴때처리량[k]) > 0)
+            || 그릴때0건.map(지금이름).includes(locTask));
+        if (locTask && !locHas) {
+            const fillLoc = () => {
+                const modal = document.getElementById('quantity-modal');
+                if (modal && !modal.classList.contains('hidden') && State.context.quantityModalContext.mode === 'today') applyLocRecPrefill(locTask, locRecDoneToday());
+            };
+            invalidateLocRecDone();
+            refreshLocRecDone().then(fillLoc, () => {});   // 대시보드 카드도 같은 값을 받는다(locrec-done.js 콜백 목록)   // 읽기가 끝난 뒤 한 번(못 읽었으면 예전 값 · 없으면 안 채움)
+        }
 
         const title = document.getElementById('quantity-modal-title');
         if (title) title.textContent = '오늘의 처리량 입력';

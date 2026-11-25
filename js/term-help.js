@@ -8,8 +8,8 @@
 //    .fixed.inset-0 도 쓰지 않는다(js/lib/noti-popup.js 가 '열린 창'으로 보지 않게).
 // 버튼·링크·라벨·입력칸·정렬 머리글(onclick) 안의 글자는 감싸지 않는다(누르면 원래 동작). 운영 리포트 PDF 는 .term-help-plain 으로 밑줄을 뺀다.
 
-import { findTerm, shouldSkip, termOf } from './lib/term-glossary.js?v=202611250842';
-import { isAutomation } from './lib/noti-popup.js?v=202611250842';
+import { findTerm, shouldSkip, termOf } from './lib/term-glossary.js?v=202611251047';
+import { isAutomation } from './lib/noti-popup.js?v=202611251047';
 
 const MAX_LEN = 24;            // 이보다 긴 글자(문장)는 보지 않는다 — 제목·칸 이름만
 const STYLE_ID = 'term-help-style';

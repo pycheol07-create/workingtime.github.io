@@ -13,7 +13,7 @@
 //
 //  import 는 같은 lib 의 calc.js 뿐 — DOM·State·Firebase 를 쓰지 않는다(node 테스트: tests/task-pace.test.js).
 
-import { addWorkMinutes, minutesOverlap, LUNCH_START_MIN, LUNCH_END_MIN } from './calc.js?v=202611250842';
+import { addWorkMinutes, minutesOverlap, LUNCH_START_MIN, LUNCH_END_MIN } from './calc.js?v=202611251047';
 
 /** 경과율 − 진행률 (%p) 이 이 값 미만이면 순조, 이상이면 주의, RISK 초과면 늦음 */
 export const PACE_WARN_GAP = 10;
@@ -70,6 +70,7 @@ export function paceDoneQty(qty, morningAuto) {
  *        spentHours(오늘 그 업무에 쓴 전체 인시 — 끝난 + 진행·정지 중) · activeHours(그중 진행·정지 중인 기록 몫)
  *        nowMin · baseFinishMin(정시) · skipLunch · expected(경과율 0~1) · available(오늘 가용 인원)
  *        started(오늘 기록이 있나) · ended(기록은 있는데 진행·정지 중인 사람이 없나)
+ *        noEstimate(true 면 시간 어림 없이 doneQty 그대로 — 실적을 바로 세는 업무)
  *  실적 = max(입력된 처리량, spentHours × UPH) — 어림값이 이기면 estimated=true
  *  색: 종료 예상을 낼 수 있으면 정시 초과 분으로(늦게 시작했어도 제 속도면 순조), 못 내면 경과율 − 진행률.
  *  반환: { planQty, started, shownQty, estimated, pct, barPct, tone, remainQty, remainMin, finishMin, overMin,
@@ -81,7 +82,7 @@ export function paceDoneQty(qty, morningAuto) {
 export function taskPace({
     planQty, doneQty, uph, working, spentHours, activeHours,
     nowMin, baseFinishMin, skipLunch, expected, available,
-    started, ended
+    started, ended, noEstimate
 } = {}) {
     const plan = Math.max(0, num(planQty));
     const done = Math.max(0, num(doneQty));
@@ -93,7 +94,8 @@ export function taskPace({
     const isEnded = ended != null ? !!ended : (isStarted && people === 0 && active === 0);
 
     // 입력된 처리량과 '오늘 쓴 전체 인시 × 기준 속도' 중 큰 쪽 — 더하지 않는다(누계 입력 이중 합산 방지)
-    const spentQty = rate > 0 ? Math.round(spent * rate) : 0;
+    // noEstimate: 실적을 다른 곳에서 바로 세는 업무(로케이션 동선관리 = 변경 추천 표 완료 건수) — 시간 어림을 쓰지 않는다
+    const spentQty = rate > 0 && !noEstimate ? Math.round(spent * rate) : 0;
     const shownQty = Math.max(done, spentQty);
     const estimated = spentQty > done;
 

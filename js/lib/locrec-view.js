@@ -34,8 +34,8 @@
 //                                     이월 행은 띠 건수·요약·엑셀·[전체 처리함]에서 뺀다(표에는 흐리게 보인다).
 // import 는 같은 lib 의 refill-view.js(날짜·시각, KST)·loc-recommend.js(엑셀 5열) 만 — 같은 규칙을 두 벌 두지 않는다.
 
-import { tsMs, dayKey, keyMs, lastDays, dayLabel, fmtHM, kstParts, waitInfo } from './refill-view.js?v=202611250842';
-import { excelRows, EXCEL_COLS } from './loc-recommend.js?v=202611250842';
+import { tsMs, dayKey, keyMs, lastDays, dayLabel, fmtHM, kstParts, waitInfo } from './refill-view.js?v=202611251047';
+import { excelRows, EXCEL_COLS } from './loc-recommend.js?v=202611251047';
 
 export { tsMs, dayKey, keyMs, lastDays, dayLabel, fmtHM, excelRows, EXCEL_COLS };
 
@@ -491,6 +491,22 @@ export function dayVer(data) {
     if (!data || typeof data !== 'object') return '';
     const at = tsMs(data.at);
     return at ? `at:${at}` : `rev:${Number(data.rev) || 0}`;
+}
+
+/**
+ * 오늘(KST) 변경 추천 표에서 '완료'(state done — [처리함]·표시만 모두)로 표시한 추천 건수.
+ *   대시보드 '오늘 업무 처리량'의 로케이션 동선관리 실적(js/locrec-done.js, 2026-11-25 사용자 요청 — 시간 어림 대신).
+ *   표시한 시각(at)이 오늘인 것만. 시각이 없는 표시는 세지 않는다. 추천 한 줄 = 1건(업무 예상 계획 단위와 같다).
+ */
+export function doneCountToday(marks, todayKey) {
+    if (!todayKey) return 0;
+    let n = 0;
+    Object.values(marks || {}).forEach(m => {
+        if (!m || m.state !== 'done') return;
+        const at = tsMs(m.at);
+        if (at && dayKey(at) === str(todayKey)) n++;
+    });
+    return n;
 }
 
 /**
