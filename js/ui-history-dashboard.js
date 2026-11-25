@@ -1,13 +1,13 @@
 // === js/ui-history-dashboard.js ===
-import * as State from './state.js?v=202611251047';
-import { analyzeUnitCost } from './ui-history-reports-logic.js?v=202611251047';
-import { buildMemberHourlyWageMap, escapeHtml } from './utils.js?v=202611251047';
-import { revenueTotalOf, orderCountTotalOf } from './revenue-channels.js?v=202611251047';
-import { D, alpha } from './d-chart.js?v=202611251047';
-import { aliasHistoryView } from './lib/task-alias-view.js?v=202611251047';
-import { TASK, tName, isTLike } from './task-names.js?v=202611251047';
-import { attendedMembers } from './attendance-stats.js?v=202611251047';
-import { wageMapOf, partSummary as opsPartSummary, unitCost as opsUnitCost, rollingBaselineOf } from './lib/ops-metrics.js?v=202611251047';
+import * as State from './state.js?v=202611251101';
+import { analyzeUnitCost } from './ui-history-reports-logic.js?v=202611251101';
+import { buildMemberHourlyWageMap, escapeHtml } from './utils.js?v=202611251101';
+import { revenueTotalOf, orderCountTotalOf } from './revenue-channels.js?v=202611251101';
+import { D, alpha } from './d-chart.js?v=202611251101';
+import { aliasHistoryView } from './lib/task-alias-view.js?v=202611251101';
+import { TASK, tName, isTLike } from './task-names.js?v=202611251101';
+import { attendedMembers } from './attendance-stats.js?v=202611251101';
+import { wageMapOf, partSummary as opsPartSummary, unitCost as opsUnitCost, rollingBaselineOf } from './lib/ops-metrics.js?v=202611251101';
 
 let dashboardChartInstance = null;
 
@@ -275,7 +275,7 @@ export function renderDashboardTab(filteredData, appConfig) {
     // 📍 마일스톤 위젯 (lazy import, 비동기 — 실패해도 메인 렌더에는 영향 없음)
     const milestoneWidget = document.getElementById('dashboard-milestones-widget');
     if (milestoneWidget) {
-        import('./ui-history-milestones.js?v=202611251047').then(mod => {
+        import('./ui-history-milestones.js?v=202611251101').then(mod => {
             mod.renderMilestonesInsightWidget(milestoneWidget);
         }).catch(e => console.warn('milestones widget load failed:', e));
     }

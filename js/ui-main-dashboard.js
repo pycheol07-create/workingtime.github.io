@@ -1,19 +1,19 @@
 // === js/ui-main-dashboard.js ===
-import { getAllDashboardDefinitions } from './ui.js?v=202611251047';
-import * as State from './state.js?v=202611251047';
-import { getRegularMembersForCount, formatHM, escapeHtml, showToast, getCurrentTime } from './utils.js?v=202611251047';
-import { isLeaveActiveAt } from './lib/leave-timing.js?v=202611251047';
-import { visibleMenuFor } from './menu-catalog.js?v=202611251047';
-import { sidebarLinkTarget, menuLabel, menuNameOfLabel } from './app-shell-data.js?v=202611251047';   // 창 이름 규칙(공통 상단바와 같은 표·같은 열기 방식)
-import { onEzadminChange, 상태 as ezadmin상태, STALE_분 } from './ezadmin-sync.js?v=202611251047';
-import { renderSuppliesAlert } from './supplies-alert-dash.js?v=202611251047';
-import { canonicalTaskName } from './lib/task-ids.js?v=202611251047';
-import { checkMissingQuantities } from './analysis-logic.js?v=202611251047';
-import { minToHhmm } from './forecast-progress.js?v=202611251047';
-import { taskPace, combinePace, expectedRatio, rowsForDashboard, paceDoneQty } from './lib/task-pace.js?v=202611251047';
-import { subscribeShipAuto, morningAutoToday, morningForecastToday } from './ship-auto-sync.js?v=202611251047';
-import { isLocRecTask } from './locrec-dash.js?v=202611251047';
-import { locRecDoneToday, refreshLocRecDone } from './locrec-done.js?v=202611251047';   // 로케이션 동선관리 실적 = 변경 추천 표 오늘 완료 건수
+import { getAllDashboardDefinitions } from './ui.js?v=202611251101';
+import * as State from './state.js?v=202611251101';
+import { getRegularMembersForCount, formatHM, escapeHtml, showToast, getCurrentTime } from './utils.js?v=202611251101';
+import { isLeaveActiveAt } from './lib/leave-timing.js?v=202611251101';
+import { visibleMenuFor } from './menu-catalog.js?v=202611251101';
+import { sidebarLinkTarget, menuLabel, menuNameOfLabel } from './app-shell-data.js?v=202611251101';   // 창 이름 규칙(공통 상단바와 같은 표·같은 열기 방식)
+import { onEzadminChange, 상태 as ezadmin상태, STALE_분 } from './ezadmin-sync.js?v=202611251101';
+import { renderSuppliesAlert } from './supplies-alert-dash.js?v=202611251101';
+import { canonicalTaskName } from './lib/task-ids.js?v=202611251101';
+import { checkMissingQuantities } from './analysis-logic.js?v=202611251101';
+import { minToHhmm } from './forecast-progress.js?v=202611251101';
+import { taskPace, combinePace, expectedRatio, rowsForDashboard, paceDoneQty } from './lib/task-pace.js?v=202611251101';
+import { subscribeShipAuto, morningAutoToday, morningForecastToday } from './ship-auto-sync.js?v=202611251101';
+import { isLocRecTask } from './locrec-dash.js?v=202611251101';
+import { locRecDoneToday, refreshLocRecDone } from './locrec-done.js?v=202611251101';   // 로케이션 동선관리 실적 = 변경 추천 표 오늘 완료 건수
 
 // 실시간 인원 현황 행 중 상세 펼침을 지원할 항목들
 const EXPANDABLE_ITEMS = new Set(['leave-staff', 'idle-staff', 'working-staff', 'paused-staff', 'ongoing-tasks']);
@@ -420,6 +420,8 @@ let paceMissingLast = null;       // { html, title, disabled } / null = 숨김
 let paceMoreCount = 0;            // '그 외 N개' (계획 0 · 활동 없음으로 접힌 칸 수)
 
 const paceFmtMin = (m) => formatHM((Number(m) || 0) / 60);
+// 변경 추천 표 완료 건수가 바뀌면 다시 그린다 — 바로 그리지 않고 다음 차례로 미룬다(그리기 안에서 다시 불려도 겹치지 않게)
+const onLocRecDoneChange = () => { setTimeout(() => { paceLastAt = 0; schedulePace(); }, 0); };
 
 /** 처리량 입력창을 여는 사이드바 버튼(PC·휴대폰 중 문서에 붙어 있는 것) */
 const quantityOpener = () => ['open-quantity-modal-today', 'open-quantity-modal-today-mobile']
@@ -429,7 +431,7 @@ const quantityOpener = () => ['open-quantity-modal-today', 'open-quantity-modal-
  *  오늘 숫자를 받기 전에 열면 빈 칸이 저장될 수 있어 기다린다(app.js #open=quantity 와 같은 규칙). */
 const openQuantityFromCard = async () => {
     try {
-        const { whenTodayLoaded } = await import('./app-sync.js?v=202611251047');
+        const { whenTodayLoaded } = await import('./app-sync.js?v=202611251101');
         const ok = await Promise.race([whenTodayLoaded().then(() => true), new Promise(r => setTimeout(() => r(false), 15000))]);
         if (!ok) { showToast('오늘 데이터를 아직 받지 못해 처리량 입력 창을 열지 않았습니다. 사이드바에서 다시 눌러 주세요.', true); return; }
     } catch (e) { console.warn('[처리량 카드] 오늘 데이터 확인 실패:', e); return; }
@@ -520,7 +522,7 @@ const paceRowView = (row, inp, expected, qtyByTask, open) => {
         //   입력한 처리량이 더 크면 그 값. 표를 못 읽었으면(null) 예전처럼 시간 어림
         let tableDone = null;
         if (isLocRecTask(task) && (t.started || t.planQty > 0 || Number(qtyByTask[task]) > 0)) {
-            refreshLocRecDone(() => { paceLastAt = 0; schedulePace(); });
+            refreshLocRecDone(onLocRecDoneChange);   // 같은 함수 하나만 등록(그릴 때마다 새 함수를 넣으면 쌓인다)
             tableDone = locRecDoneToday();
             if (tableDone != null) doneQty = Math.max(doneQty, tableDone);
         }
@@ -629,7 +631,7 @@ const paintWorkloadPaceNow = () => {
     if (!paceMod) {
         if (!paceModLoading) {
             paceModLoading = true;
-            import('./ui-history-prediction.js?v=202611251047')
+            import('./ui-history-prediction.js?v=202611251101')
                 .then(m => { paceMod = m; paceLastAt = 0; schedulePace(); })
                 .catch(e => console.warn('[처리량 카드] 업무 예상 모듈 로드 실패:', e))
                 .finally(() => { paceModLoading = false; });
