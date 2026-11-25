@@ -4,7 +4,7 @@
 // 💰 구독하지 않는다 — locRecWork/marks 한 문서를 getDoc 으로 읽고 TTL_MS 동안 기억한다(대시보드에 상시 구독을 두지 않는 규칙, js/locrec-dash.js).
 //   카드가 이 업무를 그릴 때만 읽는다(ui-main-dashboard.js). 대시보드 변경 추천 창을 닫으면 invalidate 로 다시 읽게 한다.
 // 읽기는 등록 직원 전원(firestore.rules — locRecWork 는 쓰기만 기능으로 막는다). 못 읽으면 null → 카드는 예전처럼 시간 어림.
-import * as State from './state.js?v=202611251101';
+import * as State from './state.js?v=202611251157';
 import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const MARKS_PATH = 'artifacts/team-work-logger-v2/locRecWork/marks';
@@ -32,7 +32,7 @@ export function refreshLocRecDone(onChange) {
     const before = locRecDoneToday();
     pending = Promise.all([
         getDoc(doc(State.db, MARKS_PATH)),
-        viewMod ? Promise.resolve(viewMod) : import('./lib/locrec-view.js?v=202611251101')
+        viewMod ? Promise.resolve(viewMod) : import('./lib/locrec-view.js?v=202611251157')
     ]).then(([snap, v]) => {
         viewMod = v;
         const d = snap.exists() ? (snap.data({ serverTimestamps: 'estimate' }) || {}) : {};

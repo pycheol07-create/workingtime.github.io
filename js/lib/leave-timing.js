@@ -13,7 +13,7 @@
 //
 // DOM·Firebase 는 import 하지 않는다.
 
-import { normalizeClock } from './clock-in-out.js?v=202611251101';
+import { normalizeClock } from './clock-in-out.js?v=202611251157';
 
 const 외출 = '외출';
 const 조퇴 = '조퇴';

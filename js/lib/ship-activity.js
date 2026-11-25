@@ -8,16 +8,21 @@
 //     by    = 직원 이름(앱 등록 이름, 없으면 '이름 없음') · tab = 'zikjin'|'ably' · step = 1|2
 //     pkg   = 패키지명 앞부분(2단계만, 예 ZG261113) · k = ship-made madeKey(파일 해시 앞부분 — 상품 정보 없음)
 //     start·beat·end = ms(클라이언트 시계). end 0 = 진행 중. ok = 성공 true / 실패 false / 진행 중 null
+//     결과(2026-11-25, 끝날 때만 · 없어도 됨) kinds·qty·bags = 상품 종 수·개수·봉 수(숫자만) · wn = 확인할 것 개수 · err = 실패 사유(짧게)
+//       — 상품 코드·이름·파일 내용은 넣지 않는다. 화면 '오늘 작업 현황'(4칸)·'오늘 진행 기록'(모든 자리)이 읽는다.
 //   날짜가 바뀌면 통째로 새로 쓴다. 최대 RUNS_MAX 개(오래된 것부터 지움).
 
-import { kstDay } from './ship-core.js?v=202611251101';
-import { kstHHMM } from './ship-made.js?v=202611251101';
+import { kstDay } from './ship-core.js?v=202611251157';
+import { kstHHMM } from './ship-made.js?v=202611251157';
 
 export const ACTIVITY_PATH = ['artifacts', 'team-work-logger-v2', 'persistent_data', 'shipActivity'];
-export const RUNS_MAX = 40;
+export const RUNS_MAX = 60;
 export const BEAT_MS = 60 * 1000;          // 진행 중이면 이 간격으로 beat 만 고친다(필드 경로 한 칸 — js/ship-store.js beatActivity)
 export const STALE_MS = 3 * 60 * 1000;     // beat 가 이보다 오래되면(창을 닫았거나 멈춤) 진행 중으로 보지 않는다
 const TAB_LABEL = { zikjin: '직진배송', ably: '에이블리' };
+export const SLOTS = [['zikjin', 1], ['zikjin', 2], ['ably', 1], ['ably', 2]];
+export const ERR_MAX = 120;
+const cnt = (v) => (typeof v === 'number' && Number.isFinite(v) && v >= 0 ? Math.round(v) : null);
 
 const num = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
 const str = (v, max = 40) => (typeof v === 'string' ? v.slice(0, max) : '');
@@ -34,10 +39,15 @@ function cleanRun(id, r) {
     if (r.step !== 1 && r.step !== 2) return null;
     const start = num(r.start);
     if (!start) return null;
-    return {
+    const out = {
         id, by: str(r.by) || '이름 없음', tab: r.tab, step: r.step, pkg: str(r.pkg, 24), k: str(r.k, 80),
         start, beat: num(r.beat) || start, end: num(r.end), ok: r.ok === true ? true : (r.ok === false ? false : null),
     };
+    // 결과 칸은 있을 때만(옛 문서·진행 중 실행은 없음)
+    for (const f of ['kinds', 'qty', 'bags', 'wn']) { const v = cnt(r[f]); if (v !== null) out[f] = v; }
+    const err = str(r.err, ERR_MAX);
+    if (err) out.err = err;
+    return out;
 }
 
 /** 문서 값 → 오늘 실행 목록(시작 순). 다른 날 문서면 [] */
@@ -88,6 +98,52 @@ export function activityBanner(runs, mine = [], now = Date.now()) {
     return d.ok === true
         ? { tone: 'done', text: `오늘 마지막 작업: ${d.by} 님 · ${what(d)} · ${kstHHMM(new Date(d.end))} 완료 (오늘 완료 ${total}건)` }
         : { tone: 'fail', text: `오늘 마지막 작업: ${d.by} 님 · ${what(d)} · ${kstHHMM(new Date(d.end))} 실패 (오늘 완료 ${total}건)` };
+}
+
+/** 실행 결과 한 줄 글자(숫자만) — 성공: '상품 3종 · 12개 · 2봉 · 확인할 것 1' / 실패: 사유 / 진행 중·멈춤: 상태 */
+export function runResultText(r, now = Date.now()) {
+    if (!r) return '';
+    if (!r.end) return now - r.beat < STALE_MS ? '만드는 중' : '중단됨(창을 닫았거나 멈춤)';
+    if (r.ok === false) return r.err ? `실패 — ${r.err}` : '실패';
+    const parts = [];
+    if (r.kinds != null) parts.push(`상품 ${r.kinds.toLocaleString()}종`);
+    if (r.qty != null) parts.push(`${r.qty.toLocaleString()}개`);
+    if (r.bags != null && r.step === 2) parts.push(`${r.bags.toLocaleString()}봉`);
+    if (r.wn) parts.push(`확인할 것 ${r.wn}`);
+    return parts.length ? parts.join(' · ') : '완료';
+}
+
+/** 실행 상태 → 'busy' | 'ok' | 'fail' | 'stale' */
+export function runState(r, now = Date.now()) {
+    if (!r.end) return now - r.beat < STALE_MS ? 'busy' : 'stale';
+    return r.ok === true ? 'ok' : 'fail';
+}
+
+/**
+ * '오늘 작업 현황' — 직진·에이블리 × 1·2단계 4칸의 마지막 실행(진행 중이면 그것)과 오늘 성공 횟수.
+ *   → [{ tab, step, label, run(없으면 null), state('none'|busy|ok|fail|stale), at:'HH:MM', okCount }]
+ */
+export function slotBoard(runs, now = Date.now()) {
+    const list = runs || [];
+    return SLOTS.map(([tab, step]) => {
+        const mine = list.filter(r => r.tab === tab && r.step === step);
+        const live = mine.filter(r => runState(r, now) === 'busy').sort((a, b) => b.start - a.start)[0];
+        const last = live || mine.slice().sort((a, b) => (b.end || b.beat) - (a.end || a.beat))[0] || null;
+        const st = last ? runState(last, now) : 'none';
+        const at = last ? kstHHMM(new Date(st === 'busy' ? last.start : (last.end || last.beat))) : '';
+        return { tab, step, label: `${TAB_LABEL[tab]} ${step}단계`, run: last, state: st, at, okCount: mine.filter(r => r.ok === true && r.end).length };
+    });
+}
+
+/** '오늘 진행 기록' — 모든 자리의 실행, 최근 것이 먼저 → [{ id, time:'HH:MM', by, what, state, text, mine }] */
+export function runLog(runs, mine = [], now = Date.now()) {
+    const my = new Set(mine);
+    return (runs || []).slice().sort((a, b) => b.start - a.start).map(r => {
+        const st = runState(r, now);
+        const t0 = kstHHMM(new Date(r.start));
+        const time = r.end ? `${t0}~${kstHHMM(new Date(r.end))}` : t0;
+        return { id: r.id, time, by: r.by, what: what(r), state: st, text: runResultText(r, now), mine: my.has(r.id) };
+    });
 }
 
 /**

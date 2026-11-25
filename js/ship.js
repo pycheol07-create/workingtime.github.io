@@ -32,33 +32,33 @@
 import { onAuthStateChanged, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { doc, getDocFromServer } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getStorage, ref as sRef, uploadBytes, getBlob, getMetadata } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
-import { initializeFirebase } from './config.js?v=202611251101';
-import { emulatorEnabled, connectStorageEmulatorIfEnabled } from './firebase-emulator.js?v=202611251101';
-import { setShellContext, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202611251101';
-import { memberNameFor } from './app-shell-data.js?v=202611251101';
-import { friendlyFirebaseError } from './utils.js?v=202611251101';
-import { resolve, can } from './lib/perm.js?v=202611251101';
-import { readBook, headerColumns } from './lib/ship-read.js?v=202611251101';
-import { zikjinStep1, zikjinStep2, readZikjinMaster, MASTER_SHEET } from './lib/ship-zikjin.js?v=202611251101';
-import { createMasterFile, MASTER_STATE_TEXT, KEY_MASTER } from './lib/ship-master-file.js?v=202611251101';
-import { ablyStep1, ablyStep2, readAblyRequest } from './lib/ship-ably.js?v=202611251101';
-import { zikjinListBytes, ablyBulkBytes, stockXlsBytes, cleanZikjinTemplate, zikjinTemplateProblem, cleanAblyTemplate, ablyTemplateProblem } from './lib/ship-write.js?v=202611251101';
-import { pickingBytes } from './lib/ship-picking.js?v=202611251101';
-import { kstDay, baseDateWarning, targetArea, STOCK_OUT_MSG, PACK_PREFIX, baseDatePart, packageNameBase } from './lib/ship-core.js?v=202611251101';
-import { peekBook, classifyPeek, assignFiles, routeFiles, SLOTS, KIND, KIND_LABEL } from './lib/ship-assign.js?v=202611251101';
-import { openShipStore, isFileRecord, sizeText, savedText, KEY_TEMPLATE, KEY_OUT_DIR } from './lib/ship-file-store.js?v=202611251101';
-import { createSaver, mimeOf } from './lib/save-file.js?v=202611251101';
-import { normalizeSettings, validateEdit, settingsWrite, parseLimit, activeRuleCount, MAX_RULES } from './lib/ship-settings.js?v=202611251101';
-import { flowState, foldState, modeView, loadMode, tabForMode, MODE_STORE_KEY, MODE_LABEL } from './lib/ship-flow.js?v=202611251101';
-import { summarizeRun, fileSummary, SUMMARY_MAX_BYTES } from './lib/ship-summary.js?v=202611251101';
-import { madeKey, loadMade, findMade, recordMade, madeConfirmText, MADE_STORE_KEY } from './lib/ship-made.js?v=202611251101';
-import { gridOf, comparePairs } from './lib/ship-compare.js?v=202611251101';
-import { batchKeyOf, codeTotals, freshKey, sha256Hex, LEGACY } from './lib/ship-batch.js?v=202611251101';
-import { loadSettings, saveSettings, sendBatch, previewBatches, removeBatch, writeActivity, beatActivity, watchActivity } from './ship-store.js?v=202611251101';
-import { normalizeActivity, findSharedMade, activityBanner, newRunId, BEAT_MS } from './lib/ship-activity.js?v=202611251101';
-import { logHtml, logText, AUTO_MARK } from './lib/ship-log.js?v=202611251101';
-import { autoDecision, autoStartText } from './lib/ship-auto.js?v=202611251101';
-import { isMixed, planMixed, jobLabel, runJobs, queueCounts, pairWaitPlan } from './lib/ship-mixed.js?v=202611251101';
+import { initializeFirebase } from './config.js?v=202611251157';
+import { emulatorEnabled, connectStorageEmulatorIfEnabled } from './firebase-emulator.js?v=202611251157';
+import { setShellContext, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202611251157';
+import { memberNameFor } from './app-shell-data.js?v=202611251157';
+import { friendlyFirebaseError } from './utils.js?v=202611251157';
+import { resolve, can } from './lib/perm.js?v=202611251157';
+import { readBook, headerColumns } from './lib/ship-read.js?v=202611251157';
+import { zikjinStep1, zikjinStep2, readZikjinMaster, MASTER_SHEET } from './lib/ship-zikjin.js?v=202611251157';
+import { createMasterFile, MASTER_STATE_TEXT, KEY_MASTER } from './lib/ship-master-file.js?v=202611251157';
+import { ablyStep1, ablyStep2, readAblyRequest } from './lib/ship-ably.js?v=202611251157';
+import { zikjinListBytes, ablyBulkBytes, stockXlsBytes, cleanZikjinTemplate, zikjinTemplateProblem, cleanAblyTemplate, ablyTemplateProblem } from './lib/ship-write.js?v=202611251157';
+import { pickingBytes } from './lib/ship-picking.js?v=202611251157';
+import { kstDay, baseDateWarning, targetArea, STOCK_OUT_MSG, PACK_PREFIX, baseDatePart, packageNameBase } from './lib/ship-core.js?v=202611251157';
+import { peekBook, classifyPeek, assignFiles, routeFiles, SLOTS, KIND, KIND_LABEL } from './lib/ship-assign.js?v=202611251157';
+import { openShipStore, isFileRecord, sizeText, savedText, KEY_TEMPLATE, KEY_OUT_DIR } from './lib/ship-file-store.js?v=202611251157';
+import { createSaver, mimeOf } from './lib/save-file.js?v=202611251157';
+import { normalizeSettings, validateEdit, settingsWrite, parseLimit, activeRuleCount, MAX_RULES } from './lib/ship-settings.js?v=202611251157';
+import { flowState, foldState, modeView, loadMode, tabForMode, MODE_STORE_KEY, MODE_LABEL } from './lib/ship-flow.js?v=202611251157';
+import { summarizeRun, fileSummary, SUMMARY_MAX_BYTES } from './lib/ship-summary.js?v=202611251157';
+import { madeKey, loadMade, findMade, recordMade, madeConfirmText, MADE_STORE_KEY } from './lib/ship-made.js?v=202611251157';
+import { gridOf, comparePairs } from './lib/ship-compare.js?v=202611251157';
+import { batchKeyOf, codeTotals, freshKey, sha256Hex, LEGACY } from './lib/ship-batch.js?v=202611251157';
+import { loadSettings, saveSettings, sendBatch, previewBatches, removeBatch, writeActivity, beatActivity, watchActivity } from './ship-store.js?v=202611251157';
+import { normalizeActivity, findSharedMade, activityBanner, newRunId, BEAT_MS, slotBoard, runLog, ERR_MAX } from './lib/ship-activity.js?v=202611251157';
+import { logHtml, logText, AUTO_MARK } from './lib/ship-log.js?v=202611251157';
+import { autoDecision, autoStartText } from './lib/ship-auto.js?v=202611251157';
+import { isMixed, planMixed, jobLabel, runJobs, queueCounts, pairWaitPlan } from './lib/ship-mixed.js?v=202611251157';
 
 const $ = (id) => document.getElementById(id);
 const APP_BASE = 'artifacts/team-work-logger-v2';
@@ -1017,21 +1017,49 @@ function actStart(fields) {
     }, BEAT_MS);
     return a;
 }
-function actEnd(a, ok) {
+/** 끝 기록 — res(선택) = { kinds, qty, bags, wn, err } 결과 숫자·실패 사유(다른 자리 '오늘 진행 기록'에 보인다, 상품 정보 없음) */
+function actEnd(a, ok, res) {
     if (!a) return;
     clearInterval(a.timer);
     const at = Date.now();
-    a.chain.then(okStart => okStart && writeActivity(S.db, { id: a.id, end: at, ok: !!ok }))
+    const extra = {};
+    if (res) for (const f of ['kinds', 'qty', 'bags', 'wn']) if (Number.isFinite(res[f])) extra[f] = res[f];
+    if (res && res.err) extra.err = String(res.err).slice(0, ERR_MAX);
+    a.chain.then(okStart => okStart && writeActivity(S.db, { id: a.id, end: at, ok: !!ok, ...extra }))
         .catch((e) => console.warn('[플랫폼 출고] 진행 표시 끝 쓰기 실패:', (e && e.code) || 'unknown'));
 }
+// 오늘 작업 현황(직진·에이블리 × 1·2단계 4칸) + 오늘 진행 기록(모든 자리) — 2026-11-25 사용자 요청(마지막 작업 한 줄만 보이던 것)
+const ACT_STATE = { none: ['–', '아직 없음'], busy: ['🔄', '만드는 중'], ok: ['✓', '완료'], fail: ['✗', '실패'], stale: ['⚠', '중단됨'] };
 function renderActivity() {
     const el = $('sp-activity');
     if (!el) return;
-    const b = activityBanner(normalizeActivity(S.actRaw), S.actMine, Date.now());
-    el.hidden = !b;
-    if (!b) return;
-    el.className = `pd-alert ${b.tone === 'busy' ? 'warn' : (b.tone === 'fail' ? 'risk' : 'info')} sp-activity`;
-    el.textContent = (b.tone === 'busy' ? '🔄 ' : '🕘 ') + b.text;
+    const now = Date.now();
+    const runs = normalizeActivity(S.actRaw);
+    const b = activityBanner(runs, S.actMine, now);   // 다른 자리가 만드는 중이면 맨 위 한 줄
+    el.hidden = !runs.length;                          // 오늘 기록이 하나라도 있으면(내 것·멈춘 것 포함) 보인다
+    if (!runs.length) return;
+    el.className = `pd-alert ${b && b.tone === 'busy' ? 'warn' : 'info'} sp-activity`;
+    const head = b && b.tone === 'busy' ? `<div class="sp-act-head">🔄 ${esc(b.text)}</div>` : '';
+    const cells = slotBoard(runs, now).map(c => {
+        const [ic, word] = ACT_STATE[c.state];
+        const who = c.run ? `${esc(c.run.by)} · ${esc(c.at)}` : '';
+        const more = c.okCount > 1 ? ` <span class="sp-act-n">오늘 ${c.okCount}번</span>` : '';
+        const res = c.run && c.state !== 'busy' ? `<div class="sp-act-res">${esc(runLog([c.run], [], now)[0].text)}</div>` : '';
+        return `<div class="sp-act-cell is-${c.state}"><div class="sp-act-lbl">${esc(c.label)}${more}</div>`
+            + `<div class="sp-act-st"><b>${ic} ${esc(word)}</b>${who ? ` <span>${who}</span>` : ''}</div>${res}</div>`;
+    }).join('');
+    const log = runLog(runs, S.actMine, now);
+    const rows = log.map(r => `<li class="is-${r.state}"><span class="sp-act-t">${esc(r.time)}</span>`
+        + `<span class="sp-act-w">${esc(r.by)}${r.mine ? ' (이 창)' : ''} · ${esc(r.what)}</span>`
+        + `<span class="sp-act-x">${esc((ACT_STATE[r.state] || ACT_STATE.ok)[0])} ${esc(r.text)}</span></li>`).join('');
+    const prev = el.querySelector('details.sp-act-log');
+    const wasOpen = !!(prev && prev.open);
+    const prevUl = prev && prev.querySelector('ul');
+    const scroll = prevUl ? prevUl.scrollTop : 0;   // 다시 그려도 보던 자리 그대로
+    el.innerHTML = `${head}<div class="sp-act-title">오늘 작업 현황 <span>(모든 자리 — 오늘 완료 ${runs.filter(r => r.end && r.ok === true).length}건)</span></div>`
+        + `<div class="sp-act-grid">${cells}</div>`
+        + `<details class="sp-act-log"${wasOpen ? ' open' : ''}><summary>오늘 진행 기록 ${log.length}건 (모든 자리)</summary><ul>${rows}</ul></details>`;
+    if (scroll) { const ul = el.querySelector('details.sp-act-log ul'); if (ul) ul.scrollTop = scroll; }
 }
 function startActivityWatch() {
     try {
@@ -2277,12 +2305,15 @@ async function run(opts = {}) {
     } catch (e) {
         console.warn('[플랫폼 출고] 실행 실패:', (e && e.code) || (e && e.name) || 'Error');
         logLine(`✗ 실패: ${errText(e)}`);
+        // 공유 문서(다른 자리 진행 기록)에는 첫 줄만 — 둘째 줄부터는 '발견된 헤더: [...]' 처럼 파일 칸 값이 들어간다(리뷰 2026-11-25)
+        S.runErr = String(errText(e)).split('\n')[0];
         toast('실패 — 진행 기록을 확인하세요', 5000);
         $('sp-log-box').open = true;   // 실패하면 진행 기록을 펼친다
         if (S.runLog) S.last = { tab, step, failed: true, summary: null, warns: [], transmit: null };
     } finally {
-        actEnd(act, ok);
-        if (ok && summaryIn) {
+        let actRes = ok ? {} : { err: S.runErr || '' };
+        // 결과 정리에서 오류가 나도 끝 기록(·beat 타이머 멈춤)은 꼭 한다 — 안 하면 다른 자리에 계속 '만드는 중'으로 보인다
+        try { if (ok && summaryIn) {
             let summary;
             try {
                 summary = summarizeRun({ tab, step, result: summaryIn.result, base, limit, now, requestTotal: summaryIn.requestTotal ?? null, log: S.runLog || [] });
@@ -2291,6 +2322,8 @@ async function run(opts = {}) {
                 summary = { title: `✅ ${TAB_LABEL[tab]} ${step}단계 완료`, warns: [] };
             }
             S.last = { tab, step, failed: false, transmit: T, warns: [...S.runWarns], summary, auto, saveNote: saveNoteOf(S.runSaves), dateWarn: auto ? (opts.dateWarn || '') : '' };
+            actRes = { kinds: summary.kinds, qty: summary.qty, bags: summary.bags == null ? undefined : summary.bags,
+                wn: ((summary.warns || []).length + S.runWarns.length) };
             if (mk) saveMade(mk, tab, step);   // 성공했을 때만 기록
             if (step === 2) S.session[tab].step2For = f.admin;
             // [exe 결과와 비교하기] — 원본을 읽고 만들었으면 시즌·공장상품명 빈칸을 의도된 차이로 보지 않는다(ship-compare NO_MASTER)
@@ -2298,7 +2331,10 @@ async function run(opts = {}) {
             S.results.forEach(x => { x.noMaster = noMaster; });
             S.cmp.right = S.results.map(x => ({ name: x.name, bytes: x.bytes, size: x.bytes.byteLength, from: 'web', noMaster: x.noMaster }));
             $('sp-cmp-out').innerHTML = '';
+        } } finally {
+            actEnd(act, ok, actRes);   // 결과 숫자를 센 뒤에 끝 기록(다른 자리 '오늘 진행 기록')
         }
+        S.runErr = '';
         S.runLog = null;
         S.runSaves = null;
         S.phase = '';

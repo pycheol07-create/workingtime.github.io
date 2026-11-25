@@ -124,6 +124,33 @@
 /* 여러 자리 같이 보기 안내 줄(2026-11-13) */
 .sp-activity { margin-top: 8px; }
 .sp-activity[hidden] { display: none; }
+/* 오늘 작업 현황 4칸 + 오늘 진행 기록(모든 자리, 2026-11-25) */
+.sp-act-head { font-weight: 700; margin-bottom: 6px; }
+.sp-act-title { font-weight: 700; font-size: 13px; color: var(--c-text); }
+.sp-act-title span { font-weight: 500; color: var(--c-text-3); }
+.sp-act-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin-top: 6px; }
+@media (max-width: 900px) { .sp-act-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.sp-act-cell { padding: 6px 10px; border-radius: var(--r-sm); background: var(--c-surface); border: 1px solid var(--c-line); font-size: 12.5px; min-width: 0; }
+.sp-act-cell.is-ok { border-color: var(--c-ok-text); }
+.sp-act-cell.is-fail, .sp-act-cell.is-stale { border-color: var(--c-risk-text); }
+.sp-act-cell.is-busy { border-color: var(--c-warn-text); }
+.sp-act-lbl { font-weight: 700; color: var(--c-text-2); }
+.sp-act-n { font-weight: 500; color: var(--c-text-3); }
+.sp-act-st { margin-top: 2px; color: var(--c-text); overflow-wrap: anywhere; }
+.sp-act-st span { color: var(--c-text-3); }
+.sp-act-cell.is-ok .sp-act-st b { color: var(--c-ok-text); }
+.sp-act-cell.is-fail .sp-act-st b, .sp-act-cell.is-stale .sp-act-st b { color: var(--c-risk-text); }
+.sp-act-cell.is-busy .sp-act-st b { color: var(--c-warn-text); }
+.sp-act-res { margin-top: 2px; color: var(--c-text-2); overflow-wrap: anywhere; }
+.sp-act-log { margin-top: 8px; font-size: 12.5px; }
+.sp-act-log summary { cursor: pointer; font-weight: 700; color: var(--c-text-2); }
+.sp-act-log ul { list-style: none; margin: 6px 0 0; padding: 0; max-height: 240px; overflow-y: auto; }
+.sp-act-log li { display: grid; grid-template-columns: 7.5em minmax(0, 1fr) minmax(0, 1.2fr); gap: 8px; padding: 3px 0; border-top: 1px solid var(--c-line-soft); }
+@media (max-width: 700px) { .sp-act-log li { grid-template-columns: 1fr; gap: 0; } }
+.sp-act-t { color: var(--c-text-3); font-variant-numeric: tabular-nums; }
+.sp-act-w, .sp-act-x { overflow-wrap: anywhere; color: var(--c-text); }
+.sp-act-log li.is-fail .sp-act-x, .sp-act-log li.is-stale .sp-act-x { color: var(--c-risk-text); }
+.sp-act-log li.is-busy .sp-act-x { color: var(--c-warn-text); }
 /* 머리줄 전송 켬/끔 작은 표시(2026-11-24) */
 .sp-tx-badge { display: inline-flex; align-items: center; gap: 6px; align-self: center; padding: 3px 10px; border-radius: 999px;
     border: 1px solid var(--c-line-strong); background: var(--c-surface-2); color: var(--c-text-3); font-size: 11.5px; font-weight: 700; font-family: inherit; line-height: 1.5; cursor: pointer; white-space: nowrap; }
