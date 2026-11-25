@@ -32,33 +32,35 @@
 import { onAuthStateChanged, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { doc, getDocFromServer } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getStorage, ref as sRef, uploadBytes, getBlob, getMetadata } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
-import { initializeFirebase } from './config.js?v=202611251157';
-import { emulatorEnabled, connectStorageEmulatorIfEnabled } from './firebase-emulator.js?v=202611251157';
-import { setShellContext, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202611251157';
-import { memberNameFor } from './app-shell-data.js?v=202611251157';
-import { friendlyFirebaseError } from './utils.js?v=202611251157';
-import { resolve, can } from './lib/perm.js?v=202611251157';
-import { readBook, headerColumns } from './lib/ship-read.js?v=202611251157';
-import { zikjinStep1, zikjinStep2, readZikjinMaster, MASTER_SHEET } from './lib/ship-zikjin.js?v=202611251157';
-import { createMasterFile, MASTER_STATE_TEXT, KEY_MASTER } from './lib/ship-master-file.js?v=202611251157';
-import { ablyStep1, ablyStep2, readAblyRequest } from './lib/ship-ably.js?v=202611251157';
-import { zikjinListBytes, ablyBulkBytes, stockXlsBytes, cleanZikjinTemplate, zikjinTemplateProblem, cleanAblyTemplate, ablyTemplateProblem } from './lib/ship-write.js?v=202611251157';
-import { pickingBytes } from './lib/ship-picking.js?v=202611251157';
-import { kstDay, baseDateWarning, targetArea, STOCK_OUT_MSG, PACK_PREFIX, baseDatePart, packageNameBase } from './lib/ship-core.js?v=202611251157';
-import { peekBook, classifyPeek, assignFiles, routeFiles, SLOTS, KIND, KIND_LABEL } from './lib/ship-assign.js?v=202611251157';
-import { openShipStore, isFileRecord, sizeText, savedText, KEY_TEMPLATE, KEY_OUT_DIR } from './lib/ship-file-store.js?v=202611251157';
-import { createSaver, mimeOf } from './lib/save-file.js?v=202611251157';
-import { normalizeSettings, validateEdit, settingsWrite, parseLimit, activeRuleCount, MAX_RULES } from './lib/ship-settings.js?v=202611251157';
-import { flowState, foldState, modeView, loadMode, tabForMode, MODE_STORE_KEY, MODE_LABEL } from './lib/ship-flow.js?v=202611251157';
-import { summarizeRun, fileSummary, SUMMARY_MAX_BYTES } from './lib/ship-summary.js?v=202611251157';
-import { madeKey, loadMade, findMade, recordMade, madeConfirmText, MADE_STORE_KEY } from './lib/ship-made.js?v=202611251157';
-import { gridOf, comparePairs } from './lib/ship-compare.js?v=202611251157';
-import { batchKeyOf, codeTotals, freshKey, sha256Hex, LEGACY } from './lib/ship-batch.js?v=202611251157';
-import { loadSettings, saveSettings, sendBatch, previewBatches, removeBatch, writeActivity, beatActivity, watchActivity } from './ship-store.js?v=202611251157';
-import { normalizeActivity, findSharedMade, activityBanner, newRunId, BEAT_MS, slotBoard, runLog, ERR_MAX } from './lib/ship-activity.js?v=202611251157';
-import { logHtml, logText, AUTO_MARK } from './lib/ship-log.js?v=202611251157';
-import { autoDecision, autoStartText } from './lib/ship-auto.js?v=202611251157';
-import { isMixed, planMixed, jobLabel, runJobs, queueCounts, pairWaitPlan } from './lib/ship-mixed.js?v=202611251157';
+import { initializeFirebase } from './config.js?v=202611251214';
+import { emulatorEnabled, connectStorageEmulatorIfEnabled } from './firebase-emulator.js?v=202611251214';
+import { setShellContext, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202611251214';
+import { memberNameFor } from './app-shell-data.js?v=202611251214';
+import { friendlyFirebaseError } from './utils.js?v=202611251214';
+import { resolve, can } from './lib/perm.js?v=202611251214';
+import { readBook, headerColumns } from './lib/ship-read.js?v=202611251214';
+import { zikjinStep1, zikjinStep2, readZikjinMaster, MASTER_SHEET } from './lib/ship-zikjin.js?v=202611251214';
+import { createMasterFile, MASTER_STATE_TEXT, KEY_MASTER } from './lib/ship-master-file.js?v=202611251214';
+import { ablyStep1, ablyStep2, readAblyRequest } from './lib/ship-ably.js?v=202611251214';
+import { zikjinListBytes, ablyBulkBytes, stockXlsBytes, cleanZikjinTemplate, zikjinTemplateProblem, cleanAblyTemplate, ablyTemplateProblem } from './lib/ship-write.js?v=202611251214';
+import { pickingBytes } from './lib/ship-picking.js?v=202611251214';
+import { kstDay, baseDateWarning, targetArea, STOCK_OUT_MSG, PACK_PREFIX, baseDatePart, packageNameBase } from './lib/ship-core.js?v=202611251214';
+import { peekBook, classifyPeek, assignFiles, routeFiles, SLOTS, KIND, KIND_LABEL } from './lib/ship-assign.js?v=202611251214';
+import { openShipStore, isFileRecord, sizeText, savedText, KEY_TEMPLATE, KEY_OUT_DIR } from './lib/ship-file-store.js?v=202611251214';
+import { createSaver, mimeOf } from './lib/save-file.js?v=202611251214';
+import { normalizeSettings, validateEdit, settingsWrite, parseLimit, activeRuleCount, MAX_RULES } from './lib/ship-settings.js?v=202611251214';
+import { flowState, foldState, modeView, loadMode, tabForMode, MODE_STORE_KEY, MODE_LABEL } from './lib/ship-flow.js?v=202611251214';
+import { summarizeRun, fileSummary, SUMMARY_MAX_BYTES } from './lib/ship-summary.js?v=202611251214';
+import { madeKey, loadMade, findMade, recordMade, madeConfirmText, MADE_STORE_KEY } from './lib/ship-made.js?v=202611251214';
+import { gridOf, comparePairs } from './lib/ship-compare.js?v=202611251214';
+import { batchKeyOf, codeTotals, freshKey, sha256Hex, LEGACY } from './lib/ship-batch.js?v=202611251214';
+import { loadSettings, saveSettings, sendBatch, previewBatches, removeBatch, writeActivity, beatActivity, watchActivity,
+    writeRunLog, loadRunLog, pruneRunLogs } from './ship-store.js?v=202611251214';
+import { normalizeActivity, findSharedMade, activityBanner, newRunId, BEAT_MS, slotBoard, runLog, ERR_MAX,
+    cleanLogLines, runLogCutoff } from './lib/ship-activity.js?v=202611251214';
+import { logHtml, logText, AUTO_MARK } from './lib/ship-log.js?v=202611251214';
+import { autoDecision, autoStartText } from './lib/ship-auto.js?v=202611251214';
+import { isMixed, planMixed, jobLabel, runJobs, queueCounts, pairWaitPlan } from './lib/ship-mixed.js?v=202611251214';
 
 const $ = (id) => document.getElementById(id);
 const APP_BASE = 'artifacts/team-work-logger-v2';
@@ -161,6 +163,7 @@ const S = {
     recog: '', phase: '', phases: [], why: '',
     foldOpen: false, advOpen: false, optsKey: '',
     runLog: null, runWarns: [],
+    runLogs: new Map(), actOpen: new Set(), runLogPrunedDay: '', actCollapsed: true,   // 다른 자리 실행 기록(펼친 것만 읽음, 2026-11-25)
     cmp: { left: [], right: [], side: 'left' },
     // 진행 기록 묶음(2026-11-13, js/lib/ship-log.js) — 사용자가 한 번 한 일마다 하나. 글상자 #sp-log 값은 옛 글자 그대로 따로 쌓는다
     log: [], logSeq: 0, logOpen: {},
@@ -1009,7 +1012,7 @@ function actStart(fields) {
     const id = newRunId();
     S.actMine.push(id);
     const at = Date.now();
-    const a = { id, chain: null, timer: null };
+    const a = { id, chain: null, timer: null, tab: fields.tab, step: fields.step };
     a.chain = writeActivity(S.db, { id, by: S.memberName || '이름 없음', start: at, beat: at, end: 0, ok: null, ...fields })
         .then(() => true, (e) => { console.warn('[플랫폼 출고] 진행 표시 쓰기 실패:', (e && e.code) || 'unknown'); return false; });
     a.timer = setInterval(() => {
@@ -1018,10 +1021,29 @@ function actStart(fields) {
     return a;
 }
 /** 끝 기록 — res(선택) = { kinds, qty, bags, wn, err } 결과 숫자·실패 사유(다른 자리 '오늘 진행 기록'에 보인다, 상품 정보 없음) */
-function actEnd(a, ok, res) {
+function actEnd(a, ok, res, lines) {
     if (!a) return;
     clearInterval(a.timer);
     const at = Date.now();
+    // 이 실행의 진행 기록(위험한 줄은 뺌) — 다른 자리가 [기록]으로 본다. 실패해도 만들기와 상관없음
+    if (Array.isArray(lines) && lines.length) {
+        const c = cleanLogLines(lines);
+        // 끝 기록(아래)보다 먼저 — 다른 자리에 [기록] 단추가 보일 때는 기록 문서가 이미 있게(리뷰 2026-11-25). 실패해도 끝 기록은 간다
+        a.chain = a.chain.then(okStart => {
+            if (!okStart) return false;
+            return writeRunLog(S.db, a.id, { day: kstDay(new Date(at)).ymd10, by: S.memberName || '이름 없음',
+                tab: a.tab || '', step: a.step || 0, at, ok: !!ok, lines: c.lines, more: c.more })
+                .then(() => { S.runLogs.delete(a.id); if (S.actOpen.has(a.id)) fetchRunLog(a.id); },
+                      (e) => console.warn('[플랫폼 출고] 진행 기록 공유 실패:', (e && e.code) || 'unknown'))
+                .then(() => true);
+        });
+        const today = kstDay(new Date(at)).ymd10;
+        if (S.runLogPrunedDay !== today) {     // 날짜마다 한 번(창을 며칠 열어 둬도) 7일 지난 기록 정리 — 20개 다 지웠으면 한 번 더
+            S.runLogPrunedDay = today;
+            const cut = runLogCutoff(new Date(at));
+            pruneRunLogs(S.db, cut).then(n => (n >= 20 ? pruneRunLogs(S.db, cut) : 0)).catch(() => { /* 다음에 */ });
+        }
+    }
     const extra = {};
     if (res) for (const f of ['kinds', 'qty', 'bags', 'wn']) if (Number.isFinite(res[f])) extra[f] = res[f];
     if (res && res.err) extra.err = String(res.err).slice(0, ERR_MAX);
@@ -1037,8 +1059,10 @@ function renderActivity() {
     const runs = normalizeActivity(S.actRaw);
     const b = activityBanner(runs, S.actMine, now);   // 다른 자리가 만드는 중이면 맨 위 한 줄
     el.hidden = !runs.length;                          // 오늘 기록이 하나라도 있으면(내 것·멈춘 것 포함) 보인다
+    const main = $('pd-main');
+    if (main) main.classList.toggle('sp-has-side', !el.hidden);   // 없으면 오른쪽 칸을 비워 두지 않는다
     if (!runs.length) return;
-    el.className = `pd-alert ${b && b.tone === 'busy' ? 'warn' : 'info'} sp-activity`;
+    el.className = `pd-alert ${b && b.tone === 'busy' ? 'warn' : 'info'} sp-activity${S.actCollapsed ? ' is-collapsed' : ''}`;
     const head = b && b.tone === 'busy' ? `<div class="sp-act-head">🔄 ${esc(b.text)}</div>` : '';
     const cells = slotBoard(runs, now).map(c => {
         const [ic, word] = ACT_STATE[c.state];
@@ -1049,19 +1073,69 @@ function renderActivity() {
             + `<div class="sp-act-st"><b>${ic} ${esc(word)}</b>${who ? ` <span>${who}</span>` : ''}</div>${res}</div>`;
     }).join('');
     const log = runLog(runs, S.actMine, now);
-    const rows = log.map(r => `<li class="is-${r.state}"><span class="sp-act-t">${esc(r.time)}</span>`
-        + `<span class="sp-act-w">${esc(r.by)}${r.mine ? ' (이 창)' : ''} · ${esc(r.what)}</span>`
-        + `<span class="sp-act-x">${esc((ACT_STATE[r.state] || ACT_STATE.ok)[0])} ${esc(r.text)}</span></li>`).join('');
+    const rows = log.map(r => {
+        const open = S.actOpen.has(r.id);
+        const btn = r.state === 'busy' ? '' : `<button type="button" class="sp-act-more" data-runlog="${esc(r.id)}" aria-expanded="${open}">${open ? '기록 접기' : '기록'}</button>`;
+        return `<li class="is-${r.state}"><span class="sp-act-t">${esc(r.time)}</span>`
+            + `<span class="sp-act-w">${esc(r.by)}${r.mine ? ' (이 창)' : ''} · ${esc(r.what)}</span>`
+            + `<span class="sp-act-x">${esc((ACT_STATE[r.state] || ACT_STATE.ok)[0])} ${esc(r.text)} ${btn}</span>`
+            + (open ? runLogHtml(r.id) : '') + '</li>';
+    }).join('');
     const prev = el.querySelector('details.sp-act-log');
-    const wasOpen = !!(prev && prev.open);
+    const wasOpen = prev ? prev.open : true;   // 처음엔 펼침
     const prevUl = prev && prev.querySelector('ul');
     const scroll = prevUl ? prevUl.scrollTop : 0;   // 다시 그려도 보던 자리 그대로
-    el.innerHTML = `${head}<div class="sp-act-title">오늘 작업 현황 <span>(모든 자리 — 오늘 완료 ${runs.filter(r => r.end && r.ok === true).length}건)</span></div>`
+    const preScroll = new Map();
+    el.querySelectorAll('pre.sp-act-lg[data-lg]').forEach(p => preScroll.set(p.dataset.lg, p.scrollTop));
+    const focused = document.activeElement && el.contains(document.activeElement) && document.activeElement.dataset
+        ? (document.activeElement.dataset.runlog ? `[data-runlog="${CSS.escape(document.activeElement.dataset.runlog)}"]`
+            : (document.activeElement.hasAttribute('data-actsum') ? '[data-actsum]' : '')) : '';
+    // 좁은 화면(휴대폰·작은 창)은 한 줄 요약만 — 누르면 펼침. 넓은 화면은 오른쪽 칸에 늘 펼쳐 둔다(css/ship-d.css, 2026-11-25 A안)
+    const SHORT = { zikjin: '직진', ably: '에이블리' };
+    const sum = slotBoard(runs, now).map(c => `${SHORT[c.tab]} ${c.step} ${ACT_STATE[c.state][0]}${c.state !== 'none' ? esc(c.at) : ''}`).join(' · ');
+    el.innerHTML = `${head}<button type="button" class="sp-act-sum" data-actsum aria-expanded="${!S.actCollapsed}">`
+        + `<span>${sum}</span><span class="sp-act-sum-tg">${S.actCollapsed ? '자세히 ▾' : '접기 ▴'}</span></button>`
+        + `<div class="sp-act-body"><div class="sp-act-title">오늘 작업 현황 <span>(모든 자리 — 오늘 완료 ${runs.filter(r => r.end && r.ok === true).length}건)</span></div>`
         + `<div class="sp-act-grid">${cells}</div>`
-        + `<details class="sp-act-log"${wasOpen ? ' open' : ''}><summary>오늘 진행 기록 ${log.length}건 (모든 자리)</summary><ul>${rows}</ul></details>`;
+        + `<details class="sp-act-log"${wasOpen ? ' open' : ''}><summary>오늘 진행 기록 ${log.length}건 (모든 자리)</summary><ul>${rows}</ul></details></div>`;
     if (scroll) { const ul = el.querySelector('details.sp-act-log ul'); if (ul) ul.scrollTop = scroll; }
+    preScroll.forEach((top, id) => { const p = el.querySelector(`pre.sp-act-lg[data-lg="${CSS.escape(id)}"]`); if (p) p.scrollTop = top; });
+    if (focused) { const f = el.querySelector(focused); if (f) f.focus({ preventScroll: true }); }
 }
+// 실행별 진행 기록 펼치기 — 누를 때만 그 실행 문서 하나를 읽는다(S.runLogs 에 기억: 배열 | 'loading' | 'none' | 'error')
+function runLogHtml(id) {
+    const v = S.runLogs.get(id);
+    let body;
+    if (v === undefined || v === 'loading') body = '<div class="sp-act-lgmsg">불러오는 중…</div>';
+    else if (v === 'none') body = '<div class="sp-act-lgmsg">이 실행은 남긴 기록이 없습니다(예전 버전으로 만들었거나 기록을 올리지 못함).</div>';
+    else if (v === 'error') body = '<div class="sp-act-lgmsg">기록을 읽지 못했습니다 — 잠시 뒤 다시 눌러 주세요.</div>';
+    else body = `<pre class="sp-act-lg" data-lg="${esc(id)}">${esc(v.join('\n'))}</pre>`;
+    return `<div class="sp-act-lgbox">${body}</div>`;
+}
+function fetchRunLog(id) {
+    S.runLogs.set(id, 'loading');
+    loadRunLog(S.db, id)
+        .then(d => { S.runLogs.set(id, d && Array.isArray(d.lines) ? d.lines.map(String) : 'none'); })
+        .catch(() => { S.runLogs.set(id, 'error'); })
+        .finally(() => renderActivity());
+}
+function onActivityClick(e) {
+    if (e.target.closest && e.target.closest('button[data-actsum]')) { S.actCollapsed = !S.actCollapsed; renderActivity(); return; }
+    const b = e.target.closest && e.target.closest('button[data-runlog]');
+    if (!b) return;
+    const id = b.dataset.runlog;
+    if (S.actOpen.has(id)) S.actOpen.delete(id);
+    else {
+        S.actOpen.add(id);
+        const v = S.runLogs.get(id);
+        if (v === undefined || v === 'error' || v === 'none') fetchRunLog(id);   // 'none' — 아직 안 써졌을 수 있다
+    }
+    renderActivity();
+}
+
 function startActivityWatch() {
+    const box = $('sp-activity');
+    if (box) box.addEventListener('click', onActivityClick);   // 한 번만(다시 그리기와 상관없음)
     try {
         watchActivity(S.db, (raw) => { S.actRaw = raw; renderActivity(); },
             (code) => console.warn('[플랫폼 출고] 진행 표시 구독 실패:', code));
@@ -2332,7 +2406,7 @@ async function run(opts = {}) {
             S.cmp.right = S.results.map(x => ({ name: x.name, bytes: x.bytes, size: x.bytes.byteLength, from: 'web', noMaster: x.noMaster }));
             $('sp-cmp-out').innerHTML = '';
         } } finally {
-            actEnd(act, ok, actRes);   // 결과 숫자를 센 뒤에 끝 기록(다른 자리 '오늘 진행 기록')
+            actEnd(act, ok, actRes, S.runLog);   // 결과 숫자를 센 뒤에 끝 기록(다른 자리 '오늘 진행 기록')
         }
         S.runErr = '';
         S.runLog = null;

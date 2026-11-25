@@ -12,8 +12,8 @@
 //       — 상품 코드·이름·파일 내용은 넣지 않는다. 화면 '오늘 작업 현황'(4칸)·'오늘 진행 기록'(모든 자리)이 읽는다.
 //   날짜가 바뀌면 통째로 새로 쓴다. 최대 RUNS_MAX 개(오래된 것부터 지움).
 
-import { kstDay } from './ship-core.js?v=202611251157';
-import { kstHHMM } from './ship-made.js?v=202611251157';
+import { kstDay } from './ship-core.js?v=202611251214';
+import { kstHHMM } from './ship-made.js?v=202611251214';
 
 export const ACTIVITY_PATH = ['artifacts', 'team-work-logger-v2', 'persistent_data', 'shipActivity'];
 export const RUNS_MAX = 60;
@@ -144,6 +144,36 @@ export function runLog(runs, mine = [], now = Date.now()) {
         const time = r.end ? `${t0}~${kstHHMM(new Date(r.end))}` : t0;
         return { id: r.id, time, by: r.by, what: what(r), state: st, text: runResultText(r, now), mine: my.has(r.id) };
     });
+}
+
+// ── 실행별 진행 기록 공유(2026-11-25 사용자 요청) — artifacts/team-work-logger-v2/shipRunLogs/{runId} ──
+//   { day:'YYYY-MM-DD', by, tab, step, at(ms), lines:[string], more(잘린 줄 수) } — 쓰기 js/ship-store.js writeRunLog, 7일 뒤 지움.
+//   이 창 진행 기록 줄을 그대로 올리되 위험한 줄은 뺀다(사용자 결정 '위험한 줄만 빼고 전부'):
+//     '발견된 헤더' 뒤(엉뚱한 파일이면 그 파일 칸 값이 찍힌다) · 여러 줄 문구의 둘째 줄부터(실패 문구 뒤에 칸 값이 붙는다).
+export const RUN_LOG_PATH = ['artifacts', 'team-work-logger-v2', 'shipRunLogs'];
+export const RUN_LOG_MAX_LINES = 200;
+export const RUN_LOG_LINE_MAX = 200;
+export const RUN_LOG_KEEP_DAYS = 7;
+const HEADER_RE = /(발견된 헤더|R\d+행에서 발견된 헤더)/;
+
+/** 공유할 줄 목록 → { lines, more } */
+export function cleanLogLines(raw) {
+    const out = [];
+    for (const v of raw || []) {
+        let s = String(v ?? '').split('\n')[0];
+        const m = s.match(HEADER_RE);
+        if (m) s = s.slice(0, m.index).replace(/[,(\s]+$/, '') + ' (머리글 내용은 만든 PC 에서만 보임)';
+        if (s.length > RUN_LOG_LINE_MAX) s = s.slice(0, RUN_LOG_LINE_MAX - 1) + '…';
+        out.push(s);
+    }
+    if (out.length <= RUN_LOG_MAX_LINES) return { lines: out, more: 0 };
+    const more = out.length - (RUN_LOG_MAX_LINES - 1);   // 앞 180 + 표시 1 + 뒤 19 — 빠지는 줄 수
+    return { lines: [...out.slice(0, RUN_LOG_MAX_LINES - 20), `… 가운데 ${more}줄 생략 …`, ...out.slice(-19)], more };
+}
+
+/** 보관 기간이 지난 날짜(이 날짜보다 앞이면 지운다) — 'YYYY-MM-DD' */
+export function runLogCutoff(now = new Date(), keep = RUN_LOG_KEEP_DAYS) {
+    return kstDay(new Date(now.getTime() - keep * 86400000)).ymd10;
 }
 
 /**

@@ -10,11 +10,12 @@
 //                         전송 켬과 상관없이 쓴다(출고 숫자가 아니라 진행 표시뿐). 규칙은 범용 쓰기(등록 직원).
 // 규칙: firestore.rules 의 ship.platform 블록. ⚠️ 전송(transmit)이 꺼져 있으면 부르는 쪽(js/ship.js)이 이 함수들을 부르지 않는다
 //   — ship-tx 도 enabled !== true 면 멈춘다(두 겹).
-import { doc, getDoc, getDocs, collection, runTransaction, setDoc, updateDoc, onSnapshot, Timestamp, FieldPath, deleteField }
+import { doc, getDoc, getDocs, collection, runTransaction, setDoc, updateDoc, onSnapshot, Timestamp, FieldPath, deleteField,
+    query, where, limit, deleteDoc }
     from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { pushLocationWith, recordPacksWith, previewBatchesWith, removeBatchWith, sendBatchWith } from './lib/ship-tx.js?v=202611251157';
-import { SETTINGS_PATH, normalizeSettings } from './lib/ship-settings.js?v=202611251157';
-import { ACTIVITY_PATH, applyRunPatch } from './lib/ship-activity.js?v=202611251157';
+import { pushLocationWith, recordPacksWith, previewBatchesWith, removeBatchWith, sendBatchWith } from './lib/ship-tx.js?v=202611251214';
+import { SETTINGS_PATH, normalizeSettings } from './lib/ship-settings.js?v=202611251214';
+import { ACTIVITY_PATH, applyRunPatch, RUN_LOG_PATH } from './lib/ship-activity.js?v=202611251214';
 
 const FS = { doc, getDoc, getDocs, collection, runTransaction, Timestamp, FieldPath, deleteField };
 const settingsRef = (db) => doc(db, ...SETTINGS_PATH);
@@ -59,6 +60,23 @@ export async function writeActivity(db, patch) {
 /** 진행 중 표시만 고치기(읽지 않고 필드 한 칸). 문서가 없거나 날짜가 바뀌어 비워졌어도 화면은 start 없는 실행을 버린다 */
 export async function beatActivity(db, runId, at) {
     await updateDoc(activityRef(db), { [`runs.${runId}.beat`]: at });
+}
+
+// ── 실행별 진행 기록(shipRunLogs/{runId}, 2026-11-25) — 모든 자리가 [기록 보기]로 읽는다. 규칙은 범용 쓰기(등록 직원) ──
+/** 한 실행의 기록 쓰기(덮어쓰기) */
+export async function writeRunLog(db, id, data) {
+    await setDoc(doc(db, ...RUN_LOG_PATH, id), data);
+}
+/** 한 실행의 기록 읽기 → 문서 값 또는 null */
+export async function loadRunLog(db, id) {
+    const snap = await getDoc(doc(db, ...RUN_LOG_PATH, id));
+    return snap.exists() ? snap.data() : null;
+}
+/** 보관 기간이 지난 기록 지우기(한 번에 최대 n개) → 지운 수 */
+export async function pruneRunLogs(db, beforeDay, n = 20) {
+    const snap = await getDocs(query(collection(db, ...RUN_LOG_PATH), where('day', '<', beforeDay), limit(n)));
+    await Promise.all(snap.docs.map(d => deleteDoc(d.ref)));
+    return snap.size;
 }
 
 /** 구독 → 해제 함수. onData(문서 값 또는 null), onError(코드) */

@@ -1,13 +1,13 @@
 // === js/history-excel-inspection.js ===
-import { db, allHistoryData, appConfig } from './state.js?v=202611251157';
-import { showToast, getTodayDateString } from './utils.js?v=202611251157';
-import { fitToColumn } from './history-excel-utils.js?v=202611251157';
-import { dayInspItems } from './lib/insp-day.js?v=202611251157';
-import { csvSafeSheet, csvSafeBook } from './lib/csv-safe.js?v=202611251157';
-import { inspTypeLabel } from './lib/insp-manual.js?v=202611251157';   // '유형' 열 — 전량 / 샘플 / 샘플(개별) / 요청확인(화면과 같은 이름)
-import { EXCEL_HEADERS, excelRow } from './lib/total-insp.js?v=202611251157';
-import { historyRangeStart } from './lib/history-window.js?v=202611251157';
-import { fetchTotalInspLogs, totalInspLogsTruncated, TOTAL_LOG_LIMIT } from './ui-history-inspection.js?v=202611251157';
+import { db, allHistoryData, appConfig } from './state.js?v=202611251214';
+import { showToast, getTodayDateString } from './utils.js?v=202611251214';
+import { fitToColumn } from './history-excel-utils.js?v=202611251214';
+import { dayInspItems } from './lib/insp-day.js?v=202611251214';
+import { csvSafeSheet, csvSafeBook } from './lib/csv-safe.js?v=202611251214';
+import { inspTypeLabel } from './lib/insp-manual.js?v=202611251214';   // '유형' 열 — 전량 / 샘플 / 샘플(개별) / 요청확인(화면과 같은 이름)
+import { EXCEL_HEADERS, excelRow } from './lib/total-insp.js?v=202611251214';
+import { historyRangeStart } from './lib/history-window.js?v=202611251214';
+import { fetchTotalInspLogs, totalInspLogsTruncated, TOTAL_LOG_LIMIT } from './ui-history-inspection.js?v=202611251214';
 import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // 전량검수 기록(total_inspection_logs, 2026-11-17) — '전량검수_기록' 시트. 작업자는 이름만(lib/total-insp.js inspectorLabel).

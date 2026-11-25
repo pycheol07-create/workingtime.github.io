@@ -124,6 +124,27 @@
 /* 여러 자리 같이 보기 안내 줄(2026-11-13) */
 .sp-activity { margin-top: 8px; }
 .sp-activity[hidden] { display: none; }
+/* 한 줄 요약(좁은 화면) · 오른쪽 칸(넓은 화면) — 2026-11-25 A안 */
+.sp-act-sum { display: flex; align-items: center; gap: 8px; width: 100%; padding: 0; border: 0; background: none; color: inherit;
+    font: inherit; font-size: 13px; font-weight: 600; text-align: left; cursor: pointer; }
+.sp-act-sum > span:first-child { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.sp-act-sum-tg { flex: none; font-size: 12px; color: var(--c-text-3); }
+.sp-act-sum:focus-visible { outline: 2px solid var(--c-accent); outline-offset: 2px; }
+.sp-act-body { margin-top: 8px; }
+.sp-activity.is-collapsed .sp-act-body { display: none; }
+@media (min-width: 1200px) {
+    .pd-main.sp-has-side { display: grid; grid-template-columns: minmax(0, 1fr) 300px; column-gap: 20px; row-gap: 0; align-items: start; }
+    .pd-main.sp-has-side > * { grid-column: 1; margin-bottom: 24px; }
+    .pd-main.sp-has-side > [hidden] { display: none; }
+    .pd-main.sp-has-side > #sp-activity { grid-column: 2; grid-row: 1 / span 30; position: sticky; top: 16px; margin: 0;
+        max-height: calc(100vh - 32px); overflow-y: auto; }
+    .pd-main.sp-has-side .sp-act-sum { display: none; }
+    .pd-main.sp-has-side .sp-activity.is-collapsed .sp-act-body { display: block; }
+    .pd-main.sp-has-side .sp-act-body { margin-top: 0; }
+    .pd-main.sp-has-side .sp-act-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .pd-main.sp-has-side .sp-act-log li { grid-template-columns: 1fr; gap: 0; }
+    .pd-main.sp-has-side .sp-act-log ul { max-height: none; }
+}
 /* 오늘 작업 현황 4칸 + 오늘 진행 기록(모든 자리, 2026-11-25) */
 .sp-act-head { font-weight: 700; margin-bottom: 6px; }
 .sp-act-title { font-weight: 700; font-size: 13px; color: var(--c-text); }
@@ -151,6 +172,13 @@
 .sp-act-w, .sp-act-x { overflow-wrap: anywhere; color: var(--c-text); }
 .sp-act-log li.is-fail .sp-act-x, .sp-act-log li.is-stale .sp-act-x { color: var(--c-risk-text); }
 .sp-act-log li.is-busy .sp-act-x { color: var(--c-warn-text); }
+.sp-act-more { margin-left: 6px; padding: 0 8px; border: 1px solid var(--c-line-strong); border-radius: 999px; background: var(--c-surface);
+    color: var(--c-text-2); font: inherit; font-size: 11.5px; cursor: pointer; }
+.sp-act-more:focus-visible { outline: 2px solid var(--c-accent); outline-offset: 1px; }
+.sp-act-lgbox { grid-column: 1 / -1; margin: 4px 0 6px; }
+.sp-act-lg { margin: 0; padding: 8px 10px; max-height: 260px; overflow: auto; background: var(--c-surface-2); border-radius: var(--r-sm);
+    font-size: 12px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--c-text); }
+.sp-act-lgmsg { color: var(--c-text-3); font-size: 12px; }
 /* 머리줄 전송 켬/끔 작은 표시(2026-11-24) */
 .sp-tx-badge { display: inline-flex; align-items: center; gap: 6px; align-self: center; padding: 3px 10px; border-radius: 999px;
     border: 1px solid var(--c-line-strong); background: var(--c-surface-2); color: var(--c-text-3); font-size: 11.5px; font-weight: 700; font-family: inherit; line-height: 1.5; cursor: pointer; white-space: nowrap; }
