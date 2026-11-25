@@ -3,52 +3,55 @@
 //  - renderPredictionTab: 실적 예측 탭 (차트/KPI)
 //  - renderForecastTab: 업무 예상 탭 (시뮬레이션·요약 카드)
 
-import { predictFutureTrends } from './analysis-logic.js?v=202611251214';
+import { predictFutureTrends } from './analysis-logic.js?v=202611251258';
 import { doc, getDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { mibalByArrival, makeArrivalLookup, makeArrivalsLookup } from './lib/mibal-forecast.js?v=202611251214';
-import { parseInspPacks, sampleCardsByArrival } from './lib/insp-packs.js?v=202611251214';
-import { inspListCountFor } from './lib/insp-day.js?v=202611251214';
-import { getSubscribedDate } from './app-sync.js?v=202611251214';
-import { runDay } from './lib/refill-view.js?v=202611251214';
-import { parseRecDay, pickRecDay, recCount, applyLocRecCount, dayKey as recDayKey } from './lib/locrec-view.js?v=202611251214';
-import { LOCREC_TASK } from './lib/feature-catalog.js?v=202611251214';
-import { TASK, tName, isT, tQty } from './task-names.js?v=202611251214';
-import { systemIdOfName, taskIdOf } from './lib/task-ids.js?v=202611251214';
+import { mibalByArrival, makeArrivalLookup, makeArrivalsLookup } from './lib/mibal-forecast.js?v=202611251258';
+import { parseInspPacks, sampleCardsByArrival } from './lib/insp-packs.js?v=202611251258';
+import { inspListCountFor } from './lib/insp-day.js?v=202611251258';
+import { getSubscribedDate } from './app-sync.js?v=202611251258';
+import { runDay } from './lib/refill-view.js?v=202611251258';
+import { parseRecDay, pickRecDay, recCount, applyLocRecCount, dayKey as recDayKey } from './lib/locrec-view.js?v=202611251258';
+import { LOCREC_TASK } from './lib/feature-catalog.js?v=202611251258';
+import { TASK, tName, isT, tQty } from './task-names.js?v=202611251258';
+import { systemIdOfName, taskIdOf } from './lib/task-ids.js?v=202611251258';
 import { LEGACY_SIM_TASKS, legacySimTasksOf, namesOf, timeTaskExcludeOf, DEFAULT_SIM_ALWAYS_TASKS, DEFAULT_SIM_ZERO_TASKS,
          DEFAULT_FORECAST_EXCLUDED_TASKS, DEFAULT_LOADOUT_SOURCES, defaultAutoModeOf, defaultTimeTaskDepsOf,
-         isDefaultNextDayDep, defaultPrecursorMapOf, transmitTaskIdOf } from './lib/forecast-task-ids.js?v=202611251214';
-import { summarizeTransmitChunks, transmitValueFor, transmitNoneFor, lastWorkedDayBefore, lockedTransmitNone, mergeTransmitByDate, TRANSMIT_SOURCES } from './lib/ship-transmit.js?v=202611251214';
-import { precursorOffGate, noneNextStats, noneNextObs, precursorStateOfDay as precursorStateOfDayLib, looksRecorded } from './lib/cadence-gate.js?v=202611251214';
-import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202611251214';
-import * as State from './state.js?v=202611251214';
-import { saveView } from './view-state.js?v=202611251214';
-import { getTodayDateString, getRegularMembersForCount, showToast, showConfirm, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202611251214';
-import { groupIncomingRowsByArrival } from './widget-incoming-schedule.js?v=202611251214';
+         isDefaultNextDayDep, defaultPrecursorMapOf, transmitTaskIdOf } from './lib/forecast-task-ids.js?v=202611251258';
+import { summarizeTransmitChunks, transmitValueFor, transmitNoneFor, lastWorkedDayBefore, lockedTransmitNone, mergeTransmitByDate, TRANSMIT_SOURCES,
+         parsePickMarks, PICK_MARK_TASKS, PICK_MARK_KEEP_DAYS } from './lib/ship-transmit.js?v=202611251258';
+import { setPickMark, PICK_MARKS_PATH } from './pick-mark-store.js?v=202611251258';
+import { can } from './lib/perm.js?v=202611251258';
+import { precursorOffGate, noneNextStats, noneNextObs, precursorStateOfDay as precursorStateOfDayLib, looksRecorded } from './lib/cadence-gate.js?v=202611251258';
+import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202611251258';
+import * as State from './state.js?v=202611251258';
+import { saveView } from './view-state.js?v=202611251258';
+import { getTodayDateString, getRegularMembersForCount, showToast, showConfirm, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202611251258';
+import { groupIncomingRowsByArrival } from './widget-incoming-schedule.js?v=202611251258';
 import { getIncomingQtyByDateFromCache, getIncomingDetailsByDateFromCache,
-         isIncomingCacheFreshToday } from './widget-incoming-schedule.js?v=202611251214';
+         isIncomingCacheFreshToday } from './widget-incoming-schedule.js?v=202611251258';
 import { getPlannedQuantitiesForDate, getPlannedTimeTasksForDate, getPlannedExcludeMinutesForDate, getPlannedAdminWorkersForDate,
          fetchPlannedData, savePlannedQuantities,
          saveForecastSnapshot, saveForecastSnapshotIfAbsent, deleteForecastSnapshot, fetchForecastSnapshots,
-         getForecastSnapshotForDate, historyLoadFailed, hasHistoryLoaded, fetchAllHistoryData } from './history-data-manager.js?v=202611251214';
-import { decomposeAccuracy, summarizeAccuracyRows, aggregateByTask, excludeTasksForAccuracy } from './forecast-accuracy.js?v=202611251214';
+         getForecastSnapshotForDate, historyLoadFailed, hasHistoryLoaded, fetchAllHistoryData } from './history-data-manager.js?v=202611251258';
+import { decomposeAccuracy, summarizeAccuracyRows, aggregateByTask, excludeTasksForAccuracy } from './forecast-accuracy.js?v=202611251258';
 import { computeDayProgress, buildProgressRows, projectFinish, spentMinutesOf,
-         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202611251214';
-import { LUNCH_END_MIN } from './lib/calc.js?v=202611251214';
+         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202611251258';
+import { LUNCH_END_MIN } from './lib/calc.js?v=202611251258';
 import { applyAdminWorkers, normalizeAdminWorkers, ADMIN_TASK_ID, DEFAULT_ADMIN_WORKERS,
-         buildExcludedProgressRows, excludedActualByTask } from './lib/forecast-exclude.js?v=202611251214';
-import { taskUph, recentDays, RECENT_SPEED, recentTaskSpeeds } from './task-throughput.js?v=202611251214';
-import { normalizedUtilization } from './lib/ops-metrics.js?v=202611251214';
+         buildExcludedProgressRows, excludedActualByTask } from './lib/forecast-exclude.js?v=202611251258';
+import { taskUph, recentDays, RECENT_SPEED, recentTaskSpeeds } from './task-throughput.js?v=202611251258';
+import { normalizedUtilization } from './lib/ops-metrics.js?v=202611251258';
 import { foldReasonFor, FOLD_REASON_TEXT, shouldSaveQty, shouldSaveTime,
-         normalizeTimeEntry } from './lib/sim-fold.js?v=202611251214';
+         normalizeTimeEntry } from './lib/sim-fold.js?v=202611251258';
 import { learnCarryPerOffDay, backlogFactor, carryReason, carrySourceNote,
          DEFAULT_CARRY, resolveBacklogTasks, carriedQty,
-         excessOffDays } from './lib/backlog-carry.js?v=202611251214';
-import { D } from './d-chart.js?v=202611251214';
-import { aliasHistoryView, aliasNameMap, aliasSnapshot, aliasTaskName, sameTaskKeys } from './lib/task-alias-view.js?v=202611251214';
-import { withCorrected, correctSnapRange, correctInputOf, NOTE_CALC_FAILED, NOTE_SNAP_FETCH_FAILED } from './lib/forecast-correct-snap.js?v=202611251214';
-import { correctPlan, toAccuracySnap } from './lib/forecast-correct.js?v=202611251214';
+         excessOffDays } from './lib/backlog-carry.js?v=202611251258';
+import { D } from './d-chart.js?v=202611251258';
+import { aliasHistoryView, aliasNameMap, aliasSnapshot, aliasTaskName, sameTaskKeys } from './lib/task-alias-view.js?v=202611251258';
+import { withCorrected, correctSnapRange, correctInputOf, NOTE_CALC_FAILED, NOTE_SNAP_FETCH_FAILED } from './lib/forecast-correct-snap.js?v=202611251258';
+import { correctPlan, toAccuracySnap } from './lib/forecast-correct.js?v=202611251258';
 import { correctedInputs, planBaseOf, noExtraKeysOf, RESERVE_KEY, presenceSureKeys, presenceDoneKeys,
-         maybeAltKeys, maybeBasisOf } from './lib/forecast-correct-apply.js?v=202611251214';
+         maybeAltKeys, maybeBasisOf } from './lib/forecast-correct-apply.js?v=202611251258';
 
 /** 🆔 계산용 이력 — 업무 이름을 바꾼 뒤에도 옛 이름 기록을 지금 이름으로 합쳐 본 사본(업무 id 3단계).
  *  원본(State.allHistoryData)과 저장은 그대로다. 이 파일은 이력을 읽기만 하고 저장하지 않는다.
@@ -1557,6 +1560,7 @@ const todayActualQty = (historyData, dateStr, taskKey) => {
  *  ⭐ 우선순위
  *    1. 오늘 처리량 입력(실측)     — 대상일이 오늘일 때만. 실제로 처리한 값이므로 예정보다 우선.
  *    2. 전송값(직진·에이블리)      — 전 근무일 사전작업 + 출고자동화가 로케이션으로 보낸 수량
+ *       그 전송일에 '전날 피킹까지 함' 표시가 있으면 0('transmit-picked', 2026-11-25) — 아래 단계로 넘어가지 않는다
  *    2-1. 전송 없음 → 0(직진·에이블리) — 대상일이 오늘이고, 오늘 읽은 출고 자료로 전 근무일(실제 근무 기록 기준)
  *         전송이 없었다는 것이 확실할 때. 그날 처음 내린 판정은 그날 안에서 유지한다(transmitNoneForDate)
  *    2-2. 채우기 지시서(채우기)    — 그날 지시서 줄 수
@@ -1823,8 +1827,17 @@ let transmitLoadedDay = '';       // 마지막으로 읽기에 성공한 날
 // 이번 읽기(라이브) 결과 그대로 — '전 근무일 전송 없음' 판정(transmitNoneFor)은 합본이 아니라 이것만 본다.
 // 읽기에 성공했을 때만 바꾼다. { day: 'YYYY-MM-DD', byDate }
 let transmitLive = null;
-/** 오늘 전송 자료를 읽었는가 — 자동 계획 스냅샷 가드·슬랙 훅이 본다 */
+// 🖐 '전날 피킹까지 함' 표시(persistent_data/shipPickMarks, 2026-11-25) — 전송값과 같이 읽는다(규칙: js/lib/ship-transmit.js).
+//    표시가 있으면 다음 근무일 그 업무 = 0('transmit-picked'). 못 읽으면 직전 값을 그대로 둔다.
+//    by(표시한 사람 이메일)는 [표시 취소] 버튼을 보일지만 정한다 — 화면·로그에 내지 않는다.
+let pickMarks = null;             // null = 아직 못 읽음 / { D: { 업무id: {at, by} } }
+let pickMarksDays = [];           // 문서에 있는 marks 날짜 키 그대로(옛 날짜 정리용 — js/pick-mark-store.js)
+let pickMarksLoadedDay = '';      // 마지막으로 읽기에 성공한 날
+/** 오늘 전송 자료를 읽었는가 — 자동 계획 스냅샷 가드·슬랙 훅(flags.transmitLoaded)·'전송 없음' 판정이 본다 */
 const isTransmitFresh = () => transmitByDate !== null && transmitLoadedDay === getTodayDateString();
+/** 오늘 전날 피킹 표시를 읽었는가(문서가 없으면 '읽음 — 표시 없음') — 자동 계획 스냅샷 가드·슬랙 훅(flags.pickMarksLoaded)이 본다.
+ *  표시를 못 읽은 채로 얼리면 피킹까지 끝난 물량이 다음 근무일 계획에 그대로 들어간다. */
+const isPickMarksFresh = () => pickMarks !== null && pickMarksLoadedDay === getTodayDateString();
 
 /** ZikjinData 스냅샷 → { byDate } 또는 { error }. 판정 규칙은 summarizeTransmitChunks(js/lib/ship-transmit.js) */
 const parseTransmitSnapshot = (snap) => {
@@ -1846,13 +1859,15 @@ const hasPrecursorRecordOn = (historyData, dateStr, taskKey) => {
     return (day?.workRecords || []).some(r => r && preKeys.includes(r.task));
 };
 
-/** 대상일·업무의 전송값 { value, source:'transmit', detail } 또는 null.
+/** 대상일·업무의 전송값 { value, source:'transmit', detail, transmitDay } · 전날 피킹 표시면 { value:0, source:'transmit-picked', detail, pickedDay } · 또는 null.
  *  historyData 는 부른 쪽이 넘긴 것을 쓴다 — 자동 계획 스냅샷의 '오늘 실적 비운 기록'과 맞춘다. */
 const transmitFor = (dateStr, taskKey, historyData) => {
-    if (!transmitByDate) return null;
+    if (!transmitByDate && !pickMarks) return null;
+    const marks = pickMarks;
     return transmitValueFor({
         targetDate: dateStr, taskId: transmitTaskIdOf(taskKey, State.appConfig), taskKey, byDate: transmitByDate, nextWorkingDay,
-        hasPrecursorOn: (d, k) => hasPrecursorRecordOn(historyData, d, k)
+        hasPrecursorOn: (d, k) => hasPrecursorRecordOn(historyData, d, k),
+        pickedOn: marks ? (d, t) => (marks[d] && marks[d][t]) || null : undefined
     });
 };
 
@@ -1924,14 +1939,26 @@ export async function ensureMibalHistory() {
     mibalLoading = (async () => {
         try {
             // 세 읽기는 서로 독립이다 — 하나가 실패해도 나머지는 반영한다
-            const [s, inc, zk, ip, rf, lr] = await Promise.all([
+            const [s, inc, zk, ip, rf, lr, pm] = await Promise.all([
                 getDoc(doc(State.db, 'ChinaStockGoods', 'MIBAL_HISTORY')).catch(e => { console.warn('[업무 예상] 미발 이력 읽기 실패:', e); return 'ERR'; }),
                 getDoc(doc(State.db, 'artifacts', 'team-work-logger-v2', 'integrations', 'incomingSchedule')).catch(() => 'ERR'),
                 getDocs(collection(State.db, 'ZikjinData')).catch(() => 'ERR'),
                 getDoc(doc(State.db, 'artifacts', 'team-work-logger-v2', 'integrations', 'inspPacks')).catch(() => 'ERR'),
                 getDoc(doc(State.db, 'artifacts', 'team-work-logger-v2', 'integrations', 'refillLatest')).catch(() => 'ERR'),
-                loadLocRecInfo().catch(e => { console.warn('[업무 예상] 로케이션 변경 추천 읽기 실패 — 직전 값을 씁니다:', e); return 'ERR'; })
+                loadLocRecInfo().catch(e => { console.warn('[업무 예상] 로케이션 변경 추천 읽기 실패 — 직전 값을 씁니다:', e); return 'ERR'; }),
+                getDoc(doc(State.db, ...PICK_MARKS_PATH)).catch(() => 'ERR')
             ]);
+            // 전날 피킹 표시 — 읽기·해석에 실패하면 직전 값을 그대로 둔다(isPickMarksFresh 가 false 로 남는다). 문서 없음 = 읽음(표시 없음)
+            if (pm !== 'ERR') {
+                try {
+                    const raw = pm && pm.exists() ? (pm.data() || {}) : {};
+                    pickMarks = parsePickMarks(raw, today);
+                    pickMarksDays = (raw.marks && typeof raw.marks === 'object' && !Array.isArray(raw.marks)) ? Object.keys(raw.marks) : [];
+                    pickMarksLoadedDay = today;
+                } catch (e) { console.warn('[업무 예상] 전날 피킹 표시 처리 실패 — 직전 값을 씁니다:', e && e.code); }
+            } else {
+                console.warn('[업무 예상] 전날 피킹 표시를 읽지 못했습니다 — 직전 값을 씁니다.');
+            }
             // 로케이션 변경 추천 건수 — 읽기 실패면 직전 값을 그대로 둔다(채우기·전송과 같은 규칙).
             // 정상으로 읽었는데 쓸 추천이 없으면 null(예전 추정값 그대로)
             if (lr !== 'ERR') locRecInfo = lr;
@@ -2173,6 +2200,10 @@ const SOURCE_BADGE = {
                 tip: '오늘 읽은 출고자동화 전송 자료(로케이션 전송)를 보면 전 근무일에 이 업무 전송이 없었습니다.'
                    + ' 전 근무일에 전송한 값이 오늘 업무량이므로 0 으로 둡니다.'
                    + ' 저장해 둔 예정 물량보다 먼저 적용되고, 오늘 실측이 들어오면 실측이 이깁니다.' },
+    'transmit-picked': { text: '전날 피킹', muted: false, cls: 'bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-300',
+                tip: '전 근무일에 로케이션으로 보낸 물량을 그날 피킹까지 했다고 표시되어 있습니다.'
+                   + ' 그 물량은 이미 나갔으므로 이 날은 0 으로 둡니다(다른 추정으로 넘어가지 않습니다).'
+                   + ' 저장해 둔 예정 물량보다 먼저 적용되고, 오늘 실측이 들어오면 실측이 이깁니다.' },
     ai:      { text: 'AI 예측',    muted: true, tip: '국내배송 AI 추세 예측값' },
     'ai-carry': { text: '연휴 밀림', muted: true,
                 tip: '국내배송 AI 예측값에, 쉬는 동안 쌓인 몫을 더한 값입니다.'
@@ -2249,12 +2280,74 @@ const paintDayApply = (task, dayValue) => {
             + '실제로 이 업무를 한다면 눌러서 이 값을 넣으세요.';
 };
 
-/** 접기 사유에 덮이면 안 되는 출처 — 그 자체가 '왜 이 값인지'의 답이다 */
-const KEEP_SOURCE_BADGE = new Set(['ai-carry', 'cadence-carry', 'holiday-off', 'ai-mibal', 'transmit', 'transmit-none', 'refill', 'locrec', 'insp-list']);
+/** 🖐 '전날 피킹까지 함' 버튼(2026-11-25) — 직진배송·에이블리배송 줄의 출처 배지 옆.
+ *  출처 'transmit' → [전날 피킹까지 함](그 전송일 D 를 표시), 'transmit-picked' → [표시 취소](표시한 사람·관리자만).
+ *  쓰기 권한(업무 예상 또는 플랫폼 출고)이 없거나 다른 출처면 숨긴다. 되돌리기 제한은 화면에서만 한다(사용자 결정). */
+const PICK_MARK_TIP_TAIL = '\n\n· 그날 아침에 이미 얼린 계획(자동 계획 스냅샷)은 바뀌지 않습니다.'
+    + '\n· 17:40 이후에 표시했다면 그날 이 업무 처리량 칸에 그날 전송분이 들어갔는지 확인하세요.';
+const myEmail = () => String(State.auth?.currentUser?.email || '').trim().toLowerCase();
+const canWritePickMark = () => can(State.appState?.perm, 'data.forecast') || can(State.appState?.perm, 'ship.platform');
+const paintPickMark = (task, source, res) => {
+    const b = document.getElementById(`sim-pick-${task.id}`);
+    if (!b) return;
+    const hide = () => {
+        b.className = 'pred-pick-mark shrink-0 hidden';
+        b.textContent = '';
+        b.dataset.day = ''; b.dataset.pickTask = ''; b.dataset.on = ''; b.dataset.off = '';
+        b.removeAttribute('aria-disabled');
+        b.title = '';
+    };
+    const taskId = transmitTaskIdOf(task.key, State.appConfig);
+    if (!PICK_MARK_TASKS.includes(taskId) || !res || !canWritePickMark()) return hide();
+    const today = getTodayDateString();
+    let day = '', on = false, text = '', tip = '', off = false;
+    // 켜기는 '오늘 전송분'일 때만(buildPickMarkPatch 와 같은 조건) — 처리량자동입력은 오늘 T 일 때만 D 전송분을 그날 처리량에 합친다.
+    // 지난 날 전송분(예: 대상일이 오늘이고 전송일이 어제인 아침)은 비활성 + 안내만.
+    if (source === 'transmit' && typeof res.transmitDay === 'string' && res.transmitDay < today && res.transmitDay >= minusDaysLocal(today, PICK_MARK_KEEP_DAYS)) {
+        day = res.transmitDay; on = true; off = true; text = '전날 피킹까지 함';
+        tip = '표시는 피킹한 그날에만 할 수 있습니다.'
+            + ` (${Number(day.slice(5, 7))}/${Number(day.slice(8, 10))} 전송분 — 지난 날은 그날 처리량에 더할 수 없어 표시하지 않습니다)`;
+    } else if (source === 'transmit' && res.transmitDay === today) {
+        day = res.transmitDay; on = true; text = '전날 피킹까지 함';
+        tip = `${Number(day.slice(5, 7))}/${Number(day.slice(8, 10))} 에 로케이션으로 보낸 물량을 그날 피킹까지 했다면 누르세요.`
+            + ' 이 날 예상은 0 이 되고, 처리량 자동입력은 그 물량을 그날 처리량에 더합니다.' + PICK_MARK_TIP_TAIL;
+    } else if (source === 'transmit-picked' && typeof res.pickedDay === 'string') {
+        const m = pickMarks && pickMarks[res.pickedDay] && pickMarks[res.pickedDay][taskId];
+        const mine = !!m && !!m.by && m.by === myEmail();
+        if (!mine && State.appState?.currentUserRole !== 'admin') return hide();
+        day = res.pickedDay; on = false; text = '표시 취소';
+        tip = '전날 피킹 표시를 지웁니다 — 이 날 예상이 다시 전송값이 됩니다(표시한 사람·관리자만).' + PICK_MARK_TIP_TAIL;
+    } else {
+        return hide();
+    }
+    b.className = `pred-pick-mark shrink-0 text-center text-[11px] leading-tight whitespace-nowrap
+                   rounded border border-sky-300 dark:border-sky-700 px-1 py-0.5
+                   font-bold text-sky-700 dark:text-sky-300
+                   hover:bg-sky-50 dark:hover:bg-sky-900/30 transition disabled:opacity-50`;
+    b.textContent = text;
+    b.dataset.day = day;
+    b.dataset.pickTask = taskId;
+    b.dataset.on = on ? '1' : '0';
+    b.title = tip;
+    b.disabled = false;
+    // 못 누르는 상태는 disabled 대신 aria-disabled — 브라우저에 따라 disabled 버튼은 안내(title)가 안 뜬다. 누름은 클릭 처리에서 막는다
+    b.dataset.off = off ? '1' : '';
+    if (off) { b.setAttribute('aria-disabled', 'true'); b.classList.add('cursor-not-allowed', 'opacity-50'); }
+    else b.removeAttribute('aria-disabled');
+};
+/** 'YYYY-MM-DD' 에서 n 일 전(로컬 달력) */
+const minusDaysLocal = (ymd, n) => {
+    const c = new Date(ymd + 'T00:00:00'); c.setDate(c.getDate() - n);
+    return `${c.getFullYear()}-${String(c.getMonth() + 1).padStart(2, '0')}-${String(c.getDate()).padStart(2, '0')}`;
+};
 
-/** 값의 출처를 항목 아래에 표시 */
-const markSourceBadge = (task, source, detail = '', dayValue = null) => {
+/** 접기 사유에 덮이면 안 되는 출처 — 그 자체가 '왜 이 값인지'의 답이다 */
+const KEEP_SOURCE_BADGE = new Set(['ai-carry', 'cadence-carry', 'holiday-off', 'ai-mibal', 'transmit', 'transmit-none', 'transmit-picked', 'refill', 'locrec', 'insp-list']);
+
+/** 값의 출처를 항목 아래에 표시. res = autoValueFor 결과 그대로(전날 피킹 버튼이 전송일을 본다 — 없으면 버튼 숨김) */
+const markSourceBadge = (task, source, detail = '', dayValue = null, res = null) => {
     paintDayApply(task, dayValue);
+    paintPickMark(task, source, res);
     const el = document.getElementById(`sim-src-${task.id}`);
     if (!el) return;
     const b = SOURCE_BADGE[source] || SOURCE_BADGE.last7;
@@ -2321,6 +2414,8 @@ const renderSimTaskInputs = () => {
             <input id="sim-qty-${escapeHtml(t.id)}" type="number" min="0" placeholder="0" inputmode="numeric" class="${escapeHtml(NUM)}">
             <span class="w-4 text-[11px] text-gray-400 dark:text-gray-500">개</span>
             <span id="sim-src-${escapeHtml(t.id)}" class="w-[64px] sm:w-[84px] shrink-0 text-center text-[11px] font-semibold text-gray-400 dark:text-gray-500 truncate">지난 7회 평균</span>
+            <button type="button" id="sim-pick-${escapeHtml(t.id)}" data-task-id="${escapeHtml(t.id)}" tabindex="-1"
+                    class="pred-pick-mark shrink-0 hidden"></button>
             <button type="button" id="sim-day-${escapeHtml(t.id)}" data-task-id="${escapeHtml(t.id)}" tabindex="-1"
                     class="pred-day-apply shrink-0 text-center text-[11px] leading-tight tabular-nums hidden"></button>
         </div>`;
@@ -2627,9 +2722,10 @@ const autoFillSimInputs = (dateStr, opts = {}) => {
     // 모든 업무가 기본 등록 — 예정 물량이 있으면 그 값, 없으면 업무별 자동값
     SIM_TASKS.forEach(t => {
         if (preserveDirty && simDirtyQty.has(t.key)) return;   // 사람이 고친 칸은 그대로 둔다
-        const { value, source, detail, dayValue } = autoValueFor(dateStr, t, data);
+        const res = autoValueFor(dateStr, t, data);
+        const { value, source, detail, dayValue } = res;
         setQty(t.id, value);
-        markSourceBadge(t, source, detail, dayValue);
+        markSourceBadge(t, source, detail, dayValue, res);
         simRowMeta.set(t.key, {
             kind: 'qty',
             value: Number(value) || 0,
@@ -3847,10 +3943,14 @@ window.__forecastForDate = async (dateStr) => {
         // 📤 전송값이 걸린 업무 — 화면이 쓰는 바로 그 함수로 출처를 묻는다(조건을 여기서 또 적으면 어긋난다).
         //    전송값은 예정 물량보다 앞서므로, 그 업무의 예정 물량은 '반영된 값' 이 아니다.
         const transmitRaw = {};
+        // 🖐 전날 피킹 표시로 0 이 된 업무 → 그 표시 날짜 D { 업무: 'YYYY-MM-DD' } (2026-11-25 칸 추가 — hookVersion 은 그대로)
+        const transmitPicked = {};
         SIM_TASKS.forEach(t => {
             const v = autoValueFor(date, t, 이력());
             // 'transmit-none'(전 근무일 전송 없음 → 0)도 전송 자료로 정한 값이다 — 그 업무의 예정 물량은 반영되지 않는다
-            if (v.source === 'transmit' || v.source === 'transmit-none') transmitRaw[t.key] = v.value;
+            // 'transmit-picked'(전날 피킹까지 함 표시 → 0)도 같은 취급
+            if (v.source === 'transmit' || v.source === 'transmit-none' || v.source === 'transmit-picked') transmitRaw[t.key] = v.value;
+            if (v.source === 'transmit-picked' && v.pickedDay) transmitPicked[t.key] = v.pickedDay;
         });
         const qtyKeys = new Set(SIM_TASKS.map(t => t.key));
         // 🆔 옛 이름으로 저장된 예정 물량은 getPlanned 가 지금 이름으로 계산에 쓴다 — 여기서도 같은 이름으로 본다
@@ -3924,6 +4024,7 @@ window.__forecastForDate = async (dateStr) => {
             // 전송값이 실제로 적용된 업무와 그 값 — { 직진배송: n, 에이블리배송: n } (적용 안 된 업무는 키 없음).
             // 알림이 지문(fingerprint)에 넣어, 18:00 뒤에 전송이 들어오면 다시 보낸다.
             transmitRaw,
+            transmitPicked,
             plannedTimeRaw: getPlannedTimeTasksForDate(date) || {},
             plannedExcludeRaw: getPlannedExcludeMinutesForDate(date),
             // 그날 저장한 관리자 개별업무 인원(저장 안 했으면 null = 기본값). 알림 지문 근거
@@ -3941,7 +4042,8 @@ window.__forecastForDate = async (dateStr) => {
             //    폴백을 구현할 땐 전용 변환기를 따로 만들 것. (확정한 사람 실명도 들어 있다)
             hasSnapshot: !!getForecastSnapshotForDate(date),
             // historyRows 는 await 뒤에 다시 읽는다 — 그 사이 Firestore 응답으로 갱신될 수 있다
-            flags: { plannedLoaded, mibalLoaded, transmitLoaded: isTransmitFresh(), simListsOk,
+            // pickMarksLoaded(2026-11-25 칸 추가): 전날 피킹 표시를 오늘 읽었나 — transmitLoaded(전송값 읽음)와 따로 본다
+            flags: { plannedLoaded, mibalLoaded, transmitLoaded: isTransmitFresh(), pickMarksLoaded: isPickMarksFresh(), simListsOk,
                      historyRows: (이력() || []).length }
         };
     } catch (e) {
@@ -3976,7 +4078,7 @@ export const getTransmitQuantitiesForDate = (dateStr) => {
     SIM_TASKS.forEach(t => {
         const v = autoValueFor(dateStr, t, data);
         // 채우기 지시서(refill)도 같은 취급 — 예정 물량 창에서 읽기 전용으로 보이고 저장값을 바꾸지 않는다
-        if (v && (v.source === 'transmit' || v.source === 'transmit-none' || v.source === 'refill')) out[t.key] = { value: v.value, detail: v.detail || '', source: v.source };
+        if (v && (v.source === 'transmit' || v.source === 'transmit-none' || v.source === 'transmit-picked' || v.source === 'refill')) out[t.key] = { value: v.value, detail: v.detail || '', source: v.source };
     });
     return out;
 };
@@ -4582,6 +4684,62 @@ const setupSimulationListeners = () => {
         el.focus();
     });
 
+    // 🖐 [전날 피킹까지 함] · [표시 취소] — persistent_data/shipPickMarks 한 칸을 쓰고(js/pick-mark-store.js),
+    //    로컬 표시를 맞춘 뒤 화면을 다시 채운다(고친 칸은 그대로). 로그에는 날짜·업무 id·e.code 만.
+    document.getElementById('sim-task-list')?.addEventListener('click', async (e) => {
+        const btn = e.target?.closest?.('.pred-pick-mark');
+        if (!btn || btn.disabled || btn.dataset.off === '1' || !btn.dataset.day || !btn.dataset.pickTask) return;
+        const day = btn.dataset.day, taskId = btn.dataset.pickTask, on = btn.dataset.on === '1';
+        const label = SIM_TASKS.find(x => x.id === btn.dataset.taskId)?.label || '';
+        const md = `${Number(day.slice(5, 7))}/${Number(day.slice(8, 10))}`;
+        const ok = await showConfirm(on
+            ? `${md} ${label} 전송분을 그날 피킹까지 했다고 표시할까요?\n다음 근무일 ${label} 예상은 0 이 되고, 처리량 자동입력은 그 물량을 ${md} 처리량에 더합니다.\n그날 아침에 이미 얼린 계획은 바뀌지 않습니다.`
+            : `${md} ${label} 전날 피킹 표시를 지울까요?\n다음 근무일 ${label} 예상이 다시 전송값이 됩니다.`,
+            { title: on ? '전날 피킹까지 함' : '표시 취소', okText: on ? '표시' : '표시 취소' });
+        if (!ok) return;
+        const email = myEmail();
+        const today = getTodayDateString();
+        btn.disabled = true;
+        let patch;
+        try {
+            patch = await setPickMark(State.db, day, taskId, on, { by: email, today, existingDays: pickMarksDays });
+        } catch (err) {
+            console.warn('[업무 예상] 전날 피킹 표시 저장 실패:', day, taskId, (err && err.code) || (err && err.message));
+            showToast(err && err.code === 'permission-denied'
+                ? '표시를 저장할 권한이 없습니다(업무 예상 또는 플랫폼 출고 권한 필요).'
+                : (err && !err.code && err.message)
+                    ? `표시를 저장하지 못했습니다 — ${err.message}`     // buildPickMarkPatch 사유(날짜·업무 문구뿐)
+                    : '표시를 저장하지 못했습니다. 잠시 뒤 다시 눌러 주세요.', true);
+            btn.disabled = false;
+            return;
+        }
+        // 로컬 표시 맞추기 — 다음 10분 읽기 전까지 화면이 바로 바뀌게
+        const next = { ...(pickMarks || {}) };
+        if (on) next[day] = { ...(next[day] || {}), [taskId]: { at: Date.now(), by: email } };
+        else if (next[day]) {
+            const d = { ...next[day] };
+            if (patch && patch.del && patch.del.taskId === null) Object.keys(d).forEach(k => delete d[k]);
+            else delete d[taskId];
+            if (Object.keys(d).length) next[day] = d; else delete next[day];
+        }
+        (patch && Array.isArray(patch.prune) ? patch.prune : []).forEach(k => { delete next[k]; });
+        pickMarks = next;
+        pickMarksDays = [...new Set([...pickMarksDays.filter(k => !(patch?.prune || []).includes(k)), ...(on ? [day] : [])])];
+        showToast(on ? `${md} ${label} 전날 피킹 표시를 저장했습니다.` : `${md} ${label} 전날 피킹 표시를 지웠습니다.`);
+        forgetTodayStatus();
+        const d = document.getElementById('sim-target-date')?.value;
+        autoFillSimInputs(d, { preserveDirty: true });
+        // 사람이 수량 칸을 고친 줄은 autoFillSimInputs 가 건너뛴다 — 칸 값은 그대로 두고 배지·버튼만 새 표시 기준으로 다시 그린다
+        const row = SIM_TASKS.find(x => x.id === btn.dataset.taskId);
+        if (row && d) {
+            const r = autoValueFor(d, row, 이력());
+            markSourceBadge(row, r.source, r.detail || '', r.dayValue, r);
+        }
+        if (isSimDirty()) captureSimOverride(); else simOverride = null;
+        renderForecastSummary();
+        runSimulation({ silent: true });
+    });
+
     // 중국제작 수량을 직접 고치면 샘플검수도 다시 계산한다(sampleAutoFor) — 0 이면 0, 그날 패킹이 있으면
     // 패킹 장수(중국제작 수량과 무관하게 그대로), 없으면 중국제작 × 검수비율.
     // 단, 예정 물량에 샘플검수를 수기로 넣어둔 날은 그 값을 덮지 않는다.
@@ -4838,7 +4996,7 @@ const todayStatusKey = (today, nowStr) => [
     today, nowStr, State.allHistoryData, (State.allHistoryData || []).length,
     State.plannedData, (State.plannedData || []).length,
     !!getForecastSnapshotForDate(today), State.appState?.workRecords, State.appConfig, simOverride,
-    mibalHistory, transmitByDate, refillDays, liveCorrectCtx
+    mibalHistory, transmitByDate, refillDays, liveCorrectCtx, pickMarks
 ];
 const sameKey = (a, b) => !!a && !!b && a.length === b.length && a.every((v, i) => v === b[i]);
 
@@ -5177,6 +5335,8 @@ let 미발경고_날짜 = null;
 let 미발실패_횟수 = 0;
 let 전송경고_날짜 = null;
 let 전송실패_횟수 = 0;
+let 표시경고_날짜 = null;     // 전날 피킹 표시(shipPickMarks) — 전송값과 같은 방식으로 3번까지 미룬다
+let 표시실패_횟수 = 0;
 
 const 자동스냅_키 = (d) => `forecastAutoSnap:${d}`;
 const 자동스냅_했나 = (d) => {
@@ -5365,6 +5525,18 @@ const ensureTodayForecastSnapshot = async () => {
                 return;
             }
             if (전송실패_횟수 === 4) console.warn('[자동 계획] 직진·에이블리 전송값을 계속 못 읽어 전송값 없이 계획을 얼립니다.');
+        }
+        // ⑤-c2 전날 피킹 표시 — 못 읽은 채로 찍으면 피킹까지 끝난 물량이 그대로 얼려진다. 같은 방식으로 3번까지 미루고 그 뒤엔 표시 없이.
+        //       (문서가 없으면 읽기 성공 — 표시 없음)
+        if (!isPickMarksFresh()) {
+            if (표시경고_날짜 !== today) { 표시경고_날짜 = today; 표시실패_횟수 = 0; }
+            표시실패_횟수 += 1;
+            if (표시실패_횟수 <= 3) {
+                autoSnapNextTryAt = Date.now() + 10 * 60 * 1000;
+                if (표시실패_횟수 === 1) console.warn('[자동 계획] 전날 피킹 표시를 읽지 못해 계획 얼리기를 미룹니다(10분 뒤 다시).');
+                return;
+            }
+            if (표시실패_횟수 === 4) console.warn('[자동 계획] 전날 피킹 표시를 계속 못 읽어 표시 없이 계획을 얼립니다.');
         }
         // ⑤-d 채우기 지시서(08:20 무렵) — 그 전에 얼리면 채우기가 빈도 추정으로 얼려져,
         //      접속 시각에 따라 비교 기준이 갈린다(2026-10-21 사용자 결정: 지시서가 나온 뒤에 얼린다).

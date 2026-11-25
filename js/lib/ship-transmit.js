@@ -22,7 +22,7 @@
 // 업무 id 2단계(2026-10-30): 소스 표는 업무 이름이 아니라 고정 id(TASK.direct·TASK.ably)로 찾는다 — 부르는 쪽이 taskId 를 넘긴다.
 //   taskKey(지금 이름)는 hasPrecursorOn 콜백에 그대로 넘길 뿐이다.
 
-import { TASK } from './task-ids.js?v=202611251214';
+import { TASK } from './task-ids.js?v=202611251258';
 
 /** 업무 id → 그 업무로 합칠 전송 소스 */
 export const TRANSMIT_SOURCES = {
@@ -128,6 +128,9 @@ const fmtAt = (ms) => {
     return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 };
 
+/** '전날 피킹까지 함' 표시를 볼 때 거슬러 올라가는 날 수 — 표시만 있고 전송 자료가 없는 D 도 후보로 세려고 쓴다 */
+const PICK_LOOKBACK_DAYS = 14;
+
 /** 대상일·업무의 전송값. 없으면 null.
  *  @param {object} p
  *  @param {string} p.targetDate  'YYYY-MM-DD'
@@ -136,26 +139,49 @@ const fmtAt = (ms) => {
  *  @param {object} p.byDate      summarizeTransmitRows 결과
  *  @param {(d:string)=>string} p.nextWorkingDay  D 다음의 첫 근무일
  *  @param {(d:string, taskKey:string)=>boolean} p.hasPrecursorOn  D 에 그 업무의 사전작업 기록이 있나
- *  @returns {{value:number, source:'transmit', detail:string}|null}
- *  같은 대상일로 이어지는 D 가 여럿이면(예: 금요일·토요일 → 월요일) 가장 늦은 D 를 쓴다. */
-export function transmitValueFor({ targetDate, taskId, taskKey, byDate, nextWorkingDay, hasPrecursorOn } = {}) {
+ *  @param {(d:string, taskId:string)=>({at:number, by:string}|null)} [p.pickedOn]
+ *         '전날 피킹까지 함' 표시(2026-11-25) — D 전송분을 D 에 피킹까지 했다는 사람 표시. 없으면 예전과 같다.
+ *  @returns {{value:number, source:'transmit', detail:string, transmitDay:string}
+ *           |{value:0, source:'transmit-picked', detail:string, pickedDay:string}|null}
+ *  같은 대상일로 이어지는 D 가 여럿이면(예: 금요일·토요일 → 월요일) 가장 늦은 D 를 쓴다.
+ *  후보 D = (그 업무 전송 합 > 0 이고 사전작업 기록) 또는 표시가 있는 날. 가장 늦은 후보에 표시가 있으면 0('transmit-picked') —
+ *  그 물량은 D 에 이미 나갔으므로 앞 날짜로 내려가지 않는다. */
+export function transmitValueFor({ targetDate, taskId, taskKey, byDate, nextWorkingDay, hasPrecursorOn, pickedOn } = {}) {
     const srcs = sourcesOf(taskId);
-    if (!srcs || !byDate || typeof byDate !== 'object' || typeof targetDate !== 'string') return null;
+    if (!srcs || typeof targetDate !== 'string') return null;
     if (typeof nextWorkingDay !== 'function' || typeof hasPrecursorOn !== 'function') return null;
+    const marks = typeof pickedOn === 'function';
+    const bd = (byDate && typeof byDate === 'object') ? byDate : null;
+    if (!bd && !marks) return null;
+    const markOf = (d) => {
+        if (!marks) return null;
+        const m = pickedOn(d, taskId);
+        return m && typeof m === 'object' ? m : null;
+    };
+
+    // 후보 날짜 — 전송 자료의 날짜 + (표시를 볼 때) 대상일 앞 14일. 표시만 있고 전송 자료가 없는 날도 센다
+    const days = new Set(bd ? Object.keys(bd) : []);
+    if (marks && YMD_RE.test(targetDate)) {
+        for (let i = 1; i <= PICK_LOOKBACK_DAYS; i++) { const d = minusDays(targetDate, i); if (d) days.add(d); }
+    }
 
     let best = null;
-    Object.keys(byDate).forEach(d => {
+    days.forEach(d => {
         if (!(d < targetDate)) return;                       // 대상일 당일·이후 전송은 근거가 아니다
         if (best && d <= best.d) return;
-        const s = byDate[d];
-        if (!s) return;
-        const total = Math.round(srcs.reduce((a, k) => a + num(s[k]), 0));
-        if (!(total > 0)) return;                            // 이 업무는 전송이 없다
+        const s = bd ? bd[d] : null;
+        const total = s ? Math.round(srcs.reduce((a, k) => a + num(s[k]), 0)) : 0;
+        const mark = markOf(d);
+        if (!(total > 0) && !mark) return;                   // 이 업무는 전송이 없다
         if (nextWorkingDay(d) !== targetDate) return;
-        if (!hasPrecursorOn(d, taskKey)) return;
-        best = { d, s, total };
+        if (!mark && !hasPrecursorOn(d, taskKey)) return;
+        best = { d, s, total, mark };
     });
     if (!best) return null;
+    if (best.mark) {
+        return { value: 0, source: 'transmit-picked', pickedDay: best.d,
+                 detail: `${fmtMd(best.d)} 전송분은 그날 피킹까지 했다고 표시됨 — 이 날은 0` };
+    }
 
     const normalKey = NORMAL_SOURCE[taskId];
     const normal = Math.round(num(best.s[normalKey]));
@@ -163,7 +189,8 @@ export function transmitValueFor({ targetDate, taskId, taskKey, byDate, nextWork
     const atText = fmtAt(best.s.at);
     const detail = `${fmtMd(best.d)} 사전작업 기록 + 로케이션 전송${atText ? ' ' + atText : ''}`
                  + ` · 일반 ${normal.toLocaleString()} / 즉시 ${instant.toLocaleString()}`;
-    return { value: best.total, source: 'transmit', detail };
+    // transmitDay = 근거 전송일 D — 화면의 [전날 피킹까지 함] 버튼이 어느 날을 표시할지 안다(2026-11-25)
+    return { value: best.total, source: 'transmit', detail, transmitDay: best.d };
 }
 
 /** 대상일(오늘)·업무가 '전 근무일 전송 없음'으로 확실하면 0. 판단할 수 없으면 null(2026-10-23 사용자 결정).
@@ -245,4 +272,96 @@ export function lockedTransmitNone(lock, today, taskKey, compute) {
         return { result: fresh, lock: { day: today, tasks: { ...cur.tasks, [taskKey]: fresh } }, changed: true };
     }
     return { result: null, lock: cur, changed: !valid };
+}
+
+// ───────────────────────────────────────────────────────────
+// '전날 피킹까지 함' 표시(2026-11-25 사용자 결정)
+//   드물게 D 전송분을 D 에 피킹까지 해 버린다 — 그러면 다음 근무일 직진·에이블리 예상은 0 이고(transmitValueFor pickedOn),
+//   처리량자동입력은 D 전송분을 D+1 에 넣지 않는다(처리량자동입력\전송값.pick marks).
+//   문서: artifacts/team-work-logger-v2/persistent_data/shipPickMarks
+//     { marks: { 'YYYY-MM-DD'(D): { k_direct?: { at: Timestamp, by: 로그인 이메일 }, k_ably?: {…} } }, updatedAt }
+//   쓰기는 한 칸씩(js/pick-mark-store.js). 켜기는 오늘(D === 오늘)만 — 처리량자동입력은 오늘 T 일 때만 D 전송분을 그날 처리량에 합친다.
+//   되돌리기 = 그 칸 지우기(날짜 무관, 14일 넘은 날은 날짜 통째). 같은 쓰기가 14일 넘은 날짜를 한 번에 10개까지 지운다.
+//   at 이 없거나 타임스탬프가 아니면 표시가 아니다(parsePickMarks — 처리량자동입력\실행.피킹표시읽기 와 같은 정의).
+//   ⚠️ by(이메일)는 되돌리기 버튼을 보일지(표시한 사람·관리자)만 정한다 — 화면·로그에 내지 않는다.
+//      처리량자동입력은 .at 칸만 mask 로 읽는다(by 를 받지 않는다).
+// ───────────────────────────────────────────────────────────
+
+/** 표시를 받는 업무 id */
+export const PICK_MARK_TASKS = Object.freeze([TASK.direct, TASK.ably]);
+export const PICK_MARK_KEEP_DAYS = 14;
+export const PICK_MARK_MAX_PRUNE = 10;     // 한 번 쓸 때 지우는 옛 날짜 수 상한
+export const PICK_MARK_MAX_DAYS = 31;      // firestore.rules 의 marks 크기 상한과 같은 값
+export const PICK_MARK_UNDO_DAYS = 7;      // firestore.rules pmMarksOk 의 '칸 지우기' 창(오늘 앞 7일)과 같은 값
+
+/** 표시 시각 at → ms. Firestore Timestamp(toMillis)·Date 만 시각으로 본다 — 숫자·글자·맵은 0(= 표시 아님).
+ *  처리량자동입력\실행.피킹표시읽기 와 같은 정의: at 이 없거나 타임스탬프가 아니면 표시가 아니다.
+ *  (getDoc 은 서버 값만 준다. 로컬 대기 값을 읽을 일이 생기면 data({ serverTimestamps: 'estimate' }) 로 읽을 것) */
+const msOf = (v) => {
+    if (v == null || typeof v !== 'object') return 0;
+    if (typeof v.toMillis === 'function') { const n = v.toMillis(); return Number.isFinite(n) && n > 0 ? n : 0; }
+    if (v instanceof Date) { const n = v.getTime(); return Number.isFinite(n) && n > 0 ? n : 0; }
+    return 0;
+};
+
+/** 문서 값 → { 'YYYY-MM-DD': { 업무id: {at:ms, by:string} } }. 모양이 틀린 칸·keep 일보다 오래된 날짜는 버린다.
+ *  at 이 없거나 타임스탬프가 아닌 칸은 표시가 아니다(msOf).
+ *  @param {object|null} raw   문서 data() 그대로
+ *  @param {string} today      'YYYY-MM-DD'
+ *  @param {number} [keep=14] */
+export function parsePickMarks(raw, today, keep = PICK_MARK_KEEP_DAYS) {
+    const out = {};
+    const marks = raw && typeof raw === 'object' ? raw.marks : null;
+    if (!marks || typeof marks !== 'object' || Array.isArray(marks)) return out;
+    const cutoff = minusDays(today, keep);
+    Object.keys(marks).forEach(d => {
+        if (!YMD_RE.test(d) || (cutoff && d < cutoff)) return;
+        const day = marks[d];
+        if (!day || typeof day !== 'object' || Array.isArray(day)) return;
+        const e = {};
+        PICK_MARK_TASKS.forEach(t => {
+            const m = day[t];
+            if (!m || typeof m !== 'object' || Array.isArray(m)) return;
+            const at = msOf(m.at);
+            if (!(at > 0)) return;
+            e[t] = { at, by: typeof m.by === 'string' ? m.by.trim().toLowerCase() : '' };
+        });
+        if (Object.keys(e).length) out[d] = e;
+    });
+    return out;
+}
+
+/** 표시 하나를 켜거나 끄는 쓰기 계획(순수). 실제 쓰기는 js/pick-mark-store.js.
+ *  @param {object} p
+ *  @param {string} p.day        D 'YYYY-MM-DD' — 켜기(on)는 오늘만(2026-11-25 리뷰: 처리량자동입력은 오늘 T 일 때만 D 전송분을
+ *                               그날 처리량에 합친다 — 지난 날을 켜면 그 전송분이 어느 날 처리량에도 안 잡힌다). 끄기는 날짜 무관
+ *  @param {string} p.taskId     PICK_MARK_TASKS 중 하나
+ *  @param {boolean} p.on        true = 표시, false = 되돌리기
+ *  @param {string} [p.by]       표시하는 사람 로그인 이메일(on 일 때 필요)
+ *  @param {string} p.today      'YYYY-MM-DD'
+ *  @param {Array<string>} [p.existingDays]  문서에 지금 있는 marks 의 날짜 키(형식이 틀린 키 포함) — 옛 날짜 정리용
+ *  @returns {{set: {day, taskId, by}|null, del: {day, taskId: string|null}|null, prune: string[]} | {error: string}}
+ *  del.taskId null = 그 날짜 통째 지우기.
+ *  prune: keep 일보다 오래되었거나 형식이 틀린 날짜 키, 오래된 순 최대 10개(이번에 쓰는 날은 빼고). */
+export function buildPickMarkPatch({ day, taskId, on, by, today, existingDays, keep = PICK_MARK_KEEP_DAYS, maxPrune = PICK_MARK_MAX_PRUNE } = {}) {
+    if (typeof today !== 'string' || !YMD_RE.test(today)) return { error: '오늘 날짜를 모름' };
+    if (typeof day !== 'string' || !YMD_RE.test(day)) return { error: '날짜 형식이 틀림' };
+    if (!PICK_MARK_TASKS.includes(taskId)) return { error: '표시할 수 없는 업무' };
+    if (typeof on !== 'boolean') return { error: '켬/끔을 모름' };
+    const cutoff = minusDays(today, keep);
+    if (on && day !== today) return { error: '표시는 피킹한 그날에만 할 수 있습니다' };
+    const who = typeof by === 'string' ? by.trim().toLowerCase() : '';
+    if (on && !who) return { error: '로그인 정보를 모름' };
+    const prune = (Array.isArray(existingDays) ? existingDays : [])
+        .filter(k => typeof k === 'string' && k !== day && (!YMD_RE.test(k) || (cutoff && k < cutoff)))
+        .sort()
+        .slice(0, Math.max(0, maxPrune));
+    // 되돌리기: 오늘 앞 PICK_MARK_UNDO_DAYS(7)일보다 오래된 날은 날짜 통째로 지운다(taskId null)
+    //   — firestore.rules 가 그 밖의 옛 날짜는 '통째 지우기'만 받는다(그날 다른 업무 표시도 같이 지워진다)
+    const undoCut = minusDays(today, PICK_MARK_UNDO_DAYS);
+    return {
+        set: on ? { day, taskId, by: who } : null,
+        del: on ? null : { day, taskId: (undoCut && day < undoCut) ? null : taskId },
+        prune
+    };
 }

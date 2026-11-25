@@ -90,7 +90,7 @@ export function correctedInputs(inputs, taskUPH, c, manualKeys, opts = {}) {
 /** 자료가 그날 물량을 정한 출처 — 계획 밖 반복 업무 시간을 붙이지 않는다(배율은 건다).
  *  ALWAYS: 값과 상관없이(전송값·전송 없음·채우기 지시서·공휴일 0).
  *  WHEN_ZERO: 그날 값이 0 일 때만(입고일정·입고 박스·중국제작 연동·빈도 판정 '안 하는 날'). */
-export const NO_EXTRA_ALWAYS = Object.freeze(['transmit', 'transmit-none', 'refill', 'holiday-off']);
+export const NO_EXTRA_ALWAYS = Object.freeze(['transmit', 'transmit-none', 'transmit-picked', 'refill', 'holiday-off']);
 export const NO_EXTRA_WHEN_ZERO = Object.freeze(['incoming', 'incoming-boxes', 'china-linked', 'cadence-off']);
 
 /** sources{업무: 출처} + tasks{업무: 수량} → 계획 밖 반복 업무 시간을 붙이지 않을 업무 목록 */

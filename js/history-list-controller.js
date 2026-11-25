@@ -1,21 +1,21 @@
 // === js/history-list-controller.js ===
 // 설명: 이력 모달의 좌측 날짜 목록 관리, 탭 전환, 데이터 로딩 등 네비게이션 컨트롤러입니다.
 
-import * as DOM from './dom-elements.js?v=202611251214';
-import * as State from './state.js?v=202611251214';
-import { showToast, getTodayDateString, getWeekOfYear, getAllTaskKeys, escapeHtml } from './utils.js?v=202611251214';
-import { augmentHistoryWithPersistentLeave } from './history-enricher.js?v=202611251214';
+import * as DOM from './dom-elements.js?v=202611251258';
+import * as State from './state.js?v=202611251258';
+import { showToast, getTodayDateString, getWeekOfYear, getAllTaskKeys, escapeHtml } from './utils.js?v=202611251258';
+import { augmentHistoryWithPersistentLeave } from './history-enricher.js?v=202611251258';
 import { fetchAllHistoryData, refreshRecentHistory, syncTodayToHistory, getDailyDocRef, selfHealRecentHistory, historyLoadFailed,
-         fetchPlannedData, getPlannedQuantitiesForDate, getUpcomingPlannedDateStrings, clearLocalCache, isDayClosedOnServer } from './history-data-manager.js?v=202611251214';
-import { checkMissingQuantities } from './analysis-logic.js?v=202611251214';
-import { historyDotState } from './lib/history-dot.js?v=202611251214';
-import { startPlannedAutosave, flushPlannedAutosave, startPlannedLive, stopPlannedLive } from './planned-autosave.js?v=202611251214';
-import { renderQuantityModalInputs, applyPlannedPrefill } from './ui.js?v=202611251214';
-import { plannedPrefill, doneTasksOf } from './lib/planned-prefill.js?v=202611251214';
-import { aliasNameMap, aliasTaskName } from './lib/task-alias-view.js?v=202611251214';
-import { changedQuantities, changedZeroList } from './lib/history-merge.js?v=202611251214';
-import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202611251214';
-import { getAutoQuantitiesForDate, getTransmitQuantitiesForDate, ensureMibalHistory } from './ui-history-prediction.js?v=202611251214';
+         fetchPlannedData, getPlannedQuantitiesForDate, getUpcomingPlannedDateStrings, clearLocalCache, isDayClosedOnServer } from './history-data-manager.js?v=202611251258';
+import { checkMissingQuantities } from './analysis-logic.js?v=202611251258';
+import { historyDotState } from './lib/history-dot.js?v=202611251258';
+import { startPlannedAutosave, flushPlannedAutosave, startPlannedLive, stopPlannedLive } from './planned-autosave.js?v=202611251258';
+import { renderQuantityModalInputs, applyPlannedPrefill } from './ui.js?v=202611251258';
+import { plannedPrefill, doneTasksOf } from './lib/planned-prefill.js?v=202611251258';
+import { aliasNameMap, aliasTaskName } from './lib/task-alias-view.js?v=202611251258';
+import { changedQuantities, changedZeroList } from './lib/history-merge.js?v=202611251258';
+import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=202611251258';
+import { getAutoQuantitiesForDate, getTransmitQuantitiesForDate, ensureMibalHistory } from './ui-history-prediction.js?v=202611251258';
 import { doc, setDoc, getDocFromServer } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 let isRenderingList = false;
@@ -55,8 +55,8 @@ export const retryHistoryLoad = async () => {
         await loadAndRenderHistoryList();
         if (historyLoadFailed()) return;   // 또 실패 — 오류 화면은 그대로
         clearPanelLoadErrors();
-        const { sectionIdFor } = await import('./history-sections.js?v=202611251214');
-        const { showSection } = await import('./listeners-history-tabs.js?v=202611251214');
+        const { sectionIdFor } = await import('./history-sections.js?v=202611251258');
+        const { showSection } = await import('./listeners-history-tabs.js?v=202611251258');
         await showSection(sectionIdFor(prevMain, prevSub) || 'insight');
     } catch (e) {
         console.error('이력 다시 시도 실패:', e);
@@ -309,6 +309,8 @@ export const openPlannedQuantityModal = async (dateStr) => {
         note.className = 'mt-1 text-xs font-medium text-sky-700';
         note.textContent = v.source === 'refill'
             ? '채우기 지시서 우선 적용(그날 지시서 줄 수) — 저장해도 지시서 값이 우선 적용되고, 이 칸의 기존 저장값은 그대로 둡니다.'
+            : v.source === 'transmit-picked'
+            ? '전날 피킹까지 처리 — 0 으로 적용(전날 피킹 표시 기준). 저장해도 이 값이 우선 적용되고, 이 칸의 기존 저장값(0 제외)은 그대로 둡니다.'
             : v.source === 'transmit-none'
             ? '전 근무일 전송 없음 — 0 으로 적용(출고 자료 기준). 저장해도 이 값이 우선 적용되고, 이 칸의 기존 저장값(0 제외)은 그대로 둡니다.'
             : '전송값 우선 적용(로케이션 전송) — 저장해도 전송값이 우선 적용되고, 이 칸의 기존 저장값(0 제외)은 그대로 둡니다.';

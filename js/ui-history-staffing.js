@@ -1,12 +1,12 @@
 // === js/ui-history-staffing.js ===
-import * as State from './state.js?v=202611251214';
-import { getStaffingOutlook, ensureMibalHistory, ensureCorrectCtx } from './ui-history-prediction.js?v=202611251214';
-import { fetchPlannedData } from './history-data-manager.js?v=202611251214';
-import { getTodayDateString, escapeHtml } from './utils.js?v=202611251214';
-import { staffing as opsStaffing, periodSpeeds, lastDayIdOf } from './lib/ops-metrics.js?v=202611251214';
-import { D } from './d-chart.js?v=202611251214';
-import { aliasHistoryView } from './lib/task-alias-view.js?v=202611251214';
-import { TASK, tName } from './task-names.js?v=202611251214';
+import * as State from './state.js?v=202611251258';
+import { getStaffingOutlook, ensureMibalHistory, ensureCorrectCtx } from './ui-history-prediction.js?v=202611251258';
+import { fetchPlannedData } from './history-data-manager.js?v=202611251258';
+import { getTodayDateString, escapeHtml } from './utils.js?v=202611251258';
+import { staffing as opsStaffing, periodSpeeds, lastDayIdOf } from './lib/ops-metrics.js?v=202611251258';
+import { D } from './d-chart.js?v=202611251258';
+import { aliasHistoryView } from './lib/task-alias-view.js?v=202611251258';
+import { TASK, tName } from './task-names.js?v=202611251258';
 
 let staffingChartInstance = null;
 

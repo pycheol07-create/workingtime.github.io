@@ -21,20 +21,20 @@ import { doc, getDoc, getDocs, getDocFromServer, getDocsFromServer, setDoc, writ
     from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { scanApplyPlan, versionDataOf, archiveRecordOf, shrinkArchive, archiveAoa, diffRowsOf, historyGroupsOf, historyRecordsOf,
     stableSig, hasHistoryToday, mibalTotalsOf, barcodeMapOfAoa, batchIdOf, isoDay, ARCHIVE_COLL, RECENT_SCAN_MIN, partialRecordOf,
-    fileRowsOf, inboundFileAoa, mibalFileAoa, floor2FileAoa, readAllPages } from './lib/mibal2-live.js?v=202611251214';
-import { buildDiffRecord, shouldAutoSave, mergeRev, shrinkIfLarge, diffSummaryText, overlapping, queryRange } from './lib/inbound-diff.js?v=202611251214';
-import { inboundMapOf, floor2MapOf } from './lib/scan-link.js?v=202611251214';
-import { liveHiddenCss } from './lib/mibal2-cols.js?v=202611251214';
-import { inboundSig } from './lib/inbound-fix.js?v=202611251214';
+    fileRowsOf, inboundFileAoa, mibalFileAoa, floor2FileAoa, readAllPages } from './lib/mibal2-live.js?v=202611251258';
+import { buildDiffRecord, shouldAutoSave, mergeRev, shrinkIfLarge, diffSummaryText, overlapping, queryRange } from './lib/inbound-diff.js?v=202611251258';
+import { inboundMapOf, floor2MapOf } from './lib/scan-link.js?v=202611251258';
+import { liveHiddenCss } from './lib/mibal2-cols.js?v=202611251258';
+import { inboundSig } from './lib/inbound-fix.js?v=202611251258';
 import { buildScanLogDocs, expandScanLogDocs, checkScanLogParts, docIdOf, scanLogInputOf, scanLogListHtml, scanLogExcelRows,
-    SCANLOG_JOBS_COLL, SCANLOG_MAX_PARTS } from './lib/mibal2-scanlog.js?v=202611251214';
-import { setupLiveLoc } from './china-mibal2-live-loc.js?v=202611251214';
-import { setupLiveAdmin, readSheetRowsAOA, packMap, unpackMap } from './china-mibal2-live-admin.js?v=202611251214';
-import { shipMismatchOf, mismatchLine, mismatchBlockText } from './lib/ship-mismatch.js?v=202611251214';
-import { writeXls, xlsBytes } from './lib/xls-limits.js?v=202611251214';
-import { autoStopReason, autoStopText, serverBatchOpen, AUTO_TOAST_MS } from './lib/mibal2-auto-apply.js?v=202611251214';
-import { setupScanBar } from './china-mibal2-bar.js?v=202611251214';
-import { mdhmPad } from './lib/mibal2-closed-view.js?v=202611251214';
+    SCANLOG_JOBS_COLL, SCANLOG_MAX_PARTS } from './lib/mibal2-scanlog.js?v=202611251258';
+import { setupLiveLoc } from './china-mibal2-live-loc.js?v=202611251258';
+import { setupLiveAdmin, readSheetRowsAOA, packMap, unpackMap } from './china-mibal2-live-admin.js?v=202611251258';
+import { shipMismatchOf, mismatchLine, mismatchBlockText } from './lib/ship-mismatch.js?v=202611251258';
+import { writeXls, xlsBytes } from './lib/xls-limits.js?v=202611251258';
+import { autoStopReason, autoStopText, serverBatchOpen, AUTO_TOAST_MS } from './lib/mibal2-auto-apply.js?v=202611251258';
+import { setupScanBar } from './china-mibal2-bar.js?v=202611251258';
+import { mdhmPad } from './lib/mibal2-closed-view.js?v=202611251258';
 
 // 마감된 작업(보관함)을 보는 동안 끄는 버튼 — 고른 출고일 기준으로 쓰는 것만(js/lib/mibal2-closed-view.js). 되돌리기·바코드·위치·관리는 그대로
 const CLOSED_BTN_IDS = ['btn-scan-off-sync', 'btn-scan-off-reset', 'btn-scan-off-diffrec'];
