@@ -23,14 +23,16 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url || steps.deployment_retry1.outputs.page_url || steps.deployment_retry2.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
+      # Node.js 20 지원 끝 경고(2026-11-25) — 전부 node24 판으로 올림.
+      # upload-pages-artifact v4+ 는 점(.)파일을 빼지만, 여기서 빠지는 건 .nojekyll 뿐이고 Actions 배포에는 필요 없다.
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Pages
-        uses: actions/configure-pages@v5
+        uses: actions/configure-pages@v6
 
       - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5
         with:
           # 저장소 루트 전체를 그대로 정적 사이트로 업로드 (Jekyll 처리 없음)
           path: .
@@ -41,7 +43,7 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         continue-on-error: true
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
 
       - name: Wait before retry 1
         if: steps.deployment.outcome == 'failure'
@@ -51,7 +53,7 @@ jobs:
         id: deployment_retry1
         if: steps.deployment.outcome == 'failure'
         continue-on-error: true
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
 
       - name: Wait before retry 2
         if: steps.deployment.outcome == 'failure' && steps.deployment_retry1.outcome == 'failure'
@@ -60,4 +62,4 @@ jobs:
       - name: Deploy to GitHub Pages (retry 2)
         id: deployment_retry2
         if: steps.deployment.outcome == 'failure' && steps.deployment_retry1.outcome == 'failure'
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
