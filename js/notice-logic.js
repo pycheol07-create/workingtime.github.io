@@ -1,11 +1,11 @@
 // === js/notice-logic.js ===
 import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
-import { showToast, getActiveTeamMembers, showConfirm } from './utils.js?v=32969da5faa9-163bcbc9';
+import { showToast, getActiveTeamMembers, showConfirm } from './utils.js?v=65bb3512764f-e315797c';
 import { doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { initializeFirebase } from './config.js?v=242bb63abbe9-dd1665a9';
 
 // 🔥 [신규] 멘션 발송을 위해 알림 함수 가져오기
-import { sendNotification } from './app-notifications.js?v=70dd61ae1d0a-af702167';
+import { sendNotification } from './app-notifications.js?v=2ea8413ffd18-af702167';
 
 const createId = () => Date.now().toString(36) + Math.random().toString(36).substr(2);
 

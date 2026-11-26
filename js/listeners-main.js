@@ -6,12 +6,12 @@ import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
 import { openEditRecordModal } from './edit-record-open.js?v=1e02b5a65d31-e8d69915';
 
 // app.js에서는 'render'만, app-data.js에서는 'updateDailyData'를 가져옵니다.
-import { render } from './app.js?v=71197aa52702-2ba8f711';
-import { updateDailyData } from './app-data.js?v=8f36032db1f2-c4996a74';
+import { render } from './app.js?v=193e16cb3e53-2ba8f711';
+import { updateDailyData } from './app-data.js?v=9a8d4e266c76-c4996a74';
 
-import { calcElapsedMinutes, showToast, showConfirm, getTodayDateString, getCurrentTime, formatTimeTo24H, escapeHtml } from './utils.js?v=32969da5faa9-163bcbc9';
+import { calcElapsedMinutes, showToast, showConfirm, getTodayDateString, getCurrentTime, formatTimeTo24H, escapeHtml } from './utils.js?v=65bb3512764f-e315797c';
 import { AUTO_END_TIME } from './lib/record-close.js?v=c8683e426085-11b6fe97';
-import { applyDueLeaves } from './leave-auto-apply.js?v=e56b04de5b1c-afa2df94';
+import { applyDueLeaves } from './leave-auto-apply.js?v=b71d198bdc72-afa2df94';
 import {
     renderPersonalAnalysis,
     renderQuantityModalInputs,
@@ -19,16 +19,16 @@ import {
     applyLocRecPrefill,
     renderManualAddModalDatalists,
     renderLeaveTypeModalOptions 
-} from './ui.js?v=e8f50ae37140-a84d3554';
+} from './ui.js?v=74ba6fa0d815-a84d3554';
 import {
     processClockIn, processClockOut, cancelClockOut
-} from './app-logic.js?v=89673c97823e-5cd27cd7';
-import { saveProgress, saveDayDataToHistory, previewDayClose, getPlannedQuantitiesForDate, isDayClosedOnServer } from './history-data-manager.js?v=e8f50ae37140-a9403e97';
+} from './app-logic.js?v=fbb40cc23220-5cd27cd7';
+import { saveProgress, saveDayDataToHistory, previewDayClose, getPlannedQuantitiesForDate, isDayClosedOnServer } from './history-data-manager.js?v=74ba6fa0d815-a9403e97';
 import { changedQuantities, changedZeroList } from './lib/history-merge.js?v=f882da56f066-3d3139d2';
 import { plannedPrefill, doneTasksOf } from './lib/planned-prefill.js?v=585777796ac6-3504c033';
 import { aliasNameMap, aliasTaskName } from './lib/task-alias-view.js?v=2e131477eb8e-af660ceb';
-import { checkMissingQuantities } from './analysis-logic.js?v=b42aaa862645-0bfe0ae3';
-import { isLocRecTask } from './locrec-dash.js?v=3322e6c48167-852ed13e';
+import { checkMissingQuantities } from './analysis-logic.js?v=ad17bad984b3-0bfe0ae3';
+import { isLocRecTask } from './locrec-dash.js?v=31cdb0f0e97e-852ed13e';
 import { locRecDoneToday, refreshLocRecDone, invalidateLocRecDone } from './locrec-done.js?v=5168917abff7-37785663';
 
 import { 

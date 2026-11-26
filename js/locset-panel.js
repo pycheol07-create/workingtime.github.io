@@ -28,7 +28,7 @@
 import { doc, getDoc, setDoc, updateDoc, deleteField, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=b9a7199f3e1d-c80c27e9';
 import { canFeature, currentPerm } from './feature-gate.js?v=7eaa46dbb8e9-a5458f75';
-import { showConfirm } from './utils.js?v=32969da5faa9-163bcbc9';
+import { showConfirm } from './utils.js?v=65bb3512764f-e315797c';
 import { KEYS, LIMITS, FIELD_TEXT, normalize, sameValues, serverRows, sourceText, guideLines } from './lib/locrec-settings.js?v=69b4df4ce6e8-6be192b7';
 import { autoSort, CARD_LAYOUT, SPLIT_EX_RE } from './lib/loc-cards.js?v=436e88b31445-bac5ec02';
 import {

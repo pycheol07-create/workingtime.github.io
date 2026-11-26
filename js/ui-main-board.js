@@ -1,14 +1,14 @@
 // === js/ui-main-board.js ===
-import { formatTimeTo24H, formatDuration, calcTotalPauseMinutes, getTodayDateString, isMemberActiveOn, getCurrentTime, escapeHtml } from './utils.js?v=32969da5faa9-163bcbc9';
+import { formatTimeTo24H, formatDuration, calcTotalPauseMinutes, getTodayDateString, isMemberActiveOn, getCurrentTime, escapeHtml } from './utils.js?v=65bb3512764f-e315797c';
 import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
 import { leaveTypeLabel } from './state.js?v=c7f5fc984ef9-a2ce38c0';
-import { leaveNthLabel } from './ui-modals.js?v=936189672d98-e0eb0faf';
+import { leaveNthLabel } from './ui-modals.js?v=b4294a7e84f2-e0eb0faf';
 import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=152edbc1d09a-ab7817f6';
-import { getLeaveDisplayLabel } from './ui-main-utils.js?v=8d3325128400-06309b7b';
+import { getLeaveDisplayLabel } from './ui-main-utils.js?v=a649174fd12c-06309b7b';
 import { myWorkState, recentTasksFor } from './lib/my-work.js?v=470ecb003aaf-1a1aebb7';
 import { isLeaveActiveAt, isLeavePendingAt } from './lib/leave-timing.js?v=56494f977986-82fd27e6';
-import { isRefillTask, refillAllowed, refillProgressText, refillProgressTone, syncRefillDash } from './refill-dash.js?v=df1148341a70-60f2d3b8';
-import { isLocRecTask, locRecAllowed, syncLocRecDash } from './locrec-dash.js?v=3322e6c48167-852ed13e';
+import { isRefillTask, refillAllowed, refillProgressText, refillProgressTone, syncRefillDash } from './refill-dash.js?v=3021b4cb88b2-60f2d3b8';
+import { isLocRecTask, locRecAllowed, syncLocRecDash } from './locrec-dash.js?v=31cdb0f0e97e-852ed13e';
 import { TASK, tName, isT } from './task-names.js?v=33eb5ccd69bc-26ab8ff7';
 
 // ===== 업무현황 카드 커버플로우(coverflow) 컨트롤러 =====

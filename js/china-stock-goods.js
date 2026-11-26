@@ -18,11 +18,11 @@ import { inboundSplitOf, fixTipOf, pendingSet, batchRowsOf, batchConfirmText, ru
 import { readServerInboundMany, writeInboundFix as _writeInboundFix } from './inbound-fix-write.js?v=c1f7f1dfe465-04266040';
 import { isMibal2Live } from './lib/mibal2-mode.js?v=1dd1153363a5-6723d239';
 import { createFixBar, afterClick } from './inbound-fix-bar.js?v=baa4e9239f99-1009fac6';
-import { friendlyFirebaseError } from './utils.js?v=32969da5faa9-163bcbc9';
+import { friendlyFirebaseError } from './utils.js?v=65bb3512764f-e315797c';
 import { readHash, writeHash, onHashNav } from './hash-state.js?v=41d515385973-40fe10fb';
 import { setShellContext } from './app-shell-bridge.js?v=b9a7199f3e1d-c80c27e9';
 import { memberNameFor } from './app-shell-data.js?v=e42c6a10ca7a-9319c795';
-import { createUploadStatus } from './busy-banner.js?v=1049f7ce568c-b37af02e';
+import { createUploadStatus } from './busy-banner.js?v=a03ed2865bd9-b37af02e';
 
 const { db, auth } = initializeFirebase();
 // [2026-11-09] 신규 부족수량관리 단독 운영(live) 때 이 화면은 조회 전용 — 조회·필터·정렬·엑셀 받기만 된다(시험 때는 아무것도 바뀌지 않음).

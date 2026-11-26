@@ -4,12 +4,12 @@
 //   ⚠️ 이름·금액 없음 — 과제는 역할로만 보인다. 이력의 '누가'(이메일)는 그리지 않는다(언제·무엇만).
 //   ⚠️ role=dialog·data-act 금지(업무마감봇 선택자) — 겹침 창은 section, 버튼은 data-pi-* 속성.
 
-import { esc, n1, card, fmtDay, ok } from './ui-ops-plan-parts.js?v=4988aac60dc6-895d8afe';
-import { STATUS_LABEL, ITEM_STATUS, roleLabel, isOverdue } from './lib/plan-items.js?v=4848b2354ab3-5e89930a';
-import { GOAL_METRICS, GOAL_SLOTS, cleanGoals } from './lib/plan-yeardoc.js?v=e281de9b3c2b-2ae196cd';
-import { buildGoalKpis } from './lib/plan-cascade.js?v=ed9ce04a8173-086366a5';
-import { saveGoals } from './ops-plan-store.js?v=83198d8480e3-e2b4aa69';
-import { showToast } from './utils.js?v=32969da5faa9-163bcbc9';
+import { esc, n1, card, fmtDay, ok } from './ui-ops-plan-parts.js?v=4172e29df300-895d8afe';
+import { STATUS_LABEL, ITEM_STATUS, roleLabel, isOverdue } from './lib/plan-items.js?v=37da54e23085-5e89930a';
+import { GOAL_METRICS, GOAL_SLOTS, cleanGoals } from './lib/plan-yeardoc.js?v=ad3f1bc3e9b0-2ae196cd';
+import { buildGoalKpis } from './lib/plan-cascade.js?v=249d01b2ba05-086366a5';
+import { saveGoals } from './ops-plan-store.js?v=7086b262ea02-e2b4aa69';
+import { showToast } from './utils.js?v=65bb3512764f-e315797c';
 import { higherOpenThan } from './modal-above.js?v=d7d701b363ef-215d273f';
 
 const $ = (id) => document.getElementById(id);

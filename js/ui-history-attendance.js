@@ -1,8 +1,8 @@
 // === js/ui-history-attendance.js ===
 
-import { formatTimeTo24H, formatDuration, getWeekOfYear, escapeHtml } from './utils.js?v=32969da5faa9-163bcbc9';
+import { formatTimeTo24H, formatDuration, getWeekOfYear, escapeHtml } from './utils.js?v=65bb3512764f-e315797c';
 import { context, LEAVE_TYPES, appState, appConfig } from './state.js?v=c7f5fc984ef9-a2ce38c0';
-import { systemAccountSet } from './attendance-stats.js?v=f1f880ba8140-15815b0d';
+import { systemAccountSet } from './attendance-stats.js?v=5c598c396464-15815b0d';
 
 // 근태 요약 표의 열 순서. 기존 순서를 유지하되, LEAVE_TYPES에 있는데 여기 없는 종류는
 // 뒤에 자동으로 붙는다 → 근태 종류가 추가돼도 표에서 누락되지 않는다.

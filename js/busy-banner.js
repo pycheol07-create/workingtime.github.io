@@ -16,7 +16,7 @@
 // ⚠️ 띠·문서에 이메일을 넣지 않는다. 이름은 memberNameFor 결과만(busy-view.js cleanBy 가 '@' 섞인 값을 버린다).
 import { doc, onSnapshot, getDocFromServer, runTransaction, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { leaseView, uploadView, mibalRequestView, bannerText, bannerKey, cleanBy, fmtHM, BY_MAX } from './lib/busy-view.js?v=659be9925d1c-88862baa';
-import { showConfirm } from './utils.js?v=32969da5faa9-163bcbc9';
+import { showConfirm } from './utils.js?v=65bb3512764f-e315797c';
 
 const RECHECK_MS = 30 * 1000;
 const BEAT_MS = 60 * 1000;

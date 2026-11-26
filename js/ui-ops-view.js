@@ -10,22 +10,22 @@
 // ⚠️ role=dialog·data-act 금지(업무마감봇 선택자). 직원 이름·금액을 콘솔에 찍지 않는다. 모델에는 직원 이름이 없다.
 
 import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
-import { escapeHtml, escapeHtml as esc, getTodayDateString } from './utils.js?v=32969da5faa9-163bcbc9';   // escapeHtml 도 같이(2026-11-12 이스케이프 수정이 이름으로 불러 요약 탭이 깨졌다)
+import { escapeHtml, escapeHtml as esc, getTodayDateString } from './utils.js?v=65bb3512764f-e315797c';   // escapeHtml 도 같이(2026-11-12 이스케이프 수정이 이름으로 불러 요약 탭이 깨졌다)
 import { aliasHistoryView } from './lib/task-alias-view.js?v=2e131477eb8e-af660ceb';
-import { buildOpsModel, opsModelInputs, OPS_VIEW_LEVELS } from './lib/ops-view-model.js?v=d39b54633886-08a53556';
+import { buildOpsModel, opsModelInputs, OPS_VIEW_LEVELS } from './lib/ops-view-model.js?v=299e58bb8a3f-08a53556';
 import { revenueTotalOf } from './revenue-channels.js?v=553320652df2-c473a26d';
 import { D, alpha } from './d-chart.js?v=e918595219dd-dfe55644';
-import { renderStaffingOutlook } from './ui-history-staffing.js?v=bf718cb9e588-929220f5';
-import { ensureMibalHistory, ensureCorrectCtx } from './ui-history-prediction.js?v=e8f50ae37140-8e6157b0';
-import { fetchPlannedData } from './history-data-manager.js?v=e8f50ae37140-a9403e97';
-import { renderFillErrorSection, destroyFillErrorCharts } from './ui-history-productivity.js?v=cb5e0aa84893-a604e855';
-import { renderReportDaily, renderReportWeekly, renderReportMonthly, renderReportYearly } from './ui-history-reports.js?v=b5dcda446066-9b003c86';
+import { renderStaffingOutlook } from './ui-history-staffing.js?v=892a2b698f14-929220f5';
+import { ensureMibalHistory, ensureCorrectCtx } from './ui-history-prediction.js?v=74ba6fa0d815-8e6157b0';
+import { fetchPlannedData } from './history-data-manager.js?v=74ba6fa0d815-a9403e97';
+import { renderFillErrorSection, destroyFillErrorCharts } from './ui-history-productivity.js?v=1402015c3123-a604e855';
+import { renderReportDaily, renderReportWeekly, renderReportMonthly, renderReportYearly } from './ui-history-reports.js?v=eb6573657ef5-9b003c86';
 import { taskListOf } from './lib/task-owner.js?v=82e303e4c972-e73c99c8';
 import { TASK, tName } from './task-names.js?v=33eb5ccd69bc-26ab8ff7';
 import { higherOpenThan } from './modal-above.js?v=d7d701b363ef-215d273f';
-import { buildOwnerAdvice, adviceForOutput } from './lib/plan-owner-advice.js?v=34de089af83d-7e84deed';
-import { PEOPLE_NOTE } from './lib/plan-skills.js?v=a44cbe99d8ea-166a535f';
-import { nextWeekAvailable } from './ui-ops-plan-people.js?v=f6a81025ad83-808bebb0';
+import { buildOwnerAdvice, adviceForOutput } from './lib/plan-owner-advice.js?v=755a7754882f-7e84deed';
+import { PEOPLE_NOTE } from './lib/plan-skills.js?v=7416db6792ac-166a535f';
+import { nextWeekAvailable } from './ui-ops-plan-people.js?v=3a8ee02e87b6-808bebb0';
 
 const $ = (id) => document.getElementById(id);
 
@@ -509,7 +509,7 @@ export function openTaskDetail(task, ctx = null) {
         if (sec) sec.innerHTML = empty('권한이 없습니다. 담당 변화는 리포트 권한이 있어야 보입니다.');
     } else if (task && cache && cache.ownerTasks && !cache.ownerTasks.has(task)) {
         if (sec) sec.innerHTML = empty('이 업무는 담당 변화 대상이 아닙니다(관리자 개별업무 또는 최근 13개월 기록 없음).');
-    } else import('./ui-history-task-owner.js?v=49e94e55ddd3-b9214ae0').then(mod => {
+    } else import('./ui-history-task-owner.js?v=6b4ed680a6e1-b9214ae0').then(mod => {
         mod.renderTaskOwnerTab(task ? { task } : {});
     }).catch(err => {
         console.error('taskowner module load failed:', err && err.message);
@@ -599,7 +599,7 @@ function bindOnce() {
             const host = $('ops-milestones-widget');
             if (host && !host.dataset.done) {
                 host.dataset.done = '1';
-                import('./ui-history-milestones.js?v=1a450b816dc7-10ac295c').then(mod => mod.renderMilestonesInsightWidget(host))
+                import('./ui-history-milestones.js?v=b52d40c333e7-10ac295c').then(mod => mod.renderMilestonesInsightWidget(host))
                     .catch(err => { console.warn('milestones widget load failed:', err && err.message); host.innerHTML = empty('마일스톤을 불러오지 못했습니다.'); });
             }
         }

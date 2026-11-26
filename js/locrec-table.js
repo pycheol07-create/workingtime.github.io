@@ -17,11 +17,11 @@
 // 칸수 무관 허용(2026-11-13): 상품 줄마다 [칸수 무관 허용]/[끄기](지금 자리에 칸수가 있는 줄·이미 허용한 상품) — store.setSizeFree.
 //   허용한 상품은 줄에 '칸수 무관' 배지. 도구 줄 '칸수 무관 N건 보기'를 켜면 허용 목록 전체(오늘 표에 없는 상품 포함)가 표 끝에 나와 끌 수 있다.
 //   날짜·새 판 대기와 상관없이 누를 수 있다(추천 표시가 아니라 다음 계산 설정이라서).
-import { escapeHtml, showConfirm } from './utils.js?v=32969da5faa9-163bcbc9';
+import { escapeHtml, showConfirm } from './utils.js?v=65bb3512764f-e315797c';
 import { fmtHM, tabCounts, tabCarried, TABS, TAB_LABEL, fmtNum, canMark, tabMeta, dayLabel, rowLines, dayMessage, fmtGain, ROUTE_OUT_LABEL, ROUTE_OUT_HELP, locLabel, bulkDoneKeys, bulkUndoKeys, CARRIED_LABEL, qtyCellOf, PENDING_TEXT,
     shownTabs, fmtDaily1, BACK_TAB_HELP, BACK_GAIN_LABEL, BACK_SCORE_HELP, backReasonTitle, BLOCKED_LABEL, SKIP_HELP, holdRows, HOLD_ROW_LABEL, HOLD_UNDO_TEXT,
     SIZE_FREE_LABEL, SIZE_FREE_HELP, sizeFreeShown, fmtMDHM } from './lib/locrec-view.js?v=e93900011313-fdf32cdb';
-import { NO_NAME, todayKey } from './locrec-store.js?v=6e183901a59d-bd971fd0';
+import { NO_NAME, todayKey } from './locrec-store.js?v=538c8a8e17f8-bd971fd0';
 import { higherOpenThan } from './modal-above.js?v=d7d701b363ef-215d273f';
 import { undoConfirmText } from './lib/locrec-apply.js?v=7cca5e5163c6-5def8df3';
 import { SORT_COLS, sortRows, nextSort, isLowStockRow, lineTotal } from './lib/locrec-sort.js?v=9ce27569c8c4-a7d96312';

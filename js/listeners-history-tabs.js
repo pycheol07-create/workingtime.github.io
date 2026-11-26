@@ -1,21 +1,21 @@
 // === js/listeners-history-tabs.js ===
 import * as DOM from './dom-elements.js?v=2b9f19ecbde2-82fbef91';
 import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
-import { getWeekOfYear } from './utils.js?v=32969da5faa9-163bcbc9';
+import { getWeekOfYear } from './utils.js?v=65bb3512764f-e315797c';
 
 // 💡 실적 예측 함수 불러오기 추가
-import { renderPredictionTab, renderForecastTab } from './ui-history-prediction.js?v=e8f50ae37140-8e6157b0';
-import { fetchAndRenderInspectionHistory } from './listeners-history-inspection.js?v=8c1c1afdea0f-9d5277c6';
-import * as UILeave from './ui-history-leave.js?v=5fc751e698f0-4c985a8b';
-import { switchHistoryView, renderHistoryDateListByMode, updateGranularityButtons } from './app-history-logic.js?v=824e9c22e47c-ef63fd43';
-import { setTreeVisible, showPanelLoadError, clearPanelLoadError } from './history-list-controller.js?v=824e9c22e47c-bba56cb8';
-import { confirmDiscardManagementEdits } from './ui-history-management.js?v=b170c269edf1-688719b9';
-import { historyLoadFailed } from './history-data-manager.js?v=e8f50ae37140-a9403e97';
+import { renderPredictionTab, renderForecastTab } from './ui-history-prediction.js?v=74ba6fa0d815-8e6157b0';
+import { fetchAndRenderInspectionHistory } from './listeners-history-inspection.js?v=e29fe520c2c6-9d5277c6';
+import * as UILeave from './ui-history-leave.js?v=b516e4cfbcee-4c985a8b';
+import { switchHistoryView, renderHistoryDateListByMode, updateGranularityButtons } from './app-history-logic.js?v=f36d76cc737f-ef63fd43';
+import { setTreeVisible, showPanelLoadError, clearPanelLoadError } from './history-list-controller.js?v=f36d76cc737f-bba56cb8';
+import { confirmDiscardManagementEdits } from './ui-history-management.js?v=f7cf514cd049-688719b9';
+import { historyLoadFailed } from './history-data-manager.js?v=74ba6fa0d815-a9403e97';
 import { SECTIONS, LEGACY_SECTIONS, TREELESS_SUBS, sectionIdFor, sectionIconSvg } from './history-sections.js?v=2fc2330007e7-1af66818';
 import { saveView } from './view-state.js?v=c2e4bf06fdce-0da8b754';
 import { initPageNav } from './page-nav.js?v=2d9f4a86d931-b8f40ef7';
 import { OPS_MAIN, legacyTarget } from './lib/ops-report-route.js?v=bc1ec7e463eb-3f6f2065';
-import { initOpsReport, openOpsReport, renderOpsReport, leaveOpsReport } from './ui-history-ops-report.js?v=824e9c22e47c-6727a73f';
+import { initOpsReport, openOpsReport, renderOpsReport, leaveOpsReport } from './ui-history-ops-report.js?v=f36d76cc737f-6727a73f';
 
 // 좌측 트리 단위(globalGranularity) → 각 로우데이터 서브탭의 뷰 이름 매핑
 const SUBTAB_VIEW = {
@@ -153,7 +153,7 @@ async function activateMainTab(tabName, sub, ops = null) {
     // 📍 마일스톤 탭: 처음 들어올 때 1회 구독 + 리스너 바인딩
     if (tabName === 'milestones') {
         try {
-            const mod = await import('./ui-history-milestones.js?v=1a450b816dc7-10ac295c');
+            const mod = await import('./ui-history-milestones.js?v=b52d40c333e7-10ac295c');
             mod.subscribeMilestones();
             mod.bindMilestoneListeners();
             clearPanelLoadError(document.getElementById(MAIN_PANELS[tabName]));   // 앞서 실패해 띄운 오류 상자

@@ -28,14 +28,14 @@ import { liveHiddenCss } from './lib/mibal2-cols.js?v=2d1ecafc6ec8-d3d436cc';
 import { inboundSig } from './lib/inbound-fix.js?v=7894fc22c949-9113d082';
 import { buildScanLogDocs, expandScanLogDocs, checkScanLogParts, docIdOf, scanLogInputOf, scanLogListHtml, scanLogExcelRows,
     SCANLOG_JOBS_COLL, SCANLOG_MAX_PARTS } from './lib/mibal2-scanlog.js?v=afd9130d6f71-ce95b891';
-import { setupLiveLoc } from './china-mibal2-live-loc.js?v=3aa2a64586e6-50b3c820';
-import { setupLiveAdmin, readSheetRowsAOA, packMap, unpackMap } from './china-mibal2-live-admin.js?v=5b274bc824f4-b09af5b0';
+import { setupLiveLoc } from './china-mibal2-live-loc.js?v=7d9e55ded80d-50b3c820';
+import { setupLiveAdmin, readSheetRowsAOA, packMap, unpackMap } from './china-mibal2-live-admin.js?v=c327007483bd-b09af5b0';
 import { shipMismatchOf, mismatchLine, mismatchBlockText } from './lib/ship-mismatch.js?v=18b1bfe6bfc0-42172506';
 import { writeXls, xlsBytes } from './lib/xls-limits.js?v=64b8f5a113a9-e512cb8a';
 import { autoStopReason, autoStopText, serverBatchOpen, AUTO_TOAST_MS } from './lib/mibal2-auto-apply.js?v=594903dc6df2-338fd92d';
 import { setupScanBar } from './china-mibal2-bar.js?v=16b1b714af25-86575c47';
 import { mdhmPad } from './lib/mibal2-closed-view.js?v=99af493d6d0f-f6895793';
-import { showConfirm, showAlert } from './utils.js?v=32969da5faa9-163bcbc9';
+import { showConfirm, showAlert } from './utils.js?v=65bb3512764f-e315797c';
 
 // 마감된 작업(보관함)을 보는 동안 끄는 버튼 — 고른 출고일 기준으로 쓰는 것만(js/lib/mibal2-closed-view.js). 되돌리기·바코드·위치·관리는 그대로
 const CLOSED_BTN_IDS = ['btn-scan-off-sync', 'btn-scan-off-reset', 'btn-scan-off-diffrec'];
@@ -886,6 +886,10 @@ export function startLive(ctx) {
         const fresh = await reloadOrStop(what);
         if (!fresh) return null;
         if (fresh.datesChanged) { showAlert(DATES_CHANGED, { title: '출고일이 바뀌었습니다' }); return null; }
+        // 거르기가 걸려 있으면 일부 상품만 들어간다 — 이지어드민에 올리면 나머지가 빠지므로 묻는다(2026-11-26 열 필터)
+        const fl = ctx.viewFilterNote ? ctx.viewFilterNote() : null;
+        if (fl && !(await showConfirm(`지금 ${fl.parts.join('·')} 이(가) 걸려 있어 ${fl.shown}행 / 전체 ${fl.total}행만 파일에 들어갑니다.\n이 파일을 이지어드민에 올리면 나머지 상품은 빠집니다.`,
+            { title: '걸러진 행만 받을까요?', okText: '이 행만 받기' }))) return null;
         return fileRowsOf(ctx.getViewRows());
     }
     async function downloadInboundFile() {

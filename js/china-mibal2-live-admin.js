@@ -10,7 +10,7 @@
 // 불러오기에 실패한 목록은 저장하지 않는다(빈 목록으로 덮어 스캐너 매핑이 지워지는 것을 막음 — 기존과 같다).
 import { doc, getDoc, setDoc, updateDoc, deleteField, FieldPath } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { zoneKey, capacityFor, emptyFillOf } from './lib/mibal2-calc.js?v=2d0e36a43bd4-e8c582c0';
-import { showConfirm, showAlert, showPrompt } from './utils.js?v=32969da5faa9-163bcbc9';
+import { showConfirm, showAlert, showPrompt } from './utils.js?v=65bb3512764f-e315797c';
 
 const CHINA = 'ChinaStockGoods';
 const ADMIN_ONLY = '관리자만 바꿀 수 있습니다';

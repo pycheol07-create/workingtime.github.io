@@ -8,11 +8,11 @@
 // 문서·순수 함수는 js/lib/refill-view.js 머리말 참고.
 // ⚠️ Firebase 를 여기서 초기화하지 않는다 — location.js 가 만든 db·auth 를 받아 쓴다(두 번 초기화하면 duplicate-app).
 // ⚠️ 체크·요청에 남기는 이름은 getMemberName()(= memberNameFor, 직원 이름)만. 없으면 '이름 없음' — 이메일은 쓰지 않는다.
-import { escapeHtml } from './utils.js?v=32969da5faa9-163bcbc9';
+import { escapeHtml } from './utils.js?v=65bb3512764f-e315797c';
 import { lastDays, dayLabel, fmtHM, progress, dayStatus, refillStrip, fmtCount } from './lib/refill-view.js?v=3416a867c2d7-24e9bb3d';
 import { initFold } from './lib/card-fold.js?v=f5e7633be316-3d829324';
-import { getRefillStore, todayKey, holidayName } from './refill-store.js?v=01a94c57b767-f7e79867';
-import { mountRefillTable } from './refill-table.js?v=34445f9dfa5b-3eba78ae';
+import { getRefillStore, todayKey, holidayName } from './refill-store.js?v=19c86fc8c3a0-f7e79867';
+import { mountRefillTable } from './refill-table.js?v=e7105a3eec89-3eba78ae';
 
 /** window.localStorage 참조 자체가 던지는 브라우저도 있다 */
 const getStorage = () => { try { return window.localStorage; } catch (e) { return null; } };

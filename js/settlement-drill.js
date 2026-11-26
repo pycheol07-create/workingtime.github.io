@@ -10,7 +10,7 @@
 // 표 상자에 잘리던 문제가 되풀이된다.
 
 import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
-import { escapeHtml as esc } from './utils.js?v=32969da5faa9-163bcbc9';
+import { escapeHtml as esc } from './utils.js?v=65bb3512764f-e315797c';
 import { REVENUE_CHANNELS } from './revenue-channels.js?v=553320652df2-c473a26d';
 import { aliasDayView } from './lib/task-alias-view.js?v=2e131477eb8e-af660ceb';
 

@@ -119,6 +119,20 @@
         .list-table th:first-child { width: 36px; }   /* No — 열 너비 조절이 인라인 width 를 지우므로 기본 너비는 CSS 에 */
         .list-table th.sortable { cursor: pointer; user-select: none; }
         .list-table th.sortable:hover { color: var(--c-accent-deep); }
+        /* 열 필터(js/china-mibal2.js setupColFilters · js/table-filter.js 떠 있는 목록) — 이 화면은 Tailwind 가 없어 목록 모양을 여기서 */
+        .list-table th .th-filter { display: inline-flex; align-items: center; justify-content: center; width: 17px; height: 17px; margin-left: 3px; padding: 0;
+            border: 0; border-radius: 4px; background: transparent; color: var(--c-text-3); cursor: pointer; vertical-align: middle; opacity: .55; }
+        .list-table th .th-filter:hover { opacity: 1; background: var(--c-surface); }
+        .list-table th .th-filter.on { opacity: 1; color: #fff; background: var(--c-accent); }
+        .tf-pop .flex { display: flex; } .tf-pop .items-center { align-items: center; } .tf-pop .justify-between { justify-content: space-between; }
+        .tf-pop .gap-2 { gap: 8px; } .tf-pop .mb-1\.5 { margin-bottom: 6px; } .tf-pop .font-bold { font-weight: 700; }
+        .tf-pop .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .tf-pop label { padding: 3px 6px; border-radius: 6px; cursor: pointer; font-size: 12.5px; }
+        .tf-pop label:hover { background: #f1f5f9; }
+        .tf-pop input[type=search] { width: 100%; box-sizing: border-box; padding: 5px 8px; border: 1px solid #d6dae0; border-radius: 6px; margin-bottom: 6px; font-size: 12px; }
+        .tf-pop [data-filter-list] { max-height: 15rem; overflow-y: auto; }
+        .tf-pop button { background: none; border: 0; color: #2563eb; font-weight: 700; cursor: pointer; font-size: 11px; padding: 0 4px; }
+        .tf-pop .text-gray-400 { color: #94a3b8; font-size: 11px; }
         .list-table th.new-col { background: var(--c-accent-row); }
         .list-table td.name-cell { text-align: left; max-width: 240px; overflow: hidden; text-overflow: ellipsis; }
         .list-table td.opt-cell { text-align: left; max-width: 160px; overflow: hidden; text-overflow: ellipsis; }
@@ -585,7 +599,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" integrity="sha384-vtjasyidUo0kW94K5MXDXntzOJpQgBKXmE7e2Ga4LG0skTTLeBi97eFAXsqewJjw" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
     <!-- 로그인 게이트는 기존 china-stock-goods.html 과 같은 파일·같은 주소 -->
     <script type="module" src="js/china-stock-gate.js?v=8ec605909d69-d8aba0f9"></script>
-    <script type="module" src="js/china-mibal2.js?v=26adc4c4819d-f0ab4495"></script>
+    <script type="module" src="js/china-mibal2.js?v=3798b109daa1-8518663c"></script>
     <script type="module" src="js/page-gate.js?v=91ff5d6d21f9-d1e977d0" data-perm-page="china.mibal2"></script>
     <script type="module" src="js/app-shell.js?v=0ad2923a7c3b-bf6553e1"></script>
 </body>

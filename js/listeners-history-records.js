@@ -3,15 +3,15 @@
 
 import * as DOM from './dom-elements.js?v=2b9f19ecbde2-82fbef91';
 import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
-import { showToast, showConfirm, getTodayDateString, calcElapsedMinutes } from './utils.js?v=32969da5faa9-163bcbc9';
+import { showToast, showConfirm, getTodayDateString, calcElapsedMinutes } from './utils.js?v=65bb3512764f-e315797c';
 import {
     updateHistoryWorkRecord,
     deleteHistoryWorkRecord,
     addHistoryWorkRecord
-} from './history-data-manager.js?v=e8f50ae37140-a9403e97';
-import { renderHistoryDetail } from './app-history-logic.js?v=824e9c22e47c-ef63fd43';
-import { renderHistoryRecordsTable, openHistoryRecordManager, countDirtyRecordRows, isRecordRowDirty } from './history-record-table.js?v=54b4ccedceab-0a2c5a8f';
-import { generateId } from './app-data.js?v=8f36032db1f2-c4996a74';
+} from './history-data-manager.js?v=74ba6fa0d815-a9403e97';
+import { renderHistoryDetail } from './app-history-logic.js?v=f36d76cc737f-ef63fd43';
+import { renderHistoryRecordsTable, openHistoryRecordManager, countDirtyRecordRows, isRecordRowDirty } from './history-record-table.js?v=dbe7a456aaf0-0a2c5a8f';
+import { generateId } from './app-data.js?v=9a8d4e266c76-c4996a74';
 import { checkStartAfterClockIn, clampStartToClockIn } from './lib/attendance-guard.js?v=2a8059f9ce4c-c8aba679';
 import { setPauseMinutes } from './lib/pause-edit.js?v=92411e3106e1-3c05ca8b';
 

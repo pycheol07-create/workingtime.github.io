@@ -9,7 +9,7 @@
 //    (js/history-daily-renderer.js, js/ui-history-dashboard.js).
 //    목적이 조금씩 달라 이번엔 건드리지 않았다. 나중에 모을 후보.
 
-import { getRegularMembersForCount } from './utils.js?v=32969da5faa9-163bcbc9';
+import { getRegularMembersForCount } from './utils.js?v=65bb3512764f-e315797c';
 import { minutesOverlap } from './lib/calc.js?v=c29c2f406e7f-0cf37820';
 
 // 점심시간 12:30~13:30 (분 단위). 업무 기록은 이미 점심을 빼고 저장되므로

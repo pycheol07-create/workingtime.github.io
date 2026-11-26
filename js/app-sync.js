@@ -3,12 +3,12 @@ import { nameWithPosition } from './lib/member-title.js?v=9a5f2a824905-0bafbd16'
 import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
 import { isPersistentLeaveType } from './state.js?v=c7f5fc984ef9-a2ce38c0';
 import * as DOM from './dom-elements.js?v=2b9f19ecbde2-82fbef91';
-import { getTodayDateString, getCurrentTime, showToast } from './utils.js?v=32969da5faa9-163bcbc9';
+import { getTodayDateString, getCurrentTime, showToast } from './utils.js?v=65bb3512764f-e315797c';
 // ✨ limit가 추가되었습니다.
 import { doc, onSnapshot, collection, query, where, limit, writeBatch, getDocs, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { renderDashboardLayout, renderTaskSelectionModal } from './ui.js?v=e8f50ae37140-a84d3554';
-import { renderTodoList } from './inspection-logic.js?v=915a0ed30c26-e4d6f36f';
-import { renderNotificationList } from './app-notifications.js?v=70dd61ae1d0a-af702167';
+import { renderDashboardLayout, renderTaskSelectionModal } from './ui.js?v=74ba6fa0d815-a84d3554';
+import { renderTodoList } from './inspection-logic.js?v=d8811172578b-e4d6f36f';
+import { renderNotificationList } from './app-notifications.js?v=2ea8413ffd18-af702167';
 import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=152edbc1d09a-ab7817f6';
 import { PRIVATE_CONFIG_KEYS } from './config.js?v=242bb63abbe9-dd1665a9';
 import { isAutomation, loadDismissed, pickPopup, findOpenModal } from './lib/noti-popup.js?v=a01e8d07acd1-85d726e6';

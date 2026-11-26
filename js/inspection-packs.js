@@ -9,10 +9,10 @@
 // ⚠️ 이 창은 index.html 에 붙는다 — 업무마감봇 선택자와 겹치지 않게 role="dialog"·data-act·end-shift-* 를 쓰지 않는다. id 는 모두 insp-pack-*.
 // ⚠️ 공급처는 코드만(supplierCode). supplierName 은 빈칸(CLAUDE.md 3절).
 import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
-import { showToast, getTodayDateString, escapeHtml } from './utils.js?v=32969da5faa9-163bcbc9';
-import { renderTodoList, openInspectionListWindow } from './inspection-logic.js?v=915a0ed30c26-e4d6f36f';
+import { showToast, getTodayDateString, escapeHtml } from './utils.js?v=65bb3512764f-e315797c';
+import { renderTodoList, openInspectionListWindow } from './inspection-logic.js?v=d8811172578b-e4d6f36f';
 import { opt1Of } from './lib/mibal2-live.js?v=7ccac6277373-d7d6b954';   // 자리의 '옵션추가항목1'만(rawDataStr 의 다른 칸 — 공급처 등 — 은 돌려주지 않는다)
-import { fetchAllHistoryData } from './history-data-manager.js?v=e8f50ae37140-a9403e97';
+import { fetchAllHistoryData } from './history-data-manager.js?v=74ba6fa0d815-a9403e97';
 import { doc, getDoc, getDocs, collection, query, where, documentId, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { parseInspPacks, buildCards, previewCount, existingCount, refsFromDays, thicknessFromHistoryDoc, samplesFromLocations, locsByCode, inspectedKeysFromHistory, packInspected } from './lib/insp-packs.js?v=e3fa3546a650-16eb76b5';
 import { mergePackCards } from './lib/insp-manual.js?v=25e0bc0396d2-21f87941';

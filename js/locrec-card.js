@@ -12,15 +12,15 @@
 // 문서 모양·순수 함수는 js/lib/locrec-view.js 머리말 참고.
 // ⚠️ Firebase 를 여기서 초기화하지 않는다 — location.js 가 만든 db·auth 를 받아 쓴다(두 번 초기화하면 duplicate-app).
 // ⚠️ 표시에 남기는 이름은 getMemberName()(= memberNameFor, 직원 이름)만. 없으면 '이름 없음' — 이메일은 쓰지 않는다.
-import { escapeHtml } from './utils.js?v=32969da5faa9-163bcbc9';
+import { escapeHtml } from './utils.js?v=65bb3512764f-e315797c';
 import {
     verdictBadge, metricItems, dataWarnings, dataLine, dayOptions, dayMessage,
     TABS, TAB_LABEL, recStrip, tabSummary, dayLabel, rebuildLine
 } from './lib/locrec-view.js?v=e93900011313-fdf32cdb';
 import { initFold } from './lib/card-fold.js?v=f5e7633be316-3d829324';
-import { getLocRecStore, todayKey } from './locrec-store.js?v=6e183901a59d-bd971fd0';
-import { mountLocRecTable } from './locrec-table.js?v=3f3aa02303cc-ae68a389';
-import { initRouteCard } from './locrec-route-card.js?v=ea6732c2556a-3f4fe9bc';
+import { getLocRecStore, todayKey } from './locrec-store.js?v=538c8a8e17f8-bd971fd0';
+import { mountLocRecTable } from './locrec-table.js?v=bd36739a2ad5-ae68a389';
+import { initRouteCard } from './locrec-route-card.js?v=2208b433eadb-3f4fe9bc';
 
 /** window.localStorage 참조 자체가 던지는 브라우저도 있다 */
 const getStorage = () => { try { return window.localStorage; } catch (e) { return null; } };

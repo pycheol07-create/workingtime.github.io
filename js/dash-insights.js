@@ -6,12 +6,12 @@
 // 새 Firestore 읽기 없음 — 오늘 진행 띠(js/widget-today-progress.js)가 실은 이력·예정 물량·보정 자료를 그대로 쓴다
 // ('dash-forecast-ready' 이벤트를 받은 뒤 그린다). 이름은 보이지 않는다(인원 수·업무명·숫자만).
 import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
-import { escapeHtml as esc, formatHM, getTodayDateString } from './utils.js?v=32969da5faa9-163bcbc9';
-import { getStaffingOutlook, getTodayProgressSummary, getTodayTaskPaceInputs } from './ui-history-prediction.js?v=e8f50ae37140-8e6157b0';
+import { escapeHtml as esc, formatHM, getTodayDateString } from './utils.js?v=65bb3512764f-e315797c';
+import { getStaffingOutlook, getTodayProgressSummary, getTodayTaskPaceInputs } from './ui-history-prediction.js?v=74ba6fa0d815-8e6157b0';
 import { canonicalTaskName } from './lib/task-ids.js?v=9c41e71742ef-83b1f46d';
 import { hhmmToMin } from './lib/long-run.js?v=86da0817a440-f9ae51b8';
 import { workMinutesBetween, paceDoneQty } from './lib/task-pace.js?v=789a330a1e5a-8827e16b';
-import { morningAutoToday, morningForecastToday } from './ship-auto-sync.js?v=09c0062620f7-fe881227';
+import { morningAutoToday, morningForecastToday } from './ship-auto-sync.js?v=18944e3040fa-fe881227';
 
 const WD = ['일', '월', '화', '수', '목', '금', '토'];
 const md = (ds) => { const d = new Date(ds + 'T00:00:00'); return `${d.getMonth() + 1}/${d.getDate()} (${WD[d.getDay()]})`; };

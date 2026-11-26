@@ -1,9 +1,9 @@
 // === js/ui-history-staffing.js ===
 import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
-import { getStaffingOutlook, ensureMibalHistory, ensureCorrectCtx } from './ui-history-prediction.js?v=e8f50ae37140-8e6157b0';
-import { fetchPlannedData } from './history-data-manager.js?v=e8f50ae37140-a9403e97';
-import { getTodayDateString, escapeHtml } from './utils.js?v=32969da5faa9-163bcbc9';
-import { staffing as opsStaffing, periodSpeeds, lastDayIdOf } from './lib/ops-metrics.js?v=89a4eac4b3f4-58d6bcbb';
+import { getStaffingOutlook, ensureMibalHistory, ensureCorrectCtx } from './ui-history-prediction.js?v=74ba6fa0d815-8e6157b0';
+import { fetchPlannedData } from './history-data-manager.js?v=74ba6fa0d815-a9403e97';
+import { getTodayDateString, escapeHtml } from './utils.js?v=65bb3512764f-e315797c';
+import { staffing as opsStaffing, periodSpeeds, lastDayIdOf } from './lib/ops-metrics.js?v=5abf5efec2fb-58d6bcbb';
 import { D } from './d-chart.js?v=e918595219dd-dfe55644';
 import { aliasHistoryView } from './lib/task-alias-view.js?v=2e131477eb8e-af660ceb';
 import { TASK, tName } from './task-names.js?v=33eb5ccd69bc-26ab8ff7';

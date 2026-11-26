@@ -40,21 +40,23 @@ import {
 } from './lib/mibal2-rows.js?v=221b7a831bbe-37c39e3c';
 import { setShellContext } from './app-shell-bridge.js?v=b9a7199f3e1d-c80c27e9';
 import { memberNameFor } from './app-shell-data.js?v=e42c6a10ca7a-9319c795';
-import { mountBusyBanner } from './busy-banner.js?v=1049f7ce568c-b37af02e';
+import { mountBusyBanner } from './busy-banner.js?v=a03ed2865bd9-b37af02e';
 import { latestDoneView, collectorQuiet } from './lib/busy-view.js?v=659be9925d1c-88862baa';
-import { friendlyFirebaseError, showAlert, showConfirm } from './utils.js?v=32969da5faa9-163bcbc9';
+import { friendlyFirebaseError, showAlert, showConfirm } from './utils.js?v=65bb3512764f-e315797c';
 import { diffOf } from './lib/inbound-diff.js?v=6028b21f8c15-bb911da2';
 import { confirmedOf, outsideInboundOf, byShipOf } from './lib/scan-link.js?v=143bf19ba572-01119c1f';
 import { scanLogHtml } from './lib/mibal2-scanlog.js?v=afd9130d6f71-ce95b891';
 import { fixTipOf, liveBaseOf, pendingSet, batchRowsOf, batchConfirmText, runBatch, pendingAfterBatch, batchResultText, failReasonText, failLinesOf } from './lib/inbound-fix.js?v=7894fc22c949-9113d082';
 import { createFixBar, afterClick } from './inbound-fix-bar.js?v=baa4e9239f99-1009fac6';
 import { mibal2Access, MIBAL2_DENIED_MSG } from './lib/mibal2-access.js?v=6f7eedd4058c-15eed051';
-import { subscribeInbound, setupScanTools } from './china-mibal2-scan.js?v=4958205a69d4-895aaef7';
-import { setupLocMode } from './china-mibal2-loc.js?v=33fcd887f454-d01edb35';
+import { subscribeInbound, setupScanTools } from './china-mibal2-scan.js?v=128c6e55a1b5-895aaef7';
+import { setupLocMode } from './china-mibal2-loc.js?v=9381534f7c40-d01edb35';
 import { isMibal2Live } from './lib/mibal2-mode.js?v=1dd1153363a5-6723d239';
 import { liveDatesFrom } from './lib/mibal2-rows.js?v=221b7a831bbe-37c39e3c';
 import { stableSig, ARCHIVE_COLL } from './lib/mibal2-live.js?v=7ccac6277373-d7d6b954';
 import { bestShipOf, mismatchLine, codeListText } from './lib/ship-mismatch.js?v=18b1bfe6bfc0-42172506';   // 출고일 불일치(2026-11-10)
+import { rowPasses, optionsFor, activeFilterCount, toStored, toChecked } from './lib/mibal2-filter.js?v=9b5b61ab1369-bfc811d5';   // 열 필터(2026-11-26)
+import { openFloatingFilter, closeFloatingFilter } from './table-filter.js?v=fd197c3531ef-b92b1b78';
 import { writeXls } from './lib/xls-limits.js?v=64b8f5a113a9-e512cb8a';
 import { readHash, writeHash, onHashNav } from './hash-state.js?v=41d515385973-40fe10fb';   // live 때만 씀(빠른 이동 #tab=mibal|location)
 import { refreshDoneAuto, claimOk, claimMine, autoStopText, serverBatchOpen, AUTO_CLAIM_KEY, AUTO_TOAST_MS } from './lib/mibal2-auto-apply.js?v=594903dc6df2-338fd92d';
@@ -133,6 +135,10 @@ let viewMode = 'live';         // 'live'(부족수량 오늘) | 'loc'(위치지�
 let locTools = null;           // setupLocMode 반환 { enter, refresh } — 입장 판정 뒤에 만든다
 let allRows = [];
 let viewRows = [];
+// 열 필터 — { 열 키: null(전체) | [값…] } (js/lib/mibal2-filter.js). 이 화면에서만(저장 안 함)
+let colFilters = {};
+let filterDatesSig = null;   // 출고일이 바뀌면 열 필터를 비운다(다른 출고일 값으로 걸러 둔 채 남지 않게)
+const flagLabel = (f) => (FLAG_INFO[f] ? FLAG_INFO[f][0] : f);
 let sortConfig = LIVE ? { key: 'mibal', dir: 'desc' } : { key: 'diffAbs', dir: 'desc' };   // live 는 기존 비교 열이 없다
 let expanded = new Set();
 let pending = null;            // 지금 갱신 요청 대기 { atMs, baseRun, baseNoteAt }
@@ -335,11 +341,15 @@ function applyFilters() {
     const diffOnly = !LIVE && $('chk-diff-only').checked;   // live 는 기존 비교값이 없어 이 거르기를 쓰지 않는다(받기 파일에서 상품이 빠지지 않게)
     const checkOnly = $('chk-check-only').checked;
     syncCheckOnly(checkOnly);
+    const dsig = [...selectedDates].sort().join(',');
+    if (filterDatesSig !== null && dsig !== filterDatesSig && activeFilterCount(colFilters)) { colFilters = {}; closeFloatingFilter(); }
+    filterDatesSig = dsig;
     viewRows = allRows.filter(r => {
         // 차이 = 둘 다 있으면 값이 다를 때, 한쪽만 있으면(기존 값 없음·3층 모름) 그것도 차이로 본다. 기존에만 있는 상품은 행이 없다(10/28)
         const hasDiff = r.diff !== null ? r.diff !== 0 : (r.old !== null) !== (r.third !== null);
         if (diffOnly && !hasDiff) return false;
         if (checkOnly && !r.check) return false;
+        if (!rowPasses(r, colFilters, flagLabel)) return false;   // 열 필터
         if (!q) return true;
         return r.code.toLowerCase().includes(q) || r.name.toLowerCase().includes(q) || r.option.toLowerCase().includes(q);
     });
@@ -354,6 +364,7 @@ function applyFilters() {
     });
     renderTable();
     renderSummary();
+    syncColFilterMarks();
     // 정렬 표시 — 지금 정렬 열만 ▲/▼, 머리글마다 aria-sort
     const absDefault = sortConfig.key === 'diffAbs';   // 기본 정렬 = 차이 절댓값 큰 순 → '차이' 머리글에 표시
     document.querySelectorAll('.list-table th.sortable').forEach(th => {
@@ -370,6 +381,60 @@ function applyFilters() {
             mk.textContent = ' ' + sm.mark;
         } else if (mk) mk.remove();
     });
+}
+
+// ── 열 필터(2026-11-26 — 예전 화면처럼 모든 열. 입고확인은 일치/불일치) ─────────────────
+//   머리글마다 깔때기 단추(글자 없는 그림 — 열 이름·엑셀 머리글에 안 섞이게). 누르면 값 목록(js/table-filter.js), 정렬은 그대로 머리글 클릭.
+//   목록 값은 다른 열 필터를 통과한 행에서(엑셀처럼). 표 위 '열 필터 N개 [모두 풀기]'.
+const FILTER_ICON = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 5h18l-7 8v6l-4-2v-4z"/></svg>';
+const mainHeadCells = () => { const t = $('table-body') && $('table-body').closest('table'); return t ? [...t.querySelectorAll('thead th')] : []; };
+function filterKeyOfTh(th, i, all) { return th.dataset.sort || (i === all.length - 1 ? 'flags' : ''); }
+function setupColFilters() {
+    const ths = mainHeadCells();
+    ths.forEach((th, i) => {
+        const key = filterKeyOfTh(th, i, ths);
+        if (!key || th.querySelector('.th-filter')) return;   // No(번호) 열은 거르지 않는다
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'th-filter';
+        b.dataset.tfFilter = '';
+        b.dataset.colKey = key;
+        b.innerHTML = FILTER_ICON;
+        const label = (th.firstChild && th.firstChild.textContent ? th.firstChild.textContent : th.textContent).trim() || key;
+        b.setAttribute('aria-label', `${label} 필터`);
+        b.title = `${label} 필터`;
+        b.addEventListener('click', (e) => {
+            e.stopPropagation();   // 머리글 정렬로 넘어가지 않게
+            const options = optionsFor(allRows, key, colFilters, flagLabel);
+            openFloatingFilter(b, {
+                key: 'mibal2:' + key, label: key === 'conf' ? `${label} — 도착과 일치/불일치` : label,
+                options,
+                current: toChecked(colFilters[key], options),
+                // 저장은 '뺀 값' 모양 — 새로 생긴 값의 행이 조용히 숨지 않게(js/lib/mibal2-filter.js)
+                onChange: (v) => { colFilters = { ...colFilters, [key]: toStored(v, options) }; applyFilters(); }
+            });
+        });
+        th.appendChild(b);
+    });
+}
+function syncColFilterMarks() {
+    mainHeadCells().forEach(th => {
+        const b = th.querySelector('.th-filter'); if (!b) return;
+        b.classList.toggle('on', colFilters[b.dataset.colKey] != null);
+    });
+    const n = activeFilterCount(colFilters);
+    let note = $('col-filter-note');
+    if (!note && $('row-count')) {
+        note = document.createElement('span');
+        note.id = 'col-filter-note';
+        note.className = 'filter-note live-only';
+        note.setAttribute('role', 'status');
+        $('row-count').after(note);
+        note.addEventListener('click', (e) => { if (e.target.closest('[data-clear-col-filters]')) { colFilters = {}; closeFloatingFilter(); applyFilters(); } });
+    }
+    if (!note) return;
+    note.hidden = n === 0;
+    note.innerHTML = n ? `열 필터 ${n}개 적용 중 — 위 합계·엑셀·입고용 파일도 이 행만 <button type="button" class="d-btn d-btn-sm" data-clear-col-filters>모두 풀기</button>` : '';
 }
 
 function flagsHtml(r) {
@@ -1136,6 +1201,8 @@ let colsOn = colsFromStorage(null, null).on;
 const colSpan = () => visibleCount(colsOn);   // 펼친 상세 행 칸 수
 function setCols(on, save) {
     colsOn = normalizeOn(on);
+    // 숨긴 열의 열 필터는 푼다 — 보이지 않는 열이 표를 계속 거르지 않게(아래 '차이 있는 행만' 과 같은 원칙)
+    Object.keys(colFilters).forEach(k => { if (!colsOn.includes(k) && colFilters[k] != null) colFilters = { ...colFilters, [k]: null }; });
     let st = $('cols-style');
     if (!st) { st = document.createElement('style'); st.id = 'cols-style'; document.head.appendChild(st); }
     st.textContent = hiddenCss(colsOn);
@@ -1310,6 +1377,7 @@ function setupEvents() {
     $('btn-refresh').addEventListener('click', () => requestRefresh(false));
     $('btn-view-live').addEventListener('click', () => setView('live', true));
     $('btn-view-loc').addEventListener('click', () => setView('loc', true));
+    setupColFilters();
     document.querySelectorAll('.list-table th.sortable').forEach(th => th.addEventListener('click', () => {
         if (justResized) return;   // 열 너비를 끌다 놓은 click
         const key = th.dataset.sort;
@@ -1426,13 +1494,21 @@ const sharedSigOf = (snaps) => stableSig(snaps.map(x => (x.exists() ? x.data() :
 async function loadLiveTools() {
     if (!LIVE) return null;
     try {
-        const mod = await import('./china-mibal2-live.js?v=96238eb6adca-1a0a5eb6');
+        const mod = await import('./china-mibal2-live.js?v=621f98558cef-59008fea');
         return mod.startLive({
             db, showToast, setLoading, errText,
             isAdmin: () => accessIsAdmin,
             memberName: () => myMemberName,
             getRows: () => allRows,
             getViewRows: () => viewRows,   // 화면에 보이는 행(검색·필터·정렬 반영) — 이지어드민 업로드용 받기
+            // 지금 걸린 거르기(검색·확인 필요만·열 필터) — 입고용 파일을 일부 상품만으로 받기 전에 묻는다(2026-11-26)
+            viewFilterNote: () => {
+                const parts = [];
+                if (($('search-input').value || '').trim()) parts.push('검색어');
+                if ($('chk-check-only').checked) parts.push('확인 필요만');
+                const n = activeFilterCount(colFilters); if (n) parts.push(`열 필터 ${n}개`);
+                return parts.length ? { parts, shown: viewRows.length, total: allRows.length } : null;
+            },
             // opts.allGrace — 본사도착 유예를 보지 않고 그 출고일 도착분을 모두 넣는다(작업 마감: 유예가 지나도 작업 출고일 전부)
             rowsFor: (dates, im, opts) => withScanLink(computeRows({ ...liveBundle(), selectedDates: dates, ...(opts && opts.allGrace ? { graceDays: ALL_GRACE_DAYS } : {}) }), im || inboundMap, { keepOutside: true }),
             getShipItems: () => ship.items || {},   // 출고일 불일치 확인(js/lib/ship-mismatch.js)

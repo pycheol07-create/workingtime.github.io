@@ -166,6 +166,21 @@ export const showToast = (message, isError = false, opts = {}) => {
     toast.dataset.timer = String(setTimeout(() => close(toast), ms));
 };
 
+// 🧪 시험 전용 스위치 — 로컬 주소 + 자동화 브라우저 + localStorage 'test.nativeDialogs'='1' 일 때만 브라우저 기본 창으로 돌린다.
+//    예전 에뮬레이터 시험(tools/*-check.py)이 page.on('dialog') 로 창을 받아 누르기 때문(2026-11-26 앱 창 전환).
+//    운영 주소·사람 브라우저·봇(그 칸을 쓰지 않음)에서는 늘 앱 창이다.
+// 시험용 기본 창 글자 — 본문 그대로, 제목은 본문에 없을 때만 뒤에(첫 줄 경고를 보는 시험이 있다)
+const testDialogText = (message, title) => {
+    const m = String(message == null ? '' : message), t = String(title == null ? '' : title);
+    return !t || m.includes(t) ? m : (m ? m + '\n\n' + t : t);
+};
+const nativeDialogsForTest = () => {
+    try {
+        const h = location.hostname;
+        return (h === 'localhost' || h === '127.0.0.1') && navigator.webdriver === true && localStorage.getItem('test.nativeDialogs') === '1';
+    } catch (_) { return false; }
+};
+
 // 네이티브 confirm 대체 — 스타일된 모달, Promise<boolean> 반환.
 // 자체 DOM을 생성하므로 어느 페이지에서나 동작(별도 마크업/컨테이너 불필요).
 // opts.backdrop === false 면 바깥 클릭으로 닫히지 않는다(두 단추가 모두 '실행' 이라 바깥 클릭=취소가 위험한 창 — 예: 메모 충돌).
@@ -173,6 +188,7 @@ export const showToast = (message, isError = false, opts = {}) => {
 // z-index 2147483646 — 브라우저 기본 창처럼 맨 위(로딩 덮개 999999·권한 가림막·상단바 알림 패널보다 위, 에뮬레이터 띠 아래).
 export const showConfirm = (message, opts = {}) => {
     const { title = '확인', okText = '확인', cancelText = '취소', danger = false, backdrop = true } = opts;
+    if (nativeDialogsForTest()) return Promise.resolve(window.confirm(testDialogText(message, opts.title)));
     const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
     return new Promise((resolve) => {
         const ov = document.createElement('div');
@@ -257,11 +273,13 @@ function openAppDialog({ title, message, isError, input, okText = '확인', canc
 }
 /** alert() 대신 — 앱 모양 안내 창. await 하면 닫힐 때까지 기다린다. opts: { title, isError, okText } */
 export const showAlert = (message, opts = {}) => {
+    if (nativeDialogsForTest()) { window.alert(testDialogText(message, opts.title)); return Promise.resolve(); }
     if (typeof document === 'undefined' || !document.body) { try { window.alert(String(message)); } catch (_) {} return Promise.resolve(); }
     return openAppDialog({ title: opts.title || '', message, isError: !!opts.isError, okText: opts.okText || '확인' });
 };
 /** prompt() 대신 — 입력 창. 확인 → 입력한 글(빈 글 포함), 취소·Esc → null (prompt 와 같은 약속). opts: { title, placeholder, okText, cancelText } */
 export const showPrompt = (message, defaultValue = '', opts = {}) => {
+    if (nativeDialogsForTest()) return Promise.resolve(window.prompt(String(message == null ? '' : message), defaultValue == null ? '' : String(defaultValue)));
     if (typeof document === 'undefined' || !document.body) { try { return Promise.resolve(window.prompt(String(message), defaultValue)); } catch (_) { return Promise.resolve(null); } }
     return openAppDialog({ title: opts.title || '', message, input: { value: defaultValue == null ? '' : String(defaultValue), placeholder: opts.placeholder },
         okText: opts.okText || '확인', cancelText: opts.cancelText || '취소' });

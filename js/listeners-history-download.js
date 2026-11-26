@@ -1,7 +1,7 @@
 // === js/listeners-history-download.js ===
 import * as DOM from './dom-elements.js?v=2b9f19ecbde2-82fbef91';
 import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
-import { showToast, getTodayDateString } from './utils.js?v=32969da5faa9-163bcbc9';
+import { showToast, getTodayDateString } from './utils.js?v=65bb3512764f-e315797c';
 
 import {
     downloadHistoryAsExcel,
@@ -14,7 +14,7 @@ import {
     downloadReportExcel,
     downloadPersonalReportExcel,
     downloadInspectionHistory
-} from './history-excel.js?v=5bbcc3565545-084171ab';
+} from './history-excel.js?v=43edc6e1d08e-084171ab';
 
 const getSelectedDateKey = () => {
     const btn = DOM.historyDateList.querySelector('.history-date-btn.is-on');

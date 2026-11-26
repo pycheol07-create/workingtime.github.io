@@ -26,9 +26,9 @@
 import {
     ownerByPeriod, detectOwnerChanges, compareAround, taskDays, qtyDaysOf, periodKeyOf, pctChange, MIN_COMPARE_DAYS
 } from './task-owner.js?v=82e303e4c972-e73c99c8';
-import { skillMatrix, busFactor, LEVEL_RANK, PEOPLE_NOTE } from './plan-skills.js?v=a44cbe99d8ea-166a535f';
+import { skillMatrix, busFactor, LEVEL_RANK, PEOPLE_NOTE } from './plan-skills.js?v=7416db6792ac-166a535f';
 import { quarterList } from './plan-automation.js?v=96ace6ece016-3975d02d';
-import { isMemberActiveOn } from '../utils.js?v=32969da5faa9-163bcbc9';
+import { isMemberActiveOn } from '../utils.js?v=65bb3512764f-e315797c';
 
 export const ADVICE_LEVELS = Object.freeze({
     dropPct: -10, hold: 2, maxAgeDays: 84, maxCandidates: 3, highDays: 15, midDays: 8, titleMax: 80

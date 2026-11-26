@@ -3,12 +3,12 @@
 //  - renderPredictionTab: 실적 예측 탭 (차트/KPI)
 //  - renderForecastTab: 업무 예상 탭 (시뮬레이션·요약 카드)
 
-import { predictFutureTrends } from './analysis-logic.js?v=b42aaa862645-0bfe0ae3';
+import { predictFutureTrends } from './analysis-logic.js?v=ad17bad984b3-0bfe0ae3';
 import { doc, getDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { mibalByArrival, makeArrivalLookup, makeArrivalsLookup } from './lib/mibal-forecast.js?v=60b17128e7b7-2e3b80a2';
 import { parseInspPacks, sampleCardsByArrival } from './lib/insp-packs.js?v=e3fa3546a650-16eb76b5';
 import { inspListCountFor } from './lib/insp-day.js?v=d859a7e39527-456c14c8';
-import { getSubscribedDate } from './app-sync.js?v=e8f50ae37140-68f6c921';
+import { getSubscribedDate } from './app-sync.js?v=74ba6fa0d815-68f6c921';
 import { runDay } from './lib/refill-view.js?v=3416a867c2d7-24e9bb3d';
 import { parseRecDay, pickRecDay, recCount, applyLocRecCount, dayKey as recDayKey } from './lib/locrec-view.js?v=e93900011313-fdf32cdb';
 import { LOCREC_TASK } from './lib/feature-catalog.js?v=b88b1c1e60c1-81ffd467';
@@ -25,22 +25,22 @@ import { precursorOffGate, noneNextStats, noneNextObs, precursorStateOfDay as pr
 import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=553320652df2-c473a26d';
 import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
 import { saveView } from './view-state.js?v=c2e4bf06fdce-0da8b754';
-import { getTodayDateString, getRegularMembersForCount, showToast, showConfirm, showAlert, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=32969da5faa9-163bcbc9';
-import { groupIncomingRowsByArrival } from './widget-incoming-schedule.js?v=8fa451d87d70-237bc1dd';
+import { getTodayDateString, getRegularMembersForCount, showToast, showConfirm, showAlert, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=65bb3512764f-e315797c';
+import { groupIncomingRowsByArrival } from './widget-incoming-schedule.js?v=98c211d9a608-237bc1dd';
 import { getIncomingQtyByDateFromCache, getIncomingDetailsByDateFromCache,
-         isIncomingCacheFreshToday } from './widget-incoming-schedule.js?v=8fa451d87d70-237bc1dd';
+         isIncomingCacheFreshToday } from './widget-incoming-schedule.js?v=98c211d9a608-237bc1dd';
 import { getPlannedQuantitiesForDate, getPlannedTimeTasksForDate, getPlannedExcludeMinutesForDate, getPlannedAdminWorkersForDate,
          fetchPlannedData, savePlannedQuantities,
          saveForecastSnapshot, saveForecastSnapshotIfAbsent, deleteForecastSnapshot, fetchForecastSnapshots,
-         getForecastSnapshotForDate, historyLoadFailed, hasHistoryLoaded, fetchAllHistoryData } from './history-data-manager.js?v=e8f50ae37140-a9403e97';
+         getForecastSnapshotForDate, historyLoadFailed, hasHistoryLoaded, fetchAllHistoryData } from './history-data-manager.js?v=74ba6fa0d815-a9403e97';
 import { decomposeAccuracy, summarizeAccuracyRows, aggregateByTask, excludeTasksForAccuracy } from './forecast-accuracy.js?v=14735a690ed1-00c766d3';
 import { computeDayProgress, buildProgressRows, projectFinish, spentMinutesOf,
-         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=e0ea5ced9d5a-40fe586a';
+         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=dbbe835978a6-40fe586a';
 import { LUNCH_END_MIN } from './lib/calc.js?v=c29c2f406e7f-0cf37820';
 import { applyAdminWorkers, normalizeAdminWorkers, ADMIN_TASK_ID, DEFAULT_ADMIN_WORKERS,
          buildExcludedProgressRows, excludedActualByTask } from './lib/forecast-exclude.js?v=16797e217c0c-3d086ab1';
 import { taskUph, recentDays, RECENT_SPEED, recentTaskSpeeds } from './task-throughput.js?v=6c5add29d96b-0d55f842';
-import { normalizedUtilization } from './lib/ops-metrics.js?v=89a4eac4b3f4-58d6bcbb';
+import { normalizedUtilization } from './lib/ops-metrics.js?v=5abf5efec2fb-58d6bcbb';
 import { foldReasonFor, FOLD_REASON_TEXT, shouldSaveQty, shouldSaveTime,
          normalizeTimeEntry } from './lib/sim-fold.js?v=47dacd3eb964-9cb392d3';
 import { learnCarryPerOffDay, backlogFactor, carryReason, carrySourceNote,

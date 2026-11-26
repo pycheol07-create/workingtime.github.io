@@ -12,13 +12,13 @@ export {
     switchHistoryView,
     updateGranularityButtons,
     openHistoryQuantityModal
-} from './history-list-controller.js?v=824e9c22e47c-bba56cb8';
+} from './history-list-controller.js?v=f36d76cc737f-bba56cb8';
 
 // 3. 일별 상세 렌더링 (Daily Renderer)
-export { renderHistoryDetail } from './history-daily-renderer.js?v=cd4cceba3f49-e4fed325';
+export { renderHistoryDetail } from './history-daily-renderer.js?v=5dc06639e61a-e4fed325';
 
 // 4. 기록 관리 테이블 (Record Table)
 export {
     openHistoryRecordManager,
     renderHistoryRecordsTable
-} from './history-record-table.js?v=54b4ccedceab-0a2c5a8f';
+} from './history-record-table.js?v=dbe7a456aaf0-0a2c5a8f';

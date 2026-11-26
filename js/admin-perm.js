@@ -14,7 +14,7 @@ import {
 } from './lib/perm-model.js?v=84f63a17f29d-4f0ab0b3';
 import { withBuiltinMenus, SHELL_EXCLUDED_ACTIONS } from './menu-catalog.js?v=8219e3fbbda6-bda14b1d';
 import { isAdminOnlyNow, DATA_ADMIN_ONLY_NOTE, lastDayKeys, sumHits, HIT_COLLECTION } from './lib/perm-gate.js?v=e8be6a31f3ef-c9741504';
-import { showConfirm, showAlert } from './utils.js?v=32969da5faa9-163bcbc9';
+import { showConfirm, showAlert } from './utils.js?v=65bb3512764f-e315797c';
 
 let model = null;
 let config = null;

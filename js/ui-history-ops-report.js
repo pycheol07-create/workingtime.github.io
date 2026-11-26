@@ -16,20 +16,20 @@
 // ⚠️ role=dialog·data-act 금지(업무마감봇 선택자). 직원 이름·금액을 콘솔에 찍지 않는다.
 
 import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
-import { renderHistoryDateListByMode, updateGranularityButtons } from './app-history-logic.js?v=824e9c22e47c-ef63fd43';
-import { setTreeVisible, showPanelLoadError, clearPanelLoadError } from './history-list-controller.js?v=824e9c22e47c-bba56cb8';
+import { renderHistoryDateListByMode, updateGranularityButtons } from './app-history-logic.js?v=f36d76cc737f-ef63fd43';
+import { setTreeVisible, showPanelLoadError, clearPanelLoadError } from './history-list-controller.js?v=f36d76cc737f-bba56cb8';
 import { saveView } from './view-state.js?v=c2e4bf06fdce-0da8b754';
 import { currentPerm, onPerm } from './feature-gate.js?v=7eaa46dbb8e9-a5458f75';
 import { can } from './lib/perm.js?v=c1e53d91da8e-49afeea3';
-import { showToast } from './utils.js?v=32969da5faa9-163bcbc9';
+import { showToast } from './utils.js?v=65bb3512764f-e315797c';
 import {
     OPS_MAIN, PLAN_TAB, allowedTabs, pickTab, tabOf, canSettle, canDetail, canOwner, canTaskTable, settlePresetOf, tabPdfBlock
 } from './lib/ops-report-route.js?v=bc1ec7e463eb-3f6f2065';
 import {
     renderOpsTab, renderDetailTables, invalidateOpsModel, destroyOpsCharts, openTaskDetail, closeTaskDetail
-} from './ui-ops-view.js?v=d5fba1182033-e3a195b5';
-import { renderOpsPlan, invalidateOpsPlan, leaveOpsPlan } from './ui-ops-plan.js?v=8d43a23cffee-58c185af';
-import { downloadPanelPdf, pdfFileName } from './panel-pdf.js?v=b14ff467892f-ea9942f8';
+} from './ui-ops-view.js?v=e9c0fe050358-e3a195b5';
+import { renderOpsPlan, invalidateOpsPlan, leaveOpsPlan } from './ui-ops-plan.js?v=33734e9dc924-58c185af';
+import { downloadPanelPdf, pdfFileName } from './panel-pdf.js?v=6a9ff1406b2a-ea9942f8';
 
 const TAB_PANEL = {
     summary: 'ops-summary-panel', productivity: 'ops-productivity-panel', staffing: 'ops-staffing-panel', cost: 'ops-cost-panel', plan: 'ops-plan-panel'
@@ -255,7 +255,7 @@ async function openSettlement(preset) {
     saveOps('cost', true);
     const panel = $('settlement-panel');
     try {
-        settleMod = await import('./ui-history-settlement.js?v=026bbd3737c7-48fa5e8b');
+        settleMod = await import('./ui-history-settlement.js?v=5f07b4308f0e-48fa5e8b');
         clearPanelLoadError(panel);   // 앞서 실패해 띄운 오류 상자
         // downloads:false = 결산 화면 머리 줄의 [엑셀][PDF] 를 그리지 않음(받기는 위 줄의 [PDF 받기][엑셀 받기])
         await settleMod.initSettlementReport({ downloads: false });
@@ -288,7 +288,7 @@ function applySettlePreset(panel, p) {
 async function downloadSettle(kind, btn) {
     if (!canSettle(canNow)) return;
     try {
-        if (!settleMod) settleMod = await import('./ui-history-settlement.js?v=026bbd3737c7-48fa5e8b');
+        if (!settleMod) settleMod = await import('./ui-history-settlement.js?v=5f07b4308f0e-48fa5e8b');
         if (typeof settleMod.downloadSettlement === 'function') {
             const done = await settleMod.downloadSettlement(kind, btn);
             if (done === false) showToast('먼저 보고서를 만들어 주세요.');

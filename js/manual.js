@@ -8,7 +8,7 @@ import { connectEmulatorsIfEnabled } from './firebase-emulator.js?v=071adc2867a0
 import { setShellContext, goHome, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=b9a7199f3e1d-c80c27e9';
 import { memberNameFor } from './app-shell-data.js?v=e42c6a10ca7a-9319c795';
 import { menuConfigOf } from './lib/perm.js?v=c1e53d91da8e-49afeea3';
-import { escapeHtml, friendlyFirebaseError, showConfirm, showAlert } from './utils.js?v=32969da5faa9-163bcbc9';
+import { escapeHtml, friendlyFirebaseError, showConfirm, showAlert } from './utils.js?v=65bb3512764f-e315797c';
 import { checkAttachment, checkInlineImage, accessFieldsFor, backfillPatchFor, canViewManual as canViewManualFor, mergeManualLists } from './lib/manual-access.js?v=11ac8af27348-8605df04';
 
 let app, db, auth, storage;

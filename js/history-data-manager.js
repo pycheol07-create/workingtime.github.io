@@ -1,13 +1,13 @@
 // === js/history-data-manager.js ===
 import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
-import { getTodayDateString, toDateString, getCurrentTime, calcElapsedMinutes, showToast, friendlyFirebaseError, showConfirm } from './utils.js?v=32969da5faa9-163bcbc9';
+import { getTodayDateString, toDateString, getCurrentTime, calcElapsedMinutes, showToast, friendlyFirebaseError, showConfirm } from './utils.js?v=65bb3512764f-e315797c';
 import { clampOpenRecords } from './lib/record-close.js?v=c8683e426085-11b6fe97';
 import { decideHistoryMerge, historyHasContent } from './lib/history-merge.js?v=f882da56f066-3d3139d2';
 import { validateClockInOut, normalizeClock } from './lib/clock-in-out.js?v=2b0fa162a240-d1eeb61e';
 import {
     checkStartAfterClockIn, recordsBeforeClockIn, isTardyClockIn, tardyThreshold, removeTardyOf, makeEditStamp
 } from './lib/attendance-guard.js?v=2a8059f9ce4c-c8aba679';
-import { validMemberNames, systemAccountSet } from './attendance-stats.js?v=f1f880ba8140-15815b0d';
+import { validMemberNames, systemAccountSet } from './attendance-stats.js?v=5c598c396464-15815b0d';
 import { can } from './lib/perm.js?v=c1e53d91da8e-49afeea3';
 import { addRecord, updateRecord, removeRecord } from './lib/history-record-ops.js?v=245faca66ae0-da67cec6';
 import { mergeAttendanceServerFirst } from './lib/attendance-merge.js?v=bbd046e11da5-356da462';
@@ -16,7 +16,7 @@ import { normalizeAdminWorkers, DEFAULT_ADMIN_WORKERS } from './lib/forecast-exc
 import { buildPlannedDoc } from './lib/planned-fields.js?v=d045515d71d6-6077efa3';
 import { sameTaskKeys, aliasTaskName } from './lib/task-alias-view.js?v=2e131477eb8e-af660ceb';
 // 진행 중 기록을 끝내거나 지울 때 멤버 잠금(activeLocks)도 같이 푼다
-import { writeRecordsReleasingLocks, markLocalWorkEnded } from './app-sync.js?v=e8f50ae37140-68f6c921';
+import { writeRecordsReleasingLocks, markLocalWorkEnded } from './app-sync.js?v=74ba6fa0d815-68f6c921';
 import {
     doc, setDoc, getDoc, getDocFromServer, collection, getDocs, getDocsFromServer,
     deleteDoc, deleteField,

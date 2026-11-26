@@ -13,8 +13,8 @@ import { doc, getDoc, getDocs, setDoc, collection, query, where, documentId } fr
 import { buildLocIndex } from './lib/mibal2-rows.js?v=221b7a831bbe-37c39e3c';
 import { locSourceOf, locFreshMsOf, locStaleReason } from './lib/mibal2-live.js?v=7ccac6277373-d7d6b954';
 import { locPartsArr, mergeCsvLocs } from './lib/loc-mode.js?v=cbf323cf3e0b-33e59b85';
-import { readSheetRowsAOA } from './china-mibal2-live-admin.js?v=5b274bc824f4-b09af5b0';
-import { showConfirm, showAlert } from './utils.js?v=32969da5faa9-163bcbc9';
+import { readSheetRowsAOA } from './china-mibal2-live-admin.js?v=c327007483bd-b09af5b0';
+import { showConfirm, showAlert } from './utils.js?v=65bb3512764f-e315797c';
 
 const CHINA = 'ChinaStockGoods';
 const NUM_LOC_SHARDS = 8;

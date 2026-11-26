@@ -6,10 +6,10 @@
 import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
 import { ensureHtml2pdf } from './lib/lazy-html2pdf.js?v=8e7180a5a596-4b2424ee';
 import { LEAVE_TYPES } from './state.js?v=c7f5fc984ef9-a2ce38c0';
-import { getRegularMembersForCount, formatDuration, buildMemberHourlyWageMap, getTodayDateString, escapeHtml, escapeHtml as esc, showAlert } from './utils.js?v=32969da5faa9-163bcbc9';   // escapeHtml 도 같이(2026-11-12 이스케이프 수정이 이름으로 불러 정산 화면이 깨졌다)
+import { getRegularMembersForCount, formatDuration, buildMemberHourlyWageMap, getTodayDateString, escapeHtml, escapeHtml as esc, showAlert } from './utils.js?v=65bb3512764f-e315797c';   // escapeHtml 도 같이(2026-11-12 이스케이프 수정이 이름으로 불러 정산 화면이 깨졌다)
 import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { matchesFilter, hasFilter, filterCount, openFloatingFilter, closeFloatingFilter } from './table-filter.js?v=fd197c3531ef-b92b1b78';
-import { bindDrillListeners, drillWrap } from './settlement-drill.js?v=4dd621ab9c67-db8ccb57';
+import { bindDrillListeners, drillWrap } from './settlement-drill.js?v=34bb0d91ea9e-db8ccb57';
 
 import {
     calculateReportKPIs,
@@ -19,13 +19,13 @@ import {
     calculateBenchmarkOEE,
     generateProductivityDiagnosis,
     analyzeUnitCost
-} from './ui-history-reports-logic.js?v=3677971659b5-28b3f058';
+} from './ui-history-reports-logic.js?v=0dc885574511-28b3f058';
 
-import { aggregateManagementData } from './ui-history-management.js?v=b170c269edf1-688719b9';
-import { ensureMilestonesLoaded, getMilestoneSummariesForPeriod } from './ui-history-milestones.js?v=1a450b816dc7-10ac295c';
+import { aggregateManagementData } from './ui-history-management.js?v=f7cf514cd049-688719b9';
+import { ensureMilestonesLoaded, getMilestoneSummariesForPeriod } from './ui-history-milestones.js?v=b52d40c333e7-10ac295c';
 import { D } from './d-chart.js?v=e918595219dd-dfe55644';
 import { aliasHistoryView } from './lib/task-alias-view.js?v=2e131477eb8e-af660ceb';
-import { periodSpeeds, lastDayIdOf, opsSummary, OEE_LEVELS } from './lib/ops-metrics.js?v=89a4eac4b3f4-58d6bcbb';
+import { periodSpeeds, lastDayIdOf, opsSummary, OEE_LEVELS } from './lib/ops-metrics.js?v=5abf5efec2fb-58d6bcbb';
 import { revenueTotalOf } from './revenue-channels.js?v=553320652df2-c473a26d';
 // 엑셀(결산 xlsx)로 옮길 때 — 화면용 HTML 글(태그·escape 된 글자)을 보통 글자로
 const htmlToText = (h) => String(h == null ? '' : h).replace(/<[^>]+>/g, '').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&');
