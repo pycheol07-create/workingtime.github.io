@@ -1,20 +1,20 @@
 // === js/app-sync.js ===
-import { nameWithPosition } from './lib/member-title.js?v=202611260958';
-import * as State from './state.js?v=202611260958';
-import { isPersistentLeaveType } from './state.js?v=202611260958';
-import * as DOM from './dom-elements.js?v=202611260958';
-import { getTodayDateString, getCurrentTime, showToast } from './utils.js?v=202611260958';
+import { nameWithPosition } from './lib/member-title.js?v=9a5f2a824905-0bafbd16';
+import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
+import { isPersistentLeaveType } from './state.js?v=c7f5fc984ef9-a2ce38c0';
+import * as DOM from './dom-elements.js?v=2b9f19ecbde2-82fbef91';
+import { getTodayDateString, getCurrentTime, showToast } from './utils.js?v=08864ef2738a-17d787ec';
 // ✨ limit가 추가되었습니다.
 import { doc, onSnapshot, collection, query, where, limit, writeBatch, getDocs, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { renderDashboardLayout, renderTaskSelectionModal } from './ui.js?v=202611260958';
-import { renderTodoList } from './inspection-logic.js?v=202611260958';
-import { renderNotificationList } from './app-notifications.js?v=202611260958';
-import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202611260958';
-import { PRIVATE_CONFIG_KEYS } from './config.js?v=202611260958';
-import { isAutomation, loadDismissed, pickPopup, findOpenModal } from './lib/noti-popup.js?v=202611260958';
-import { desktopNotify } from './desktop-noti.js?v=202611260958';
-import { migrateDashboardTaskItems } from './lib/task-config-sync.js?v=202611260958';
-import { planForceEnd } from './lib/leave-timing.js?v=202611260958';
+import { renderDashboardLayout, renderTaskSelectionModal } from './ui.js?v=1908e7802e0a-a84d3554';
+import { renderTodoList } from './inspection-logic.js?v=871aeb7a8a82-e1d61ac2';
+import { renderNotificationList } from './app-notifications.js?v=dcc4d3779cd7-bf8fe902';
+import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=152edbc1d09a-ab7817f6';
+import { PRIVATE_CONFIG_KEYS } from './config.js?v=242bb63abbe9-dd1665a9';
+import { isAutomation, loadDismissed, pickPopup, findOpenModal } from './lib/noti-popup.js?v=a01e8d07acd1-85d726e6';
+import { desktopNotify } from './desktop-noti.js?v=d70206b658ab-45c58629';
+import { migrateDashboardTaskItems } from './lib/task-config-sync.js?v=970a6d3589ff-85dd0720';
+import { planForceEnd } from './lib/leave-timing.js?v=56494f977986-82fd27e6';
 
 let unsubConfig = null;
 let unsubToday = null;

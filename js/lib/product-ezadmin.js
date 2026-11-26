@@ -12,12 +12,12 @@
 //
 // 순수 모듈(DOM/Firebase 의존 없음). ⚠️ 🔒 원가·공급처·단가 원문을 console·미리보기·결과 엑셀에 내지 말 것 —
 //    경고·정보는 건수·사유 라벨만. 원문은 원가메모(관리자 전용 문서)에만 들어간다.
-import { parsePriceText } from './product-price-text.js?v=202611260958';
+import { parsePriceText } from './product-price-text.js?v=2ff38b54a885-9cac83e4';
 import {
     normHeader, cellStr, HEADER_SCAN_ROWS, groupCatalogRows, isSupCode, normSup, emptyCost, diffCostObj, countStatus, MEMO_MAX
-} from './product-excel-rows.js?v=202611260958';
-import { isValidCode } from './product-bucket.js?v=202611260958';
-import { normalizePrice, samePrice, round2, parseNum } from './product-price.js?v=202611260958';
+} from './product-excel-rows.js?v=acc096d72726-b7ba4cab';
+import { isValidCode } from './product-bucket.js?v=842897a6efab-a72f5a26';
+import { normalizePrice, samePrice, round2, parseNum } from './product-price.js?v=960affe3b8e6-35ad98ac';
 
 /** 이 머리글이 한 행에 모두 있으면 이지어드민 상품 엑셀 */
 export const EZ_SIGNATURE = ['대표상품코드', '상품코드', '옵션', '원가', '추가항목2', '비축창고재고', '공급처'];

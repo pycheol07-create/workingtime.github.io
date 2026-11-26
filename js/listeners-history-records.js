@@ -1,19 +1,19 @@
 // === js/listeners-history-records.js ===
 // 설명: 이력 보기의 '기록 관리'(상세 내역 수정/삭제/일괄적용) 관련 리스너를 담당합니다.
 
-import * as DOM from './dom-elements.js?v=202611260958';
-import * as State from './state.js?v=202611260958';
-import { showToast, showConfirm, getTodayDateString, calcElapsedMinutes } from './utils.js?v=202611260958';
+import * as DOM from './dom-elements.js?v=2b9f19ecbde2-82fbef91';
+import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
+import { showToast, showConfirm, getTodayDateString, calcElapsedMinutes } from './utils.js?v=08864ef2738a-17d787ec';
 import {
     updateHistoryWorkRecord,
     deleteHistoryWorkRecord,
     addHistoryWorkRecord
-} from './history-data-manager.js?v=202611260958';
-import { renderHistoryDetail } from './app-history-logic.js?v=202611260958';
-import { renderHistoryRecordsTable, openHistoryRecordManager, countDirtyRecordRows, isRecordRowDirty } from './history-record-table.js?v=202611260958';
-import { generateId } from './app-data.js?v=202611260958';
-import { checkStartAfterClockIn, clampStartToClockIn } from './lib/attendance-guard.js?v=202611260958';
-import { setPauseMinutes } from './lib/pause-edit.js?v=202611260958';
+} from './history-data-manager.js?v=1908e7802e0a-3ebc7e25';
+import { renderHistoryDetail } from './app-history-logic.js?v=6d110fe525fa-ef63fd43';
+import { renderHistoryRecordsTable, openHistoryRecordManager, countDirtyRecordRows, isRecordRowDirty } from './history-record-table.js?v=3666748fa43c-0a2c5a8f';
+import { generateId } from './app-data.js?v=0f49f1823690-c4996a74';
+import { checkStartAfterClockIn, clampStartToClockIn } from './lib/attendance-guard.js?v=2a8059f9ce4c-c8aba679';
+import { setPauseMinutes } from './lib/pause-edit.js?v=92411e3106e1-3c05ca8b';
 
 const currentRecordsDateKey = () => document.getElementById('history-records-date').textContent;
 // 기존 확인창 끝에 붙이는 문구 — 저장 안 한 수정이 없으면 빈 문자열

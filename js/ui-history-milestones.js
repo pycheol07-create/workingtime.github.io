@@ -1,11 +1,11 @@
 // === js/ui-history-milestones.js ===
 // 📍 운영 마일스톤 관리: 변경사항 기록 + before/after KPI 자동 비교
 
-import * as State from './state.js?v=202611260958';
-import { showToast, getTodayDateString, escapeHtml, friendlyFirebaseError } from './utils.js?v=202611260958';
-import { aliasHistoryView } from './lib/task-alias-view.js?v=202611260958';
-import { TASK, tName } from './task-names.js?v=202611260958';
-import { milestoneTaskFilter, milestoneTaskMatch, milestoneView } from './lib/milestone-tasks.js?v=202611260958';
+import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
+import { showToast, getTodayDateString, escapeHtml, friendlyFirebaseError } from './utils.js?v=08864ef2738a-17d787ec';
+import { aliasHistoryView } from './lib/task-alias-view.js?v=2e131477eb8e-af660ceb';
+import { TASK, tName } from './task-names.js?v=33eb5ccd69bc-26ab8ff7';
+import { milestoneTaskFilter, milestoneTaskMatch, milestoneView } from './lib/milestone-tasks.js?v=f6cd161422ca-434e8f58';
 import {
     doc, collection, getDocs, setDoc, deleteDoc, onSnapshot, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";

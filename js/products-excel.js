@@ -10,21 +10,21 @@
 //   원가는 전용 열(EZ_COST_COLS)·글 단가 해석(diffEzCost). 기본정보 반영 뒤 [원가 단계로 이어서] 로 같은 내용(메모리)을 원가에 쓴다.
 //   새 공급처는 반영 직전 확인 후 대장에 이름 빈칸으로 등록(ensureSuppliers). 설계: 이지어드민상품엑셀_설계.md
 // ⚠️ 원가 값을 console 에 찍지 말 것 — 시간·행 수만.
-import { S, applyLocalProduct } from './products-store.js?v=202611260958';
-import { C, ledgerCodes, loadLedger } from './products-cost.js?v=202611260958';
-import { esc, toast, route, renderBasis } from './products.js?v=202611260958';
-import { costChangeText } from './products-cost.js?v=202611260958';
-import { catalogChangeText } from './products-detail.js?v=202611260958';
-import { writeBucket, writeCatalogSummary, ensureSuppliers } from './products-write.js?v=202611260958';
-import { catalogBucketId, costBucketId, CATALOG_BUCKETS } from './lib/product-bucket.js?v=202611260958';
+import { S, applyLocalProduct } from './products-store.js?v=12e37e026ce6-ee5ce71b';
+import { C, ledgerCodes, loadLedger } from './products-cost.js?v=29597c9abba1-b46a7823';
+import { esc, toast, route, renderBasis } from './products.js?v=29597c9abba1-749f10a1';
+import { costChangeText } from './products-cost.js?v=29597c9abba1-b46a7823';
+import { catalogChangeText } from './products-detail.js?v=29597c9abba1-f7f87f87';
+import { writeBucket, writeCatalogSummary, ensureSuppliers } from './products-write.js?v=c12131c8d88b-699dc490';
+import { catalogBucketId, costBucketId, CATALOG_BUCKETS } from './lib/product-bucket.js?v=842897a6efab-a72f5a26';
 import {
     CATALOG_COLS, COST_COLS, readRows, groupCatalogRows, diffCatalog, diffCost, defaultChecked,
     catalogJson, costJson, bucketSizesAfter, templateAoa, costExportAoa, resultAoa, STATUS_LABEL, BUCKET_LIMIT,
     sheetToAoa, goneSelected
-} from './lib/product-excel-rows.js?v=202611260958';
-import { EZ_COST_COLS, detectEzadmin, ezCatalogGroups, diffEzCost } from './lib/product-ezadmin.js?v=202611260958';
-import { friendlyFirebaseError } from './utils.js?v=202611260958';   // 원시 오류 코드 대신 할 일 한 줄
-import { REASON_LABEL } from './lib/product-price-text.js?v=202611260958';
+} from './lib/product-excel-rows.js?v=acc096d72726-b7ba4cab';
+import { EZ_COST_COLS, detectEzadmin, ezCatalogGroups, diffEzCost } from './lib/product-ezadmin.js?v=a5188298c0df-4f64b2cb';
+import { friendlyFirebaseError } from './utils.js?v=08864ef2738a-17d787ec';   // 원시 오류 코드 대신 할 일 한 줄
+import { REASON_LABEL } from './lib/product-price-text.js?v=2ff38b54a885-9cac83e4';
 
 const XLSX_URL = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
 const XLSX_SRI = 'sha384-vtjasyidUo0kW94K5MXDXntzOJpQgBKXmE7e2Ga4LG0skTTLeBi97eFAXsqewJjw';   // 받은 파일로 계산. 버전 올리면 다시 계산

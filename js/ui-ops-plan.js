@@ -16,48 +16,48 @@
 // 금액·직원 이름 없음 — 휴무는 '수'만 받는다. 콘솔에도 이름·금액·문서 본문을 찍지 않는다.
 // ⚠️ role=dialog·data-act 금지(업무마감봇 선택자).
 
-import * as State from './state.js?v=202611260958';
-import { getTodayDateString, getWeekOfYear, showToast } from './utils.js?v=202611260958';
-import { aliasHistoryView, aliasTaskName } from './lib/task-alias-view.js?v=202611260958';
-import { buildOpsModel, opsModelInputs } from './lib/ops-view-model.js?v=202611260958';
-import { taskNameOf } from './lib/task-ids.js?v=202611260958';
-import { buildWeekPlan } from './lib/plan-build.js?v=202611260958';
-import { nextWeekRange, planSettingsOf, addDaysStr, OVERTIME_LAW_NOTE } from './lib/plan-week.js?v=202611260958';
-import { baselineOf, defaultTargets, targetsFor, gapRows, shortToTargetHours } from './lib/plan-targets.js?v=202611260958';
-import { planDocId, confirmDocOf, planVsActual, monthErrsOf, monthConfirmYms, monthConfirmsOf } from './lib/plan-compare.js?v=202611260958';
-import { getStaffingOutlook, ensureMibalHistory, ensureCorrectCtx, precedingHolidayNameOf, getLoadedAccuracyHourErr } from './ui-history-prediction.js?v=202611260958';
-import { fetchPlannedData } from './history-data-manager.js?v=202611260958';
-import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202611260958';
-import { esc, n0, n1, pct0, fmtDay, card, kpi, fillText, actionsHtml, compareCardHtml, signed1, ok } from './ui-ops-plan-parts.js?v=202611260958';
-import { targetsCardHtml, openTargetsEditor, closeTargetsEditor } from './ui-ops-plan-targets.js?v=202611260958';
-import { computeMonthPlan, monthBodyHtml, lastMonthKeyOf } from './ui-ops-plan-month.js?v=202611260958';
-import { loadPlanDoc, peekPlanDoc, confirmPlan, saveDone } from './ops-plan-store.js?v=202611260958';
-import { computePeople, peopleHtml, peoplePrintHtml, assignCountsOf, busForPlan, namesOf, ignoreWordsOf } from './ui-ops-plan-people.js?v=202611260958';
-import { namesLeak } from './lib/plan-skills.js?v=202611260958';
-import { computeBudget, computeYearBudget, budgetHtml, yearBudgetHtml, openCostEditor, closeCostEditor, isAdminNow } from './ui-ops-plan-budget.js?v=202611260958';
-import { budgetEntryOf, trimBudgetPlans, costSettingsOf, MONTH_DAYS } from './lib/plan-budget.js?v=202611260958';
-import { computeYearPlan, yearBodyHtml } from './ui-ops-plan-year.js?v=202611260958';
-import { buildRoadmap, attachMilestones, CAUSE_MS_TYPE } from './lib/plan-roadmap.js?v=202611260958';
-import { simRowsOf } from './lib/plan-sim.js?v=202611260958';
-import { roadmapHtml, simHtml, simResultHtml } from './ui-ops-plan-extras.js?v=202611260958';
-import { COST_DOC } from './ops-plan-store.js?v=202611260958';
-import { recordRateOf } from './lib/plan-confidence.js?v=202611260958';
-import { loadMonthlies, autoBuildMonthlies, rebuildMonth } from './ops-monthly-store.js?v=202611260958';
-import { finishedMonths } from './lib/plan-monthly.js?v=202611260958';
-import { buildQuarterPlan, nextQuarterOf } from './lib/plan-quarter.js?v=202611260958';
-import { seasonCalendar, bundleForecast } from './lib/plan-season.js?v=202611260958';
-import { SEASON_BUNDLES } from './lib/plan-season-catalog.js?v=202611260958';
-import { buildAutomationRoadmap } from './lib/plan-automation.js?v=202611260958';
-import { buildDataGaps } from './lib/plan-data-gaps.js?v=202611260958';
-import { cleanYearDocSections, YEARDOC_SECTIONS } from './lib/plan-yeardoc.js?v=202611260958';
-import { quarterBodyHtml } from './ui-ops-plan-quarter.js?v=202611260958';
-import { yearDocHtml, readYearDocInputs } from './ui-ops-plan-yeardoc.js?v=202611260958';
-import { saveYearDoc } from './ops-plan-store.js?v=202611260958';
-import { listItems, createItem, updateItem, itemLog, claimOverdueNotice } from './ops-plan-items-store.js?v=202611260958';
-import { makeButton, draftOf, itemsCardHtml, logHtml, openGoalsEditor, closeGoalsEditor } from './ui-ops-plan-items.js?v=202611260958';
-import { isOverdue, pickOverdueNotices, OVERDUE_MESSAGE } from './lib/plan-items.js?v=202611260958';
-import { actualsOf } from './lib/plan-cascade.js?v=202611260958';
-import { sendNotification } from './app-notifications.js?v=202611260958';
+import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
+import { getTodayDateString, getWeekOfYear, showToast } from './utils.js?v=08864ef2738a-17d787ec';
+import { aliasHistoryView, aliasTaskName } from './lib/task-alias-view.js?v=2e131477eb8e-af660ceb';
+import { buildOpsModel, opsModelInputs } from './lib/ops-view-model.js?v=7bcb37a823fa-08a53556';
+import { taskNameOf } from './lib/task-ids.js?v=9c41e71742ef-83b1f46d';
+import { buildWeekPlan } from './lib/plan-build.js?v=77924bf8b64c-de020015';
+import { nextWeekRange, planSettingsOf, addDaysStr, OVERTIME_LAW_NOTE } from './lib/plan-week.js?v=277eaadcce87-f2dd7a70';
+import { baselineOf, defaultTargets, targetsFor, gapRows, shortToTargetHours } from './lib/plan-targets.js?v=7af4f5052ce6-f20d5954';
+import { planDocId, confirmDocOf, planVsActual, monthErrsOf, monthConfirmYms, monthConfirmsOf } from './lib/plan-compare.js?v=c1581812c018-67916867';
+import { getStaffingOutlook, ensureMibalHistory, ensureCorrectCtx, precedingHolidayNameOf, getLoadedAccuracyHourErr } from './ui-history-prediction.js?v=1908e7802e0a-6da24bce';
+import { fetchPlannedData } from './history-data-manager.js?v=1908e7802e0a-3ebc7e25';
+import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=152edbc1d09a-ab7817f6';
+import { esc, n0, n1, pct0, fmtDay, card, kpi, fillText, actionsHtml, compareCardHtml, signed1, ok } from './ui-ops-plan-parts.js?v=61768dcd3b0a-895d8afe';
+import { targetsCardHtml, openTargetsEditor, closeTargetsEditor } from './ui-ops-plan-targets.js?v=9ae88f56c834-869fc4cc';
+import { computeMonthPlan, monthBodyHtml, lastMonthKeyOf } from './ui-ops-plan-month.js?v=37d9b774ee1f-c78c2e8b';
+import { loadPlanDoc, peekPlanDoc, confirmPlan, saveDone } from './ops-plan-store.js?v=d98ba39291e8-e2b4aa69';
+import { computePeople, peopleHtml, peoplePrintHtml, assignCountsOf, busForPlan, namesOf, ignoreWordsOf } from './ui-ops-plan-people.js?v=59f838276872-808bebb0';
+import { namesLeak } from './lib/plan-skills.js?v=964e41cdbb0d-166a535f';
+import { computeBudget, computeYearBudget, budgetHtml, yearBudgetHtml, openCostEditor, closeCostEditor, isAdminNow } from './ui-ops-plan-budget.js?v=b19c1e072dc6-8f9b7088';
+import { budgetEntryOf, trimBudgetPlans, costSettingsOf, MONTH_DAYS } from './lib/plan-budget.js?v=eeb61fbf186c-3bc5a6ac';
+import { computeYearPlan, yearBodyHtml } from './ui-ops-plan-year.js?v=d2bde3e417b5-09ac854c';
+import { buildRoadmap, attachMilestones, CAUSE_MS_TYPE } from './lib/plan-roadmap.js?v=4bce8b457e7e-6417d13c';
+import { simRowsOf } from './lib/plan-sim.js?v=0ba756e8f775-1d2c35d9';
+import { roadmapHtml, simHtml, simResultHtml } from './ui-ops-plan-extras.js?v=8b04df974717-604a8aa5';
+import { COST_DOC } from './ops-plan-store.js?v=d98ba39291e8-e2b4aa69';
+import { recordRateOf } from './lib/plan-confidence.js?v=ff95d906e59f-e15ea39f';
+import { loadMonthlies, autoBuildMonthlies, rebuildMonth } from './ops-monthly-store.js?v=ccef371c7f1d-723d0d6c';
+import { finishedMonths } from './lib/plan-monthly.js?v=7210813658eb-df8a0c8a';
+import { buildQuarterPlan, nextQuarterOf } from './lib/plan-quarter.js?v=21dab3257f48-da1ab425';
+import { seasonCalendar, bundleForecast } from './lib/plan-season.js?v=41bc6fe9e245-528fb953';
+import { SEASON_BUNDLES } from './lib/plan-season-catalog.js?v=92c4e281437b-3025c607';
+import { buildAutomationRoadmap } from './lib/plan-automation.js?v=96ace6ece016-3975d02d';
+import { buildDataGaps } from './lib/plan-data-gaps.js?v=c2545e4a56d5-c491b69e';
+import { cleanYearDocSections, YEARDOC_SECTIONS } from './lib/plan-yeardoc.js?v=e27c84a52167-2ae196cd';
+import { quarterBodyHtml } from './ui-ops-plan-quarter.js?v=16a6fbc85c77-a80a5c8f';
+import { yearDocHtml, readYearDocInputs } from './ui-ops-plan-yeardoc.js?v=1a9715fce815-3073097b';
+import { saveYearDoc } from './ops-plan-store.js?v=d98ba39291e8-e2b4aa69';
+import { listItems, createItem, updateItem, itemLog, claimOverdueNotice } from './ops-plan-items-store.js?v=4b48769e43f2-e19e62d2';
+import { makeButton, draftOf, itemsCardHtml, logHtml, openGoalsEditor, closeGoalsEditor } from './ui-ops-plan-items.js?v=1518751646e1-83063bf9';
+import { isOverdue, pickOverdueNotices, OVERDUE_MESSAGE } from './lib/plan-items.js?v=33f05eb1c13a-5e89930a';
+import { actualsOf } from './lib/plan-cascade.js?v=9787bca5bf4b-086366a5';
+import { sendNotification } from './app-notifications.js?v=dcc4d3779cd7-bf8fe902';
 
 const $ = (id) => document.getElementById(id);
 const isAdmin = () => !!(State.appState && State.appState.currentUserRole === 'admin');
@@ -635,7 +635,7 @@ function bindOnce() {
 function ensureMilestones() {
     if (msMod || ensureMilestones.busy) return;
     ensureMilestones.busy = true;
-    import('./ui-history-milestones.js?v=202611260958').then(mod => {
+    import('./ui-history-milestones.js?v=e5d939c6c4fc-f2d37faf').then(mod => {
         msMod = mod;
         try { mod.subscribeMilestones(); mod.bindMilestoneListeners(); } catch (e) { /* 마일스톤 화면 칸이 없어도 계획은 그린다 */ }
         return mod.ensureMilestonesLoaded();

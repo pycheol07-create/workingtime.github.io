@@ -25,11 +25,11 @@
 //
 // DOM·State 를 쓰지 않는다(appConfig·이력은 인자로) — node 시험(tests/ops-metrics.test.js)과 비교 도구(tools/ops-metrics-compare.mjs)가 그대로 부른다.
 
-import { buildMemberHourlyWageMap, getWeekOfYear, toDateString } from '../utils.js?v=202611260958';
-import { attendedMembers, presenceStats, isAttendanceEstimated, systemAccountSet, validMemberNames } from '../attendance-stats.js?v=202611260958';
-import { dailyTaskStats, taskSpeedPerMinute, RECENT_SPEED, recentTaskSpeeds } from '../task-throughput.js?v=202611260958';
-import { revenueTotalOf, orderCountTotalOf } from '../revenue-channels.js?v=202611260958';
-import { TASK, isTask } from './task-ids.js?v=202611260958';
+import { buildMemberHourlyWageMap, getWeekOfYear, toDateString } from '../utils.js?v=08864ef2738a-17d787ec';
+import { attendedMembers, presenceStats, isAttendanceEstimated, systemAccountSet, validMemberNames } from '../attendance-stats.js?v=5470492ee5b6-15815b0d';
+import { dailyTaskStats, taskSpeedPerMinute, RECENT_SPEED, recentTaskSpeeds } from '../task-throughput.js?v=6c5add29d96b-0d55f842';
+import { revenueTotalOf, orderCountTotalOf } from '../revenue-channels.js?v=553320652df2-c473a26d';
+import { TASK, isTask } from './task-ids.js?v=9c41e71742ef-83b1f46d';
 
 const trim = (v) => (v == null ? '' : String(v).trim());
 const arr = (v) => (Array.isArray(v) ? v : (v && typeof v === 'object' ? Object.values(v) : []));

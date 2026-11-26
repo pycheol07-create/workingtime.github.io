@@ -12,21 +12,21 @@
 //   · [완료 처리]·[다시 진행]·[목록에서 빼기](누적 0 인 줄만).
 // 순수 규칙은 js/lib/total-insp.js. 공급처는 코드만(supplierCode) — 이름 칸은 쓰지 않는다(CLAUDE.md 3절).
 // ⚠️ 이 창은 index.html·history.html 에 붙는다 — role="dialog"·data-act·end-shift-* 를 쓰지 않는다(업무마감봇 선택자).
-import * as DOM from './dom-elements.js?v=202611260958';
-import * as State from './state.js?v=202611260958';
-import { showToast, getTodayDateString, getCurrentTime, escapeHtml, showConfirm } from './utils.js?v=202611260958';
+import * as DOM from './dom-elements.js?v=2b9f19ecbde2-82fbef91';
+import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
+import { showToast, getTodayDateString, getCurrentTime, escapeHtml, showConfirm } from './utils.js?v=08864ef2738a-17d787ec';
 import {
     doc, getDoc, collection, query, where, limit as fsLimit, onSnapshot, runTransaction, serverTimestamp, increment, deleteField
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { TASK, tName } from './task-names.js?v=202611260958';
-import { openManualAdd } from './inspection-manual.js?v=202611260958';
-import { S as PS, loadLoc, locOf, fmtDateTime, tsMs } from './products-store.js?v=202611260958';   // [재고 연동] — 위치·재고 요약(ProductLoc, IndexedDB 캐시 같이 씀)
-import { getCurrentInspItem } from './inspection-logic.js?v=202611260958';
-import { listKeyLogs, removeOrRevertOne } from './total-insp-edit.js?v=202611260958';   // 잘못 연 회차 되돌리기(직전 회차 기록 합산)
+import { TASK, tName } from './task-names.js?v=33eb5ccd69bc-26ab8ff7';
+import { openManualAdd } from './inspection-manual.js?v=871aeb7a8a82-6555fd07';
+import { S as PS, loadLoc, locOf, fmtDateTime, tsMs } from './products-store.js?v=12e37e026ce6-ee5ce71b';   // [재고 연동] — 위치·재고 요약(ProductLoc, IndexedDB 캐시 같이 씀)
+import { getCurrentInspItem } from './inspection-logic.js?v=871aeb7a8a82-e1d61ac2';
+import { listKeyLogs, removeOrRevertOne } from './total-insp-edit.js?v=15a59114a33b-892af557';   // 잘못 연 회차 되돌리기(직전 회차 기록 합산)
 import {
     ON, DONE, canRevertRound, reopenConfirmText, isDoneToday, totalKey, startOrReopen, applySave, applyInfoSave, isInfoOnly, periodLabel, ymd, markDone, markReopen, progressOf, todayQtyOf,
     sortList, nextOnKey, filterRows, exactRow, logOf, fromSampleItem, stockFromLoc, infoChangedLabels, stockBasisText, removePlan, removeCounts, removeMessage
-} from './lib/total-insp.js?v=202611260958';
+} from './lib/total-insp.js?v=d83d978fa87f-5334595d';
 
 const APP = ['artifacts', 'team-work-logger-v2'];
 const COL = 'total_inspections_accumulated';

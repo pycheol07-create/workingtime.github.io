@@ -6,12 +6,12 @@
 // ⚠️ 업무를 시작해도 창을 저절로 열지 않는다(사용자 요청) — 버튼으로만 연다. listeners-main-board 의 시작 위임에 넣지 않는다.
 // ⚠️ Firebase 를 새로 만들지 않는다 — index 의 State.db · State.auth 를 넘긴다. 표시에 남는 이름은 memberNameFor(직원 이름)만.
 // ⚠️ 창에는 role="dialog" · data-act 를 쓰지 않는다(업무마감봇 화면 보호 — js/locrec-table.js).
-import * as State from './state.js?v=202611260958';
-import { showToast } from './utils.js?v=202611260958';
-import { can } from './lib/perm.js?v=202611260958';
-import { LOCREC_TASK } from './lib/feature-catalog.js?v=202611260958';
-import { isT } from './task-names.js?v=202611260958';
-import { memberNameFor } from './app-shell-data.js?v=202611260958';
+import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
+import { showToast } from './utils.js?v=08864ef2738a-17d787ec';
+import { can } from './lib/perm.js?v=c1e53d91da8e-49afeea3';
+import { LOCREC_TASK } from './lib/feature-catalog.js?v=b88b1c1e60c1-81ffd467';
+import { isT } from './task-names.js?v=33eb5ccd69bc-26ab8ff7';
+import { memberNameFor } from './app-shell-data.js?v=e42c6a10ca7a-9319c795';
 
 export const isLocRecTask = (task) => isT(task, LOCREC_TASK);
 export const locRecAllowed = () => can(State.appState.perm, 'location.locrec');
@@ -22,7 +22,7 @@ let loading = null;
 async function load() {
     if (mods) return mods;
     if (!loading) {
-        loading = Promise.all([import('./locrec-store.js?v=202611260958'), import('./locrec-table.js?v=202611260958')]).then(([s, t]) => {
+        loading = Promise.all([import('./locrec-store.js?v=0f6edac0e2be-1a43b116'), import('./locrec-table.js?v=48eb4908f906-483d065e')]).then(([s, t]) => {
             const store = s.getLocRecStore({
                 db: State.db, auth: State.auth,
                 getMemberName: () => memberNameFor(State.appConfig && State.appConfig.memberEmails,
@@ -31,7 +31,7 @@ async function load() {
             const table = t.mountLocRecTable({ store });
             table.onClose(() => {                   // 닫으면 구독 해제 + 처리량 카드 완료 건수를 다시 읽게
                 store.stop();
-                import('./locrec-done.js?v=202611260958').then(d => d.invalidateLocRecDone()).catch(() => {});
+                import('./locrec-done.js?v=5168917abff7-37785663').then(d => d.invalidateLocRecDone()).catch(() => {});
             });
             mods = { store, table };
             return mods;

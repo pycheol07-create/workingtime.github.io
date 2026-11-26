@@ -16,10 +16,10 @@
 import { doc, getDoc, getDocs, collection, runTransaction, setDoc, updateDoc, onSnapshot, Timestamp, FieldPath, deleteField,
     query, where, limit, deleteDoc, serverTimestamp }
     from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { pushLocationWith, recordPacksWith, previewBatchesWith, removeBatchWith, sendBatchWith } from './lib/ship-tx.js?v=202611260958';
-import { SETTINGS_PATH, normalizeSettings } from './lib/ship-settings.js?v=202611260958';
-import { ACTIVITY_PATH, applyRunPatch, RUN_LOG_PATH } from './lib/ship-activity.js?v=202611260958';
-import { MASTER_COLLECTION, META_ID, chunkId, metaAfterUpload, metaRollback, metaReset, newVersion } from './lib/ship-master-app.js?v=202611260958';
+import { pushLocationWith, recordPacksWith, previewBatchesWith, removeBatchWith, sendBatchWith } from './lib/ship-tx.js?v=d79b0c138274-c7c46ef9';
+import { SETTINGS_PATH, normalizeSettings } from './lib/ship-settings.js?v=b885b4c6fd0c-eec03030';
+import { ACTIVITY_PATH, applyRunPatch, RUN_LOG_PATH } from './lib/ship-activity.js?v=7c08c520e79b-6bccb7ba';
+import { MASTER_COLLECTION, META_ID, chunkId, metaAfterUpload, metaRollback, metaReset, newVersion } from './lib/ship-master-app.js?v=cf7a78e81b0f-6523adec';
 
 const FS = { doc, getDoc, getDocs, collection, runTransaction, Timestamp, FieldPath, deleteField };
 const settingsRef = (db) => doc(db, ...SETTINGS_PATH);

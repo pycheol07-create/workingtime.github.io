@@ -45,9 +45,9 @@
 //
 // ⚠️ 이 파일을 고치면 서버(로케이션추천)도 바로 바뀐다 — 서버는 배포본이 아니라 v.수정본 소스를 node 로 읽는다.
 
-import { isEtcLocObj } from './mibal2-rows.js?v=202611260958';
-import { capacityFor } from './mibal2-calc.js?v=202611260958';
-import { parseCards, comboOf, isExcludedSlot, slotCard } from './loc-cards.js?v=202611260958';
+import { isEtcLocObj } from './mibal2-rows.js?v=221b7a831bbe-37c39e3c';
+import { capacityFor } from './mibal2-calc.js?v=2d0e36a43bd4-e8c582c0';
+import { parseCards, comboOf, isExcludedSlot, slotCard } from './loc-cards.js?v=436e88b31445-bac5ec02';
 
 export { isEtcLocObj };
 

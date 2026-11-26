@@ -1,22 +1,23 @@
 // === js/app-notifications.js ===
-import * as State from './state.js?v=202611260958';
+import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
 import { doc, writeBatch, deleteDoc, collection, addDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { showToast, escapeHtml, getActiveTeamMembers } from './utils.js?v=202611260958';
-import { sortUnreadFirst, addDismissed, notiLink, notiLinkLabel } from './lib/noti-popup.js?v=202611260958';
-import { sidebarLinkTarget } from './app-shell-data.js?v=202611260958';
-import { goTo } from './app-shell-bridge.js?v=202611260958';
+import { showToast, escapeHtml, getActiveTeamMembers } from './utils.js?v=08864ef2738a-17d787ec';
+import { sortUnreadFirst, addDismissed, notiLink, notiLinkLabel } from './lib/noti-popup.js?v=a01e8d07acd1-85d726e6';
+import { sidebarLinkTarget } from './app-shell-data.js?v=e42c6a10ca7a-9319c795';
+import { goTo } from './app-shell-bridge.js?v=b9a7199f3e1d-c80c27e9';
 
 // 알림창에 지금 보이는 안 읽은 알림 id — 창을 닫을 때(×·배경·종·ESC) '닫은 것'으로 기억해
 // 같은 알림으로 창이 다시 저절로 열리지 않게 한다(js/app-sync.js 자동 열기 · js/lib/noti-popup.js).
 let shownUnreadIds = [];
 let notiGoing = false;   // 알림을 눌러 이동하는 중(두 번 눌러도 한 번만)
 
+const NOTI_MESSAGE_MAX = 2000;
 export async function sendNotification(targetMember, message, type = 'info') {
     try {
         const notiColRef = collection(State.db, 'artifacts', 'team-work-logger-v2', 'notifications');
         await addDoc(notiColRef, {
             targetMember,
-            message,
+            message: String(message ?? '').slice(0, NOTI_MESSAGE_MAX),   // 규칙(firestore.rules notifications) 상한 — 넘으면 저장이 거부된다
             type,
             isRead: false,
             createdAt: new Date().toISOString()

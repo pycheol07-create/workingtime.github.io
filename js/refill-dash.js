@@ -6,13 +6,13 @@
 // 카드는 30초마다 innerHTML 로 다시 그려진다 — 그릴 때는 refillProgressText() 로 마지막 값을 넣고, store 가 바뀌면 [data-refill-progress] 글자만 고친다.
 // ⚠️ Firebase 를 새로 만들지 않는다 — index 의 State.db · State.auth 를 넘긴다. 체크에 남는 이름은 memberNameFor(직원 이름)만.
 // ⚠️ 페이지를 열 때 저절로 창을 열지 않는다(업무마감봇 화면 보호). 창에는 role="dialog" · data-act 를 쓰지 않는다(refill-table.js).
-import * as State from './state.js?v=202611260958';
-import { showToast, getHolidayName } from './utils.js?v=202611260958';
-import { can } from './lib/perm.js?v=202611260958';
-import { REFILL_TASK } from './lib/feature-catalog.js?v=202611260958';
-import { isT } from './task-names.js?v=202611260958';
-import { dayKey, dayStatus, dashProgress } from './lib/refill-view.js?v=202611260958';
-import { memberNameFor } from './app-shell-data.js?v=202611260958';
+import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
+import { showToast, getHolidayName } from './utils.js?v=08864ef2738a-17d787ec';
+import { can } from './lib/perm.js?v=c1e53d91da8e-49afeea3';
+import { REFILL_TASK } from './lib/feature-catalog.js?v=b88b1c1e60c1-81ffd467';
+import { isT } from './task-names.js?v=33eb5ccd69bc-26ab8ff7';
+import { dayKey, dayStatus, dashProgress } from './lib/refill-view.js?v=3416a867c2d7-24e9bb3d';
+import { memberNameFor } from './app-shell-data.js?v=e42c6a10ca7a-9319c795';
 
 export const isRefillTask = (task) => isT(task, REFILL_TASK);
 export const refillAllowed = () => can(State.appState.perm, 'location.refill');
@@ -42,7 +42,7 @@ function paint() {
 async function load() {
     if (mods) return mods;
     if (!loading) {
-        loading = Promise.all([import('./refill-store.js?v=202611260958'), import('./refill-table.js?v=202611260958')]).then(([s, t]) => {
+        loading = Promise.all([import('./refill-store.js?v=b20dec854ce0-6f1cc574'), import('./refill-table.js?v=08c22e855731-3eba78ae')]).then(([s, t]) => {
             const store = s.getRefillStore({
                 db: State.db, auth: State.auth, watchRequest: false,
                 getMemberName: () => memberNameFor(State.appConfig && State.appConfig.memberEmails,

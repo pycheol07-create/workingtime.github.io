@@ -1,5 +1,6 @@
 // === js/history-excel-utils.js ===
-import { showToast } from './utils.js?v=202611260958';
+import { showToast } from './utils.js?v=08864ef2738a-17d787ec';
+import { ensureHtml2pdf } from './lib/lazy-html2pdf.js?v=8e7180a5a596-4b2424ee';
 
 export const fitToColumn = (ws) => {
     const objectMaxLength = [];
@@ -49,9 +50,10 @@ export const appendTotalRow = (ws, data, headers) => {
     XLSX.utils.sheet_add_json(ws, [total], { skipHeader: true, origin: -1 });
 };
 
-export const downloadContentAsPdf = (elementId, title) => {
+export const downloadContentAsPdf = async (elementId, title) => {
     const originalElement = document.getElementById(elementId);
     if (!originalElement) return showToast('출력할 내용을 찾을 수 없습니다.', true);
+    if (!(await ensureHtml2pdf())) return showToast('PDF 라이브러리를 불러오지 못했습니다. 인터넷 연결을 확인하고 다시 눌러 주세요.', true);
 
     showToast('PDF 변환을 시작합니다. (잠시만 기다려주세요)');
 

@@ -13,12 +13,12 @@
 import {
     opsSummary, periodMetrics, partSummary, baselineSpeeds, lastDayIdOf, previousPeriodOf, rollingBaselineOf,
     periodDaysOf, PARTS, OEE_LEVELS, OVERLOAD_UTIL, overloadUtilOf, periodSpeeds
-} from './ops-metrics.js?v=202611260958';
-import { taskNameOf, TASK } from './task-ids.js?v=202611260958';
-import { aliasTaskName } from './task-alias-view.js?v=202611260958';
-import { taskListOf, ownerByPeriod, detectOwnerChanges, CAP_MINUTES } from './task-owner.js?v=202611260958';
-import { dailyTaskStats } from '../task-throughput.js?v=202611260958';
-import { AUTO_END_TIME } from './record-close.js?v=202611260958';
+} from './ops-metrics.js?v=b7744497fb54-58d6bcbb';
+import { taskNameOf, TASK } from './task-ids.js?v=9c41e71742ef-83b1f46d';
+import { aliasTaskName } from './task-alias-view.js?v=2e131477eb8e-af660ceb';
+import { taskListOf, ownerByPeriod, detectOwnerChanges, CAP_MINUTES } from './task-owner.js?v=82e303e4c972-e73c99c8';
+import { dailyTaskStats } from '../task-throughput.js?v=6c5add29d96b-0d55f842';
+import { AUTO_END_TIME } from './record-close.js?v=c8683e426085-11b6fe97';
 
 /** 판정 기준 — 진단 문장·부족/여유 일자가 같이 쓴다. */
 export const OPS_VIEW_LEVELS = Object.freeze({

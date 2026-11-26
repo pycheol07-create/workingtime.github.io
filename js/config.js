@@ -2,10 +2,10 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getFirestore, doc, setDoc, getDoc, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { connectEmulatorsIfEnabled } from './firebase-emulator.js?v=202611260958';
-import { MIBAL2_LIVE, MIBAL2_MENU_NAME, MIBAL2_OLD_MENU_NAME } from './lib/mibal2-mode.js?v=202611260958';   // 신규 부족수량관리 단독 운영 때 기본 메뉴(지금 false)
-import { TASK, taskNameOf } from './lib/task-ids.js?v=202611260958';   // 업무 id 2단계 — 옛 '검수' 이전에 두 업무의 지금 이름
-import { migrateDashboardTaskItems } from './lib/task-config-sync.js?v=202611260958';   // 옛 '처리량 → 위젯 연결' → 업무 수량 위젯(task-<id>), 메모리에서만
+import { connectEmulatorsIfEnabled } from './firebase-emulator.js?v=071adc2867a0-c60c17d2';
+import { MIBAL2_LIVE, MIBAL2_MENU_NAME, MIBAL2_OLD_MENU_NAME } from './lib/mibal2-mode.js?v=1dd1153363a5-6723d239';   // 신규 부족수량관리 단독 운영 때 기본 메뉴(지금 false)
+import { TASK, taskNameOf } from './lib/task-ids.js?v=9c41e71742ef-83b1f46d';   // 업무 id 2단계 — 옛 '검수' 이전에 두 업무의 지금 이름
+import { migrateDashboardTaskItems } from './lib/task-config-sync.js?v=970a6d3589ff-85dd0720';   // 옛 '처리량 → 위젯 연결' → 업무 수량 위젯(task-<id>), 메모리에서만
 
 export const firebaseConfig = {
     apiKey: "AIzaSyBxmX7fEISWYs_JGktAZrFjdb8cb_ZcmSY",

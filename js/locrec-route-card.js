@@ -8,11 +8,11 @@
 // 그리는 때가 둘이다: ① store 가 바뀔 때(이 파일) ② location.js 가 인사이트 줄을 innerHTML 로 다시 그린 뒤(mountRouteSlot()).
 //   인사이트 줄이 다시 그려지면 이 카드 칸도 사라지므로 location.js 가 그때마다 mountRouteSlot() 을 부른다.
 // 모양은 인사이트 카드와 같은 클래스(insight-card · ins-big · ins-desc) — 색은 CSS 변수라 라이트·다크를 같이 따라간다.
-import { escapeHtml } from './utils.js?v=202611260958';
-import { routeCardInfo, routeHeatView, HEAT_HELP } from './lib/locrec-view.js?v=202611260958';
-import { openRouteDetail } from './locrec-route-modal.js?v=202611260958';
-import { trendSeries, trendPoints, trendSvg } from './lib/locrec-trend.js?v=202611260958';
-import { todayKey } from './locrec-store.js?v=202611260958';
+import { escapeHtml } from './utils.js?v=08864ef2738a-17d787ec';
+import { routeCardInfo, routeHeatView, HEAT_HELP } from './lib/locrec-view.js?v=e93900011313-fdf32cdb';
+import { openRouteDetail } from './locrec-route-modal.js?v=0b6beca5ac3b-ad6f4a1a';
+import { trendSeries, trendPoints, trendSvg } from './lib/locrec-trend.js?v=cc8001ccf07a-a6e6ea0d';
+import { todayKey } from './locrec-store.js?v=0f6edac0e2be-1a43b116';
 
 const SLOT_ID = 'dash-route-card';
 const ROW_ID = 'dash-insight-row';

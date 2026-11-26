@@ -1,4 +1,5 @@
-import { escapeHtml } from './utils.js?v=202611260958';
+import { escapeHtml } from './utils.js?v=08864ef2738a-17d787ec';
+import { ensureHtml2pdf } from './lib/lazy-html2pdf.js?v=8e7180a5a596-4b2424ee';
 // === js/panel-pdf.js ===
 // 📄 화면의 패널 하나를 '보이는 그대로' PDF 로 받는다(A4 가로) — 운영 리포트 탭의 [PDF 받기] (2026-11-10).
 //   방식은 팀 결산 PDF(js/ui-history-settlement.js downloadSettlementPdf)와 같다 — 그쪽은 그대로 두고 여기서 일반화했다.
@@ -234,8 +235,8 @@ function pushSections(holder, selector, pageH) {
  */
 export async function downloadPanelPdf(panel, o = {}) {
     const { filename = '화면.pdf', btn = null, removeSelector = '', sectionSelector = 'section', scopeId = 'history-modal', notify = (m) => alert(m) } = o;
-    if (typeof html2pdf === 'undefined') {
-        notify('PDF 라이브러리를 불러오지 못했습니다. 새로고침 후 다시 시도해 주세요.');
+    if (!(await ensureHtml2pdf())) {   // 처음 누를 때 받는다(js/lib/lazy-html2pdf.js)
+        notify('PDF 라이브러리를 불러오지 못했습니다. 인터넷 연결을 확인하고 다시 눌러 주세요.');
         return false;
     }
     if (!panel) return false;

@@ -4,10 +4,10 @@
 //   판정은 계산 코드(ship-zikjin·ship-ably)가 실제로 찾는 머리글과 같은 것을 본다 — 판정이 맞아도 계산이 따로 다시 검사한다.
 // 순수 모듈(XLSX 는 넘겨받음). 테스트: tests/ship-assign.test.js
 
-import { pyStr, pyStrip, looksLikeStockOut, STOCK_OUT_MSG } from './ship-core.js?v=202611260958';
-import { detectFormat, FORMAT, readHtmlBook, normCell } from './ship-read.js?v=202611260958';
-import { TEMPLATE_SHEETS } from './ship-zikjin.js?v=202611260958';
-import { TMPL_HEADERS, TMPL_HEADER_ROW, REQ_HEADER_ROW } from './ship-ably.js?v=202611260958';
+import { pyStr, pyStrip, looksLikeStockOut, STOCK_OUT_MSG } from './ship-core.js?v=b3f3a4eb2d9b-669f26a2';
+import { detectFormat, FORMAT, readHtmlBook, normCell } from './ship-read.js?v=04fbd537e5b5-8c5bf86d';
+import { TEMPLATE_SHEETS } from './ship-zikjin.js?v=04e0b5ccc89f-79e18ba5';
+import { TMPL_HEADERS, TMPL_HEADER_ROW, REQ_HEADER_ROW } from './ship-ably.js?v=2134773ddee1-1e528704';
 
 export const KIND = Object.freeze({
     ZIKJIN_REQUEST: 'zikjinRequest',   // 직진 출고요청(GPM)

@@ -4,14 +4,14 @@
 //   성수기 준비 기간 = 관리자 비용 설정(채용 + 교육 주)이 있으면 그것, 없으면 6주.
 //   금액 없음(연간 인건비·매출은 js/ui-ops-plan-budget.js — 관리자만). ⚠️ role=dialog·data-act 금지.
 
-import * as State from './state.js?v=202611260958';
-import { getRegularMembersForCount } from './utils.js?v=202611260958';
-import { aliasHistoryView } from './lib/task-alias-view.js?v=202611260958';
-import { baselineSpeeds, normalizedUtilization, RECENT_SPEED_DAYS } from './lib/ops-metrics.js?v=202611260958';
-import { buildYearPlan } from './lib/plan-year.js?v=202611260958';
-import { addDaysStr } from './lib/plan-week.js?v=202611260958';
-import { availableStaffOf } from './ui-history-prediction.js?v=202611260958';
-import { esc, n1, card } from './ui-ops-plan-parts.js?v=202611260958';
+import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
+import { getRegularMembersForCount } from './utils.js?v=08864ef2738a-17d787ec';
+import { aliasHistoryView } from './lib/task-alias-view.js?v=2e131477eb8e-af660ceb';
+import { baselineSpeeds, normalizedUtilization, RECENT_SPEED_DAYS } from './lib/ops-metrics.js?v=b7744497fb54-58d6bcbb';
+import { buildYearPlan } from './lib/plan-year.js?v=7319c1fa725b-de8476b4';
+import { addDaysStr } from './lib/plan-week.js?v=277eaadcce87-f2dd7a70';
+import { availableStaffOf } from './ui-history-prediction.js?v=1908e7802e0a-6da24bce';
+import { esc, n1, card } from './ui-ops-plan-parts.js?v=61768dcd3b0a-895d8afe';
 
 /** 월 요약 띠 — 몇 달이 있나, 관리자는 [월 요약 다시 만들기](달 고르기) */
 function monthlyBar(monthlies, months, isAdmin) {

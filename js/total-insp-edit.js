@@ -11,16 +11,16 @@
 //     상품 삭제의 누적 문서는 목록을 읽은 뒤 lastUpdated 가 바뀌었으면(그사이 저장됨) 지우지 않는다(리뷰 3).
 //   권한은 데이터관리 화면 그대로(규칙: artifacts/{colId} 직원 쓰기). 순수 규칙은 js/lib/total-insp.js.
 // ⚠️ history.html 에 붙는다 — role="dialog"·data-act·end-shift-* 를 쓰지 않는다. 고객 이름·연락처·주문번호를 적을 칸을 만들지 않는다(사유는 안내 표시).
-import * as State from './state.js?v=202611260958';
-import { getTodayDateString, escapeHtml } from './utils.js?v=202611260958';
+import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
+import { getTodayDateString, escapeHtml } from './utils.js?v=08864ef2738a-17d787ec';
 import {
     doc, getDoc, collection, query, where, getDocs, runTransaction, serverTimestamp, limit as fsLimit
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { TASK, tName } from './task-names.js?v=202611260958';
+import { TASK, tName } from './task-names.js?v=33eb5ccd69bc-26ab8ff7';
 import {
     editLogPlan, deleteLogsPlan, clampQty, chunkByKey, nameKey, ymd, bulkSummary, qtyGroups, laterLogsPatch, accChangedSince,
     removePlan, revertCheck, markDone, markReopen
-} from './lib/total-insp.js?v=202611260958';
+} from './lib/total-insp.js?v=d83d978fa87f-5334595d';
 
 const APP = ['artifacts', 'team-work-logger-v2'];
 const CHUNK = 150;

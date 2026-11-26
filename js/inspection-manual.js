@@ -18,16 +18,16 @@
 //   고르는 순간(사유는 Enter) 넣는다. 이때는 창을 닫지 않고 검색칸을 비워 다음 스캔을 받는다(stay — 넣는 쪽은 토스트만, 줄을 열지 않음).
 //   유형·사유는 창이 열린 동안 그대로 둔다. 보통 [추가](여러 옵션 고르기)는 예전처럼 넣고 닫은 뒤 첫 줄을 연다.
 // 옵션 칩(2026-11-17): 색상별 묶음 + 사이즈 순서(lib groupOptions), 옵션이 MANY_OPTIONS 개 넘으면 거르기 칸·묶음별 [전체], 사라진 옵션은 접어 둔다.
-import * as State from './state.js?v=202611260958';
-import { showToast, getTodayDateString, escapeHtml } from './utils.js?v=202611260958';
-import { renderTodoList, selectTodoItem } from './inspection-logic.js?v=202611260958';
-import { toggleScanner, startInlineScanner } from './inspection-media.js?v=202611260958';
-import { S as PS, loadCatalog, loadLoc, locOf } from './products-store.js?v=202611260958';
-import { thicknessFromHistoryDoc } from './lib/insp-packs.js?v=202611260958';
+import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
+import { showToast, getTodayDateString, escapeHtml } from './utils.js?v=08864ef2738a-17d787ec';
+import { renderTodoList, selectTodoItem } from './inspection-logic.js?v=871aeb7a8a82-e1d61ac2';
+import { toggleScanner, startInlineScanner } from './inspection-media.js?v=871aeb7a8a82-cad5241c';
+import { S as PS, loadCatalog, loadLoc, locOf } from './products-store.js?v=12e37e026ce6-ee5ce71b';
+import { thicknessFromHistoryDoc } from './lib/insp-packs.js?v=e3fa3546a650-16eb76b5';
 import {
     KINDS, findCandidates, manualItem, typedItem, addToList, historyId, historyCodes, pickHistoryByCode,
     totalItemOf, typedTotalItem, quickPick, groupOptions, optionMatches, MANY_OPTIONS
-} from './lib/insp-manual.js?v=202611260958';
+} from './lib/insp-manual.js?v=25e0bc0396d2-21f87941';
 import { doc, getDoc, getDocs, collection, query, where, limit as fsLimit, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const PICKER_ID = 'insp-manual-picker';

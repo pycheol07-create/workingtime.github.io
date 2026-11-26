@@ -12,17 +12,17 @@
 //  - 비품 항목 새 칸: forecastDriver(관리자만 화면에서 고름). 권장 발주량의 최소주문·묶음은 기존 MOQ 칸 문장에서 읽는다(서버 예측규칙.MOQ해석)
 //  표시 규칙은 js/lib/supplies-forecast-view.js(테스트: tests/supplies-forecast-view.test.js).
 
-import { initializeFirebase } from './config.js?v=202611260958';
-import { setShellContext, goHome } from './app-shell-bridge.js?v=202611260958';
-import { memberNameFor } from './app-shell-data.js?v=202611260958';
-import { escapeHtml as esc } from './utils.js?v=202611260958';
-import { kstDateTime } from './lib/kst-time.js?v=202611260958';
-import { checkStockAdjust } from './lib/supplies-stock-check.js?v=202611260958';
+import { initializeFirebase } from './config.js?v=242bb63abbe9-dd1665a9';
+import { setShellContext, goHome } from './app-shell-bridge.js?v=b9a7199f3e1d-c80c27e9';
+import { memberNameFor } from './app-shell-data.js?v=e42c6a10ca7a-9319c795';
+import { escapeHtml as esc } from './utils.js?v=08864ef2738a-17d787ec';
+import { kstDateTime } from './lib/kst-time.js?v=1f1e277244a9-6fe98384';
+import { checkStockAdjust } from './lib/supplies-stock-check.js?v=bece1017afad-45058477';
 import {
     effectiveStatus, statusBadge, depleteText, depleteSortValue, reorderText, reorderSortValue, reorderDaysLeft, recommendText, isStale, parseQty, mdw, basisText,
     leadTimeText, expectedDateFor, orderSummaryText, appOnlyWarning, packsProgressText, safetySuggestion, alertReasons, sortAlertRows,
     alertsEmptyText, ALERT_ORDERS_UNKNOWN, NOCODE_HINT, DRIVER_OPTIONS, TONE_CLASS
-} from './lib/supplies-forecast-view.js?v=202611260958';
+} from './lib/supplies-forecast-view.js?v=9ab586768d3d-a3e50681';
 import { doc, getDoc, runTransaction, arrayUnion, FieldPath } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 

@@ -6,16 +6,16 @@
 // 메모: 전원 편집. 열 때 본 at 과 지금 at 이 다르면 충돌 확인창. 직전 5개 보관(되돌리기).
 // 기본정보 편집: 관리자만(D5). 같은 트랜잭션 헬퍼(버킷 + META rev + 이력, ver 비교).
 import { doc, getDoc, getDocs, collection, query, where, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { S, countRead, locOf, fmtDateTime, tsMs, applyLocalProduct, putLocalNote, noteHistory } from './products-store.js?v=202611260958';
-import { esc, toast, setHead, isLocOld } from './products.js?v=202611260958';
-import { statusPill } from './products-list.js?v=202611260958';
-import { renderCostCard, renderCostHistory } from './products-cost.js?v=202611260958';
-import { writeBucket, saveNote, NoteConflict } from './products-write.js?v=202611260958';
-import { catalogBucketId, CATALOG_BUCKETS } from './lib/product-bucket.js?v=202611260958';
-import { diffProduct, FIELD_LABEL, NAME_MAX, TEXT_MAX } from './lib/product-excel-rows.js?v=202611260958';
-import { parseNum } from './lib/product-price.js?v=202611260958';
-import { friendlyFirebaseError } from './utils.js?v=202611260958';   // 원시 오류 코드 대신 할 일 한 줄
-import { sidebarLinkTarget } from './app-shell-data.js?v=202611260958';   // 열기 방식(같은 탭/이름 붙은 창)은 한 곳에서
+import { S, countRead, locOf, fmtDateTime, tsMs, applyLocalProduct, putLocalNote, noteHistory } from './products-store.js?v=12e37e026ce6-ee5ce71b';
+import { esc, toast, setHead, isLocOld } from './products.js?v=29597c9abba1-749f10a1';
+import { statusPill } from './products-list.js?v=29597c9abba1-b6d23b13';
+import { renderCostCard, renderCostHistory } from './products-cost.js?v=29597c9abba1-b46a7823';
+import { writeBucket, saveNote, NoteConflict } from './products-write.js?v=c12131c8d88b-699dc490';
+import { catalogBucketId, CATALOG_BUCKETS } from './lib/product-bucket.js?v=842897a6efab-a72f5a26';
+import { diffProduct, FIELD_LABEL, NAME_MAX, TEXT_MAX } from './lib/product-excel-rows.js?v=acc096d72726-b7ba4cab';
+import { parseNum } from './lib/product-price.js?v=960affe3b8e6-35ad98ac';
+import { friendlyFirebaseError } from './utils.js?v=08864ef2738a-17d787ec';   // 원시 오류 코드 대신 할 일 한 줄
+import { sidebarLinkTarget } from './app-shell-data.js?v=e42c6a10ca7a-9319c795';   // 열기 방식(같은 탭/이름 붙은 창)은 한 곳에서
 
 const LOCATION_URL = 'location.html';
 

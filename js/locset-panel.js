@@ -26,14 +26,14 @@
 // 원문 문자열은 textContent 로만 넣는다.
 
 import { doc, getDoc, setDoc, updateDoc, deleteField, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=202611260958';
-import { canFeature, currentPerm } from './feature-gate.js?v=202611260958';
-import { KEYS, LIMITS, FIELD_TEXT, normalize, sameValues, serverRows, sourceText, guideLines } from './lib/locrec-settings.js?v=202611260958';
-import { autoSort, CARD_LAYOUT, SPLIT_EX_RE } from './lib/loc-cards.js?v=202611260958';
+import { onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=b9a7199f3e1d-c80c27e9';
+import { canFeature, currentPerm } from './feature-gate.js?v=7eaa46dbb8e9-a5458f75';
+import { KEYS, LIMITS, FIELD_TEXT, normalize, sameValues, serverRows, sourceText, guideLines } from './lib/locrec-settings.js?v=69b4df4ce6e8-6be192b7';
+import { autoSort, CARD_LAYOUT, SPLIT_EX_RE } from './lib/loc-cards.js?v=436e88b31445-bac5ec02';
 import {
     cardLabel, parseExcludeText, boardFrom, applyCards, whereIs, excludedCards, placeCard, cardMoves, moveCard,
     toggleExclude, addRow, deleteRow, moveRow, setExclude, setU, boardSignature, boardToSave
-} from './lib/loc-card-board.js?v=202611260958';
+} from './lib/loc-card-board.js?v=69c972fc581b-3ab4ee37';
 
 const PANE = 'recommend';
 const INFO_PATH = ['Locations', 'INFO_CONFIG'];

@@ -12,8 +12,8 @@
 //   · HTML 숫자 모양 글자: 앞자리 0(예 '00123')·15자리 넘는 숫자는 글자로 둔다(Python 은 int 로 바꿔 0 을 잃음 / JS 는 자릿수를 잃음)
 //   · UTF-8 BOM 뒤에 '<' 가 오는 HTML 도 HTML 로 본다(Python 판은 '알 수 없는 형식' → .xls 로 읽다 실패)
 
-import { pyStr, pyStrip } from './ship-core.js?v=202611260958';
-import { HTML_ENTITIES } from './ship-html-entities.js?v=202611260958';
+import { pyStr, pyStrip } from './ship-core.js?v=b3f3a4eb2d9b-669f26a2';
+import { HTML_ENTITIES } from './ship-html-entities.js?v=82c4d1e4feab-3a36fb7c';
 
 export const FORMAT = Object.freeze({ XLS: 'xls_binary', XLSX: 'xlsx_zip', HTML: 'html', UNKNOWN: 'unknown' });
 

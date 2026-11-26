@@ -9,8 +9,8 @@
 //   문장은 '제안' 말투, 업무명·시간만(금액·직원 이름·거래처 실명 없음).
 // ※ 순수 모듈(DOM·Firebase 없음). 테스트: tests/plan-automation.test.js
 
-import { AUTO_CATALOG } from './plan-auto-catalog.js?v=202611260958';
-import { taskNameOf } from './task-ids.js?v=202611260958';
+import { AUTO_CATALOG } from './plan-auto-catalog.js?v=64939e660a8a-676766c7';
+import { taskNameOf } from './task-ids.js?v=9c41e71742ef-83b1f46d';
 
 export const AUTO_LEVELS = Object.freeze({ recent: 3, perQuarter: 2, quarters: 4, unmetFactor: 0.5, titleMax: 80 });
 

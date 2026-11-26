@@ -7,10 +7,10 @@
 // 같은 날 여러 묶음(2026-11-12): batch = { key, mode:'add'|'replace', drop:[키] } 를 주면 묶음별로 더한다(js/lib/ship-batch.js).
 // 행 내용은 로그에 남기지 않는다 — 건수만 돌려준다.
 
-import { chunkIdsToRead, planChunkWrite, planPackWrite } from './ship-push.js?v=202611260958';
-import { PACKS_DOC_PATH, rowsFromChunks } from './ship-merge.js?v=202611260958';
-import { previewBatches } from './ship-batch.js?v=202611260958';
-import { kstDay } from './ship-core.js?v=202611260958';
+import { chunkIdsToRead, planChunkWrite, planPackWrite } from './ship-push.js?v=71ef357870cd-8010fd04';
+import { PACKS_DOC_PATH, rowsFromChunks } from './ship-merge.js?v=f206089a7cff-eb63dea8';
+import { previewBatches } from './ship-batch.js?v=19e98fbb8b89-d34e4564';
+import { kstDay } from './ship-core.js?v=b3f3a4eb2d9b-669f26a2';
 
 export const COLLECTION = 'ZikjinData';
 const mustEnable = (enabled) => { if (enabled !== true) throw new Error('전송이 꺼져 있습니다.'); };

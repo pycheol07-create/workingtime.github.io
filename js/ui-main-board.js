@@ -1,15 +1,15 @@
 // === js/ui-main-board.js ===
-import { formatTimeTo24H, formatDuration, calcTotalPauseMinutes, getTodayDateString, isMemberActiveOn, getCurrentTime, escapeHtml } from './utils.js?v=202611260958';
-import * as State from './state.js?v=202611260958';
-import { leaveTypeLabel } from './state.js?v=202611260958';
-import { leaveNthLabel } from './ui-modals.js?v=202611260958';
-import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=202611260958';
-import { getLeaveDisplayLabel } from './ui-main-utils.js?v=202611260958';
-import { myWorkState, recentTasksFor } from './lib/my-work.js?v=202611260958';
-import { isLeaveActiveAt, isLeavePendingAt } from './lib/leave-timing.js?v=202611260958';
-import { isRefillTask, refillAllowed, refillProgressText, refillProgressTone, syncRefillDash } from './refill-dash.js?v=202611260958';
-import { isLocRecTask, locRecAllowed, syncLocRecDash } from './locrec-dash.js?v=202611260958';
-import { TASK, tName, isT } from './task-names.js?v=202611260958';
+import { formatTimeTo24H, formatDuration, calcTotalPauseMinutes, getTodayDateString, isMemberActiveOn, getCurrentTime, escapeHtml } from './utils.js?v=08864ef2738a-17d787ec';
+import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
+import { leaveTypeLabel } from './state.js?v=c7f5fc984ef9-a2ce38c0';
+import { leaveNthLabel } from './ui-modals.js?v=16fcc6a153da-e0eb0faf';
+import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=152edbc1d09a-ab7817f6';
+import { getLeaveDisplayLabel } from './ui-main-utils.js?v=f01843278f2c-06309b7b';
+import { myWorkState, recentTasksFor } from './lib/my-work.js?v=470ecb003aaf-1a1aebb7';
+import { isLeaveActiveAt, isLeavePendingAt } from './lib/leave-timing.js?v=56494f977986-82fd27e6';
+import { isRefillTask, refillAllowed, refillProgressText, refillProgressTone, syncRefillDash } from './refill-dash.js?v=3befff2ba2f1-60f2d3b8';
+import { isLocRecTask, locRecAllowed, syncLocRecDash } from './locrec-dash.js?v=6511a119a83c-852ed13e';
+import { TASK, tName, isT } from './task-names.js?v=33eb5ccd69bc-26ab8ff7';
 
 // ===== 업무현황 카드 커버플로우(coverflow) 컨트롤러 =====
 // 가운데 업무 카드 1개만 크고 선명하게, 양옆 카드는 작고 흐리게 뒤로 물러남.

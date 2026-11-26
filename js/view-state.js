@@ -13,10 +13,10 @@
 // 2026-11-05 운영 리포트 통합: #tab=ops&sub=탭(&settle=1 팀 결산 · &detail=tables 생산성 상세 표 · &owner=1 업무 상세(담당 변화)). 옛 화면 6개의 해시·기억은
 //   js/lib/ops-report-route.js redirectView 로 운영 리포트 탭으로 바꿔 연다(복원 뒤 주소도 새 형식으로 바뀐다).
 
-import { readHash, writeHash, onHashNav } from './hash-state.js?v=202611260958';
-import { TREELESS_MAINS, TREELESS_SUBS, sectionIdFor } from './history-sections.js?v=202611260958';
-import { OPS_MAIN, redirectView, isOpsTreeless } from './lib/ops-report-route.js?v=202611260958';
-import * as State from './state.js?v=202611260958';
+import { readHash, writeHash, onHashNav } from './hash-state.js?v=41d515385973-40fe10fb';
+import { TREELESS_MAINS, TREELESS_SUBS, sectionIdFor } from './history-sections.js?v=2fc2330007e7-1af66818';
+import { OPS_MAIN, redirectView, isOpsTreeless } from './lib/ops-report-route.js?v=bc1ec7e463eb-3f6f2065';
+import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
 
 const KEY = 'viewstate:' + (location.pathname.split('/').pop() || 'index');
 // 대시보드(index)의 모바일 데이터 관리 모달도 saveView 를 부른다 — 해시는 history.html 에서만 쓴다

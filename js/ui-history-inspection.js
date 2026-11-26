@@ -1,12 +1,12 @@
 // === js/ui-history-inspection.js ===
-import * as DOM from './dom-elements.js?v=202611260958';
-import * as State from './state.js?v=202611260958';
-import { getWeekOfYear, escapeHtml, getTodayDateString } from './utils.js?v=202611260958';
-import { dayInspItems, packDatesLabel } from './lib/insp-day.js?v=202611260958';
-import { inspTypeLabel } from './lib/insp-manual.js?v=202611260958';
+import * as DOM from './dom-elements.js?v=2b9f19ecbde2-82fbef91';
+import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
+import { getWeekOfYear, escapeHtml, getTodayDateString } from './utils.js?v=08864ef2738a-17d787ec';
+import { dayInspItems, packDatesLabel } from './lib/insp-day.js?v=d859a7e39527-456c14c8';
+import { inspTypeLabel } from './lib/insp-manual.js?v=25e0bc0396d2-21f87941';
 import { doc, getDoc, runTransaction, collection, getDocs, query, where, orderBy, limit as fsLimit } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { itemKey, patchItemsByKey } from './lib/insp-flow.js?v=202611260958';
-import { dayRows, inspectorLabel, logDefectQty, periodLabel, accDocRow, DONE } from './lib/total-insp.js?v=202611260958';
+import { itemKey, patchItemsByKey } from './lib/insp-flow.js?v=d895774d0b34-43ce67d4';
+import { dayRows, inspectorLabel, logDefectQty, periodLabel, accDocRow, DONE } from './lib/total-insp.js?v=d83d978fa87f-5334595d';
 
 // 전량검수 저장 기록(2026-11-17) — artifacts/team-work-logger-v2/total_inspection_logs where date >= fromDate(보기 기간 시작일),
 //   최근 날짜부터 최대 TOTAL_LOG_LIMIT 건. 검수이력 탭(js/listeners-history-inspection.js)이 탭에 들어올 때·[새로고침] 때 force 로 읽고,

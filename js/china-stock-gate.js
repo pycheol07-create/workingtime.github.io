@@ -13,8 +13,8 @@
 // ⚠️ 이건 '화면을 가리는' 장치다. 데이터 자체는 firestore.rules 가 막는다.
 import { onAuthStateChanged, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 // ⚠️ china-stock-goods.js 와 '똑같은 주소'로 가져와야 모듈이 한 번만 만들어진다(?v=9.9 포함).
-import { initializeFirebase } from './china-stock-config.js?v=202611260958';
-import { setShellContext } from './app-shell-bridge.js?v=202611260958';
+import { initializeFirebase } from './china-stock-config.js?v=b6238b6a4892-a009fb3d';
+import { setShellContext } from './app-shell-bridge.js?v=b9a7199f3e1d-c80c27e9';
 
 const OVERLAY_ID = 'cs-auth-gate';
 

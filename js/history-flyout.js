@@ -4,7 +4,7 @@
 //   항목을 누르면 go('#tab=…[&sub=…]') — 로그인 확인·이동은 부르는 쪽(js/listeners-history.js openHistoryModalLogic)이 한다.
 //   마우스가 있는 화면에서만(hover:hover · pointer:fine). 터치 화면은 예전처럼 눌러서 데이터 관리로 간다.
 // ⚠️ 봇 안전: role=dialog·data-act 를 쓰지 않는다(업무마감봇 선택자). 모양 토큰은 #dash-root 것(css/dash-d.css)이라 그 안에 붙인다.
-import { SECTIONS, SECTION_GROUPS, sectionIconSvg } from './history-sections.js?v=202611260958';
+import { SECTIONS, SECTION_GROUPS, sectionIconSvg } from './history-sections.js?v=2fc2330007e7-1af66818';
 
 const CSS = `
 #history-flyout { position: fixed; z-index: 60; min-width: 190px; padding: 8px; display: none;

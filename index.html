@@ -24,12 +24,12 @@
          동기로 window.XLSX 를 찾으므로 지연 로드 대신 defer 만. -->
     <script defer src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" integrity="sha384-vtjasyidUo0kW94K5MXDXntzOJpQgBKXmE7e2Ga4LG0skTTLeBi97eFAXsqewJjw" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="css/suit.css?v=202611260958">
-    <link rel="stylesheet" href="css/style.css?v=202611260958">
-    <link rel="stylesheet" href="css/dash-d.css?v=202611260958">
-    <link rel="stylesheet" href="css/form-d.css?v=202611260958">
-    <link rel="stylesheet" href="css/refill-modal.css?v=202611260958">
-    <link rel="stylesheet" href="css/locrec-modal.css?v=202611260958">
+    <link rel="stylesheet" href="css/suit.css?v=b9d459f9ceba-97bc2d2b">
+    <link rel="stylesheet" href="css/style.css?v=45fccb8504f8-0f869c09">
+    <link rel="stylesheet" href="css/dash-d.css?v=ac7acc799c21-5cec6a51">
+    <link rel="stylesheet" href="css/form-d.css?v=0ace2b3a415f-414c27ff">
+    <link rel="stylesheet" href="css/refill-modal.css?v=a63329052b3a-7a596bea">
+    <link rel="stylesheet" href="css/locrec-modal.css?v=4809c2c7f94e-5cc41d2c">
 </head>
 <body class="overflow-hidden transition-colors duration-200" data-shell="index" data-shell-bar="off">
     <div id="toast-container" class="fixed bottom-24 md:bottom-5 right-5 z-[200] space-y-2 w-full max-w-xs"></div>
@@ -509,7 +509,7 @@
                 </div>
                 <div class="flex-1 flex flex-col">
                     <label class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1.5">메시지 내용</label>
-                    <textarea id="msg-content-input" class="w-full flex-1 p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 resize-none h-32 md:h-52 dark:text-white" placeholder="이곳에 내용을 입력하세요..."></textarea>
+                    <textarea id="msg-content-input" maxlength="1900" class="w-full flex-1 p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 resize-none h-32 md:h-52 dark:text-white" placeholder="이곳에 내용을 입력하세요..."></textarea>
                 </div>
             </div>
             <div class="p-4 border-t border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/80 flex justify-end rounded-b-2xl">
@@ -547,13 +547,13 @@
             ]);
 
             try {
-                await import('./js/app.js?v=202611260958');
+                await import('./js/app.js?v=cd9a8c47f22b-e991f878');
             } catch (e) {
                 console.error("메인 앱 스크립트 로딩 실패:", e);
             }
 
             // 📖 화면의 모든 'UPH' 텍스트에 용어 설명 툴팁을 자동으로 붙인다.
-            import('./js/uph-tooltip.js?v=202611260958').catch(e => console.warn('UPH 툴팁 로딩 실패:', e));
+            import('./js/uph-tooltip.js?v=eec0e85c4212-e3b27973').catch(e => console.warn('UPH 툴팁 로딩 실패:', e));
         }
 
         initApp();
@@ -633,11 +633,11 @@
     </script>
 
     <script type="module">
-        import { appState } from './js/state.js?v=202611260958';
-        import { addNotice, toggleNotice, deleteNotice, editNotice, noticeMemberNames } from './js/notice-logic.js?v=202611260958';
-        import { renderNoticeWidget } from './js/ui-main.js?v=202611260958';
-        import { initIncomingScheduleWidget } from './js/widget-incoming-schedule.js?v=202611260958';
-        import { initTodayProgressStrip } from './js/widget-today-progress.js?v=202611260958';
+        import { appState } from './js/state.js?v=c7f5fc984ef9-a2ce38c0';
+        import { addNotice, toggleNotice, deleteNotice, editNotice, noticeMemberNames } from './js/notice-logic.js?v=69ff2a239076-840ae8ee';
+        import { renderNoticeWidget } from './js/ui-main.js?v=1908e7802e0a-d7b62405';
+        import { initIncomingScheduleWidget } from './js/widget-incoming-schedule.js?v=79bcf1047d68-237bc1dd';
+        import { initTodayProgressStrip } from './js/widget-today-progress.js?v=b3d470efba43-cd4c7c7e';
 
         // 🚚 입고 예정 위젯 — 캐시부터 그림. 데이터 구독은 로그인 후 app.js 가 시작
         initIncomingScheduleWidget();
@@ -858,11 +858,11 @@
             renderNoticeModalList();
         }
     </script>
-    <script src="js/connection-banner.js?v=202611260958"></script>
-    <script src="js/modal-esc.js?v=202611260958"></script>
-    <script type="module" src="js/modal-drag.js?v=202611260958"></script>
+    <script src="js/connection-banner.js?v=fb04e0b435ed-f6d55014"></script>
+    <script src="js/modal-esc.js?v=0458b4470d9a-71e98692"></script>
+    <script type="module" src="js/modal-drag.js?v=c3010af0cdbe-22d0d415"></script>
     <!-- 공통 상단바(대시보드는 바 없이 메뉴 캐시만 채운다 — data-shell-bar="off") -->
-    <script type="module" src="js/app-shell.js?v=202611260958"></script>
-    <script src="js/app-version.js?v=202611260958"></script>
+    <script type="module" src="js/app-shell.js?v=0ad2923a7c3b-bf6553e1"></script>
+    <script src="js/app-version.js?v=d35775fc4dac-16141fd0"></script>
 </body>
 </html>

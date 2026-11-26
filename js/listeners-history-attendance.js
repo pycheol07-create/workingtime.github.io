@@ -1,17 +1,17 @@
 // === js/listeners-history-attendance.js ===
 // 설명: 이력 보기의 '근태 이력' 관리(추가/수정/삭제 요청) 관련 리스너를 담당합니다.
 
-import * as DOM from './dom-elements.js?v=202611260958';
-import * as State from './state.js?v=202611260958';
-import { isPersistentLeaveType, leaveTypeLabel } from './state.js?v=202611260958';
-import { showToast, showConfirm, getTodayDateString, getCurrentTime } from './utils.js?v=202611260958';
-import { renderAttendanceDailyHistory } from './ui-history.js?v=202611260958';
-import { clearLocalCache, updateAttendanceTime } from './history-data-manager.js?v=202611260958';
-import { validateClockInOut, normalizeClock } from './lib/clock-in-out.js?v=202611260958';
-import { updateLeaveSchedule } from './config.js?v=202611260958';
-import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=202611260958';
-import { findDailyLeaveDup } from './lib/attendance-guard.js?v=202611260958';
-import { augmentHistoryWithPersistentLeave } from './history-enricher.js?v=202611260958';
+import * as DOM from './dom-elements.js?v=2b9f19ecbde2-82fbef91';
+import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
+import { isPersistentLeaveType, leaveTypeLabel } from './state.js?v=c7f5fc984ef9-a2ce38c0';
+import { showToast, showConfirm, getTodayDateString, getCurrentTime } from './utils.js?v=08864ef2738a-17d787ec';
+import { renderAttendanceDailyHistory } from './ui-history.js?v=1908e7802e0a-b575143a';
+import { clearLocalCache, updateAttendanceTime } from './history-data-manager.js?v=1908e7802e0a-3ebc7e25';
+import { validateClockInOut, normalizeClock } from './lib/clock-in-out.js?v=2b0fa162a240-d1eeb61e';
+import { updateLeaveSchedule } from './config.js?v=242bb63abbe9-dd1665a9';
+import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=152edbc1d09a-ab7817f6';
+import { findDailyLeaveDup } from './lib/attendance-guard.js?v=2a8059f9ce4c-c8aba679';
+import { augmentHistoryWithPersistentLeave } from './history-enricher.js?v=c341849aeebc-c768d8df';
 import { doc, updateDoc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // 수정 모달이 지금 다루고 있는 근태의 '원본'.

@@ -1,34 +1,34 @@
-import { initializeFirebase, loadAppConfig } from './config.js?v=202611260958';
+import { initializeFirebase, loadAppConfig } from './config.js?v=242bb63abbe9-dd1665a9';
 import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, writeBatch, getDocs, query, where, documentId, deleteField, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { escapeHtml as escAttr } from './utils.js?v=202611260958';
-import { cleanRaw, isCostCol, isDroppedHeader, supplierCodeOf } from './lib/sensitive-cols.js?v=202611260958';
-import { multiLocGroups, reserveLocIds, normLocId } from './lib/multi-loc.js?v=202611260958';
-import { codeOfRowB, pickRowB, checkUploadB, checkPermanent, newLocIds } from './lib/upload-check.js?v=202611260958';
-import { orderKeyMap } from './lib/order-hash.js?v=202611260958';
-import { setShellContext } from './app-shell-bridge.js?v=202611260958';
-import { memberNameFor } from './app-shell-data.js?v=202611260958';
-import { menuConfigOf } from './lib/perm.js?v=202611260958';
-import { readHash, writeHash, onHashNav } from './hash-state.js?v=202611260958';
-import { initPageNav } from './page-nav.js?v=202611260958';
-import { initRefillCard } from './refill-card.js?v=202611260958';
-import { initLocRecCard } from './locrec-card.js?v=202611260958';
-import { getLocRecStore, peekLocRecStore } from './locrec-store.js?v=202611260958';   // 오늘 변경 추천 예정 자리·최근 [처리함] 이동(엑셀 경고)
-import { initRebuildBar } from './rebuild-bar.js?v=202611260958';
-import { mountRouteSlot } from './locrec-route-card.js?v=202611260958';
-import { whenPerm, onPerm, canFeature } from './feature-gate.js?v=202611260958';   // 권한 개편 5단계 — 카드는 권한이 확인된 뒤에만 시작
-import { mountBusyBanner, createUploadStatus } from './busy-banner.js?v=202611260958';
-import { uploadBlockText } from './lib/busy-view.js?v=202611260958';
-import { uploadStockView, ezStockView, stockSrcOf, countAuto, autoBadge } from './lib/ez-stock-view.js?v=202611260958';
-import { INCOMING_WAIT_MAX_MS, SHEET_REQ_DAILY_MAX, incomingReadAt, requestServerMs, judgeIncomingSnap, createRunGuard, guardedRun, once, waitTimeoutText } from './lib/incoming-wait.js?v=202611260958';
-import { angleSizeOf, SERVER_DEFAULTS, makeRankers, isEtcLocObj } from './lib/loc-recommend.js?v=202611260958';
-import { comboOf, isExcludedSlot, slotDigits, parseCards } from './lib/loc-cards.js?v=202611260958';   // 자리 → 'A-1' 조합(카드 이름·제외 조합 같은 규칙)
-import { initLocSetPanel } from './locset-panel.js?v=202611260958';   // 환경설정 '추천·채우기' 탭(변경 추천 설정·채우기 설정)
+import { escapeHtml as escAttr } from './utils.js?v=08864ef2738a-17d787ec';
+import { cleanRaw, isCostCol, isDroppedHeader, supplierCodeOf } from './lib/sensitive-cols.js?v=e134acbb436b-50d4f3cd';
+import { multiLocGroups, reserveLocIds, normLocId } from './lib/multi-loc.js?v=eaa90e2a913d-3eb38b15';
+import { codeOfRowB, pickRowB, checkUploadB, checkPermanent, newLocIds } from './lib/upload-check.js?v=818a8ddddd83-a4fba7cb';
+import { orderKeyMap } from './lib/order-hash.js?v=765c61cc4788-2bc9ba87';
+import { setShellContext } from './app-shell-bridge.js?v=b9a7199f3e1d-c80c27e9';
+import { memberNameFor } from './app-shell-data.js?v=e42c6a10ca7a-9319c795';
+import { menuConfigOf } from './lib/perm.js?v=c1e53d91da8e-49afeea3';
+import { readHash, writeHash, onHashNav } from './hash-state.js?v=41d515385973-40fe10fb';
+import { initPageNav } from './page-nav.js?v=2d9f4a86d931-b8f40ef7';
+import { initRefillCard } from './refill-card.js?v=27717444a21d-fbc0ffd6';
+import { initLocRecCard } from './locrec-card.js?v=2c1568362b7f-8da41d23';
+import { getLocRecStore, peekLocRecStore } from './locrec-store.js?v=0f6edac0e2be-1a43b116';   // 오늘 변경 추천 예정 자리·최근 [처리함] 이동(엑셀 경고)
+import { initRebuildBar } from './rebuild-bar.js?v=e49a38559e74-07a1bb60';
+import { mountRouteSlot } from './locrec-route-card.js?v=c8a15c8d2885-3f4fe9bc';
+import { whenPerm, onPerm, canFeature } from './feature-gate.js?v=7eaa46dbb8e9-a5458f75';   // 권한 개편 5단계 — 카드는 권한이 확인된 뒤에만 시작
+import { mountBusyBanner, createUploadStatus } from './busy-banner.js?v=4fb4e0ed4621-8677e3fb';
+import { uploadBlockText } from './lib/busy-view.js?v=659be9925d1c-88862baa';
+import { uploadStockView, ezStockView, stockSrcOf, countAuto, autoBadge } from './lib/ez-stock-view.js?v=e00def1b1135-64e359e0';
+import { INCOMING_WAIT_MAX_MS, SHEET_REQ_DAILY_MAX, incomingReadAt, requestServerMs, judgeIncomingSnap, createRunGuard, guardedRun, once, waitTimeoutText } from './lib/incoming-wait.js?v=47c3cd807778-95e00b98';
+import { angleSizeOf, SERVER_DEFAULTS, makeRankers, isEtcLocObj } from './lib/loc-recommend.js?v=f407d005b8a8-df186d4d';
+import { comboOf, isExcludedSlot, slotDigits, parseCards } from './lib/loc-cards.js?v=436e88b31445-bac5ec02';   // 자리 → 'A-1' 조합(카드 이름·제외 조합 같은 규칙)
+import { initLocSetPanel } from './locset-panel.js?v=2741688ddd93-cbea5a2b';   // 환경설정 '추천·채우기' 탭(변경 추천 설정·채우기 설정)
 // 변경 추천 [처리함]이 옮긴 자리의 하루 표시(locRecMove)·오늘 재고 올리기 전 충돌 경고 — 계획·판정은 js/lib/locrec-apply.js
-import { zoneDocIdOf, moveBadge, uploadMoveConflicts, uploadConflictText, isDesignatedEmpty } from './lib/locrec-apply.js?v=202611260958';
-import { dayKey as kstDayKey } from './lib/refill-view.js?v=202611260958';
+import { zoneDocIdOf, moveBadge, uploadMoveConflicts, uploadConflictText, isDesignatedEmpty } from './lib/locrec-apply.js?v=7cca5e5163c6-5def8df3';
+import { dayKey as kstDayKey } from './lib/refill-view.js?v=3416a867c2d7-24e9bb3d';
 // 마지막 출고일(integrations/locLastOut, 로케이션추천\최근출고.py) — 업로드 '마지막출고.배송일'과 더 최근 값으로 합친다(2026-11-20)
-import { normDay, parseLastOut, laterDay, ezLastOf, cleanupDecision } from './lib/last-out.js?v=202611260958';
+import { normDay, parseLastOut, laterDay, ezLastOf, cleanupDecision } from './lib/last-out.js?v=36085d31f68f-09edcbbe';
 
 // 🔐 onclick="fn('...')" 안에 데이터를 넣을 때 반드시 통과시킬 것.
 //    작은따옴표만 막으면 상품명에 " < 역슬래시가 들어올 때 버튼이 동작하지 않거나

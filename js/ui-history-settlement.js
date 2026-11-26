@@ -3,12 +3,13 @@
 // 한 화면에 상세하게 요약해서 보여주는 보고서 탭. 각 섹션의 실제 계산은 기존 모듈의 재사용 함수를 그대로 사용하고,
 // 이 파일은 "기간 해석 + 심층 집계 + 보고서 렌더링"을 담당한다.
 
-import * as State from './state.js?v=202611260958';
-import { LEAVE_TYPES } from './state.js?v=202611260958';
-import { getRegularMembersForCount, formatDuration, buildMemberHourlyWageMap, getTodayDateString, escapeHtml, escapeHtml as esc } from './utils.js?v=202611260958';   // escapeHtml 도 같이(2026-11-12 이스케이프 수정이 이름으로 불러 정산 화면이 깨졌다)
+import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
+import { ensureHtml2pdf } from './lib/lazy-html2pdf.js?v=8e7180a5a596-4b2424ee';
+import { LEAVE_TYPES } from './state.js?v=c7f5fc984ef9-a2ce38c0';
+import { getRegularMembersForCount, formatDuration, buildMemberHourlyWageMap, getTodayDateString, escapeHtml, escapeHtml as esc } from './utils.js?v=08864ef2738a-17d787ec';   // escapeHtml 도 같이(2026-11-12 이스케이프 수정이 이름으로 불러 정산 화면이 깨졌다)
 import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { matchesFilter, hasFilter, filterCount, openFloatingFilter, closeFloatingFilter } from './table-filter.js?v=202611260958';
-import { bindDrillListeners, drillWrap } from './settlement-drill.js?v=202611260958';
+import { matchesFilter, hasFilter, filterCount, openFloatingFilter, closeFloatingFilter } from './table-filter.js?v=fd197c3531ef-b92b1b78';
+import { bindDrillListeners, drillWrap } from './settlement-drill.js?v=a6488994315e-db8ccb57';
 
 import {
     calculateReportKPIs,
@@ -18,14 +19,14 @@ import {
     calculateBenchmarkOEE,
     generateProductivityDiagnosis,
     analyzeUnitCost
-} from './ui-history-reports-logic.js?v=202611260958';
+} from './ui-history-reports-logic.js?v=b337be75ca1d-28b3f058';
 
-import { aggregateManagementData } from './ui-history-management.js?v=202611260958';
-import { ensureMilestonesLoaded, getMilestoneSummariesForPeriod } from './ui-history-milestones.js?v=202611260958';
-import { D } from './d-chart.js?v=202611260958';
-import { aliasHistoryView } from './lib/task-alias-view.js?v=202611260958';
-import { periodSpeeds, lastDayIdOf, opsSummary, OEE_LEVELS } from './lib/ops-metrics.js?v=202611260958';
-import { revenueTotalOf } from './revenue-channels.js?v=202611260958';
+import { aggregateManagementData } from './ui-history-management.js?v=649c88a366ac-688719b9';
+import { ensureMilestonesLoaded, getMilestoneSummariesForPeriod } from './ui-history-milestones.js?v=e5d939c6c4fc-f2d37faf';
+import { D } from './d-chart.js?v=e918595219dd-dfe55644';
+import { aliasHistoryView } from './lib/task-alias-view.js?v=2e131477eb8e-af660ceb';
+import { periodSpeeds, lastDayIdOf, opsSummary, OEE_LEVELS } from './lib/ops-metrics.js?v=b7744497fb54-58d6bcbb';
+import { revenueTotalOf } from './revenue-channels.js?v=553320652df2-c473a26d';
 // 엑셀(결산 xlsx)로 옮길 때 — 화면용 HTML 글(태그·escape 된 글자)을 보통 글자로
 const htmlToText = (h) => String(h == null ? '' : h).replace(/<[^>]+>/g, '').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&');
 
@@ -1277,8 +1278,8 @@ function renderOverallOpinionSection(op, periodLabel, workingDaysCount) {
 //    파고들기 숫자도 버튼 안에 있다(drillWrap). 통째로 지우면 제목과
 //    숫자가 사라진 종이가 나온다. 조작용만 지우고 나머지는 껍데기만 벗긴다.
 async function downloadSettlementPdf(periodLabel, btnArg = null) {
-    if (typeof html2pdf === 'undefined') {
-        alert('PDF 라이브러리를 불러오지 못했습니다. 새로고침 후 다시 시도해 주세요.');
+    if (!(await ensureHtml2pdf())) {   // 처음 누를 때 받는다(js/lib/lazy-html2pdf.js)
+        alert('PDF 라이브러리를 불러오지 못했습니다. 인터넷 연결을 확인하고 다시 눌러 주세요.');
         return;
     }
     const panel = document.getElementById('settlement-panel');

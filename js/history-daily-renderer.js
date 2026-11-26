@@ -2,12 +2,12 @@
 // 설명: 이력 보기의 '일별 상세' 탭 화면을 렌더링하는 모듈입니다.
 // (수정됨: 현황판과 동일한 기준으로 유효 멤버 필터링 강화, 시스템 계정 제외 및 타입 에러 방어 적용)
 
-import { escapeHtml } from './utils.js?v=202611260958';
-import * as State from './state.js?v=202611260958';
+import { escapeHtml } from './utils.js?v=08864ef2738a-17d787ec';
+import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
 import {
     formatDuration, isWeekday, calcTotalPauseMinutes, formatTimeTo24H, getTodayDateString, buildMemberHourlyWageMap
-} from './utils.js?v=202611260958';
-import { getDiffHtmlForMetric } from './ui-history-reports-logic.js?v=202611260958';
+} from './utils.js?v=08864ef2738a-17d787ec';
+import { getDiffHtmlForMetric } from './ui-history-reports-logic.js?v=b337be75ca1d-28b3f058';
 
 /**
  * 일별 상세 화면 렌더링 (KPI 카드 및 업무별 진행바 등)

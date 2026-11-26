@@ -1,7 +1,7 @@
 // === js/widget-incoming-schedule.js ===
 import { doc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { escapeHtml } from './utils.js?v=202611260958';
-import * as State from './state.js?v=202611260958';
+import { escapeHtml } from './utils.js?v=08864ef2738a-17d787ec';
+import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
 // 🚚 메인 대시보드 "주요 일정 및 알림" 위젯의 입고 예정 섹션.
 //
 // 구글 시트 「패킹.송금관리」에 붙은 Apps Script 가 **시트를 고칠 때 즉시 + 1시간마다** 4개 열

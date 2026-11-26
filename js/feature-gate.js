@@ -12,9 +12,9 @@
 //
 // ⚠️ 화면·클라이언트 장치다. 콘솔에서 원래 동작을 직접 흉내 내는 것까지는 못 막는다 — 데이터는 firestore.rules 가 지킨다.
 // ⚠️ 안내는 role="status" 토스트로만 띄운다(role="dialog"·data-act 금지 — 업무마감봇·업무예상알림 선택자).
-import { can } from './lib/perm.js?v=202611260958';
-import { featureLabel } from './lib/feature-catalog.js?v=202611260958';
-import { featureList, canAny } from './lib/perm-gate.js?v=202611260958';
+import { can } from './lib/perm.js?v=c1e53d91da8e-49afeea3';
+import { featureLabel } from './lib/feature-catalog.js?v=b88b1c1e60c1-81ffd467';
+import { featureList, canAny } from './lib/perm-gate.js?v=e8be6a31f3ef-c9741504';
 
 export const currentPerm = () => (typeof window !== 'undefined' && window.__perm) || null;
 export const canFeature = (id) => can(currentPerm(), id);

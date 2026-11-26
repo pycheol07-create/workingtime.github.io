@@ -16,8 +16,8 @@
 import {
     pyStr, pyStrip, pyTruthy, strip, orEmpty, toInt, isFraction, cleanProductName, sortedBy,
     zikjinSource, packDay, countPacks, checkLimit, splitAndName, overBags, kstDay, fileNames, looksLikeStockOut, STOCK_OUT_MSG,
-} from './ship-core.js?v=202611260958';
-import { headerColumns } from './ship-read.js?v=202611260958';
+} from './ship-core.js?v=b3f3a4eb2d9b-669f26a2';
+import { headerColumns } from './ship-read.js?v=04fbd537e5b5-8c5bf86d';
 
 export const DATA_START_ROW = 8;   // 지그재그양식서: 머리글 7행, 자료 8행부터
 export const TEMPLATE_SHEETS = ['지그재그양식서', '재고로그조회리스트', '패키지번호'];

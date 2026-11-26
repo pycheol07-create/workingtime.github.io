@@ -2,10 +2,10 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <script src="js/theme-boot.js?v=202611260958"></script>
-    <link rel="stylesheet" href="css/suit.css?v=202611260958">
-    <link rel="stylesheet" href="css/d-theme.css?v=202611260958">
-    <link rel="stylesheet" href="css/app-shell.css?v=202611260958">
+    <script src="js/theme-boot.js?v=cc87c43d70fe-c7b53f24"></script>
+    <link rel="stylesheet" href="css/suit.css?v=b9d459f9ceba-97bc2d2b">
+    <link rel="stylesheet" href="css/d-theme.css?v=df4c11de6b56-d8e4a2c7">
+    <link rel="stylesheet" href="css/app-shell.css?v=5966338d2f36-2dcf6c28">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <title>입고 스캐너</title>
@@ -233,18 +233,18 @@
     <div id="undo-toast" role="status" aria-live="polite"><span id="undo-toast-msg"></span><button type="button" id="undo-toast-btn">되돌리기</button></div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js" integrity="sha384-c9d8RFSL+u3exBOJ4Yp3HUJXS4znl9f+z66d1y54ig+ea249SpqR+w1wyvXz/lk+" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-    <script src="js/location-map.js?v=202611260958"></script>
+    <script src="js/location-map.js?v=70d8ea3cf41c-72a0d105"></script>
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
         import { getFirestore, doc, getDoc, setDoc, updateDoc, collection, writeBatch, increment, serverTimestamp, onSnapshot, runTransaction, deleteField } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
         import { getAuth, onAuthStateChanged, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-        import { firebaseConfig } from './js/china-stock-config.js?v=202611260958'; // china-stock 전용 설정(work-tool-e2943)
-        import { setShellContext } from './js/app-shell-bridge.js?v=202611260958';   // 공통 상단바(uid 만 — 메뉴는 캐시)
-        import { checkProductCode } from './js/lib/product-code.js?v=202611260958';  // 위치지정 상품코드 'S+숫자6자리' 판정
-        import { availWithMine, myHoldsOf, heldByOthers, planTake, allocOf, staleHoldIds, floor2Step, isSplitItem, newHoldId, pendingExpired, HOLD_PENDING_MAX_MS } from './js/lib/scan-hold.js?v=202611260958'; // [Ver 10.7] 미발 동시 스캔 방지
-        import { LOC_SCAN_COLL, buildLocScanDocs } from './js/lib/loc-scan-log.js?v=202611260958'; // 위치지정 건별 기록(문서 모양)
-        import { connectEmulatorsIfEnabled } from './js/firebase-emulator.js?v=202611260958'; // 🧪 localhost + ?emu=1 일 때만 에뮬레이터(운영에서는 아무 일 안 함)
-        import { escapeHtml } from './js/utils.js?v=202611260958';   // 대기열·배너에 상품명·바코드 등 넣을 때(2026-11-12 보안 점검)
+        import { firebaseConfig } from './js/china-stock-config.js?v=b6238b6a4892-a009fb3d'; // china-stock 전용 설정(work-tool-e2943)
+        import { setShellContext } from './js/app-shell-bridge.js?v=b9a7199f3e1d-c80c27e9';   // 공통 상단바(uid 만 — 메뉴는 캐시)
+        import { checkProductCode } from './js/lib/product-code.js?v=642c44c54b4c-8f8f0217';  // 위치지정 상품코드 'S+숫자6자리' 판정
+        import { availWithMine, myHoldsOf, heldByOthers, planTake, allocOf, staleHoldIds, floor2Step, isSplitItem, newHoldId, pendingExpired, HOLD_PENDING_MAX_MS } from './js/lib/scan-hold.js?v=0d77161d3524-8061d769'; // [Ver 10.7] 미발 동시 스캔 방지
+        import { LOC_SCAN_COLL, buildLocScanDocs } from './js/lib/loc-scan-log.js?v=696b0986b508-7cdc6b24'; // 위치지정 건별 기록(문서 모양)
+        import { connectEmulatorsIfEnabled } from './js/firebase-emulator.js?v=071adc2867a0-c60c17d2'; // 🧪 localhost + ?emu=1 일 때만 에뮬레이터(운영에서는 아무 일 안 함)
+        import { escapeHtml } from './js/utils.js?v=08864ef2738a-17d787ec';   // 대기열·배너에 상품명·바코드 등 넣을 때(2026-11-12 보안 점검)
 
         const SCAN_VERSION = '10.9'; // 웹 배포 버전과 함께 올림 (china-stock-version.json의 web)
 
@@ -292,7 +292,7 @@
             if (scanWorkerLoading) return;
             scanWorkerLoading = true;
             try {
-                const { memberNameFor } = await import('./js/app-shell-data.js?v=202611260958');
+                const { memberNameFor } = await import('./js/app-shell-data.js?v=e42c6a10ca7a-9319c795');
                 const snap = await getDoc(doc(db, 'artifacts/team-work-logger-v2/config/mainConfig'));
                 const cu = getAuth(app).currentUser;
                 if (cu && cu.uid === user.uid) { scanWorkerName = memberNameFor(snap.exists() ? snap.data().memberEmails : null, user.email) || ''; scanWorkerRead = true; }
@@ -1540,7 +1540,7 @@
         window.addEventListener('focus', checkVersion);
         setInterval(checkVersion, 10 * 60 * 1000);
     </script>
-    <script type="module" src="js/page-gate.js?v=202611260958" data-perm-page="scan.view" data-perm-app="scanApp"></script>
-    <script type="module" src="js/app-shell.js?v=202611260958"></script>
+    <script type="module" src="js/page-gate.js?v=91ff5d6d21f9-d1e977d0" data-perm-page="scan.view" data-perm-app="scanApp"></script>
+    <script type="module" src="js/app-shell.js?v=0ad2923a7c3b-bf6553e1"></script>
 </body>
 </html>

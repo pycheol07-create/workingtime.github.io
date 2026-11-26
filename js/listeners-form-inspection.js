@@ -1,7 +1,7 @@
 // === js/listeners-form-inspection.js ===
 // 설명: '검수 매니저(입력)' 모달 내부의 리스너를 담당합니다.
 
-import * as DOM from './dom-elements.js?v=202611260958';
+import * as DOM from './dom-elements.js?v=2b9f19ecbde2-82fbef91';
 import { 
     searchProductHistory, 
     saveInspectionAndNext, 
@@ -11,15 +11,15 @@ import {
     clearTodayList,
     deleteInspectionList,
     openInspectionListWindow
-} from './inspection-logic.js?v=202611260958';
-import { openPackPicker } from './inspection-packs.js?v=202611260958';
-import { openManualAdd } from './inspection-manual.js?v=202611260958';
-import { initInspSegments } from './inspection-segments.js?v=202611260958';
+} from './inspection-logic.js?v=871aeb7a8a82-e1d61ac2';
+import { openPackPicker } from './inspection-packs.js?v=19e1f49c09fc-59151e29';
+import { openManualAdd } from './inspection-manual.js?v=871aeb7a8a82-6555fd07';
+import { initInspSegments } from './inspection-segments.js?v=01092d4beb15-fc1be8ff';
 // 아래 함수들은 다른 작업 묶음에서 들어온다(goPrevInspectionItem·toggleTodoCollapsed — inspection-logic.js,
 // dropNewPhoto — inspection-media.js). 이름으로 import 하면 아직 없을 때 모듈 전체가 깨지므로 namespace 로 받고
 // typeof 로 확인한 뒤 부른다.
-import * as InspLogic from './inspection-logic.js?v=202611260958';
-import * as InspMedia from './inspection-media.js?v=202611260958';
+import * as InspLogic from './inspection-logic.js?v=871aeb7a8a82-e1d61ac2';
+import * as InspMedia from './inspection-media.js?v=871aeb7a8a82-cad5241c';
 
 const callIfFn = (mod, name, ...args) => {
     const fn = mod[name];
