@@ -364,14 +364,13 @@ function applyFilters() {
     });
     renderTable();
     renderSummary();
-    syncColFilterMarks();
     // 정렬 표시 — 지금 정렬 열만 ▲/▼, 머리글마다 aria-sort
     const absDefault = sortConfig.key === 'diffAbs';   // 기본 정렬 = 차이 절댓값 큰 순 → '차이' 머리글에 표시
     document.querySelectorAll('.list-table th.sortable').forEach(th => {
         const isAbs = absDefault && th.dataset.sort === 'diff';
         const sm = isAbs ? { mark: '(절댓값 큰 순)', aria: 'descending' } : sortMark(th.dataset.sort, sortConfig);
         if (th.dataset.sort === 'diff') {
-            if (isAbs) th.title = '지금은 기본 정렬 — 차이(피킹 배정−기존)의 절댓값이 큰 순입니다. 누르면 차이 값 순으로 정렬합니다';
+            if (isAbs) th.title = '지금은 기본 정렬 — 차이(피킹 배정−기존)의 절댓값이 큰 순입니다. 누르면 정렬·필터 메뉴';
             else th.title = '차이 = 피킹 배정수량 − 기존 계산기 미발수량';
         }
         th.setAttribute('aria-sort', sm.aria);
@@ -381,46 +380,72 @@ function applyFilters() {
             mk.textContent = ' ' + sm.mark;
         } else if (mk) mk.remove();
     });
+    syncColFilterMarks();   // 정렬 표시가 title 을 다시 쓴 뒤에 '(필터 걸림)' 을 붙인다
 }
 
-// ── 열 필터(2026-11-26 — 예전 화면처럼 모든 열. 입고확인은 일치/불일치) ─────────────────
-//   머리글마다 깔때기 단추(글자 없는 그림 — 열 이름·엑셀 머리글에 안 섞이게). 누르면 값 목록(js/table-filter.js), 정렬은 그대로 머리글 클릭.
-//   목록 값은 다른 열 필터를 통과한 행에서(엑셀처럼). 표 위 '열 필터 N개 [모두 풀기]'.
-const FILTER_ICON = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 5h18l-7 8v6l-4-2v-4z"/></svg>';
+// ── 머리글 메뉴(2026-11-26 — 머리글을 누르면 정렬·필터를 고른다, 따로 아이콘 없음) ──────────────────
+//   위: [오름차순]/[내림차순](정렬 열만) · 아래: 값 목록 필터(js/table-filter.js — 입고확인은 일치/불일치, No 열은 메뉴 없음).
+//   목록 값은 다른 열 필터를 통과한 행에서(엑셀처럼). 필터가 걸린 머리글은 글자색(th.col-filtered). 표 위 '열 필터 N개 [모두 풀기]'.
 const mainHeadCells = () => { const t = $('table-body') && $('table-body').closest('table'); return t ? [...t.querySelectorAll('thead th')] : []; };
 function filterKeyOfTh(th, i, all) { return th.dataset.sort || (i === all.length - 1 ? 'flags' : ''); }
+const ASC_FIRST = ['code', 'name', 'option', 'loc'];   // 글자 열 — 오름차순을 먼저 보인다
+function openHeadMenu(th, key) {
+    const label = (th.firstChild && th.firstChild.textContent ? th.firstChild.textContent : th.textContent).trim() || key;
+    const options = optionsFor(allRows, key, colFilters, flagLabel);
+    openFloatingFilter(th, {
+        key: 'mibal2:' + key, label: key === 'conf' ? `${label} — 도착과 일치/불일치` : label,
+        options,
+        current: toChecked(colFilters[key], options),
+        // 저장은 '뺀 값' 모양 — 새로 생긴 값의 행이 조용히 숨지 않게(js/lib/mibal2-filter.js)
+        onChange: (v) => { colFilters = { ...colFilters, [key]: toStored(v, options) }; applyFilters(); }
+    });
+    const pop = document.querySelector('.tf-pop');
+    if (!pop) return;   // 같은 머리글을 다시 눌러 닫은 경우
+    if (th.dataset.sort) {
+        const box = document.createElement('div');
+        box.className = 'hm-sort';
+        const dirs = ASC_FIRST.includes(key) ? [['asc', '오름차순 (ㄱ→ㅎ, 작은 값부터)'], ['desc', '내림차순']] : [['desc', '내림차순 (큰 값부터)'], ['asc', '오름차순 (작은 값부터)']];
+        box.innerHTML = dirs.map(([d, t]) => {
+            const on = sortConfig.key === key && sortConfig.dir === d;
+            return `<button type="button" class="hm-sort-btn${on ? ' on' : ''}" data-hm-dir="${d}">${on ? '✓ ' : ''}${esc(t)}</button>`;
+        }).join('');
+        box.addEventListener('click', (e) => {
+            const b = e.target.closest('[data-hm-dir]'); if (!b) return;
+            sortConfig = { key, dir: b.dataset.hmDir };
+            closeFloatingFilter();
+            applyFilters();
+        });
+        pop.insertBefore(box, pop.children[1] || null);   // 제목 바로 아래
+        // 정렬 칸이 붙어 높아졌으니 위·아래 자리를 처음부터 다시 잡는다(js/table-filter.js 와 같은 규칙 — 머리글을 덮지 않게)
+        const a = th.getBoundingClientRect(), h = pop.offsetHeight;
+        pop.style.top = (a.bottom + h + 8 > window.innerHeight ? Math.max(8, a.top - h - 4) : a.bottom + 4) + 'px';
+    }
+}
 function setupColFilters() {
     const ths = mainHeadCells();
     ths.forEach((th, i) => {
         const key = filterKeyOfTh(th, i, ths);
-        if (!key || th.querySelector('.th-filter')) return;   // No(번호) 열은 거르지 않는다
-        const b = document.createElement('button');
-        b.type = 'button';
-        b.className = 'th-filter';
-        b.dataset.tfFilter = '';
-        b.dataset.colKey = key;
-        b.innerHTML = FILTER_ICON;
-        const label = (th.firstChild && th.firstChild.textContent ? th.firstChild.textContent : th.textContent).trim() || key;
-        b.setAttribute('aria-label', `${label} 필터`);
-        b.title = `${label} 필터`;
-        b.addEventListener('click', (e) => {
-            e.stopPropagation();   // 머리글 정렬로 넘어가지 않게
-            const options = optionsFor(allRows, key, colFilters, flagLabel);
-            openFloatingFilter(b, {
-                key: 'mibal2:' + key, label: key === 'conf' ? `${label} — 도착과 일치/불일치` : label,
-                options,
-                current: toChecked(colFilters[key], options),
-                // 저장은 '뺀 값' 모양 — 새로 생긴 값의 행이 조용히 숨지 않게(js/lib/mibal2-filter.js)
-                onChange: (v) => { colFilters = { ...colFilters, [key]: toStored(v, options) }; applyFilters(); }
-            });
-        });
-        th.appendChild(b);
+        if (!key || th.dataset.hmWired) return;   // No(번호) 열은 메뉴 없음
+        th.dataset.hmWired = '1';
+        th.dataset.tfFilter = '';                  // 떠 있는 목록이 머리글 클릭을 '바깥' 으로 보고 닫지 않게(js/table-filter.js)
+        th.classList.add('hm-head');
+        th.tabIndex = 0;
+        th.setAttribute('aria-haspopup', 'dialog');
+        const open = (e) => {
+            if (justResized || (e && e.target && e.target.closest && e.target.closest('.col-grip'))) return;   // 열 너비 끌기
+            openHeadMenu(th, key);
+        };
+        th.addEventListener('click', open);
+        th.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(e); } });
     });
 }
 function syncColFilterMarks() {
-    mainHeadCells().forEach(th => {
-        const b = th.querySelector('.th-filter'); if (!b) return;
-        b.classList.toggle('on', colFilters[b.dataset.colKey] != null);
+    const ths = mainHeadCells();
+    ths.forEach((th, i) => {
+        const key = filterKeyOfTh(th, i, ths); if (!key) return;
+        const on = colFilters[key] != null;
+        th.classList.toggle('col-filtered', on);
+        th.title = (th.title || '').replace(/\n?\(필터 걸림\)$/, '') + (on ? '\n(필터 걸림)' : '');
     });
     const n = activeFilterCount(colFilters);
     let note = $('col-filter-note');
@@ -1377,14 +1402,7 @@ function setupEvents() {
     $('btn-refresh').addEventListener('click', () => requestRefresh(false));
     $('btn-view-live').addEventListener('click', () => setView('live', true));
     $('btn-view-loc').addEventListener('click', () => setView('loc', true));
-    setupColFilters();
-    document.querySelectorAll('.list-table th.sortable').forEach(th => th.addEventListener('click', () => {
-        if (justResized) return;   // 열 너비를 끌다 놓은 click
-        const key = th.dataset.sort;
-        if (sortConfig.key === key) sortConfig.dir = sortConfig.dir === 'asc' ? 'desc' : 'asc';
-        else sortConfig = { key, dir: (key === 'code' || key === 'name' || key === 'option' || key === 'loc') ? 'asc' : 'desc' };
-        applyFilters();
-    }));
+    setupColFilters();   // 머리글을 누르면 정렬·필터 메뉴(예전 '누를 때마다 정렬 바꾸기' 대신, 2026-11-26 사용자 요청)
     $('table-body').addEventListener('click', (e) => {
         if (e.target.closest('td.conf-edit')) { e.stopPropagation(); return; }   // 입고확인 칸은 고치는 곳(펼치기 대신)
         const tr = e.target.closest('tr.data-row'); if (!tr) return;

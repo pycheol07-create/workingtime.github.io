@@ -120,10 +120,15 @@
         .list-table th.sortable { cursor: pointer; user-select: none; }
         .list-table th.sortable:hover { color: var(--c-accent-deep); }
         /* 열 필터(js/china-mibal2.js setupColFilters · js/table-filter.js 떠 있는 목록) — 이 화면은 Tailwind 가 없어 목록 모양을 여기서 */
-        .list-table th .th-filter { display: inline-flex; align-items: center; justify-content: center; width: 17px; height: 17px; margin-left: 3px; padding: 0;
-            border: 0; border-radius: 4px; background: transparent; color: var(--c-text-3); cursor: pointer; vertical-align: middle; opacity: .55; }
-        .list-table th .th-filter:hover { opacity: 1; background: var(--c-surface); }
-        .list-table th .th-filter.on { opacity: 1; color: #fff; background: var(--c-accent); }
+        .list-table th.hm-head { cursor: pointer; user-select: none; }
+        .list-table th.hm-head:hover, .list-table th.hm-head:focus-visible { color: var(--c-accent-deep); background: var(--c-surface); outline: none; }
+        /* 필터 걸린 머리글 — th.new-col(강조 열 배경)보다 앞서게 클래스 3개로 */
+        .list-table th.hm-head.col-filtered { color: #fff; background: var(--c-accent); }
+        .list-table th.hm-head.col-filtered:hover { color: #fff; background: var(--c-accent-deep); }
+        .tf-pop .hm-sort { display: flex; flex-direction: column; gap: 2px; padding-bottom: 8px; margin-bottom: 8px; border-bottom: 1px solid #e2e8f0; }
+        .tf-pop .hm-sort-btn { text-align: left; color: #334155; font-weight: 600; font-size: 12.5px; padding: 6px 6px; border-radius: 6px; }
+        .tf-pop .hm-sort-btn:hover { background: #f1f5f9; }
+        .tf-pop .hm-sort-btn.on { color: #1e4699; background: #eaf0fd; }
         .tf-pop .flex { display: flex; } .tf-pop .items-center { align-items: center; } .tf-pop .justify-between { justify-content: space-between; }
         .tf-pop .gap-2 { gap: 8px; } .tf-pop .mb-1\.5 { margin-bottom: 6px; } .tf-pop .font-bold { font-weight: 700; }
         .tf-pop .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -599,7 +604,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" integrity="sha384-vtjasyidUo0kW94K5MXDXntzOJpQgBKXmE7e2Ga4LG0skTTLeBi97eFAXsqewJjw" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
     <!-- 로그인 게이트는 기존 china-stock-goods.html 과 같은 파일·같은 주소 -->
     <script type="module" src="js/china-stock-gate.js?v=8ec605909d69-d8aba0f9"></script>
-    <script type="module" src="js/china-mibal2.js?v=3798b109daa1-8518663c"></script>
+    <script type="module" src="js/china-mibal2.js?v=f428caef453f-4fe0dc7a"></script>
     <script type="module" src="js/page-gate.js?v=91ff5d6d21f9-d1e977d0" data-perm-page="china.mibal2"></script>
     <script type="module" src="js/app-shell.js?v=0ad2923a7c3b-bf6553e1"></script>
 </body>
