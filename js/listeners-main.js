@@ -1,16 +1,16 @@
 // === js/listeners-main.js ===
 // 설명: 메인 화면의 리스너 (실시간 현황판 제외)
 
-import * as DOM from './dom-elements.js?v=202611260923';
-import * as State from './state.js?v=202611260923';
+import * as DOM from './dom-elements.js?v=202611260948';
+import * as State from './state.js?v=202611260948';
 
 // app.js에서는 'render'만, app-data.js에서는 'updateDailyData'를 가져옵니다.
-import { render } from './app.js?v=202611260923';
-import { updateDailyData } from './app-data.js?v=202611260923';
+import { render } from './app.js?v=202611260948';
+import { updateDailyData } from './app-data.js?v=202611260948';
 
-import { calcElapsedMinutes, showToast, showConfirm, getTodayDateString, getCurrentTime, formatTimeTo24H, escapeHtml } from './utils.js?v=202611260923';
-import { AUTO_END_TIME } from './lib/record-close.js?v=202611260923';
-import { applyDueLeaves } from './leave-auto-apply.js?v=202611260923';
+import { calcElapsedMinutes, showToast, showConfirm, getTodayDateString, getCurrentTime, formatTimeTo24H, escapeHtml } from './utils.js?v=202611260948';
+import { AUTO_END_TIME } from './lib/record-close.js?v=202611260948';
+import { applyDueLeaves } from './leave-auto-apply.js?v=202611260948';
 import {
     renderPersonalAnalysis,
     renderQuantityModalInputs,
@@ -18,17 +18,17 @@ import {
     applyLocRecPrefill,
     renderManualAddModalDatalists,
     renderLeaveTypeModalOptions 
-} from './ui.js?v=202611260923';
+} from './ui.js?v=202611260948';
 import {
     processClockIn, processClockOut, cancelClockOut
-} from './app-logic.js?v=202611260923';
-import { saveProgress, saveDayDataToHistory, previewDayClose, getPlannedQuantitiesForDate, isDayClosedOnServer } from './history-data-manager.js?v=202611260923';
-import { changedQuantities, changedZeroList } from './lib/history-merge.js?v=202611260923';
-import { plannedPrefill, doneTasksOf } from './lib/planned-prefill.js?v=202611260923';
-import { aliasNameMap, aliasTaskName } from './lib/task-alias-view.js?v=202611260923';
-import { checkMissingQuantities } from './analysis-logic.js?v=202611260923';
-import { isLocRecTask } from './locrec-dash.js?v=202611260923';
-import { locRecDoneToday, refreshLocRecDone, invalidateLocRecDone } from './locrec-done.js?v=202611260923';
+} from './app-logic.js?v=202611260948';
+import { saveProgress, saveDayDataToHistory, previewDayClose, getPlannedQuantitiesForDate, isDayClosedOnServer } from './history-data-manager.js?v=202611260948';
+import { changedQuantities, changedZeroList } from './lib/history-merge.js?v=202611260948';
+import { plannedPrefill, doneTasksOf } from './lib/planned-prefill.js?v=202611260948';
+import { aliasNameMap, aliasTaskName } from './lib/task-alias-view.js?v=202611260948';
+import { checkMissingQuantities } from './analysis-logic.js?v=202611260948';
+import { isLocRecTask } from './locrec-dash.js?v=202611260948';
+import { locRecDoneToday, refreshLocRecDone, invalidateLocRecDone } from './locrec-done.js?v=202611260948';
 
 import { 
     doc, updateDoc, collection, query, where, getDocs, setDoc 

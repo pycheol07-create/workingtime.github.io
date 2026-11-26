@@ -8,7 +8,7 @@
 
 const ITEM = '.pn-item';
 
-export function initPageNav(root, { onSelect, storageKey } = {}) {
+export function initPageNav(root, { onSelect, storageKey, auto = false, pinKey = '' } = {}) {
     if (!root) return null;
     const items = () => [...root.querySelectorAll(ITEM)];
     const rail = items().length >= 6;
@@ -39,7 +39,35 @@ export function initPageNav(root, { onSelect, storageKey } = {}) {
         if (collapse) { collapse.setAttribute('aria-expanded', String(!on)); collapse.title = on ? '메뉴 펼치기' : '메뉴 접기'; }
         try { if (storageKey) localStorage.setItem(storageKey, on ? '1' : '0'); } catch (e) { /* 기억 못 해도 동작에는 지장 없다 */ }
     };
-    try { if (storageKey && localStorage.getItem(storageKey) === '1') setCollapsed(true); } catch (e) { }
+    // 🖱 자동 접기(auto, 데이터 관리 레일 — 2026-11-26 사용자 요청): 평소 좁게, 마우스·키보드 초점이 오면 본문 위로 펼친다(css .pn--auto).
+    //    접기 단추는 '고정' 단추가 된다 — 고정하면 예전처럼 늘 펼친 레일. is-collapsed 와 같이 붙지 않게 auto 일 때는 접기 기억을 읽지 않는다.
+    //    마우스가 있는 넓은 화면(css 와 같은 조건)에서만 — 터치 화면은 예전 접기 단추 그대로(조건이 바뀌면 다시 정한다).
+    const setPinned = (on, save = true) => {
+        root.classList.toggle('pn--auto', !on);
+        if (collapse) {
+            const t = on ? '자동 접기로 바꾸기' : '메뉴 펼친 채로 고정';
+            collapse.removeAttribute('aria-expanded');
+            collapse.setAttribute('aria-pressed', String(!!on)); collapse.title = t; collapse.setAttribute('aria-label', t);
+        }
+        try { if (save && pinKey) localStorage.setItem(pinKey, on ? '1' : '0'); } catch (e) { /* 기억 못 해도 동작에는 지장 없다 */ }
+    };
+    const readFlag = (key) => { try { return !!key && localStorage.getItem(key) === '1'; } catch (e) { return false; } };
+    const autoMq = (auto && rail && window.matchMedia) ? window.matchMedia('(min-width: 769px) and (hover: hover) and (pointer: fine)') : null;
+    const applyMode = () => {
+        if (autoMq && autoMq.matches) {
+            root.classList.remove('is-collapsed');          // 접기 기억은 지우지 않는다(터치 화면으로 돌아가면 다시 쓴다)
+            root.classList.add('pn--can-auto');
+            setPinned(readFlag(pinKey), false);
+        } else {
+            root.classList.remove('pn--can-auto', 'pn--auto');
+            if (collapse) { collapse.removeAttribute('aria-pressed'); collapse.removeAttribute('aria-label'); }
+            const c = readFlag(storageKey);
+            root.classList.toggle('is-collapsed', c);
+            if (collapse) { collapse.setAttribute('aria-expanded', String(!c)); collapse.title = c ? '메뉴 펼치기' : '메뉴 접기'; }
+        }
+    };
+    applyMode();
+    if (autoMq) { if (autoMq.addEventListener) autoMq.addEventListener('change', applyMode); else if (autoMq.addListener) autoMq.addListener(applyMode); }
 
     /** 켜짐 표시만 바꾼다(화면 전환 없음). 찾은 항목을 돌려준다. */
     const setActive = (id) => {
@@ -55,7 +83,11 @@ export function initPageNav(root, { onSelect, storageKey } = {}) {
 
     root.addEventListener('click', (e) => {
         if (e.target.closest('.pn-toggle')) { setOpen(!root.classList.contains('is-open')); return; }
-        if (e.target.closest('.pn-collapse')) { setCollapsed(!root.classList.contains('is-collapsed')); return; }
+        if (e.target.closest('.pn-collapse')) {
+            if (root.classList.contains('pn--can-auto')) setPinned(root.classList.contains('pn--auto'));
+            else setCollapsed(!root.classList.contains('is-collapsed'));
+            return;
+        }
         const b = e.target.closest(ITEM);
         if (!b || !root.contains(b)) return;
         const id = b.dataset.pnId;

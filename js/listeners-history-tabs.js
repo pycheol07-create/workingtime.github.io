@@ -1,21 +1,21 @@
 // === js/listeners-history-tabs.js ===
-import * as DOM from './dom-elements.js?v=202611260923';
-import * as State from './state.js?v=202611260923';
-import { getWeekOfYear } from './utils.js?v=202611260923';
+import * as DOM from './dom-elements.js?v=202611260948';
+import * as State from './state.js?v=202611260948';
+import { getWeekOfYear } from './utils.js?v=202611260948';
 
 // 💡 실적 예측 함수 불러오기 추가
-import { renderPredictionTab, renderForecastTab } from './ui-history-prediction.js?v=202611260923';
-import { fetchAndRenderInspectionHistory } from './listeners-history-inspection.js?v=202611260923';
-import * as UILeave from './ui-history-leave.js?v=202611260923';
-import { switchHistoryView, renderHistoryDateListByMode, updateGranularityButtons } from './app-history-logic.js?v=202611260923';
-import { setTreeVisible, showPanelLoadError, clearPanelLoadError } from './history-list-controller.js?v=202611260923';
-import { confirmDiscardManagementEdits } from './ui-history-management.js?v=202611260923';
-import { historyLoadFailed } from './history-data-manager.js?v=202611260923';
-import { SECTIONS, LEGACY_SECTIONS, TREELESS_SUBS, sectionIdFor } from './history-sections.js?v=202611260923';
-import { saveView } from './view-state.js?v=202611260923';
-import { initPageNav } from './page-nav.js?v=202611260923';
-import { OPS_MAIN, legacyTarget } from './lib/ops-report-route.js?v=202611260923';
-import { initOpsReport, openOpsReport, renderOpsReport, leaveOpsReport } from './ui-history-ops-report.js?v=202611260923';
+import { renderPredictionTab, renderForecastTab } from './ui-history-prediction.js?v=202611260948';
+import { fetchAndRenderInspectionHistory } from './listeners-history-inspection.js?v=202611260948';
+import * as UILeave from './ui-history-leave.js?v=202611260948';
+import { switchHistoryView, renderHistoryDateListByMode, updateGranularityButtons } from './app-history-logic.js?v=202611260948';
+import { setTreeVisible, showPanelLoadError, clearPanelLoadError } from './history-list-controller.js?v=202611260948';
+import { confirmDiscardManagementEdits } from './ui-history-management.js?v=202611260948';
+import { historyLoadFailed } from './history-data-manager.js?v=202611260948';
+import { SECTIONS, LEGACY_SECTIONS, TREELESS_SUBS, sectionIdFor } from './history-sections.js?v=202611260948';
+import { saveView } from './view-state.js?v=202611260948';
+import { initPageNav } from './page-nav.js?v=202611260948';
+import { OPS_MAIN, legacyTarget } from './lib/ops-report-route.js?v=202611260948';
+import { initOpsReport, openOpsReport, renderOpsReport, leaveOpsReport } from './ui-history-ops-report.js?v=202611260948';
 
 // 좌측 트리 단위(globalGranularity) → 각 로우데이터 서브탭의 뷰 이름 매핑
 const SUBTAB_VIEW = {
@@ -153,7 +153,7 @@ async function activateMainTab(tabName, sub, ops = null) {
     // 📍 마일스톤 탭: 처음 들어올 때 1회 구독 + 리스너 바인딩
     if (tabName === 'milestones') {
         try {
-            const mod = await import('./ui-history-milestones.js?v=202611260923');
+            const mod = await import('./ui-history-milestones.js?v=202611260948');
             mod.subscribeMilestones();
             mod.bindMilestoneListeners();
             clearPanelLoadError(document.getElementById(MAIN_PANELS[tabName]));   // 앞서 실패해 띄운 오류 상자
@@ -243,7 +243,8 @@ export function setupHistoryTabsListeners() {
             }
             showSection(id).catch(err => console.error('화면 전환 실패:', err));
         },
-        storageKey: 'pageNav.history.collapsed'
+        storageKey: 'pageNav.history.collapsed',
+        auto: true, pinKey: 'pageNav.history.pinned'   // 2차 메뉴 자동 접기(2026-11-26) — 날짜 목록은 대상 아님
     });
 
     // 운영 리포트 탭 줄·[보고서 만들기] 연결 — 기간 이력은 이 파일의 함수로 받는다(순환 import 를 피해 넘김)

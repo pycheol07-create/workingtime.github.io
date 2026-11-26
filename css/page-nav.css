@@ -65,6 +65,28 @@
     .pn--rail.is-collapsed .pn-collapse::before { content: '\00BB'; } /* » */
 }
 
+/* ── 레일 자동 접기(.pn--auto, 데이터 관리 — js/page-nav.js auto) ──
+   마우스가 있는 넓은 화면만. 평소 44px, 마우스·키보드 초점이 오면 190px 로 본문(날짜 목록) 위에 펼친다.
+   margin-right 음수로 그리드 칸은 44px 그대로 — 날짜 목록·본문이 밀리지 않는다. 날짜 목록은 자동 접기 대상이 아니다(사용자 결정).
+   목록은 display:none 이 아니라 폭으로 가린다(Tab 으로 들어가면 :has(:focus-visible) 로 펼쳐지게 — 마우스로 누른 뒤 남는 초점으로는 펼친 채 남지 않게). 펼침만 150ms 늦춘다(지나가는 마우스에 깜빡이지 않게). */
+@media (min-width: 769px) and (hover: hover) and (pointer: fine) {
+    .pn--rail.pn--auto {
+        width: 44px; overflow: hidden; position: relative; z-index: 30;
+        transition: width .15s ease 0s, margin-right .15s ease 0s, box-shadow .15s ease 0s;
+    }
+    .pn--rail.pn--auto .pn-list { width: 190px; opacity: 0; visibility: hidden; pointer-events: none;
+        transition: opacity .1s ease 0s, visibility 0s linear .1s; }
+    .pn--rail.pn--auto .pn-collapse::before { content: '\00BB'; }   /* » — 눌러서 고정 */
+    .pn--rail.pn--auto:hover, .pn--rail.pn--auto:has(:focus-visible) {
+        width: 190px; margin-right: -146px; box-shadow: 6px 0 18px rgba(16, 24, 40, .16);
+        transition-delay: .15s;
+    }
+    .pn--rail.pn--auto:hover .pn-list, .pn--rail.pn--auto:has(:focus-visible) .pn-list {
+        opacity: 1; visibility: visible; pointer-events: auto; transition: opacity .1s ease .15s, visibility 0s linear .15s; }
+    .pn--rail.pn--auto:hover .pn-collapse::before, .pn--rail.pn--auto:has(:focus-visible) .pn-collapse::before { content: '\1F4CC'; font-size: 12px; } /* 📌 고정 */
+}
+@media (prefers-reduced-motion: reduce) { .pn--rail.pn--auto, .pn--rail.pn--auto .pn-list { transition: none !important; } }
+
 /* ── 레일: 모바일 — '현재 화면 ▾' + 아래로 펼치는 목록 ── */
 @media (max-width: 768px) {
     .pn--rail {
