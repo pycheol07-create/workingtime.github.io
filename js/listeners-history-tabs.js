@@ -1,21 +1,21 @@
 // === js/listeners-history-tabs.js ===
-import * as DOM from './dom-elements.js?v=202611260948';
-import * as State from './state.js?v=202611260948';
-import { getWeekOfYear } from './utils.js?v=202611260948';
+import * as DOM from './dom-elements.js?v=202611260958';
+import * as State from './state.js?v=202611260958';
+import { getWeekOfYear } from './utils.js?v=202611260958';
 
 // 💡 실적 예측 함수 불러오기 추가
-import { renderPredictionTab, renderForecastTab } from './ui-history-prediction.js?v=202611260948';
-import { fetchAndRenderInspectionHistory } from './listeners-history-inspection.js?v=202611260948';
-import * as UILeave from './ui-history-leave.js?v=202611260948';
-import { switchHistoryView, renderHistoryDateListByMode, updateGranularityButtons } from './app-history-logic.js?v=202611260948';
-import { setTreeVisible, showPanelLoadError, clearPanelLoadError } from './history-list-controller.js?v=202611260948';
-import { confirmDiscardManagementEdits } from './ui-history-management.js?v=202611260948';
-import { historyLoadFailed } from './history-data-manager.js?v=202611260948';
-import { SECTIONS, LEGACY_SECTIONS, TREELESS_SUBS, sectionIdFor } from './history-sections.js?v=202611260948';
-import { saveView } from './view-state.js?v=202611260948';
-import { initPageNav } from './page-nav.js?v=202611260948';
-import { OPS_MAIN, legacyTarget } from './lib/ops-report-route.js?v=202611260948';
-import { initOpsReport, openOpsReport, renderOpsReport, leaveOpsReport } from './ui-history-ops-report.js?v=202611260948';
+import { renderPredictionTab, renderForecastTab } from './ui-history-prediction.js?v=202611260958';
+import { fetchAndRenderInspectionHistory } from './listeners-history-inspection.js?v=202611260958';
+import * as UILeave from './ui-history-leave.js?v=202611260958';
+import { switchHistoryView, renderHistoryDateListByMode, updateGranularityButtons } from './app-history-logic.js?v=202611260958';
+import { setTreeVisible, showPanelLoadError, clearPanelLoadError } from './history-list-controller.js?v=202611260958';
+import { confirmDiscardManagementEdits } from './ui-history-management.js?v=202611260958';
+import { historyLoadFailed } from './history-data-manager.js?v=202611260958';
+import { SECTIONS, LEGACY_SECTIONS, TREELESS_SUBS, sectionIdFor, sectionIconSvg } from './history-sections.js?v=202611260958';
+import { saveView } from './view-state.js?v=202611260958';
+import { initPageNav } from './page-nav.js?v=202611260958';
+import { OPS_MAIN, legacyTarget } from './lib/ops-report-route.js?v=202611260958';
+import { initOpsReport, openOpsReport, renderOpsReport, leaveOpsReport } from './ui-history-ops-report.js?v=202611260958';
 
 // 좌측 트리 단위(globalGranularity) → 각 로우데이터 서브탭의 뷰 이름 매핑
 const SUBTAB_VIEW = {
@@ -153,7 +153,7 @@ async function activateMainTab(tabName, sub, ops = null) {
     // 📍 마일스톤 탭: 처음 들어올 때 1회 구독 + 리스너 바인딩
     if (tabName === 'milestones') {
         try {
-            const mod = await import('./ui-history-milestones.js?v=202611260948');
+            const mod = await import('./ui-history-milestones.js?v=202611260958');
             mod.subscribeMilestones();
             mod.bindMilestoneListeners();
             clearPanelLoadError(document.getElementById(MAIN_PANELS[tabName]));   // 앞서 실패해 띄운 오류 상자
@@ -232,6 +232,15 @@ export async function showSection(id) {
 // 좌측 레일 연결 — 항목을 누르면(다른 화면 코드의 [data-main-tab="…"].click() 포함) showSection.
 // 대시보드(index)에는 레일이 없다(H0 — 데이터 관리 모달을 싣지 않는다) → 아무것도 하지 않는다.
 export function setupHistoryTabsListeners() {
+    // 아이콘 — 접힌 레일에서도 어느 화면인지 보이게(2026-11-26). 글자는 .pn-label 로 감싼다(접히면 글자만 숨김)
+    document.querySelectorAll('#history-section-nav .pn-item[data-pn-id]').forEach(b => {
+        if (b.querySelector('.pn-ico')) return;
+        const label = b.textContent.trim();
+        b.dataset.pnLabel = label;
+        b.title = label;
+        b.innerHTML = `${sectionIconSvg(b.dataset.pnId)}<span class="pn-label"></span>`;
+        b.querySelector('.pn-label').textContent = label;
+    });
     sectionNav = initPageNav(document.getElementById('history-section-nav'), {
         onSelect: (id) => {
             // 경영지표 화면을 떠나거나 다시 열면 입력칸이 새로 그려진다 — 저장 안 한 입력이 있으면 먼저 묻고,

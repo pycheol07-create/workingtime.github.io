@@ -8,7 +8,7 @@
 // ⚠️ by 에는 로그인 이메일을 쓴다. 로그·토스트에 내지 않는다(로그에는 날짜·업무 id·e.code 만).
 // ⚠️ Firebase 를 여기서 초기화하지 않는다 — 페이지가 만든 db 를 받아 쓴다.
 import { doc, updateDoc, setDoc, serverTimestamp, deleteField, FieldPath } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { buildPickMarkPatch } from './lib/ship-transmit.js?v=202611260948';
+import { buildPickMarkPatch } from './lib/ship-transmit.js?v=202611260958';
 
 export const PICK_MARKS_PATH = ['artifacts', 'team-work-logger-v2', 'persistent_data', 'shipPickMarks'];
 

@@ -40,6 +40,11 @@
     display: block; width: 100%; padding: 8px 10px; border-radius: var(--r-sm, 10px);
     font-size: 13.5px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
+/* 아이콘이 붙은 항목(데이터 관리 — js/listeners-history-tabs.js) */
+.pn--rail .pn-item:has(.pn-ico) { display: flex; align-items: center; gap: 10px; }
+.pn--rail .pn-ico { flex: none; width: 18px; height: 18px; color: var(--c-text-3, #69707A); }
+.pn--rail .pn-item.is-on .pn-ico { color: var(--c-accent-deep, #1E4699); }
+.pn--rail .pn-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .pn--rail .pn-item:hover { background: var(--c-surface-2, #F7F8FA); color: var(--c-text, #23272E); }
 .pn--rail .pn-item.is-on, .pn--rail .pn-item.is-on:hover {
     background: var(--c-accent-soft, #EAF0FD); color: var(--c-accent-deep, #1E4699); font-weight: 600;
@@ -74,18 +79,23 @@
         width: 44px; overflow: hidden; position: relative; z-index: 30;
         transition: width .15s ease 0s, margin-right .15s ease 0s, box-shadow .15s ease 0s;
     }
-    .pn--rail.pn--auto .pn-list { width: 190px; opacity: 0; visibility: hidden; pointer-events: none;
-        transition: opacity .1s ease 0s, visibility 0s linear .1s; }
+    /* 접힌 동안은 아이콘만 — 그룹 제목·글자는 자리를 지킨 채 숨긴다(펼칠 때 아이콘이 움직이지 않게). 아이콘을 누르면 그 화면으로 */
+    /* 접힌 44px 에 스크롤바가 생기면 아이콘이 가린다(창이 낮을 때) — 접힌 동안은 스크롤바를 숨기고(휠은 그대로), 펼치면 되살린다 */
+    .pn--rail.pn--auto .pn-list { padding-left: 4px; padding-right: 4px; overflow-x: hidden; scrollbar-width: none; }
+    .pn--rail.pn--auto .pn-list::-webkit-scrollbar { display: none; }
+    .pn--rail.pn--auto:hover .pn-list, .pn--rail.pn--auto:has(:focus-visible) .pn-list { scrollbar-width: thin; }
+    .pn--rail.pn--auto .pn-item { padding-left: 9px; padding-right: 9px; }
+    .pn--rail.pn--auto .pn-group-title, .pn--rail.pn--auto .pn-label { opacity: 0; transition: opacity .1s ease 0s; }
     .pn--rail.pn--auto .pn-collapse::before { content: '\00BB'; }   /* » — 눌러서 고정 */
     .pn--rail.pn--auto:hover, .pn--rail.pn--auto:has(:focus-visible) {
         width: 190px; margin-right: -146px; box-shadow: 6px 0 18px rgba(16, 24, 40, .16);
         transition-delay: .15s;
     }
-    .pn--rail.pn--auto:hover .pn-list, .pn--rail.pn--auto:has(:focus-visible) .pn-list {
-        opacity: 1; visibility: visible; pointer-events: auto; transition: opacity .1s ease .15s, visibility 0s linear .15s; }
+    .pn--rail.pn--auto:hover :is(.pn-group-title, .pn-label), .pn--rail.pn--auto:has(:focus-visible) :is(.pn-group-title, .pn-label) {
+        opacity: 1; transition-delay: .15s; }
     .pn--rail.pn--auto:hover .pn-collapse::before, .pn--rail.pn--auto:has(:focus-visible) .pn-collapse::before { content: '\1F4CC'; font-size: 12px; } /* 📌 고정 */
 }
-@media (prefers-reduced-motion: reduce) { .pn--rail.pn--auto, .pn--rail.pn--auto .pn-list { transition: none !important; } }
+@media (prefers-reduced-motion: reduce) { .pn--rail.pn--auto, .pn--rail.pn--auto :is(.pn-group-title, .pn-label) { transition: none !important; } }
 
 /* ── 레일: 모바일 — '현재 화면 ▾' + 아래로 펼치는 목록 ── */
 @media (max-width: 768px) {

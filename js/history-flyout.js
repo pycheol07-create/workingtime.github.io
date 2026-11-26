@@ -4,7 +4,7 @@
 //   항목을 누르면 go('#tab=…[&sub=…]') — 로그인 확인·이동은 부르는 쪽(js/listeners-history.js openHistoryModalLogic)이 한다.
 //   마우스가 있는 화면에서만(hover:hover · pointer:fine). 터치 화면은 예전처럼 눌러서 데이터 관리로 간다.
 // ⚠️ 봇 안전: role=dialog·data-act 를 쓰지 않는다(업무마감봇 선택자). 모양 토큰은 #dash-root 것(css/dash-d.css)이라 그 안에 붙인다.
-import { SECTIONS, SECTION_GROUPS } from './history-sections.js?v=202611260948';
+import { SECTIONS, SECTION_GROUPS, sectionIconSvg } from './history-sections.js?v=202611260958';
 
 const CSS = `
 #history-flyout { position: fixed; z-index: 60; min-width: 190px; padding: 8px; display: none;
@@ -13,7 +13,9 @@ const CSS = `
 #history-flyout.is-open { display: block; }
 #history-flyout .hf-group + .hf-group { margin-top: 8px; }
 #history-flyout .hf-title { padding: 4px 10px 2px; font-size: 11.5px; font-weight: 600; color: var(--c-text-3, #69707A); }
-#history-flyout .hf-item { display: block; width: 100%; padding: 7px 10px; border: 0; border-radius: 8px; background: transparent;
+#history-flyout .hf-ico { flex: none; width: 17px; height: 17px; color: var(--c-text-3, #69707A); }
+#history-flyout .hf-item:hover .hf-ico, #history-flyout .hf-item:focus-visible .hf-ico { color: inherit; }
+#history-flyout .hf-item { display: flex; align-items: center; gap: 9px; width: 100%; padding: 7px 10px; border: 0; border-radius: 8px; background: transparent;
     text-align: left; font: inherit; color: var(--c-text, #23272E); cursor: pointer; white-space: nowrap; }
 #history-flyout .hf-item:hover, #history-flyout .hf-item:focus-visible { background: var(--c-accent-soft, #EAF0FD); color: var(--c-accent-deep, #1E4699); outline: none; }`;
 
@@ -37,7 +39,7 @@ export function initHistoryFlyout(btn, { go } = {}) {
     panel.id = 'history-flyout';
     panel.setAttribute('aria-label', '데이터 관리 화면');
     panel.innerHTML = SECTION_GROUPS.map(g => `<div class="hf-group"><div class="hf-title">${g.title}</div>${
-        g.ids.filter(id => SECTIONS[id]).map(id => `<button type="button" class="hf-item" data-hf-id="${id}">${SECTIONS[id].label}</button>`).join('')
+        g.ids.filter(id => SECTIONS[id]).map(id => `<button type="button" class="hf-item" data-hf-id="${id}">${sectionIconSvg(id, 'hf-ico')}<span>${SECTIONS[id].label}</span></button>`).join('')
     }</div>`).join('');
     (document.getElementById('dash-root') || document.body).appendChild(panel);
 

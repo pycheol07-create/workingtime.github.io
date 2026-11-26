@@ -5,7 +5,7 @@
 // 주소 뒤 해시는 예전 형식(#tab=메인탭&sub=서브탭, js/hash-state.js) 그대로 쓴다 — 옛 주소·Ctrl+K 목적지가 계속 동작한다.
 // 2026-11-05 운영 리포트 통합 2단계: 요약·생산성·인력 적정성·업무 리포트·팀 결산·업무 담당 변화 → '운영 리포트'(main ops) 한 화면의 탭.
 //   옛 화면은 레일에서 뺐고 LEGACY_SECTIONS 에 남긴다 — 옛 주소는 js/lib/ops-report-route.js 가 운영 리포트 탭으로 바꾼다.
-import { OPS_MAIN, legacyTarget } from './lib/ops-report-route.js?v=202611260948';
+import { OPS_MAIN, legacyTarget } from './lib/ops-report-route.js?v=202611260958';
 
 export const SECTIONS = {
     ops:          { main: OPS_MAIN,       label: '운영 리포트' },   // 탭: 요약·생산성·인력·비용 + [보고서 만들기] (js/ui-history-ops-report.js)
@@ -29,6 +29,24 @@ export const LEGACY_SECTIONS = {
     taskowner:    { main: 'taskowner',    label: '업무 담당 변화' },
     settlement:   { main: 'settlement',   label: '팀 결산' }
 };
+
+// 화면 아이콘(선 SVG 안쪽만, viewBox 0 0 24 24) — 데이터 관리 2차 메뉴(접힌 레일)와 대시보드 펼침 메뉴가 같이 쓴다(2026-11-26)
+export const SECTION_ICONS = {
+    ops:        '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
+    personal:   '<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6 8-6s8 2 8 6"/>',
+    forecast:   '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4M9 15l2 2 4-4"/>',
+    prediction: '<path d="M3 17l6-6 4 4 8-8M15 7h6v6"/>',
+    work:       '<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 3h6v3H9zM9 11h6M9 15h4"/>',
+    attendance: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+    inspection: '<circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5"/>',
+    leave:      '<path d="M3 12a9 9 0 0 1 18 0zM12 12v6a2 2 0 0 0 4 0"/>',
+    management: '<path d="M12 3v9h9A9 9 0 1 1 12 3z"/><path d="M15 3.5A9 9 0 0 1 20.5 9H15z"/>',
+    milestones: '<path d="M5 21V4M5 4h11l-2 4 2 4H5"/>'
+};
+/** 화면 id → <svg> 글(없으면 '') */
+export const sectionIconSvg = (id, cls = 'pn-ico') => SECTION_ICONS[id]
+    ? `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${SECTION_ICONS[id]}</svg>`
+    : '';
 
 export const SECTION_GROUPS = [
     { title: '분석',      ids: ['ops', 'personal'] },
