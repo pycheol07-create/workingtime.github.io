@@ -32,8 +32,8 @@ const newAttRow = (member) => {
     row['총 횟수'] = 0; row['총 결근일수'] = 0; row['총 연차일수'] = 0;
     return row;
 };
-import { formatTimeTo24H, getWeekOfYear, showToast, getTodayDateString } from './utils.js?v=b14a118c2b0c-7bf0fcab';
-import { fitToColumn } from './history-excel-utils.js?v=39d6f336cab9-e14ce92c';
+import { formatTimeTo24H, getWeekOfYear, showToast, getTodayDateString } from './utils.js?v=32969da5faa9-163bcbc9';
+import { fitToColumn } from './history-excel-utils.js?v=8127f4479c47-e14ce92c';
 import { csvSafeBook } from './lib/csv-safe.js?v=52895af199a4-46ded86e';
 
 export const downloadPeriodAttendanceAsExcel = (startDate, endDate, format = 'xlsx') => {

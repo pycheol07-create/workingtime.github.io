@@ -6,7 +6,7 @@
 // ⚠️ 체크·요청에 남기는 이름은 getMemberName()(= memberNameFor, 직원 이름)만. 없으면 '이름 없음' — 이메일은 쓰지 않는다.
 // 💰 그날 지시서 문서(refillDay_*)에는 엑셀(base64)이 들어 있다 — 날짜나 rev 가 바뀔 때만 getDoc 1회. 매번 구독하지 않는다.
 import { doc, getDoc, onSnapshot, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { getHolidayName } from './utils.js?v=b14a118c2b0c-7bf0fcab';
+import { getHolidayName, showAlert, showConfirm } from './utils.js?v=32969da5faa9-163bcbc9';
 import { tsMs, dayKey, lastDays, parseDay, progress, runDay, reqUi, b64ToBytes, fileNameOf } from './lib/refill-view.js?v=3416a867c2d7-24e9bb3d';
 import { laterMs } from './lib/rebuild-view.js?v=c6f3c13017e8-4d8ef11f';
 
@@ -164,7 +164,7 @@ function createRefillStore({ db, auth, getMemberName, watchRequest = true }) {
         try {
             await setDoc(doc(db, WORK_PATH(key)), { checks: { [code]: { done, by: nameOf(), at: serverTimestamp() } } }, { merge: true });
         } catch (e) {
-            alert(`완료 표시를 저장하지 못했습니다(${(e && e.code) || '오류'}). 다시 눌러 주세요.`);
+            showAlert(`완료 표시를 저장하지 못했습니다(${(e && e.code) || '오류'}). 다시 눌러 주세요.`, { isError: true, title: '저장하지 못했습니다' });
         } finally {
             S.saving.delete(code);
             emit();
@@ -184,7 +184,8 @@ function createRefillStore({ db, auth, getMemberName, watchRequest = true }) {
         if (!targets.length) return;
         const msg = done ? `${SHEETS[sheet]} ${targets.length}행을 모두 완료로 표시할까요?`
                          : `${SHEETS[sheet]} ${targets.length}행의 완료 표시를 모두 지울까요?`;
-        if (!confirm(msg)) return;
+        if (!(await showConfirm(msg, done ? {} : { danger: true, okText: '지우기' }))) return;
+        if (S.saving.has('*all')) return;   // 확인 창이 떠 있는 동안 이미 저장 중이면
         S.saving.add('*all');
         emit();
         try {
@@ -192,7 +193,7 @@ function createRefillStore({ db, auth, getMemberName, watchRequest = true }) {
             targets.forEach(c => { checks[c] = { done, by, at }; });
             await setDoc(doc(db, WORK_PATH(key)), { checks }, { merge: true });
         } catch (e) {
-            alert(`한꺼번에 저장하지 못했습니다(${(e && e.code) || '오류'}). 다시 눌러 주세요.`);
+            showAlert(`한꺼번에 저장하지 못했습니다(${(e && e.code) || '오류'}). 다시 눌러 주세요.`, { isError: true, title: '저장하지 못했습니다' });
         } finally {
             S.saving.delete('*all');
             emit();
@@ -213,7 +214,7 @@ function createRefillStore({ db, auth, getMemberName, watchRequest = true }) {
             a.click();
             document.body.removeChild(a);
         } catch (e) {
-            alert('엑셀 파일을 만들지 못했습니다. 슬랙으로 받은 지시서 엑셀을 쓰세요.');
+            showAlert('엑셀 파일을 만들지 못했습니다. 슬랙으로 받은 지시서 엑셀을 쓰세요.', { isError: true, title: '엑셀을 만들지 못했습니다' });
         } finally {
             if (url) setTimeout(() => URL.revokeObjectURL(url), 10000);
         }

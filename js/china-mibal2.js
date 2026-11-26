@@ -40,17 +40,17 @@ import {
 } from './lib/mibal2-rows.js?v=221b7a831bbe-37c39e3c';
 import { setShellContext } from './app-shell-bridge.js?v=b9a7199f3e1d-c80c27e9';
 import { memberNameFor } from './app-shell-data.js?v=e42c6a10ca7a-9319c795';
-import { mountBusyBanner } from './busy-banner.js?v=4fb4e0ed4621-8677e3fb';
+import { mountBusyBanner } from './busy-banner.js?v=1049f7ce568c-b37af02e';
 import { latestDoneView, collectorQuiet } from './lib/busy-view.js?v=659be9925d1c-88862baa';
-import { friendlyFirebaseError } from './utils.js?v=b14a118c2b0c-7bf0fcab';
+import { friendlyFirebaseError, showAlert, showConfirm } from './utils.js?v=32969da5faa9-163bcbc9';
 import { diffOf } from './lib/inbound-diff.js?v=6028b21f8c15-bb911da2';
 import { confirmedOf, outsideInboundOf, byShipOf } from './lib/scan-link.js?v=143bf19ba572-01119c1f';
 import { scanLogHtml } from './lib/mibal2-scanlog.js?v=afd9130d6f71-ce95b891';
 import { fixTipOf, liveBaseOf, pendingSet, batchRowsOf, batchConfirmText, runBatch, pendingAfterBatch, batchResultText, failReasonText, failLinesOf } from './lib/inbound-fix.js?v=7894fc22c949-9113d082';
 import { createFixBar, afterClick } from './inbound-fix-bar.js?v=baa4e9239f99-1009fac6';
 import { mibal2Access, MIBAL2_DENIED_MSG } from './lib/mibal2-access.js?v=6f7eedd4058c-15eed051';
-import { subscribeInbound, setupScanTools } from './china-mibal2-scan.js?v=eb7187a6c636-cd25d56d';
-import { setupLocMode } from './china-mibal2-loc.js?v=0c71fed02ceb-7127d120';
+import { subscribeInbound, setupScanTools } from './china-mibal2-scan.js?v=4958205a69d4-895aaef7';
+import { setupLocMode } from './china-mibal2-loc.js?v=33fcd887f454-d01edb35';
 import { isMibal2Live } from './lib/mibal2-mode.js?v=1dd1153363a5-6723d239';
 import { liveDatesFrom } from './lib/mibal2-rows.js?v=221b7a831bbe-37c39e3c';
 import { stableSig, ARCHIVE_COLL } from './lib/mibal2-live.js?v=7ccac6277373-d7d6b954';
@@ -684,7 +684,7 @@ function onConfCellOut(code, text, td) {
     if (fixBusy) { back(); showToast('⏳ 입고확인 기록 중입니다 — 끝난 뒤 고쳐 주세요'); return; }
     // 고칠 때 본 입고이력 기준(스캔 문서 하나·수정 rev) — [저장] 때 그사이 비워졌는지 본다
     const r = pendingSet(pendingFix, code, text, shown, Date.now(), { probe: scanProbeMap[code] || '', rev: fixMap[code] ? fixMap[code].rev : 0 });
-    if (r.error) { alert(r.error); back(); return; }
+    if (r.error) { showAlert(r.error, { title: '입력을 확인하세요', isError: true }); back(); return; }
     const nx = r.pending[code];
     const changed = (cur ? cur.after : null) !== (nx ? nx.after : null);
     pendingFix = r.pending;
@@ -695,19 +695,19 @@ function onConfCellOut(code, text, td) {
     const n = Object.keys(pendingFix).length;
     showToast(nx ? `✏️ 입고확인 대기 ${n}건 — 아래 [저장]을 눌러야 기록됩니다` : `↩ 입고확인 원래 값으로(대기 ${n}건)`);
 }
-function cancelConfirmedBatch() {
+async function cancelConfirmedBatch() {
     if (fixBusy) return;
     const n = Object.keys(pendingFix).length;
-    if (n && !confirm(`입고확인 수정 대기 ${n}건을 버릴까요? (기록하지 않습니다)`)) return;
+    if (n && !(await showConfirm(`입고확인 수정 대기 ${n}건을 버릴까요? (기록하지 않습니다)`, { title: '대기를 버릴까요?', okText: '버리기', danger: true }))) return;
     pendingFix = {};
     renderTable(); updateFixBar();
 }
 async function saveConfirmedBatch() {
     const codes = Object.keys(pendingFix);
     if (!isAccessOk || !codes.length || fixBusy) return;
-    if (closedKind() === 'error') { alert('보관함을 확인하지 못해 막았습니다(연결 확인 후 출고일을 다시 고르세요) — 입고확인을 저장하지 않았습니다.'); return; }
-    if (closedBlocks()) { alert('마감된 작업을 보는 중입니다 — 입고확인은 보관함 기록이라 저장하지 않습니다.\n진행 중인 출고일을 고르거나 표 위 [지금 입고이력으로 보기]를 누른 뒤 저장하세요.'); return; }
-    if (!inboundKnown || inboundErr) { alert('앱 스캔 입고 기록을 아직 받지 못했습니다(또는 읽기 실패) — 잠시 뒤 다시 누르세요.'); return; }
+    if (closedKind() === 'error') { showAlert('보관함을 확인하지 못해 막았습니다(연결 확인 후 출고일을 다시 고르세요) — 입고확인을 저장하지 않았습니다.', { title: '막았습니다', isError: true }); return; }
+    if (closedBlocks()) { showAlert('마감된 작업을 보는 중입니다 — 입고확인은 보관함 기록이라 저장하지 않습니다.\n진행 중인 출고일을 고르거나 표 위 [지금 입고이력으로 보기]를 누른 뒤 저장하세요.', { title: '저장하지 않았습니다' }); return; }
+    if (!inboundKnown || inboundErr) { showAlert('앱 스캔 입고 기록을 아직 받지 못했습니다(또는 읽기 실패) — 잠시 뒤 다시 누르세요.', { title: '잠시 뒤 다시 누르세요', isError: true }); return; }
     fixBusy = true;
     try {
         setLoading(true, `입고이력·스캐너 값 확인 중... (${codes.length}건)`);
@@ -732,10 +732,10 @@ async function saveConfirmedBatch() {
         if (!rows.length) {
             pendingFix = pendingAfterBatch(pendingFix, { same, failed: resetFailed });
             const m0 = batchResultText({ failed: reset.length, same: same.length });
-            if (reset.length) alert(`${m0}\n\n${failLinesOf(resetFailed)}`); else showToast(m0);
+            if (reset.length) showAlert(`${m0}\n\n${failLinesOf(resetFailed)}`, { title: '저장하지 않았습니다', isError: true }); else showToast(m0);
             return;
         }
-        if (!confirm(batchConfirmText({ rows, same: same.length, reset: reset.length, trial: !LIVE, live: LIVE }))) return;
+        if (!(await showConfirm(batchConfirmText({ rows, same: same.length, reset: reset.length, trial: !LIVE, live: LIVE }), { title: '입고확인을 기록할까요?', okText: '기록하기' }))) return;
         fixProgress = { done: 0, total: rows.length }; updateFixBar();
         const out = await runBatch(rows,
             (x) => mod.writeInboundFix(db, { code: x.code, before: x.before, after: x.after, seen: x.srv, base: bases[x.code], by: myMemberName, note: LIVE ? '신규 화면' : '신규 화면(시험)' }),
@@ -745,12 +745,12 @@ async function saveConfirmedBatch() {
         const failCodes = Object.keys(failed);
         const msg = batchResultText({ saved: out.ok.length, failed: failCodes.length, same: same.length });
         if (failCodes.length) {
-            alert(`${msg}\n\n다시 확인할 상품은 노란 칸으로 남겼습니다(입고이력이 비워진 상품은 대기에서 뺐습니다). 값을 확인한 뒤 [저장]을 다시 누르세요.\n`
-                + failLinesOf(failed));
+            showAlert(`${msg}\n\n다시 확인할 상품은 노란 칸으로 남겼습니다(입고이력이 비워진 상품은 대기에서 뺐습니다). 값을 확인한 뒤 [저장]을 다시 누르세요.\n`
+                + failLinesOf(failed), { title: '일부 저장하지 못했습니다', isError: true });
         } else showToast('✅ 입고확인 ' + msg);
     } catch (e) {
         console.error('[mibal2] 입고확인 저장 실패:', e && e.code);
-        alert('입고확인을 기록하지 못했습니다(아무것도 쓰지 않았거나 일부만 썼습니다 — 노란 칸이 남은 상품을 확인하세요) — ' + errText(e));
+        showAlert('입고확인을 기록하지 못했습니다(아무것도 쓰지 않았거나 일부만 썼습니다 — 노란 칸이 남은 상품을 확인하세요) — ' + errText(e), { title: '기록 실패', isError: true });
     } finally {
         fixBusy = false; fixProgress = null;
         renderTable(); updateFixBar();
@@ -916,7 +916,7 @@ async function sameClosedOnServer() {
     try { s = await getDocFromServer(doc(db, SETTINGS_PATH)); }
     catch (e) {
         console.error('[mibal2] 출고일 저장 전 설정 읽기 실패:', e && e.code);
-        alert('서버에서 작업 상태를 읽지 못해 출고일 선택을 저장하지 않았습니다 — ' + errText(e) + '\n네트워크를 확인한 뒤 출고일을 다시 고르세요.');
+        await showAlert('서버에서 작업 상태를 읽지 못해 출고일 선택을 저장하지 않았습니다 — ' + errText(e) + '\n네트워크를 확인한 뒤 출고일을 다시 고르세요.', { title: '저장하지 않았습니다', isError: true });
         return false;
     }
     const server = String((s.exists() && (s.data() || {}).lastClosedId) || '');
@@ -924,10 +924,10 @@ async function sameClosedOnServer() {
     try { if ((await reloadShared()).popupOpen) return false; }   // 그사이 창을 다시 열었다 — 그 창을 닫을 때 다시 확인한다
     catch (e) {
         console.error('[mibal2] 다시 읽기 실패:', e && e.code);
-        alert('다른 PC 에서 작업을 마감했지만 화면을 다시 맞추지 못했습니다(출고일 선택은 저장하지 않음) — ' + errText(e) + '\n새로고침해 주세요.');
+        await showAlert('다른 PC 에서 작업을 마감했지만 화면을 다시 맞추지 못했습니다(출고일 선택은 저장하지 않음) — ' + errText(e) + '\n새로고침해 주세요.', { title: '저장하지 않았습니다', isError: true });
         return false;
     }
-    alert('다른 PC 에서 작업을 마감해 출고일을 다시 맞췄습니다.\n화면을 확인한 뒤 출고일을 다시 고르세요(이 화면의 선택은 저장하지 않았습니다).');
+    await showAlert('다른 PC 에서 작업을 마감해 출고일을 다시 맞췄습니다.\n화면을 확인한 뒤 출고일을 다시 고르세요(이 화면의 선택은 저장하지 않았습니다).', { title: '출고일을 다시 맞췄습니다' });
     return false;
 }
 // 기존 계산기 출고일을 따른다 — 팝업 안 #btn-date-legacy · 날짜 바 #btn-date-legacy-out 둘 다 이것을 부른다
@@ -1119,15 +1119,15 @@ function maybeAutoRequest() {
 }
 
 // ── 엑셀 받기 (지금 보이는 행 — 검색·필터·정렬 반영. 내 PC 로 다운로드만) ──────────
-function downloadExcel() {
+async function downloadExcel() {
     const X = window.XLSX;
     if (!X) { showToast('⚠️ 엑셀 라이브러리를 못 불러옴'); return; }
     if (!viewRows.length) { showToast('받을 행이 없습니다'); return; }
     // 입고이력을 아직 못 받았거나 읽기 실패면 입고확인·차이에 스캔분이 빠져 있다 — 받기 전에 알린다
-    if ((!inboundKnown || inboundErr) && !confirm('⚠️ 앱 스캔 입고 기록을 아직 받지 못했습니다(또는 읽기 실패).\n엑셀의 입고확인·차이 칸에 스캔분이 빠져 있습니다.\n\n그래도 받을까요?')) return;
+    if ((!inboundKnown || inboundErr) && !(await showConfirm('⚠️ 앱 스캔 입고 기록을 아직 받지 못했습니다(또는 읽기 실패).\n엑셀의 입고확인·차이 칸에 스캔분이 빠져 있습니다.\n\n그래도 받을까요?', { title: '그래도 받을까요?', okText: '그래도 받기' }))) return;
     const id = ymd();
     const bad = writeXls(X, [{ name: '부족수량관리', aoa: excelAoaOf(viewRows) }], `부족수량관리_신규_${id}.xls`);   // .xls(biff8, 2026-11-10 — 한도 넘으면 안내만)
-    if (bad) alert(bad);
+    if (bad) showAlert(bad, { title: '받지 못했습니다', isError: true });
 }
 
 // ── 보기 항목: [칸 설정](2026-11-10, 예전 간단히/전체 대신) — 고른 열만 보인다(js/lib/mibal2-cols.js). 이 브라우저에만 기억 ──
@@ -1426,7 +1426,7 @@ const sharedSigOf = (snaps) => stableSig(snaps.map(x => (x.exists() ? x.data() :
 async function loadLiveTools() {
     if (!LIVE) return null;
     try {
-        const mod = await import('./china-mibal2-live.js?v=bbef9b1bc5db-d2d2a7cd');
+        const mod = await import('./china-mibal2-live.js?v=96238eb6adca-1a0a5eb6');
         return mod.startLive({
             db, showToast, setLoading, errText,
             isAdmin: () => accessIsAdmin,

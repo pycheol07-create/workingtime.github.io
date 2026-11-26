@@ -10,7 +10,7 @@
 import { doc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
 import { can } from './lib/perm.js?v=c1e53d91da8e-49afeea3';
-import { escapeHtml } from './utils.js?v=b14a118c2b0c-7bf0fcab';
+import { escapeHtml } from './utils.js?v=32969da5faa9-163bcbc9';
 import { sidebarLinkTarget } from './app-shell-data.js?v=e42c6a10ca7a-9319c795';
 import { mdw } from './lib/supplies-forecast-view.js?v=9ab586768d3d-a3e50681';
 import { reorderAlerts, alertDayLabel, alertSummaryText } from './lib/supplies-reorder-alert.js?v=fdc54f2a38e2-052b7457';

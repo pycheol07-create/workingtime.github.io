@@ -17,11 +17,11 @@
 // 칸수 무관 허용(2026-11-13): 상품 줄마다 [칸수 무관 허용]/[끄기](지금 자리에 칸수가 있는 줄·이미 허용한 상품) — store.setSizeFree.
 //   허용한 상품은 줄에 '칸수 무관' 배지. 도구 줄 '칸수 무관 N건 보기'를 켜면 허용 목록 전체(오늘 표에 없는 상품 포함)가 표 끝에 나와 끌 수 있다.
 //   날짜·새 판 대기와 상관없이 누를 수 있다(추천 표시가 아니라 다음 계산 설정이라서).
-import { escapeHtml, showConfirm } from './utils.js?v=b14a118c2b0c-7bf0fcab';
+import { escapeHtml, showConfirm } from './utils.js?v=32969da5faa9-163bcbc9';
 import { fmtHM, tabCounts, tabCarried, TABS, TAB_LABEL, fmtNum, canMark, tabMeta, dayLabel, rowLines, dayMessage, fmtGain, ROUTE_OUT_LABEL, ROUTE_OUT_HELP, locLabel, bulkDoneKeys, bulkUndoKeys, CARRIED_LABEL, qtyCellOf, PENDING_TEXT,
     shownTabs, fmtDaily1, BACK_TAB_HELP, BACK_GAIN_LABEL, BACK_SCORE_HELP, backReasonTitle, BLOCKED_LABEL, SKIP_HELP, holdRows, HOLD_ROW_LABEL, HOLD_UNDO_TEXT,
     SIZE_FREE_LABEL, SIZE_FREE_HELP, sizeFreeShown, fmtMDHM } from './lib/locrec-view.js?v=e93900011313-fdf32cdb';
-import { NO_NAME, todayKey } from './locrec-store.js?v=0b7dc2ac35fc-8cb15bb8';
+import { NO_NAME, todayKey } from './locrec-store.js?v=6e183901a59d-bd971fd0';
 import { higherOpenThan } from './modal-above.js?v=d7d701b363ef-215d273f';
 import { undoConfirmText } from './lib/locrec-apply.js?v=7cca5e5163c6-5def8df3';
 import { SORT_COLS, sortRows, nextSort, isLowStockRow, lineTotal } from './lib/locrec-sort.js?v=9ce27569c8c4-a7d96312';
@@ -413,9 +413,10 @@ export function mountLocRecTable({ store, sizeOf }) {
         else if (act === 'applyNew') store.applyPending();
         else if (act === 'doneAll') {
             const keys = bulkDoneKeys(store.visibleRows(tab).filter(x => keepRow(x.r)));
-            if (keys.length && confirm(`${TAB_LABEL[tab]} 탭의 추천 ${keys.length}건을 모두 '처리함'으로 표시할까요?
+            if (keys.length && await showConfirm(`${TAB_LABEL[tab]} 탭의 추천 ${keys.length}건을 모두 '처리함'으로 표시할까요?
 데이터 리스트도 바뀝니다 — 상품을 추천한 자리로 옮깁니다(한 건씩 차례로).
-(오늘 안에는 줄마다 [되돌리기]로 자리까지 되돌릴 수 있습니다)`)) store.markMany(keys, 'done');
+(오늘 안에는 줄마다 [되돌리기]로 자리까지 되돌릴 수 있습니다)`,
+                { okText: '모두 처리함', danger: true })) store.markMany(keys, 'done');
         }
         else if (act === 'undoAll') {
             const keys = bulkUndoKeys(store.visibleRows(tab), todayKey());
@@ -427,7 +428,7 @@ export function mountLocRecTable({ store, sizeOf }) {
         else if (act === 'done') {
             const r = store.get().day && TABS.flatMap(t => (store.get().day.parsed[t] || [])).find(x => x.recKey === key);
             const what = r ? rowLines(r).map(l => `${l.code} ${l.from}→${l.to}`).join(', ') : '';
-            if (confirm(`'처리함'으로 표시하고 데이터 리스트도 추천대로 바꿉니다.${what ? `
+            if (await showConfirm(`'처리함'으로 표시하고 데이터 리스트도 추천대로 바꿉니다.${what ? `
 ${what}` : ''}
 (오늘 안에는 [되돌리기]로 되돌릴 수 있습니다)
 
@@ -439,7 +440,7 @@ ${what}` : ''}
         else if (act === 'undo') {
             // 반영 기록이 있으면 데이터 리스트 자리도 되돌린다 — [처리함]과 같은 모양으로 묻는다(표시만이면 묻지 않음)
             const mk = store.get().marks[key];
-            if (!(mk && mk.applied) || confirm(undoConfirmText(mk.applied))) store.mark(key, null);
+            if (!(mk && mk.applied) || await showConfirm(undoConfirmText(mk.applied), { okText: '되돌리기', danger: true })) store.mark(key, null);
         }
     });
     mSkip.addEventListener('change', () => { showSkipped = mSkip.checked; render(); });

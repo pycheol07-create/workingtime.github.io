@@ -10,7 +10,7 @@
 // 불러오기에 실패한 목록은 저장하지 않는다(빈 목록으로 덮어 스캐너 매핑이 지워지는 것을 막음 — 기존과 같다).
 import { doc, getDoc, setDoc, updateDoc, deleteField, FieldPath } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { zoneKey, capacityFor, emptyFillOf } from './lib/mibal2-calc.js?v=2d0e36a43bd4-e8c582c0';
-import { showConfirm } from './utils.js?v=b14a118c2b0c-7bf0fcab';
+import { showConfirm, showAlert, showPrompt } from './utils.js?v=32969da5faa9-163bcbc9';
 
 const CHINA = 'ChinaStockGoods';
 const ADMIN_ONLY = '관리자만 바꿀 수 있습니다';
@@ -159,13 +159,13 @@ export function setupLiveAdmin(ctx) {
         $('lv-locmap-loc').addEventListener('keydown', (e) => { if (e.key === 'Enter') addLocMap(); });
         $('lv-locmap-download').addEventListener('click', () => {
             const entries = Object.entries(locMap).sort((a, b) => a[0].localeCompare(b[0]));
-            if (!entries.length) { alert('내려받을 위치매핑이 없습니다.'); return; }
+            if (!entries.length) { showAlert('내려받을 위치매핑이 없습니다.', { title: '받을 것이 없습니다' }); return; }
             writeXls([['상품코드', '위치'], ...entries], '위치매핑.xls');
         });
         $('lv-locmap-clear').addEventListener('click', async () => {
             if (!Object.keys(locMap).length || !(await showConfirm('되돌릴 수 없습니다.', { title: '위치매핑을 전부 삭제할까요?', okText: '전부 삭제', danger: true }))) return;
             locMap = {};
-            try { await saveLocMap(); } catch (err) { alert('저장 실패: ' + err.message); await loadLocMap(); renderLocMap(); return; }
+            try { await saveLocMap(); } catch (err) { await showAlert('저장 실패: ' + err.message, { title: '저장 실패', isError: true }); await loadLocMap(); renderLocMap(); return; }
             renderLocMap(); showToast('🗑️ 전체 삭제됨');
         });
         // 오류바코드
@@ -176,13 +176,13 @@ export function setupLiveAdmin(ctx) {
         $('lv-ba-memo').addEventListener('keydown', (e) => { if (e.key === 'Enter') addAlias(); });
         $('lv-ba-download').addEventListener('click', () => {
             const entries = Object.entries(alias).sort((a, b) => a[0].localeCompare(b[0]));
-            if (!entries.length) { alert('내려받을 매칭이 없습니다.'); return; }
+            if (!entries.length) { showAlert('내려받을 매칭이 없습니다.', { title: '받을 것이 없습니다' }); return; }
             writeXls([['바코드', '상품코드', '사유'], ...entries.map(([b, v]) => [b, baCode(v), baMemo(v)])], '오류바코드매칭.xls');
         });
         $('lv-ba-clear').addEventListener('click', async () => {
             if (!Object.keys(alias).length || !(await showConfirm('되돌릴 수 없습니다.', { title: '오류바코드매칭을 전부 삭제할까요?', okText: '전부 삭제', danger: true }))) return;
             alias = {};
-            try { await saveAlias(); } catch (err) { alert('저장 실패: ' + err.message); await loadAlias(); renderAlias(); return; }
+            try { await saveAlias(); } catch (err) { await showAlert('저장 실패: ' + err.message, { title: '저장 실패', isError: true }); await loadAlias(); renderAlias(); return; }
             renderAlias(); showToast('🗑️ 전체 삭제됨');
         });
         // 엑셀 올리기(파일 입력은 창 안에 숨김)
@@ -228,7 +228,7 @@ export function setupLiveAdmin(ctx) {
         $('lv-grace').value = String(g);
     }
     async function saveZoneCap() {
-        if (!ctx.isAdmin()) { alert(ADMIN_ONLY); return; }
+        if (!ctx.isAdmin()) { showAlert(ADMIN_ONLY, { title: '권한 없음', isError: true }); return; }
         const zc = { ...((ctx.getConfig() || {}).zoneCapacity || {}) };
         document.querySelectorAll('.lv-zcap').forEach(inp => {
             const z = inp.dataset.z, v = inp.value.trim();
@@ -239,21 +239,21 @@ export function setupLiveAdmin(ctx) {
             ctx.patchConfig({ zoneCapacity: zc });
             renderCap();
             showToast('✅ 구역별 적재량 저장됨');
-        } catch (e) { alert('저장 실패: ' + errText(e)); }
+        } catch (e) { showAlert('저장 실패: ' + errText(e), { title: '저장 실패', isError: true }); }
     }
     async function saveGrace() {
-        if (!ctx.isAdmin()) { alert(ADMIN_ONLY); return; }
+        if (!ctx.isAdmin()) { showAlert(ADMIN_ONLY, { title: '권한 없음', isError: true }); return; }
         const v = parseInt($('lv-grace').value);
-        if (isNaN(v) || v < 0) { alert('0 이상의 숫자를 입력하세요.'); return; }
+        if (isNaN(v) || v < 0) { showAlert('0 이상의 숫자를 입력하세요.', { title: '숫자를 확인하세요', isError: true }); return; }
         try {
             await setDoc(doc(db, CHINA, 'CONFIG'), { graceDays: v, updatedAt: new Date() }, { merge: true });
             ctx.patchConfig({ graceDays: v });
             showToast(`✅ 본사도착 유예 ${v}일 저장됨`);
-        } catch (e) { alert('본사도착 유예 일수를 저장하지 못했습니다 — ' + errText(e)); }
+        } catch (e) { showAlert('본사도착 유예 일수를 저장하지 못했습니다 — ' + errText(e), { title: '저장 실패', isError: true }); }
     }
     // 빈 칸 넘침 규칙 비율 — 기존 saveEmptyFill 과 같은 검증(0~100 정수, 빈 칸 안 됨, 0 은 확인)
     async function saveEmptyFill() {
-        if (!ctx.isAdmin()) { alert(ADMIN_ONLY); return; }
+        if (!ctx.isAdmin()) { showAlert(ADMIN_ONLY, { title: '권한 없음', isError: true }); return; }
         const read = (id) => {
             const t = String($(id).value ?? '').trim();
             if (t === '') return null;                                   // 빈 칸은 0 으로 보지 않는다
@@ -261,16 +261,16 @@ export function setupLiveAdmin(ctx) {
             return Number.isInteger(v) && v >= 0 && v <= 100 ? v : null;
         };
         const pickPct = read('lv-ef-pick'), overPct = read('lv-ef-over');
-        if (pickPct === null || overPct === null) { alert('비율은 0~100 사이 정수로 넣어 주세요(빈 칸 안 됨).'); return; }
-        if (overPct === 0 && !confirm('넘침 비율을 0 으로 저장하면 빈 칸 넘침 규칙이 꺼집니다(모든 화면·스캐너 분배). 저장할까요?')) return;
+        if (pickPct === null || overPct === null) { showAlert('비율은 0~100 사이 정수로 넣어 주세요(빈 칸 안 됨).', { title: '비율을 확인하세요', isError: true }); return; }
+        if (overPct === 0 && !(await showConfirm('넘침 비율을 0 으로 저장하면 빈 칸 넘침 규칙이 꺼집니다(모든 화면·스캐너 분배). 저장할까요?', { title: '넘침 규칙을 끌까요?', okText: '저장' }))) return;
         const emptyFill = { pickPct, overPct };
         try {
             await setDoc(doc(db, CHINA, 'CONFIG'), { emptyFill, updatedAt: new Date() }, { merge: true });
             ctx.patchConfig({ emptyFill });
             showToast(`✅ 빈 칸 넘침 규칙 저장됨 — 빈 칸 ${pickPct}% 이하 · 넘침 ${overPct}% 이하 (다른 PC 의 화면은 새로고침하면 반영됩니다)`);
         } catch (e) {
-            if (e && e.code === 'permission-denied') { alert(ADMIN_ONLY); return; }
-            alert('저장 실패: ' + errText(e));
+            if (e && e.code === 'permission-denied') { showAlert(ADMIN_ONLY, { title: '권한 없음', isError: true }); return; }
+            showAlert('저장 실패: ' + errText(e), { title: '저장 실패', isError: true });
         }
     }
 
@@ -281,15 +281,18 @@ export function setupLiveAdmin(ctx) {
         const has = ed.capacity !== undefined && ed.capacity !== '';
         const row = (ctx.getRows() || []).find(r => r.code === code);
         const zoneVal = row && row.locInfo ? capacityFor(row.loc, ctx.getConfig(), null) : 0;
-        const v = prompt(`${code} 적재량(피킹칸에 올릴 수량)\n\n비우면 구역 값(${zoneVal})을 씁니다.`, has ? String(ed.capacity) : '');
+        const v = await showPrompt(`${code} 적재량(피킹칸에 올릴 수량)\n\n비우면 구역 값(${zoneVal})을 씁니다.`, has ? String(ed.capacity) : '');
         if (v === null) return;
         const t = v.trim();
-        if (t !== '' && (!/^\d+$/.test(t))) { alert('0 이상의 숫자를 입력하세요.'); return; }
+        if (t !== '' && (!/^\d+$/.test(t))) { showAlert('0 이상의 숫자를 입력하세요.', { title: '숫자를 확인하세요', isError: true }); return; }
+        // 입력 창이 떠 있는 동안 공유 문서를 다시 읽었을 수 있다 — 지우기 여부는 지금 값으로(기존 prompt 는 그동안 멈춰 있었다)
+        const edNow = (ctx.getEdited() || {})[code] || {};
+        const hasNow = edNow.capacity !== undefined && edNow.capacity !== '';
         const ref = doc(db, CHINA, 'EDITED_CELLS');
         try {
             setLoading(true, '적재량 저장 중...');
             if (t === '') {
-                if (has) await updateDoc(ref, new FieldPath('cells', code, 'capacity'), deleteField());
+                if (hasNow) await updateDoc(ref, new FieldPath('cells', code, 'capacity'), deleteField());
                 ctx.setEditedCap(code, undefined);
             } else {
                 await setDoc(ref, { cells: { [code]: { capacity: t } } }, { merge: true });
@@ -297,13 +300,13 @@ export function setupLiveAdmin(ctx) {
             }
             setLoading(false);
             showToast(`💾 ${code} 적재량 ${t === '' ? '구역 값으로' : t} — 스캐너에는 [스캐너에 반영] 때 들어갑니다`);
-        } catch (e) { setLoading(false); alert('적재량을 저장하지 못했습니다 — ' + errText(e)); }
+        } catch (e) { setLoading(false); showAlert('적재량을 저장하지 못했습니다 — ' + errText(e), { title: '저장 실패', isError: true }); }
     }
 
     // ── 위치매핑(LOCATION_MAP) — 기존과 같다 ──
     async function loadLocMap() {
         try { const s = await getDoc(doc(db, CHINA, 'LOCATION_MAP')); locMap = s.exists() ? unpackMap(s.data()) : {}; locMapOk = true; }
-        catch (e) { locMap = {}; locMapOk = false; alert('목록을 불러오지 못했습니다. 새로고침해 주세요(저장은 막힘).'); }
+        catch (e) { locMap = {}; locMapOk = false; setLoading(false); await showAlert('목록을 불러오지 못했습니다. 새로고침해 주세요(저장은 막힘).', { title: '불러오기 실패', isError: true }); }
     }
     async function saveLocMap() {
         if (!locMapOk) throw new Error('목록을 불러오지 못한 상태라 저장하지 않았습니다. 새로고침 후 다시 해 주세요.');
@@ -323,24 +326,24 @@ export function setupLiveAdmin(ctx) {
         tb.querySelectorAll('.lv-lm-del').forEach(x => x.addEventListener('click', async () => {
             if (!(await showConfirm(`[${x.dataset.c}] 매핑을 삭제할까요?`, { title: '매핑을 삭제할까요?', okText: '삭제하기', danger: true }))) return;
             delete locMap[x.dataset.c];
-            try { await saveLocMap(); } catch (err) { alert('저장 실패: ' + err.message); await loadLocMap(); renderLocMap(); return; }
+            try { await saveLocMap(); } catch (err) { await showAlert('저장 실패: ' + err.message, { title: '저장 실패', isError: true }); await loadLocMap(); renderLocMap(); return; }
             renderLocMap(); showToast('🗑️ 삭제됨 — 스캐너 즉시 반영');
         }));
         tb.querySelectorAll('.lv-lm-edit').forEach(x => x.addEventListener('click', async () => {
             const code = x.dataset.c;
-            const nv = prompt(`[${code}] 새 위치값`, locMap[code] || '');
+            const nv = await showPrompt(`[${code}] 새 위치값`, locMap[code] || '');
             if (nv === null) return;
             locMap[code] = nv.trim();
-            try { await saveLocMap(); } catch (err) { alert('저장 실패: ' + err.message); await loadLocMap(); renderLocMap(); return; }
+            try { await saveLocMap(); } catch (err) { await showAlert('저장 실패: ' + err.message, { title: '저장 실패', isError: true }); await loadLocMap(); renderLocMap(); return; }
             renderLocMap(); showToast('✏️ 수정됨 — 스캐너 즉시 반영');
         }));
     }
     async function addLocMap() {
         const c = ($('lv-locmap-code').value || '').trim().toUpperCase(), l = ($('lv-locmap-loc').value || '').trim();
-        if (!c || !l) { alert('상품코드와 위치를 모두 입력하세요.'); return; }
+        if (!c || !l) { showAlert('상품코드와 위치를 모두 입력하세요.', { title: '입력을 확인하세요', isError: true }); return; }
         const exists = locMap[c] !== undefined;
         locMap[c] = l;
-        try { await saveLocMap(); } catch (err) { alert('저장 실패: ' + err.message); await loadLocMap(); renderLocMap(); return; }
+        try { await saveLocMap(); } catch (err) { await showAlert('저장 실패: ' + err.message, { title: '저장 실패', isError: true }); await loadLocMap(); renderLocMap(); return; }
         $('lv-locmap-code').value = ''; $('lv-locmap-loc').value = ''; $('lv-locmap-code').focus();
         renderLocMap();
         showToast(exists ? '✏️ 기존 상품코드 위치 변경됨 — 스캐너 즉시 반영' : '✅ 위치매핑 추가됨 — 스캐너 즉시 반영');
@@ -351,10 +354,10 @@ export function setupLiveAdmin(ctx) {
             const rows = await readSheetRowsAOA(file, ['상품코드']);
             let hi = -1, headers = [];
             for (let i = 0; i < Math.min(20, rows.length); i++) { const cl = rows[i].map(cleanKey); if (cl.includes('상품코드')) { hi = i; headers = cl; break; } }
-            if (hi < 0) { setLoading(false); alert('상품코드 열을 찾지 못했습니다.'); return; }
+            if (hi < 0) { setLoading(false); showAlert('상품코드 열을 찾지 못했습니다.', { title: '올리지 못했습니다', isError: true }); return; }
             const codeIdx = headers.indexOf('상품코드');
             const locIdx = pickLocationColumn(headers, codeIdx, ['로케이션', '위치', '옵션추가항목1', '옵션']);
-            if (locIdx < 0) { setLoading(false); alert("위치 열을 찾지 못했습니다.\n헤더에 '로케이션'(또는 위치/옵션추가항목1)이 있어야 합니다."); return; }
+            if (locIdx < 0) { setLoading(false); showAlert("위치 열을 찾지 못했습니다.\n헤더에 '로케이션'(또는 위치/옵션추가항목1)이 있어야 합니다.", { title: '올리지 못했습니다', isError: true }); return; }
             const map = {};
             for (let i = hi + 1; i < rows.length; i++) {
                 const code = (rows[i][codeIdx] || '').toString().trim().toUpperCase();
@@ -362,20 +365,20 @@ export function setupLiveAdmin(ctx) {
                 if (code) map[code] = loc;
             }
             const cnt = Object.keys(map).length;
-            if (!cnt) { setLoading(false); alert('유효한 행이 없습니다.'); return; }
+            if (!cnt) { setLoading(false); showAlert('유효한 행이 없습니다.', { title: '올리지 못했습니다', isError: true }); return; }
             await loadLocMap();
             Object.assign(locMap, map);   // 병합(같은 상품코드는 덮어씀) — 기존과 같다
             await saveLocMap();
             setLoading(false);
             renderLocMap();
             showToast(`✅ 위치 매핑 ${cnt}건 반영 (총 ${Object.keys(locMap).length}건) — 스캐너에 즉시 반영`);
-        } catch (err) { setLoading(false); alert('위치 매핑 처리 실패: ' + err.message); await loadLocMap(); renderLocMap(); }
+        } catch (err) { setLoading(false); await showAlert('위치 매핑 처리 실패: ' + err.message, { title: '처리 실패', isError: true }); await loadLocMap(); renderLocMap(); }
     }
 
     // ── 오류바코드(BARCODE_ALIAS + BARCODE_MEMO) — 기존과 같다 ──
     async function loadAlias() {
         try { const s = await getDoc(doc(db, CHINA, 'BARCODE_ALIAS')); alias = s.exists() ? unpackMap(s.data()) : {}; aliasOk = true; }
-        catch (e) { alias = {}; aliasOk = false; alert('목록을 불러오지 못했습니다. 새로고침해 주세요(저장은 막힘).'); }
+        catch (e) { alias = {}; aliasOk = false; setLoading(false); await showAlert('목록을 불러오지 못했습니다. 새로고침해 주세요(저장은 막힘).', { title: '불러오기 실패', isError: true }); }
     }
     async function saveAlias() {
         if (!aliasOk) throw new Error('목록을 불러오지 못한 상태라 저장하지 않았습니다. 새로고침 후 다시 해 주세요.');
@@ -397,7 +400,7 @@ export function setupLiveAdmin(ctx) {
         tb.querySelectorAll('.lv-ba-del').forEach(x => x.addEventListener('click', async () => {
             if (!(await showConfirm(`[${x.dataset.b}] 매칭을 삭제할까요?`, { title: '매칭을 삭제할까요?', okText: '삭제하기', danger: true }))) return;
             delete alias[x.dataset.b];
-            try { await saveAlias(); } catch (err) { alert('저장 실패: ' + err.message); await loadAlias(); renderAlias(); return; }
+            try { await saveAlias(); } catch (err) { await showAlert('저장 실패: ' + err.message, { title: '저장 실패', isError: true }); await loadAlias(); renderAlias(); return; }
             renderAlias();
         }));
         // 수정 = 입력칸에 불러와 고친 뒤 [+ 추가]로 덮어씀(기존과 같다)
@@ -408,9 +411,9 @@ export function setupLiveAdmin(ctx) {
     }
     async function addAlias() {
         const b = ($('lv-ba-barcode').value || '').trim().toUpperCase(), c = ($('lv-ba-code').value || '').trim().toUpperCase(), mm = ($('lv-ba-memo').value || '').trim();
-        if (!b || !c) { alert('바코드와 상품코드를 모두 입력하세요.'); return; }
+        if (!b || !c) { showAlert('바코드와 상품코드를 모두 입력하세요.', { title: '입력을 확인하세요', isError: true }); return; }
         alias[b] = { code: c, memo: mm };
-        try { await saveAlias(); } catch (err) { alert('저장 실패: ' + err.message); await loadAlias(); renderAlias(); return; }
+        try { await saveAlias(); } catch (err) { await showAlert('저장 실패: ' + err.message, { title: '저장 실패', isError: true }); await loadAlias(); renderAlias(); return; }
         $('lv-ba-barcode').value = ''; $('lv-ba-code').value = ''; $('lv-ba-memo').value = ''; $('lv-ba-barcode').focus();
         renderAlias();
         showToast('✅ 매칭 추가됨 — 스캐너 즉시 반영');
@@ -421,7 +424,7 @@ export function setupLiveAdmin(ctx) {
             const rows = await readSheetRowsAOA(file, ['바코드', '상품코드']);
             let hi = -1, headers = [];
             for (let i = 0; i < Math.min(20, rows.length); i++) { const cl = rows[i].map(cleanKey); if (cl.includes('바코드') && cl.includes('상품코드')) { hi = i; headers = cl; break; } }
-            if (hi < 0) { setLoading(false); alert('바코드/상품코드 두 열을 찾지 못했습니다.'); return; }
+            if (hi < 0) { setLoading(false); showAlert('바코드/상품코드 두 열을 찾지 못했습니다.', { title: '올리지 못했습니다', isError: true }); return; }
             const bIdx = headers.indexOf('바코드'), cIdx = headers.indexOf('상품코드'), mIdx = headers.indexOf('사유');
             const map = {}; let added = 0;
             for (let i = hi + 1; i < rows.length; i++) {
@@ -430,14 +433,14 @@ export function setupLiveAdmin(ctx) {
                 const mm = mIdx >= 0 ? (rows[i][mIdx] || '').toString().trim() : '';
                 if (b && c) { map[b] = { code: c, memo: mm }; added++; }
             }
-            if (!added) { setLoading(false); alert('유효한 행이 없습니다.'); return; }
+            if (!added) { setLoading(false); showAlert('유효한 행이 없습니다.', { title: '올리지 못했습니다', isError: true }); return; }
             await loadAlias();
             Object.assign(alias, map);
             await saveAlias();
             setLoading(false);
             renderAlias();
             showToast(`✅ ${added}건 반영 (총 ${Object.keys(alias).length}건) — 스캐너 즉시 반영`);
-        } catch (err) { setLoading(false); alert('처리 실패: ' + err.message); await loadAlias(); renderAlias(); }
+        } catch (err) { setLoading(false); await showAlert('처리 실패: ' + err.message, { title: '처리 실패', isError: true }); await loadAlias(); renderAlias(); }
     }
 
     return { open, editCapacity };

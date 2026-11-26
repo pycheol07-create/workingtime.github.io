@@ -17,47 +17,47 @@
 // ⚠️ role=dialog·data-act 금지(업무마감봇 선택자).
 
 import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
-import { getTodayDateString, getWeekOfYear, showToast } from './utils.js?v=b14a118c2b0c-7bf0fcab';
+import { getTodayDateString, getWeekOfYear, showToast } from './utils.js?v=32969da5faa9-163bcbc9';
 import { aliasHistoryView, aliasTaskName } from './lib/task-alias-view.js?v=2e131477eb8e-af660ceb';
-import { buildOpsModel, opsModelInputs } from './lib/ops-view-model.js?v=ec2b872b2346-08a53556';
+import { buildOpsModel, opsModelInputs } from './lib/ops-view-model.js?v=d39b54633886-08a53556';
 import { taskNameOf } from './lib/task-ids.js?v=9c41e71742ef-83b1f46d';
-import { buildWeekPlan } from './lib/plan-build.js?v=daecbf43e778-de020015';
-import { nextWeekRange, planSettingsOf, addDaysStr, OVERTIME_LAW_NOTE } from './lib/plan-week.js?v=f90a9596e539-f2dd7a70';
+import { buildWeekPlan } from './lib/plan-build.js?v=39a0306059db-de020015';
+import { nextWeekRange, planSettingsOf, addDaysStr, OVERTIME_LAW_NOTE } from './lib/plan-week.js?v=741958ee9724-f2dd7a70';
 import { baselineOf, defaultTargets, targetsFor, gapRows, shortToTargetHours } from './lib/plan-targets.js?v=7af4f5052ce6-f20d5954';
-import { planDocId, confirmDocOf, planVsActual, monthErrsOf, monthConfirmYms, monthConfirmsOf } from './lib/plan-compare.js?v=d3af1d347d54-67916867';
-import { getStaffingOutlook, ensureMibalHistory, ensureCorrectCtx, precedingHolidayNameOf, getLoadedAccuracyHourErr } from './ui-history-prediction.js?v=27e6e35d51a5-d20e01d1';
-import { fetchPlannedData } from './history-data-manager.js?v=27e6e35d51a5-6e3a2ca6';
+import { planDocId, confirmDocOf, planVsActual, monthErrsOf, monthConfirmYms, monthConfirmsOf } from './lib/plan-compare.js?v=7d98c96671f1-67916867';
+import { getStaffingOutlook, ensureMibalHistory, ensureCorrectCtx, precedingHolidayNameOf, getLoadedAccuracyHourErr } from './ui-history-prediction.js?v=e8f50ae37140-8e6157b0';
+import { fetchPlannedData } from './history-data-manager.js?v=e8f50ae37140-a9403e97';
 import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=152edbc1d09a-ab7817f6';
-import { esc, n0, n1, pct0, fmtDay, card, kpi, fillText, actionsHtml, compareCardHtml, signed1, ok } from './ui-ops-plan-parts.js?v=65a5f815db05-895d8afe';
-import { targetsCardHtml, openTargetsEditor, closeTargetsEditor } from './ui-ops-plan-targets.js?v=171fe2d4bbbe-869fc4cc';
-import { computeMonthPlan, monthBodyHtml, lastMonthKeyOf } from './ui-ops-plan-month.js?v=ce707df84b10-c78c2e8b';
-import { loadPlanDoc, peekPlanDoc, confirmPlan, saveDone } from './ops-plan-store.js?v=b0df65549804-e2b4aa69';
-import { computePeople, peopleHtml, peoplePrintHtml, assignCountsOf, busForPlan, namesOf, ignoreWordsOf } from './ui-ops-plan-people.js?v=118eaf002562-808bebb0';
-import { namesLeak } from './lib/plan-skills.js?v=469f2ecc6f64-166a535f';
-import { computeBudget, computeYearBudget, budgetHtml, yearBudgetHtml, openCostEditor, closeCostEditor, isAdminNow } from './ui-ops-plan-budget.js?v=cfce64c017e1-8f9b7088';
-import { budgetEntryOf, trimBudgetPlans, costSettingsOf, MONTH_DAYS } from './lib/plan-budget.js?v=225a78fcbe40-3bc5a6ac';
-import { computeYearPlan, yearBodyHtml } from './ui-ops-plan-year.js?v=d938e0a8668c-09ac854c';
-import { buildRoadmap, attachMilestones, CAUSE_MS_TYPE } from './lib/plan-roadmap.js?v=fc71c69d751d-6417d13c';
+import { esc, n0, n1, pct0, fmtDay, card, kpi, fillText, actionsHtml, compareCardHtml, signed1, ok } from './ui-ops-plan-parts.js?v=4988aac60dc6-895d8afe';
+import { targetsCardHtml, openTargetsEditor, closeTargetsEditor } from './ui-ops-plan-targets.js?v=095de98abc5f-869fc4cc';
+import { computeMonthPlan, monthBodyHtml, lastMonthKeyOf } from './ui-ops-plan-month.js?v=8ddee86ac189-c78c2e8b';
+import { loadPlanDoc, peekPlanDoc, confirmPlan, saveDone } from './ops-plan-store.js?v=83198d8480e3-e2b4aa69';
+import { computePeople, peopleHtml, peoplePrintHtml, assignCountsOf, busForPlan, namesOf, ignoreWordsOf } from './ui-ops-plan-people.js?v=f6a81025ad83-808bebb0';
+import { namesLeak } from './lib/plan-skills.js?v=a44cbe99d8ea-166a535f';
+import { computeBudget, computeYearBudget, budgetHtml, yearBudgetHtml, openCostEditor, closeCostEditor, isAdminNow } from './ui-ops-plan-budget.js?v=85644b96e3c1-8f9b7088';
+import { budgetEntryOf, trimBudgetPlans, costSettingsOf, MONTH_DAYS } from './lib/plan-budget.js?v=e66d280c498c-3bc5a6ac';
+import { computeYearPlan, yearBodyHtml } from './ui-ops-plan-year.js?v=2a0e904d37ae-09ac854c';
+import { buildRoadmap, attachMilestones, CAUSE_MS_TYPE } from './lib/plan-roadmap.js?v=7b621096dad7-6417d13c';
 import { simRowsOf } from './lib/plan-sim.js?v=0ba756e8f775-1d2c35d9';
-import { roadmapHtml, simHtml, simResultHtml } from './ui-ops-plan-extras.js?v=4cb282433d7e-604a8aa5';
-import { COST_DOC } from './ops-plan-store.js?v=b0df65549804-e2b4aa69';
-import { recordRateOf } from './lib/plan-confidence.js?v=aee9296728fd-e15ea39f';
-import { loadMonthlies, autoBuildMonthlies, rebuildMonth } from './ops-monthly-store.js?v=cedd702f0e00-723d0d6c';
-import { finishedMonths } from './lib/plan-monthly.js?v=06fd9ca8dd75-df8a0c8a';
+import { roadmapHtml, simHtml, simResultHtml } from './ui-ops-plan-extras.js?v=160102541e3f-604a8aa5';
+import { COST_DOC } from './ops-plan-store.js?v=83198d8480e3-e2b4aa69';
+import { recordRateOf } from './lib/plan-confidence.js?v=33be333ca34d-e15ea39f';
+import { loadMonthlies, autoBuildMonthlies, rebuildMonth } from './ops-monthly-store.js?v=54649df1dbb2-723d0d6c';
+import { finishedMonths } from './lib/plan-monthly.js?v=9e0464801be6-df8a0c8a';
 import { buildQuarterPlan, nextQuarterOf } from './lib/plan-quarter.js?v=21dab3257f48-da1ab425';
 import { seasonCalendar, bundleForecast } from './lib/plan-season.js?v=41bc6fe9e245-528fb953';
 import { SEASON_BUNDLES } from './lib/plan-season-catalog.js?v=92c4e281437b-3025c607';
 import { buildAutomationRoadmap } from './lib/plan-automation.js?v=96ace6ece016-3975d02d';
 import { buildDataGaps } from './lib/plan-data-gaps.js?v=c2545e4a56d5-c491b69e';
-import { cleanYearDocSections, YEARDOC_SECTIONS } from './lib/plan-yeardoc.js?v=1b83e167d3fb-2ae196cd';
-import { quarterBodyHtml } from './ui-ops-plan-quarter.js?v=7c28753ed60e-a80a5c8f';
-import { yearDocHtml, readYearDocInputs } from './ui-ops-plan-yeardoc.js?v=b840168fac77-3073097b';
-import { saveYearDoc } from './ops-plan-store.js?v=b0df65549804-e2b4aa69';
-import { listItems, createItem, updateItem, itemLog, claimOverdueNotice } from './ops-plan-items-store.js?v=6b4d2c99393f-e19e62d2';
-import { makeButton, draftOf, itemsCardHtml, logHtml, openGoalsEditor, closeGoalsEditor } from './ui-ops-plan-items.js?v=e46c8641ee05-83063bf9';
-import { isOverdue, pickOverdueNotices, OVERDUE_MESSAGE } from './lib/plan-items.js?v=539e98e9a1d6-5e89930a';
-import { actualsOf } from './lib/plan-cascade.js?v=2f97465f2059-086366a5';
-import { sendNotification } from './app-notifications.js?v=5ab4b1ad1e64-af702167';
+import { cleanYearDocSections, YEARDOC_SECTIONS } from './lib/plan-yeardoc.js?v=e281de9b3c2b-2ae196cd';
+import { quarterBodyHtml } from './ui-ops-plan-quarter.js?v=45d8edb47fa7-a80a5c8f';
+import { yearDocHtml, readYearDocInputs } from './ui-ops-plan-yeardoc.js?v=26ae44030bfa-3073097b';
+import { saveYearDoc } from './ops-plan-store.js?v=83198d8480e3-e2b4aa69';
+import { listItems, createItem, updateItem, itemLog, claimOverdueNotice } from './ops-plan-items-store.js?v=7eb2d1c924e5-e19e62d2';
+import { makeButton, draftOf, itemsCardHtml, logHtml, openGoalsEditor, closeGoalsEditor } from './ui-ops-plan-items.js?v=b86b6ff23603-83063bf9';
+import { isOverdue, pickOverdueNotices, OVERDUE_MESSAGE } from './lib/plan-items.js?v=4848b2354ab3-5e89930a';
+import { actualsOf } from './lib/plan-cascade.js?v=ed9ce04a8173-086366a5';
+import { sendNotification } from './app-notifications.js?v=70dd61ae1d0a-af702167';
 
 const $ = (id) => document.getElementById(id);
 const isAdmin = () => !!(State.appState && State.appState.currentUserRole === 'admin');
@@ -635,7 +635,7 @@ function bindOnce() {
 function ensureMilestones() {
     if (msMod || ensureMilestones.busy) return;
     ensureMilestones.busy = true;
-    import('./ui-history-milestones.js?v=aa52cbadf349-10ac295c').then(mod => {
+    import('./ui-history-milestones.js?v=1a450b816dc7-10ac295c').then(mod => {
         msMod = mod;
         try { mod.subscribeMilestones(); mod.bindMilestoneListeners(); } catch (e) { /* 마일스톤 화면 칸이 없어도 계획은 그린다 */ }
         return mod.ensureMilestonesLoaded();

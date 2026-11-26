@@ -6,10 +6,10 @@
 import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
 import { ensureHtml2pdf } from './lib/lazy-html2pdf.js?v=8e7180a5a596-4b2424ee';
 import { LEAVE_TYPES } from './state.js?v=c7f5fc984ef9-a2ce38c0';
-import { getRegularMembersForCount, formatDuration, buildMemberHourlyWageMap, getTodayDateString, escapeHtml, escapeHtml as esc } from './utils.js?v=b14a118c2b0c-7bf0fcab';   // escapeHtml 도 같이(2026-11-12 이스케이프 수정이 이름으로 불러 정산 화면이 깨졌다)
+import { getRegularMembersForCount, formatDuration, buildMemberHourlyWageMap, getTodayDateString, escapeHtml, escapeHtml as esc, showAlert } from './utils.js?v=32969da5faa9-163bcbc9';   // escapeHtml 도 같이(2026-11-12 이스케이프 수정이 이름으로 불러 정산 화면이 깨졌다)
 import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { matchesFilter, hasFilter, filterCount, openFloatingFilter, closeFloatingFilter } from './table-filter.js?v=fd197c3531ef-b92b1b78';
-import { bindDrillListeners, drillWrap } from './settlement-drill.js?v=25d0ae3b7086-db8ccb57';
+import { bindDrillListeners, drillWrap } from './settlement-drill.js?v=4dd621ab9c67-db8ccb57';
 
 import {
     calculateReportKPIs,
@@ -19,13 +19,13 @@ import {
     calculateBenchmarkOEE,
     generateProductivityDiagnosis,
     analyzeUnitCost
-} from './ui-history-reports-logic.js?v=63b4c75e437b-28b3f058';
+} from './ui-history-reports-logic.js?v=3677971659b5-28b3f058';
 
-import { aggregateManagementData } from './ui-history-management.js?v=e5961af35c16-688719b9';
-import { ensureMilestonesLoaded, getMilestoneSummariesForPeriod } from './ui-history-milestones.js?v=aa52cbadf349-10ac295c';
+import { aggregateManagementData } from './ui-history-management.js?v=b170c269edf1-688719b9';
+import { ensureMilestonesLoaded, getMilestoneSummariesForPeriod } from './ui-history-milestones.js?v=1a450b816dc7-10ac295c';
 import { D } from './d-chart.js?v=e918595219dd-dfe55644';
 import { aliasHistoryView } from './lib/task-alias-view.js?v=2e131477eb8e-af660ceb';
-import { periodSpeeds, lastDayIdOf, opsSummary, OEE_LEVELS } from './lib/ops-metrics.js?v=4607b43e8a55-58d6bcbb';
+import { periodSpeeds, lastDayIdOf, opsSummary, OEE_LEVELS } from './lib/ops-metrics.js?v=89a4eac4b3f4-58d6bcbb';
 import { revenueTotalOf } from './revenue-channels.js?v=553320652df2-c473a26d';
 // 엑셀(결산 xlsx)로 옮길 때 — 화면용 HTML 글(태그·escape 된 글자)을 보통 글자로
 const htmlToText = (h) => String(h == null ? '' : h).replace(/<[^>]+>/g, '').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&');
@@ -1279,7 +1279,7 @@ function renderOverallOpinionSection(op, periodLabel, workingDaysCount) {
 //    숫자가 사라진 종이가 나온다. 조작용만 지우고 나머지는 껍데기만 벗긴다.
 async function downloadSettlementPdf(periodLabel, btnArg = null) {
     if (!(await ensureHtml2pdf())) {   // 처음 누를 때 받는다(js/lib/lazy-html2pdf.js)
-        alert('PDF 라이브러리를 불러오지 못했습니다. 인터넷 연결을 확인하고 다시 눌러 주세요.');
+        showAlert('PDF 라이브러리를 불러오지 못했습니다. 인터넷 연결을 확인하고 다시 눌러 주세요.', { title: 'PDF 저장', isError: true });
         return;
     }
     const panel = document.getElementById('settlement-panel');
@@ -1428,7 +1428,7 @@ async function downloadSettlementPdf(periodLabel, btnArg = null) {
         await html2pdf().from(holder).set(opt).save();
     } catch (e) {
         console.error('결산 PDF 저장 실패:', e);
-        alert('PDF 저장 중 오류가 발생했습니다.');
+        showAlert('PDF 저장 중 오류가 발생했습니다.', { title: 'PDF 저장 실패', isError: true });
     } finally {
         document.body.style.overflow = prevBody;
         document.documentElement.style.overflow = prevHtml;
@@ -1494,7 +1494,7 @@ function downloadSettlementExcel(periodLabel, core, tp, wf, wr, att, mg, insp, m
         XLSX.writeFile(workbook, `팀결산보고_${periodLabel.replace(/\s/g, '')}_${getTodayDateString()}.xlsx`);
     } catch (e) {
         console.error('결산 보고서 엑셀 다운로드 실패:', e);
-        alert('엑셀을 받는 중 오류가 발생했습니다.');
+        showAlert('엑셀을 받는 중 오류가 발생했습니다.', { title: '엑셀 받기 실패', isError: true });
     }
 }
 

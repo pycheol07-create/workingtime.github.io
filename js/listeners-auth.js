@@ -3,7 +3,7 @@
 
 import * as DOM from './dom-elements.js?v=2b9f19ecbde2-82fbef91';
 import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
-import { showToast } from './utils.js?v=b14a118c2b0c-7bf0fcab';
+import { showToast, showAlert } from './utils.js?v=32969da5faa9-163bcbc9';
 import { signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { terminate, clearIndexedDbPersistence } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { clearLocalCaches, FIRESTORE_CLEAR_FAILED_MSG } from './lib/local-caches.js?v=dd0883f5e13b-6584de42';
@@ -55,7 +55,7 @@ export function setupAuthListeners() {
         let res = null;
         try { res = await clearLocalCaches({ db: State.db, firestore: { terminate, clearIndexedDbPersistence } }); }
         catch (e) { /* clearLocalCaches 는 던지지 않는다 — 혹시 몰라 */ }
-        if (res && res.firestore === 'failed') alert(FIRESTORE_CLEAR_FAILED_MSG);   // 다른 탭이 사본을 쥐고 있어 못 지움
+        if (res && res.firestore === 'failed') await showAlert(FIRESTORE_CLEAR_FAILED_MSG, { title: '사본 지우기 실패', isError: true });   // 다른 탭이 사본을 쥐고 있어 못 지움
         location.reload();
     };
     if (DOM.logoutBtn) DOM.logoutBtn.addEventListener('click', doLogout);

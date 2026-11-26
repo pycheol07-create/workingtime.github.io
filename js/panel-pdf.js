@@ -1,4 +1,4 @@
-import { escapeHtml } from './utils.js?v=b14a118c2b0c-7bf0fcab';
+import { escapeHtml, showAlert } from './utils.js?v=32969da5faa9-163bcbc9';
 import { ensureHtml2pdf } from './lib/lazy-html2pdf.js?v=8e7180a5a596-4b2424ee';
 // === js/panel-pdf.js ===
 // 📄 화면의 패널 하나를 '보이는 그대로' PDF 로 받는다(A4 가로) — 운영 리포트 탭의 [PDF 받기] (2026-11-10).
@@ -230,11 +230,11 @@ function pushSections(holder, selector, pageH) {
  * @param {HTMLElement} panel 지금 화면에 보이는 패널
  * @param {{filename?:string, btn?:HTMLElement, removeSelector?:string, sectionSelector?:string, scopeId?:string, notify?:(msg:string)=>void}} o
  *   removeSelector = 더 지울 조작용(기본 표식에 더해), sectionSelector = 두 쪽에 걸치지 않게 할 덩어리,
- *   scopeId = 화면 모양 규칙의 범위 id(기본 history-modal), notify = 안내 방법(기본 alert).
+ *   scopeId = 화면 모양 규칙의 범위 id(기본 history-modal), notify = 안내 방법(기본 showAlert).
  * @returns {Promise<boolean>} 저장했으면 true
  */
 export async function downloadPanelPdf(panel, o = {}) {
-    const { filename = '화면.pdf', btn = null, removeSelector = '', sectionSelector = 'section', scopeId = 'history-modal', notify = (m) => alert(m) } = o;
+    const { filename = '화면.pdf', btn = null, removeSelector = '', sectionSelector = 'section', scopeId = 'history-modal', notify = (m) => showAlert(m, { title: 'PDF 저장', isError: true }) } = o;
     if (!(await ensureHtml2pdf())) {   // 처음 누를 때 받는다(js/lib/lazy-html2pdf.js)
         notify('PDF 라이브러리를 불러오지 못했습니다. 인터넷 연결을 확인하고 다시 눌러 주세요.');
         return false;

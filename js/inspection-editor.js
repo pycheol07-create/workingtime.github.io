@@ -1,12 +1,12 @@
 // === js/inspection-editor.js ===
 import * as DOM from './dom-elements.js?v=2b9f19ecbde2-82fbef91';
 import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
-import { showToast, getCurrentTime, getTodayDateString, showConfirm } from './utils.js?v=b14a118c2b0c-7bf0fcab';
+import { showToast, getCurrentTime, getTodayDateString, showConfirm, showAlert } from './utils.js?v=32969da5faa9-163bcbc9';
 import { doc, getDoc, setDoc, updateDoc, deleteDoc, arrayUnion, serverTimestamp, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { renderInspectionHistoryTable, renderInspectionLogTable, renderExpandedInspectionLog } from './ui-history-inspection.js?v=5d9cbf843649-92ecfe05';
-import { getUniqueInboundCount } from './inspection-logic.js?v=4e432a2b872c-e4d6f36f';
-import { LABELS as CHECK_LABELS, hasBrushed } from './lib/insp-flow.js?v=f24bcc7ccc64-43ce67d4';
-import { manualImageBase64, clearManualImageState, uploadInspectionPhoto, dataUrlToBlob } from './inspection-media.js?v=4e432a2b872c-cad5241c';
+import { renderInspectionHistoryTable, renderInspectionLogTable, renderExpandedInspectionLog } from './ui-history-inspection.js?v=b3e080de6922-92ecfe05';
+import { getUniqueInboundCount } from './inspection-logic.js?v=915a0ed30c26-e4d6f36f';
+import { LABELS as CHECK_LABELS, hasBrushed } from './lib/insp-flow.js?v=a264188caa0a-43ce67d4';
+import { manualImageBase64, clearManualImageState, uploadInspectionPhoto, dataUrlToBlob } from './inspection-media.js?v=915a0ed30c26-cad5241c';
 
 export let currentProductLogs = [];
 // 수동 사전등록 사진을 올린 결과 — 저장이 실패해 다시 누를 때 같은 사진을 또 올리지 않게
@@ -305,7 +305,7 @@ export const savePreInspectionNote = async () => {
     if (hasBrushed(productName)) checklist.brushed = getVal('manual-insp-check-brushed') || '양호';   // 기모 상품만
 
     if (!checklist.thickness || Object.values(checklist).some(v => v === "" || v === null)) {
-        alert("⚠️ 두께 기준을 포함한 모든 품질 체크리스트 항목을 확인해주세요.");
+        showAlert("⚠️ 두께 기준을 포함한 모든 품질 체크리스트 항목을 확인해주세요.", { title: '입력 확인', isError: true });
         return false;
     }
 

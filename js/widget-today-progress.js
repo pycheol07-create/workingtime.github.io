@@ -4,9 +4,9 @@
 //   지금 페이스로 언제 끝나는지를 대시보드에서 바로 보이게 하고, 누르면 자세히 볼 수 있게 한다.
 
 import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
-import { formatHM } from './utils.js?v=b14a118c2b0c-7bf0fcab';
-import { getTodayProgressSummary, ensureTodayForecastSnapshot, ensureMibalHistory, ensureCorrectCtx } from './ui-history-prediction.js?v=27e6e35d51a5-d20e01d1';
-import { fetchDashboardHistoryData, fetchPlannedData } from './history-data-manager.js?v=27e6e35d51a5-6e3a2ca6';
+import { formatHM } from './utils.js?v=32969da5faa9-163bcbc9';
+import { getTodayProgressSummary, ensureTodayForecastSnapshot, ensureMibalHistory, ensureCorrectCtx } from './ui-history-prediction.js?v=e8f50ae37140-8e6157b0';
+import { fetchDashboardHistoryData, fetchPlannedData } from './history-data-manager.js?v=e8f50ae37140-a9403e97';
 import { goTo } from './app-shell-bridge.js?v=b9a7199f3e1d-c80c27e9';
 
 const EL = 'today-progress-strip';
@@ -33,9 +33,12 @@ const tones = (diffMin) => {
     return { text: 't-risk' };
 };
 
+let loaded = false;   // 자료 로드가 끝났나 — 끝난 뒤의 그리기마다 하단 세 카드(js/dash-insights.js)에 알린다
+const notifyInsights = () => { if (loaded) { try { document.dispatchEvent(new Event('dash-forecast-ready')); } catch (_) {} } };
 const render = () => {
     const el = document.getElementById(EL);
     if (!el) return;
+    notifyInsights();   // 띠가 숨는 경우(계획·실적 없음)에도 카드는 그린다
 
     // 오늘 계획이 아직 얼려져 있지 않으면 조용히 하나 찍는다.
     // 여기에 두는 이유: 바쁜 날은 아무도 데이터관리 > 업무 예상 탭을 열지 않는다.
@@ -110,6 +113,7 @@ export const initTodayProgressStrip = async () => {
         // 보정 계획(지난 스냅샷)도 — 업무 예상 '오늘 현황'과 같은 계획(못 읽으면 보정 전)
         await Promise.all([fetchDashboardHistoryData(), fetchPlannedData(), ensureMibalHistory(), ensureCorrectCtx()]);   // 이력은 최근 100일만(대시보드 전용 경로)
     } catch (e) { console.warn('[today-progress] 자료 로드 실패:', e); }
+    loaded = true;
     render();
 
     // 오늘 업무 기록은 별도 실시간 구독으로 조금 늦게 도착한다.

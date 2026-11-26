@@ -28,7 +28,7 @@
 // 칸수 무관 허용(2026-11-13): locRecWork/sizeAllow 를 구독하고 표 [칸수 무관 허용]이 setSizeFree 로 쓴다(코드·시각·이름만, 문서 모양은 locrec-view.js).
 //   서버는 다음 판부터 그 상품을 칸 바꾸기((4)↔(2)칸, 2026-11-19)로 추천하고, 대신 자리(findAlt)도 같은 목록을 쓴다. 다시 만들기 요청은 보내지 않는다(사용자 결정).
 import { doc, onSnapshot, setDoc, getDoc, serverTimestamp, deleteField, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { showConfirm } from './utils.js?v=b14a118c2b0c-7bf0fcab';
+import { showAlert, showConfirm } from './utils.js?v=32969da5faa9-163bcbc9';
 import {
     dayKey, parseRecDay, rowState, dayOptions, defaultDay, canMark, excelRows, EXCEL_COLS, SHEET_NAME, fileNameOf,
     stripRows, fileNameAll, recReqUi, tsMs, TABS, dayVer, movedToday, PENDING_TEXT, plannedSlots, HOLD_UNDO_TEXT,
@@ -351,7 +351,7 @@ function createLocRecStore({ db, auth, getMemberName, sizeOf, altCtx, notify, li
     async function writeMarks(keys, state) {
         const list = keys.filter(k => k && !S.saving.has(k));
         if (!list.length) return false;
-        if (state && pendingNow()) { alert(PENDING_TEXT); return false; }   // 표시 지우기(되돌리기)는 막지 않는다
+        if (state && pendingNow()) { showAlert(PENDING_TEXT); return false; }   // 표시 지우기(되돌리기)는 막지 않는다
         list.forEach(k => S.saving.add(k));
         emit();
         try {
@@ -361,7 +361,7 @@ function createLocRecStore({ db, auth, getMemberName, sizeOf, altCtx, notify, li
             await setDoc(doc(db, MARKS_PATH), { marks }, { merge: true });
             return true;
         } catch (e) {
-            alert(`표시를 저장하지 못했습니다(${errCode(e)}). 다시 눌러 주세요.`);
+            showAlert(`표시를 저장하지 못했습니다(${errCode(e)}). 다시 눌러 주세요.`, { isError: true, title: '저장하지 못했습니다' });
             return false;
         } finally {
             list.forEach(k => S.saving.delete(k));
@@ -419,7 +419,7 @@ function createLocRecStore({ db, auth, getMemberName, sizeOf, altCtx, notify, li
         try {
             return await txApply(row, nameOf(), dayVer(S.day && S.day.data), alt);
         } catch (e) {
-            alert(`데이터 리스트에 반영하지 못했습니다(${errCode(e)}). 아무것도 바뀌지 않았습니다 — 다시 눌러 주세요.`);
+            showAlert(`데이터 리스트에 반영하지 못했습니다(${errCode(e)}). 아무것도 바뀌지 않았습니다 — 다시 눌러 주세요.`, { isError: true, title: '반영하지 못했습니다' });
             return null;
         } finally {
             S.saving.delete(key);
@@ -429,7 +429,7 @@ function createLocRecStore({ db, auth, getMemberName, sizeOf, altCtx, notify, li
 
     /** [처리함] 성공 뒤 한 줄 — 이지어드민 로케이션도 바꾸라고(location.js 는 토스트, 없으면 alert) */
     function remind() {
-        try { (typeof notifyFn === 'function' ? notifyFn : (t) => alert(t))(EZ_REMIND_TEXT); } catch (e) { /* 무시 */ }
+        try { return (typeof notifyFn === 'function' ? notifyFn : (t) => showAlert(t))(EZ_REMIND_TEXT); } catch (e) { /* 무시 */ }
     }
 
     const REBUILD_HINT = '[지금 재고로 다시 만들기]나 내일 아침 추천에서, 쓸 빈 자리가 있으면 다른 자리로 다시 나옵니다';
@@ -437,7 +437,7 @@ function createLocRecStore({ db, auth, getMemberName, sizeOf, altCtx, notify, li
 
     /** 짧은 안내 — location.js 는 토스트, 없으면(대시보드) alert */
     function say(t) {
-        try { (typeof notifyFn === 'function' ? notifyFn : (x) => alert(x))(t); } catch (e) { /* 무시 */ }
+        try { return (typeof notifyFn === 'function' ? notifyFn : (x) => showAlert(x))(t); } catch (e) { /* 무시 */ }
     }
 
     /** 대신 자리 → {alt, why}. why: 'ok'(alt 있음) | 'none'(계산했지만 없음) | 'noCtx'(자리 목록이 없어 계산 못 함 — 대시보드) | 'notSingle'.
@@ -469,7 +469,7 @@ function createLocRecStore({ db, auth, getMemberName, sizeOf, altCtx, notify, li
     async function writeBlocked(items) {
         const list = (items || []).filter(x => x && x.key && !S.saving.has(x.key));
         if (!list.length) return 0;
-        if (pendingNow()) { alert(PENDING_TEXT); return 0; }
+        if (pendingNow()) { showAlert(PENDING_TEXT); return 0; }
         list.forEach(x => S.saving.add(x.key));
         emit();
         try {
@@ -489,7 +489,7 @@ function createLocRecStore({ db, auth, getMemberName, sizeOf, altCtx, notify, li
                 return n;
             });
         } catch (e) {
-            alert(`'자리 막힘'을 저장하지 못했습니다(${errCode(e)}). 다시 눌러 주세요.`);
+            showAlert(`'자리 막힘'을 저장하지 못했습니다(${errCode(e)}). 다시 눌러 주세요.`, { isError: true, title: '저장하지 못했습니다' });
             return 0;
         } finally {
             list.forEach(x => S.saving.delete(x.key));
@@ -501,8 +501,8 @@ function createLocRecStore({ db, auth, getMemberName, sizeOf, altCtx, notify, li
     async function applyMark(key, row) {
         const r = await runApply(key, row, null);
         if (!r) return;
-        if (r.status === 'blocked') { alert(r.text); return; }
-        if (r.status === 'stale') { alert(PENDING_TEXT); return; }
+        if (r.status === 'blocked') { showAlert(r.text); return; }
+        if (r.status === 'stale') { showAlert(PENDING_TEXT); return; }
         if (r.status === 'applied') { remind(); return; }
         if (r.status !== 'fail') return;
         const f = r.fail;
@@ -510,12 +510,12 @@ function createLocRecStore({ db, auth, getMemberName, sizeOf, altCtx, notify, li
             const fa = altOk(f, row) ? findAlt(row) : { alt: null, why: 'notSingle' };
             const alt = fa.alt;
             let pre = '';
-            if (alt && confirm(altConfirmText(f, row, alt))) {
+            if (alt && await showConfirm(altConfirmText(f, row, alt))) {
                 const r2 = await runApply(key, altRow(row, alt), alt);
                 if (!r2) return;
                 if (r2.status === 'applied') { remind(); return; }
-                if (r2.status === 'blocked') { alert(r2.text); return; }
-                if (r2.status === 'stale') { alert(PENDING_TEXT); return; }
+                if (r2.status === 'blocked') { showAlert(r2.text); return; }
+                if (r2.status === 'stale') { showAlert(PENDING_TEXT); return; }
                 if (r2.status !== 'fail') return;
                 // 대신 자리 실패 — 도착 자리 문제가 아니면(출발 자리가 바뀜 등) 막힘을 남기지 않고 안내만
                 if (!dstBlocked(r2.fail)) { say(`대신 자리 ${alt.to} 에도 반영하지 못했습니다(${reasonText(r2.fail)}).`); return; }
@@ -526,8 +526,8 @@ function createLocRecStore({ db, auth, getMemberName, sizeOf, altCtx, notify, li
             if (await writeBlocked([{ key, block: blockOf(f, row) }])) say(pre + BLOCK_AUTO_TEXT(f));
             return;
         }
-        if (!markOnlyOk(f)) { if (!dstBlocked(f)) alert(`데이터 리스트에 반영하지 못했습니다(${reasonText(f)}).`); return; }
-        if (confirm(applyFailText(f))) await writeMarks([key], 'done');
+        if (!markOnlyOk(f)) { if (!dstBlocked(f)) showAlert(`데이터 리스트에 반영하지 못했습니다(${reasonText(f)}).`, { isError: true, title: '반영하지 못했습니다' }); return; }
+        if (await showConfirm(applyFailText(f))) await writeMarks([key], 'done');
     }
 
     /** 되돌리기 트랜잭션 하나 → {status: blocked|gone|cleared|fail|undone, text?, fail?}. 확인창·알림 없음([전체 되돌리기]가 같이 쓴다) */
@@ -560,14 +560,14 @@ function createLocRecStore({ db, auth, getMemberName, sizeOf, altCtx, notify, li
         try {
             r = await txUndo(key);
         } catch (e) {
-            alert(`되돌리지 못했습니다(${errCode(e)}). 아무것도 바뀌지 않았습니다 — 다시 눌러 주세요.`);
+            showAlert(`되돌리지 못했습니다(${errCode(e)}). 아무것도 바뀌지 않았습니다 — 다시 눌러 주세요.`, { isError: true, title: '되돌리지 못했습니다' });
             return;
         } finally {
             S.saving.delete(key);
             emit();
         }
-        if (r.status === 'blocked') { alert(r.text); return; }
-        if (r.status === 'fail' && confirm(undoFailText(r.fail))) await clearMark(key);
+        if (r.status === 'blocked') { showAlert(r.text); return; }
+        if (r.status === 'fail' && await showConfirm(undoFailText(r.fail), { okText: '표시 지우기', danger: true })) await clearMark(key);
     }
 
     /** [전체 되돌리기] — 지금 탭의 '처리함' 표시를 차례로 되돌린다(한 건씩 트랜잭션, 진행은 S.applying).
@@ -611,11 +611,11 @@ function createLocRecStore({ db, auth, getMemberName, sizeOf, altCtx, notify, li
             fails = [];
             take(await pass(again, txUndo));
         }
-        if (stopText) { alert(stopText); return; }
+        if (stopText) { showAlert(stopText); return; }
         if (fails.length && await showConfirm(`${ok}건 되돌렸습니다.\n${fails.length}건은 데이터 리스트가 이미 바뀌었거나 반영한 날이 지나 자리는 되돌리지 않습니다.\n그 ${fails.length}건은 처리함 표시만 지울까요?`,
             { title: '처리함 표시만 지울까요?', okText: '표시 지우기', danger: true })) {
             await pass(fails, (k) => clearMark(k, { quiet: true }));
-            if (stopText) alert(stopText);
+            if (stopText) showAlert(stopText);
             return;
         }
         if (!fails.length && ok) say(`${ok}건을 되돌렸습니다.`);
@@ -641,10 +641,10 @@ function createLocRecStore({ db, auth, getMemberName, sizeOf, altCtx, notify, li
                 tx.set(doc(db, MARKS_PATH), { marks: { [key]: del } }, { merge: true });
                 return { status: 'cleared' };
             });
-            if (r.status === 'blocked') { if (!quiet) alert(r.text); return r; }
+            if (r.status === 'blocked') { if (!quiet) showAlert(r.text); return r; }
             return r;
         } catch (e) {
-            if (!quiet) alert(`표시를 지우지 못했습니다(${errCode(e)}). 다시 눌러 주세요.`);
+            if (!quiet) showAlert(`표시를 지우지 못했습니다(${errCode(e)}). 다시 눌러 주세요.`, { isError: true, title: '지우지 못했습니다' });
             return { status: 'error', text: `표시를 지우지 못했습니다(${errCode(e)}). 다시 눌러 주세요.` };
         } finally {
             S.saving.delete(key);
@@ -656,7 +656,7 @@ function createLocRecStore({ db, auth, getMemberName, sizeOf, altCtx, notify, li
      *  'done' 은 데이터 리스트에 반영(applyMark), 반영 기록이 있는 표시를 지우면 자리도 되돌린다(undoMark). '안 함'은 표시만 */
     async function mark(key, state) {
         if (!key || S.saving.has(key) || S.applying || !canMark(S.latest, S.key, todayKey())) return;
-        if ((state === 'done' || state === 'skip') && pendingNow()) { alert(PENDING_TEXT); return; }
+        if ((state === 'done' || state === 'skip') && pendingNow()) { showAlert(PENDING_TEXT); return; }
         if (state === 'done') {
             const row = rowOf(key);
             if (row) return applyMark(key, row);
@@ -696,7 +696,7 @@ function createLocRecStore({ db, auth, getMemberName, sizeOf, altCtx, notify, li
         try {
             await setDoc(doc(db, SIZE_ALLOW_PATH), data, { merge: true });
         } catch (e) {
-            alert(`칸수 무관 허용을 저장하지 못했습니다(${errCode(e)}). 다시 눌러 주세요.`);
+            showAlert(`칸수 무관 허용을 저장하지 못했습니다(${errCode(e)}). 다시 눌러 주세요.`, { isError: true, title: '저장하지 못했습니다' });
             return false;
         } finally {
             S.saving.delete(bk);
@@ -713,7 +713,7 @@ function createLocRecStore({ db, auth, getMemberName, sizeOf, altCtx, notify, li
     async function markMany(keys, state) {
         const list = (Array.isArray(keys) ? keys : []).filter(k => k && !S.saving.has(k));
         if (!list.length || S.applying || !canMark(S.latest, S.key, todayKey())) return;
-        if (state && pendingNow()) { alert(PENDING_TEXT); return; }
+        if (state && pendingNow()) { showAlert(PENDING_TEXT); return; }
         if (state !== 'done') { await writeMarks(list, state || null); return; }
         const by = nameOf();
         const ver = dayVer(S.day && S.day.data);      // 시작 때 보던 판 — 도중에 새 판이 오면 거기서 멈춘다
@@ -764,7 +764,7 @@ function createLocRecStore({ db, auth, getMemberName, sizeOf, altCtx, notify, li
                 taken.add(fa.alt.to);
                 alts.push({ key: f.key, alt: fa.alt, row: altRow(f.row, fa.alt) });
             });
-            if (alts.length && confirm(bulkAltText(alts.map(x => ({ code: x.row.code, from: x.row.from, to: x.alt.to }))))) {
+            if (alts.length && await showConfirm(bulkAltText(alts.map(x => ({ code: x.row.code, from: x.row.from, to: x.alt.to }))), { okText: '이 자리로 처리', danger: true })) {
                 await step(alts, (x) => txApply(x.row, by, ver, x.alt));
                 const fixed = new Set();
                 alts.forEach(x => {
@@ -783,22 +783,22 @@ function createLocRecStore({ db, auth, getMemberName, sizeOf, altCtx, notify, li
                 if (blockedN) { const bk = new Set(dst.map(f => f.key)); fails = fails.filter(f => !bk.has(f.key)); }
             }
         }
-        if (ok) remind();
-        if (stopText) alert(stopText);
+        if (ok) await remind();                  // 안내 창이면(대시보드) 닫은 뒤 다음 창 — 예전 alert 처럼 차례로
+        if (stopText) await showAlert(stopText);
         const clean = fails.map(({ row, ...f }) => f);           // 문구에는 코드·자리·이유만
         const head = blockedN ? `쓸 수 없는 자리 ${blockedN}건은 처리하지 않고 넘겼습니다 — ${REBUILD_HINT}.\n` : '';
-        if (!clean.length) { if (head) alert(head.trim()); return; }
-        if (stopText || pendingNow()) { alert(head + bulkSummaryText(ok, clean, undefined, done, 0)); return; }
+        if (!clean.length) { if (head) showAlert(head.trim()); return; }
+        if (stopText || pendingNow()) { showAlert(head + bulkSummaryText(ok, clean, undefined, done, 0)); return; }
         // 표시만 할 수 있는 건(markOnlyOk)만 묻는다 — 오늘 다른 상품을 넣은 자리(dstMovedToday)는 요약에만
         const markable = clean.filter(markOnlyOk);
         const text = head + bulkSummaryText(ok, clean, undefined, done, markable.length);
-        if (!markable.length) { alert(text); return; }
-        if (confirm(text)) await writeMarks(markable.map(f => f.key), 'done');
+        if (!markable.length) { showAlert(text); return; }
+        if (await showConfirm(text)) await writeMarks(markable.map(f => f.key), 'done');
     }
 
     function writeXlsx(rows, sheetName, fileName) {
         const X = window.XLSX;
-        if (!X || !X.utils) { alert('엑셀 도구를 불러오지 못했습니다. 새로고침 후 다시 해 주세요.'); return; }
+        if (!X || !X.utils) { showAlert('엑셀 도구를 불러오지 못했습니다. 새로고침 후 다시 해 주세요.', { isError: true, title: '엑셀을 만들지 못했습니다' }); return; }
         if (!rows.length) return;
         const ws = X.utils.json_to_sheet(excelRows(rows, { sizeOf: sizeOfFn }), { header: EXCEL_COLS });   // 로케이션(칸수) — sizeOf 는 옛 문서 행 보충(location.js)
         ws['!cols'] = [{ wch: 20 }, { wch: 15 }, { wch: 40 }, { wch: 25 }, { wch: 15 }, { wch: 26 }];   // 기존 [변경 추천] 엑셀과 같은 폭 + 로케이션(자리/ 코드)

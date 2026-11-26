@@ -28,7 +28,7 @@
 import { doc, getDoc, setDoc, updateDoc, deleteField, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=b9a7199f3e1d-c80c27e9';
 import { canFeature, currentPerm } from './feature-gate.js?v=7eaa46dbb8e9-a5458f75';
-import { showConfirm } from './utils.js?v=b14a118c2b0c-7bf0fcab';
+import { showConfirm } from './utils.js?v=32969da5faa9-163bcbc9';
 import { KEYS, LIMITS, FIELD_TEXT, normalize, sameValues, serverRows, sourceText, guideLines } from './lib/locrec-settings.js?v=69b4df4ce6e8-6be192b7';
 import { autoSort, CARD_LAYOUT, SPLIT_EX_RE } from './lib/loc-cards.js?v=436e88b31445-bac5ec02';
 import {
@@ -314,12 +314,13 @@ function 자동정렬표시() {
     if (now) now.textContent = !보드 || !combos.length ? '' : hit ? `지금 배치: ${자동정렬이름[hit]}` : '지금 배치: 직접 조정함';
 }
 
-function 자동정렬(preset) {
+async function 자동정렬(preset) {
     if (!canSettings() || !보드) return;
     const combos = Object.keys(칸수);
     if (!combos.length) { 상태('lrs-status', '로케이션 자료를 아직 읽지 못해 자동 정렬을 할 수 없습니다 — 잠시 뒤 탭을 다시 열어 주세요.', 'error'); return; }
-    if (!confirm(`자동 정렬(${자동정렬이름[preset] || preset})로 카드 줄을 다시 짭니다.\n`
-        + '지금 줄 배치와 \'동 1칸 = 줄\' 값이 바뀝니다(제외 칸은 그대로).\n저장하기 전이면 탭을 다시 열어 저장된 배치로 돌아갈 수 있습니다.\n계속할까요?')) return;
+    if (!(await showConfirm(`자동 정렬(${자동정렬이름[preset] || preset})로 카드 줄을 다시 짭니다.\n`
+        + '지금 줄 배치와 \'동 1칸 = 줄\' 값이 바뀝니다(제외 칸은 그대로).\n저장하기 전이면 탭을 다시 열어 저장된 배치로 돌아갈 수 있습니다.\n계속할까요?'))) return;
+    if (!보드) return;   // 확인 창이 떠 있는 동안 보드가 사라졌으면
     try {
         const cards = autoSort(combos, preset, { priorities: { ...(기준우선순위 || {}), excludeCombos: 보드.exclude }, layout: CARD_LAYOUT });
         고른카드 = null;
@@ -578,9 +579,9 @@ window.saveLocRecSettings = async function () {
     const sv = legacyKeep ? { ok: true, value: null, unassigned: 0 }
         : 보드 ? boardToSave(보드, { poses: 위치읽기() }) : { ok: false, errors: ['카드 화면이 준비되지 않았습니다'] };
     if (!sv.ok) { 보드그리기(); 상태('lrs-status', `동선 기준 카드를 저장할 수 없습니다: ${sv.errors.join(' / ')}`, 'error'); return; }
-    if (!legacyKeep && 저장방식 !== 'cards' && !confirm('동선 기준이 카드 순서 방식으로 바뀝니다.\n'
+    if (!legacyKeep && 저장방식 !== 'cards' && !(await showConfirm('동선 기준이 카드 순서 방식으로 바뀝니다.\n'
         + '다음 추천부터 구역 순위·동 순서 대신 카드 순서로 계산합니다(변경 추천 지표가 이날부터 예전과 이어지지 않을 수 있습니다).\n'
-        + '되돌리기: [옛 방식으로]\n저장할까요?')) {
+        + '되돌리기: [옛 방식으로]\n저장할까요?'))) {
         상태('lrs-status', '저장하지 않았습니다.');
         return;
     }

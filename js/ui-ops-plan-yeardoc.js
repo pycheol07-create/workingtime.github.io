@@ -5,8 +5,8 @@
 //   [과제로 만들기](자동화·데이터 관리 — 관리자, D4)는 c.makeBtn(key, 이름 없는 초안). 4장에 목표 연결 편집(관리자)·실적 줄, 11장에 그 해 과제 목록.
 //   금액은 9장(관리자)만, 이름 없음. ⚠️ role=dialog·data-act 금지.
 
-import { esc, n0, n1, card, fmtDay, ok } from './ui-ops-plan-parts.js?v=65a5f815db05-895d8afe';
-import { YEARDOC_SECTIONS } from './lib/plan-yeardoc.js?v=1b83e167d3fb-2ae196cd';
+import { esc, n0, n1, card, fmtDay, ok } from './ui-ops-plan-parts.js?v=4988aac60dc6-895d8afe';
+import { YEARDOC_SECTIONS } from './lib/plan-yeardoc.js?v=e281de9b3c2b-2ae196cd';
 import { AUTO_STATUS_LABEL } from './lib/plan-auto-catalog.js?v=64939e660a8a-676766c7';
 import { SEASON_BUNDLES } from './lib/plan-season-catalog.js?v=92c4e281437b-3025c607';
 

@@ -11,10 +11,10 @@
 //   새 공급처는 반영 직전 확인 후 대장에 이름 빈칸으로 등록(ensureSuppliers). 설계: 이지어드민상품엑셀_설계.md
 // ⚠️ 원가 값을 console 에 찍지 말 것 — 시간·행 수만.
 import { S, applyLocalProduct } from './products-store.js?v=12e37e026ce6-ee5ce71b';
-import { C, ledgerCodes, loadLedger } from './products-cost.js?v=cd0dc23603d4-b46a7823';
-import { esc, toast, route, renderBasis } from './products.js?v=cd0dc23603d4-749f10a1';
-import { costChangeText } from './products-cost.js?v=cd0dc23603d4-b46a7823';
-import { catalogChangeText } from './products-detail.js?v=cd0dc23603d4-dcfb762d';
+import { C, ledgerCodes, loadLedger } from './products-cost.js?v=c5b17c73c306-b46a7823';
+import { esc, toast, route, renderBasis } from './products.js?v=c5b17c73c306-749f10a1';
+import { costChangeText } from './products-cost.js?v=c5b17c73c306-b46a7823';
+import { catalogChangeText } from './products-detail.js?v=c5b17c73c306-dcfb762d';
 import { writeBucket, writeCatalogSummary, ensureSuppliers } from './products-write.js?v=c12131c8d88b-699dc490';
 import { catalogBucketId, costBucketId, CATALOG_BUCKETS } from './lib/product-bucket.js?v=842897a6efab-a72f5a26';
 import {
@@ -23,7 +23,7 @@ import {
     sheetToAoa, goneSelected
 } from './lib/product-excel-rows.js?v=acc096d72726-b7ba4cab';
 import { EZ_COST_COLS, detectEzadmin, ezCatalogGroups, diffEzCost } from './lib/product-ezadmin.js?v=a5188298c0df-4f64b2cb';
-import { friendlyFirebaseError } from './utils.js?v=b14a118c2b0c-7bf0fcab';   // 원시 오류 코드 대신 할 일 한 줄
+import { friendlyFirebaseError, showConfirm } from './utils.js?v=32969da5faa9-163bcbc9';   // 원시 오류 코드 대신 할 일 한 줄
 import { REASON_LABEL } from './lib/product-price-text.js?v=2ff38b54a885-9cac83e4';
 
 const XLSX_URL = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
@@ -127,7 +127,7 @@ export function openUpload(kind, { aoa: givenAoa = null, fname: givenName = '' }
     });
     body.querySelector('[data-act="cur"]')?.addEventListener('click', async () => {
         if (!C.costs) { toast('원가를 읽지 못한 상태입니다'); return; }
-        if (!confirm('원가 원본 파일을 내려받습니다(관리자 전용).\nAI·메신저·메일로 보내지 마세요. 계속할까요?')) return;
+        if (!(await showConfirm('원가 원본 파일을 내려받습니다(관리자 전용).\nAI·메신저·메일로 보내지 마세요. 계속할까요?'))) return;
         try { await downloadAoa(costExportAoa(S.products, C.costs), '원가', `원가_현재값_관리자전용_${ymd()}.xlsx`); }
         catch (e) { toast('엑셀을 만들지 못했습니다'); }
     });
@@ -337,11 +337,11 @@ async function apply(sel) {
         msg.textContent = `버킷 ${size.over.join(', ')} 이(가) ${Math.round(BUCKET_LIMIT / 1000)}KB 를 넘어 반영하지 않습니다 — 상품이 너무 많거나 길어 버킷을 더 나눠야 합니다(개발 작업 필요)`;
         return;
     }
-    if (!confirm(`${sel.length.toLocaleString()}개 품목을 반영합니다${selGone || sg.options ? ` (사라짐 상품 ${selGone}개 · 옵션 ${sg.options}개 포함)` : ''}. 계속할까요?`)) return;
+    if (!(await showConfirm(`${sel.length.toLocaleString()}개 품목을 반영합니다${selGone || sg.options ? ` (사라짐 상품 ${selGone}개 · 옵션 ${sg.options}개 포함)` : ''}. 계속할까요?`))) return;
     // 이지어드민 원가: 대장에 없는 공급처는 이름 빈칸으로 먼저 등록(원가에는 코드만 들어간다)
     const ledger = ledgerCodes();
     const newSups = cat ? [] : [...new Set(sel.map(e => e.newSup).filter(c => c && !ledger.has(c)))];
-    if (newSups.length && !confirm(`공급처 ${newSups.length.toLocaleString()}개를 대장에 새로 등록합니다(이름 빈칸). 계속할까요?`)) return;
+    if (newSups.length && !(await showConfirm(`공급처 ${newSups.length.toLocaleString()}개를 대장에 새로 등록합니다(이름 빈칸). 계속할까요?`))) return;
     busy = true;
     msg.className = 'pd-note';
     const prog = box.querySelector('[data-f="prog"]');

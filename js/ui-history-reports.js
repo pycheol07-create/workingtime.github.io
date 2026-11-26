@@ -1,7 +1,7 @@
 // === js/ui-history-reports.js ===
-import { buildMemberHourlyWageMap, getTodayDateString } from './utils.js?v=b14a118c2b0c-7bf0fcab';
+import { buildMemberHourlyWageMap, getTodayDateString } from './utils.js?v=32969da5faa9-163bcbc9';
 import { aliasHistoryView } from './lib/task-alias-view.js?v=2e131477eb8e-af660ceb';
-import { periodSpeeds, previousPeriodOf, periodDaysOf, lastDayIdOf } from './lib/ops-metrics.js?v=4607b43e8a55-58d6bcbb';
+import { periodSpeeds, previousPeriodOf, periodDaysOf, lastDayIdOf } from './lib/ops-metrics.js?v=89a4eac4b3f4-58d6bcbb';
 
 import {
     calculateReportKPIs,
@@ -12,11 +12,11 @@ import {
     calculateAdvancedProductivity,
     calculateBenchmarkOEE,
     calculateAverageStaffing
-} from './ui-history-reports-logic.js?v=63b4c75e437b-28b3f058';
+} from './ui-history-reports-logic.js?v=3677971659b5-28b3f058';
 
 import {
     renderGenericReport
-} from './ui-history-reports-renderer.js?v=458768bbd186-42a830f1';
+} from './ui-history-reports-renderer.js?v=337a23339347-42a830f1';
 
 
 const _prepareReportData = (currentDaysData, previousDaysData, appConfig) => {

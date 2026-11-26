@@ -1,10 +1,10 @@
 // === js/ui-history-leave.js ===
 import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
-import { showToast, isMemberActiveOn, friendlyFirebaseError, escapeHtml, showConfirm } from './utils.js?v=b14a118c2b0c-7bf0fcab';
+import { showToast, isMemberActiveOn, friendlyFirebaseError, escapeHtml, showConfirm, showAlert } from './utils.js?v=32969da5faa9-163bcbc9';
 import { doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // ✅ 엑셀 변환 함수 불러오기
-import { downloadLeaveLedgerExcel } from './history-excel.js?v=80cd904f3fd2-084171ab';
+import { downloadLeaveLedgerExcel } from './history-excel.js?v=5bbcc3565545-084171ab';
 import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=152edbc1d09a-ab7817f6';
 import { updateLeaveSchedule } from './config.js?v=242bb63abbe9-dd1665a9';
 
@@ -459,9 +459,9 @@ async function openLeaveManager(member) {
         const startDate = document.getElementById('lm-start-date').value;
         const endDate = document.getElementById('lm-end-date').value;
 
-        if(!startDate) { alert('시작일을 선택하세요.'); return; }
+        if(!startDate) { showAlert('시작일을 선택하세요.', { title: '입력 확인', isError: true }); return; }
         if(!type.includes('반차') && endDate && endDate < startDate) {
-            alert('종료일이 시작일보다 앞입니다. 날짜를 확인하세요.');
+            showAlert('종료일이 시작일보다 앞입니다. 날짜를 확인하세요.', { title: '입력 확인', isError: true });
             return;
         }
 
@@ -520,7 +520,7 @@ async function openLeaveManager(member) {
         } catch(e) {
             console.error(e);
             setSaving(false);   // 입력칸은 그대로 둔다 — 고쳐서 다시 누르면 된다
-            alert('저장하지 못했습니다 — ' + friendlyFirebaseError(e) + '.');
+            showAlert('저장하지 못했습니다 — ' + friendlyFirebaseError(e) + '.', { title: '저장 실패', isError: true });
         }
     };
 }

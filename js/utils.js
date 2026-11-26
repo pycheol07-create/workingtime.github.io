@@ -170,6 +170,7 @@ export const showToast = (message, isError = false, opts = {}) => {
 // 자체 DOM을 생성하므로 어느 페이지에서나 동작(별도 마크업/컨테이너 불필요).
 // opts.backdrop === false 면 바깥 클릭으로 닫히지 않는다(두 단추가 모두 '실행' 이라 바깥 클릭=취소가 위험한 창 — 예: 메모 충돌).
 // Esc·Enter 는 문서 capture 단계에서 먼저 받아 아래 창의 키 처리로 넘기지 않는다(2026-11-26 — 확인창만 닫히고 아래 창은 그대로).
+// z-index 2147483646 — 브라우저 기본 창처럼 맨 위(로딩 덮개 999999·권한 가림막·상단바 알림 패널보다 위, 에뮬레이터 띠 아래).
 export const showConfirm = (message, opts = {}) => {
     const { title = '확인', okText = '확인', cancelText = '취소', danger = false, backdrop = true } = opts;
     const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
@@ -177,7 +178,7 @@ export const showConfirm = (message, opts = {}) => {
         const ov = document.createElement('div');
         // data-esc-modal·data-esc-close — 공용 ESC(js/modal-esc.js)가 아래 창 대신 이 확인창을 맨 위로 보고 [취소]를 누르게
         ov.setAttribute('data-esc-modal', '');
-        ov.style.cssText = 'position:fixed;inset:0;z-index:100000;background:rgba(30,40,60,.45);display:flex;align-items:center;justify-content:center;padding:16px;';
+        ov.style.cssText = 'position:fixed;inset:0;z-index:2147483646;background:rgba(30,40,60,.45);display:flex;align-items:center;justify-content:center;padding:16px;';
         // D안: 주 버튼 = 주색 채움, 위험 = 흰 바탕 + 장미 테두리 (다크 미대응 — 인라인 스타일)
         const okStyle = danger ? 'border:1px solid #C9808A;background:#fff;color:#A0525C;' : 'border:1px solid #2F62C9;background:#2F62C9;color:#fff;';
         ov.innerHTML = `
@@ -207,6 +208,63 @@ export const showConfirm = (message, opts = {}) => {
         const firstFocus = ov.querySelector(danger ? '[data-act="cancel"]' : '[data-act="ok"]');
         if (firstFocus) firstFocus.focus();
     });
+};
+
+// 네이티브 alert·prompt 대체(2026-11-26 앱 점검) — 앱 모양 안내 창. 둘 다 Promise(닫힐 때 끝남).
+// ⚠️ role="alertdialog" 이고 단추에 data-act 를 쓰지 않는다 — 업무마감봇은 div[role=dialog] + [data-act] 를 '마감 확인창' 으로
+//    읽어 누른다(앱\업무마감봇\실행기.py). 안내 창이 그 흐름에 끼어들지 않게 다른 표시를 쓴다. 공용 ESC(js/modal-esc.js)용 data-esc-* 는 둔다.
+const dlgEsc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+function openAppDialog({ title, message, isError, input, okText = '확인', cancelText = '취소' }) {
+    return new Promise((resolve) => {
+        const ov = document.createElement('div');
+        ov.setAttribute('data-esc-modal', '');
+        ov.style.cssText = 'position:fixed;inset:0;z-index:2147483646;background:rgba(30,40,60,.45);display:flex;align-items:center;justify-content:center;padding:16px;';
+        const head = title ? `<div style="padding:20px 20px 8px;font-weight:700;font-size:16px;color:${isError ? '#A0525C' : '#23272E'};">${dlgEsc(title)}</div>` : '<div style="height:14px"></div>';
+        const field = input ? `<div style="padding:0 20px 14px;"><input data-dlg-input type="text" style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid #D6DAE0;border-radius:10px;font-size:14px;color:#23272E;background:#fff;" value="${dlgEsc(input.value)}" placeholder="${dlgEsc(input.placeholder || '')}"></div>` : '';
+        const cancelBtn = input ? `<button data-dlg="cancel" data-esc-close style="padding:8px 16px;border-radius:999px;border:1px solid #D6DAE0;background:#fff;color:#23272E;font-weight:700;font-size:13px;cursor:pointer;">${dlgEsc(cancelText)}</button>` : '';
+        ov.innerHTML = `
+            <div role="alertdialog" aria-modal="true" style="background:#fff;border-radius:18px;max-width:400px;width:100%;box-shadow:0 8px 24px rgba(30,40,60,.12);overflow:hidden;font-family:inherit;">
+              ${head}
+              <div style="padding:0 20px 16px;font-size:14px;color:#646B75;line-height:1.55;white-space:pre-line;max-height:60vh;overflow:auto;">${dlgEsc(message)}</div>
+              ${field}
+              <div style="display:flex;gap:8px;padding:12px 16px;background:#F7F8FA;border-top:1px solid #E6E8EC;justify-content:flex-end;">
+                ${cancelBtn}
+                <button data-dlg="ok" ${input ? '' : 'data-esc-close'} style="padding:8px 16px;border-radius:999px;border:1px solid #2F62C9;background:#2F62C9;color:#fff;font-weight:700;font-size:13px;cursor:pointer;">${dlgEsc(okText)}</button>
+              </div>
+            </div>`;
+        const inp = ov.querySelector('[data-dlg-input]');
+        const done = (ok) => {
+            ov.remove(); document.removeEventListener('keydown', onKey, true);
+            resolve(input ? (ok ? inp.value : null) : undefined);
+        };
+        const onKey = (e) => {
+            if (e.key === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); done(false); }
+            else if (e.key === 'Enter') {
+                const onCancel = e.target && e.target.closest && e.target.closest('[data-dlg="cancel"]');
+                e.preventDefault(); e.stopImmediatePropagation(); done(!onCancel);
+            }
+        };
+        ov.addEventListener('click', (e) => {
+            if (e.target === ov) { if (!input) done(false); return; }   // 안내 창은 바깥 클릭으로 닫힘, 입력 창은 안 닫힘(입력 보호)
+            const btn = e.target.closest('[data-dlg]');
+            if (btn) done(btn.dataset.dlg === 'ok');
+        });
+        document.addEventListener('keydown', onKey, true);
+        document.body.appendChild(ov);
+        const f = inp || ov.querySelector('[data-dlg="ok"]');
+        if (f) { f.focus(); if (inp) inp.select(); }
+    });
+}
+/** alert() 대신 — 앱 모양 안내 창. await 하면 닫힐 때까지 기다린다. opts: { title, isError, okText } */
+export const showAlert = (message, opts = {}) => {
+    if (typeof document === 'undefined' || !document.body) { try { window.alert(String(message)); } catch (_) {} return Promise.resolve(); }
+    return openAppDialog({ title: opts.title || '', message, isError: !!opts.isError, okText: opts.okText || '확인' });
+};
+/** prompt() 대신 — 입력 창. 확인 → 입력한 글(빈 글 포함), 취소·Esc → null (prompt 와 같은 약속). opts: { title, placeholder, okText, cancelText } */
+export const showPrompt = (message, defaultValue = '', opts = {}) => {
+    if (typeof document === 'undefined' || !document.body) { try { return Promise.resolve(window.prompt(String(message), defaultValue)); } catch (_) { return Promise.resolve(null); } }
+    return openAppDialog({ title: opts.title || '', message, input: { value: defaultValue == null ? '' : String(defaultValue), placeholder: opts.placeholder },
+        okText: opts.okText || '확인', cancelText: opts.cancelText || '취소' });
 };
 
 export const calcElapsedMinutes = (start, end, pauses = []) => {

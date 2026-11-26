@@ -17,9 +17,9 @@
 //   옵션추가항목1 을 쓴다(js/china-mibal2-live-loc.js — 오래된 자료면 받기를 막음). 파일 이름에 '시험_' 을 붙이지 않는다.
 //   쓰기 버튼(올리기·초기화·비우기·앞/뒤)은 그 모듈이 켠다 — 이 파일은 live 여도 쓰지 않는다.
 import { getDocs, collection } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { ensureScanStore } from './china-mibal2-scan.js?v=eb7187a6c636-cd25d56d';
+import { ensureScanStore } from './china-mibal2-scan.js?v=4958205a69d4-895aaef7';
 import { stockLogPick, todayLocRows, existingLocRows, dayLocAoa, locMoveAoa, locPartsArr, newLocPositionOf } from './lib/loc-mode.js?v=cbf323cf3e0b-33e59b85';
-import { friendlyFirebaseError, showConfirm } from './utils.js?v=b14a118c2b0c-7bf0fcab';
+import { friendlyFirebaseError, showConfirm, showAlert } from './utils.js?v=32969da5faa9-163bcbc9';
 
 const STOCKLOG_COLL = 'ChinaStockGoods_StockLog';
 const RENDER_CAP = 300;   // 기존재고 표시 상한(기존 LM_RENDER_CAP 과 같다). 엑셀은 전체
@@ -192,16 +192,17 @@ export function setupLocMode(opts) {
         const r = dayLocAoa({ assign: store.assign(), floor2: store.floor2.map, stockLog, shownRows: shown, allRows: all, pos: pos() });
         if (r.hidden && !(await showConfirm(`⚠️ 검색으로 화면에서 숨겨진 지정 상품 ${r.hidden}건은 받는 파일에서 빠집니다.\n(검색을 지우고 받으면 모두 들어갑니다)\n\n그래도 받을까요?`,
             { title: '그래도 받을까요?', okText: '그래도 받기', danger: true }))) return;
-        if (!r.count) { alert('당일 입고분으로 위치가 지정된 상품이 없습니다.\n(스캐너 위치모드 "당일 입고분"으로 지정 후 이용하세요)'); return; }
-        if (!r.f2Known) alert('비축창고 입고분이 비어 있어 \'파일에 없던 상품\' 판정을 건너뜁니다.\n(위치값 파일에 \'비고\' 열이 들어가지 않습니다)');
-        if (r.flagged && !confirm(`⚠️ 비축창고 입고파일에 없던 상품 ${r.flagged}건이 포함되어 있습니다.\n(패킹과 다르게 도착했을 수 있음 — 위치값 파일 '비고'에 '파일에 없던 상품'으로 표시됩니다)\n\n그대로 받을까요?`)) return;
+        if (!r.count) { showAlert('당일 입고분으로 위치가 지정된 상품이 없습니다.\n(스캐너 위치모드 "당일 입고분"으로 지정 후 이용하세요)', { title: '받을 위치가 없습니다' }); return; }
+        if (!r.f2Known) await showAlert('비축창고 입고분이 비어 있어 \'파일에 없던 상품\' 판정을 건너뜁니다.\n(위치값 파일에 \'비고\' 열이 들어가지 않습니다)', { title: '알림' });
+        if (r.flagged && !(await showConfirm(`⚠️ 비축창고 입고파일에 없던 상품 ${r.flagged}건이 포함되어 있습니다.\n(패킹과 다르게 도착했을 수 있음 — 위치값 파일 '비고'에 '파일에 없던 상품'으로 표시됩니다)\n\n그대로 받을까요?`,
+            { title: '그대로 받을까요?', okText: '그대로 받기' }))) return;
         if (r.risky && !(await showConfirm(`⚠️ ${SRC}에 없는 상품 ${r.risky}건이 있습니다.\n기존 옵션추가항목1 을 알 수 없어 '스캔한 자리만' 들어가므로, 이지어드민에 이미 있던 자리값을 덮어쓸 수 있습니다.\n\n그래도 받을까요?`,
             { title: '그래도 받을까요?', okText: '그래도 받기', danger: true }))) return;
         writeXls(r.aoa, live ? `위치값_${ymd()}.xls` : `시험_위치값_${ymd()}.xls`);
     }
     async function downloadExisting() {
         const r = locMoveAoa({ rows: existingLocRows({ assign: store.assign(), search: search() }), pos: pos() });
-        if (!r.count) { alert('새로 추가된 위치가 없습니다.\n(기존재고 업로드 후 스캐너 "기존재고" 모드로 새 자리를 지정하세요)'); return; }
+        if (!r.count) { showAlert('새로 추가된 위치가 없습니다.\n(기존재고 업로드 후 스캐너 "기존재고" 모드로 새 자리를 지정하세요)', { title: '받을 위치가 없습니다' }); return; }
         if (r.flagged && !(await showConfirm(`⚠️ 기존값(업로드 파일)에 없던 상품 ${r.flagged}건이 포함되어 있습니다.\n이 상품들은 기존 옵션추가항목1 없이 '스캔한 자리만' 들어가, 이지어드민의 기존값을 덮어쓸 수 있습니다.\n\n그래도 전체 받을까요?`,
             { title: '그래도 전체 받을까요?', okText: '그래도 받기', danger: true }))) return;
         writeXls(r.aoa, live ? `기존재고_위치값_${ymd()}.xls` : `시험_기존재고_위치값_${ymd()}.xls`);

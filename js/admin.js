@@ -8,8 +8,8 @@ import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/
 import { doc, getDocFromServer } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { menuConfigOf } from './lib/perm.js?v=c1e53d91da8e-49afeea3';
 import { verifyPermSave, autoAssignedCount, renameEmails } from './lib/perm-model.js?v=84f63a17f29d-4f0ab0b3';
-import { getPermModel } from './admin-perm.js?v=4a1e4ae05a24-80655428';
-import { showConfirm } from './utils.js?v=b14a118c2b0c-7bf0fcab';
+import { getPermModel } from './admin-perm.js?v=55b78c4a96db-24b13b70';
+import { showConfirm, showAlert } from './utils.js?v=32969da5faa9-163bcbc9';
 import { ensureTaskIds, newTaskId, isSystemTaskId, SYSTEM_TASKS, taskIdOf } from './lib/task-ids.js?v=9c41e71742ef-83b1f46d';
 import { planTaskWidget, widgetTaskChoices, duplicateTasks, migrateDashboardTaskItems, taskWidgetId } from './lib/task-config-sync.js?v=970a6d3589ff-85dd0720';
 
@@ -33,13 +33,13 @@ import {
     findDeadMenuItems,
     countNamelessMenuRows,
     MOVE_BTNS
-} from './admin-ui.js?v=ba87e4e22664-6be52dcb';
+} from './admin-ui.js?v=dd51bef86e31-6be52dcb';
 
 import {
     collectConfigFromDOM,
     validateConfig,
     detectEmailRenames
-} from './admin-logic.js?v=d9e3542fda2f-c20881d5';
+} from './admin-logic.js?v=5ae029e87f83-c20881d5';
 
 let db, auth;
 let appConfig = {};
@@ -163,9 +163,9 @@ document.addEventListener('DOMContentLoaded', () => {
                             if (!saveBtn.dataset.lockedByPrivate) saveBtn.dataset.lockedByPrivate = saveBtn.innerHTML;
                             saveBtn.disabled = true; saveBtn.textContent = '저장 잠김 — 새로고침 필요';
                         }
-                        alert('⚠️ 급여·원가를 불러오지 못했습니다.\n\n지금 화면의 급여 칸은 실제 값이 아닙니다(0).\n'
+                        showAlert('⚠️ 급여·원가를 불러오지 못했습니다.\n\n지금 화면의 급여 칸은 실제 값이 아닙니다(0).\n'
                             + '이 상태로 저장하면 전 직원 급여가 0 으로 덮이므로 저장을 잠갔습니다.\n'
-                            + '새로고침해 주세요. 계속되면 관리자 화면의 권한 설정을 확인하세요.');
+                            + '새로고침해 주세요. 계속되면 관리자 화면의 권한 설정을 확인하세요.', { title: '불러오기 실패', isError: true });
                     }
                 } else {
                     if (adminContent) {
@@ -175,7 +175,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             } catch (e) {
                 console.error("초기화 중 오류:", e);
-                alert(`초기화 중 오류가 발생했습니다: ${e.message}`);
+                showAlert(`초기화 중 오류가 발생했습니다: ${e.message}`, { title: '초기화 실패', isError: true });
             }
         } else {
              setShellContext({ signedIn: false });
@@ -320,10 +320,10 @@ let lastPreviewError = null;
 // 미리보기를 못 만들면 저장 전 설정(appConfig)으로 다시 그리지 않는다 — 이번에 추가·변경한 줄이 사라진다. 알리고 멈춘다.
 function previewOrWarn() {
     const cfg = previewTaskConfig();
-    if (!cfg) alert('화면 값을 읽지 못해 목록을 다시 그리지 않았습니다(입력한 내용은 그대로 둡니다).\n'
+    if (!cfg) showAlert('화면 값을 읽지 못해 목록을 다시 그리지 않았습니다(입력한 내용은 그대로 둡니다).\n'
         + (lastPreviewError && lastPreviewError.message ? lastPreviewError.message + '\n' : '')
         + '위 문제를 먼저 고친 뒤 다시 해 주세요.\n'
-        + '(화면 전체를 한 번에 읽으므로 팀원 관리·권한 관리 등 다른 탭의 오류일 수 있습니다 — 그 탭을 먼저 고쳐 주세요)');
+        + '(화면 전체를 한 번에 읽으므로 팀원 관리·권한 관리 등 다른 탭의 오류일 수 있습니다 — 그 탭을 먼저 고쳐 주세요)', { title: '다시 그리지 않음', isError: true });
     return cfg;
 }
 function refreshTaskViews() {
@@ -375,10 +375,11 @@ async function prepareLeaveCleanup(oldConfig, newConfig) {
     toDelete.forEach(l => { countByMember[l.member] = (countByMember[l.member] || 0) + 1; });
     const summary = Object.entries(countByMember).map(([m, c]) => `${m} ${c}건`).join(', ');
 
-    const confirmed = confirm(
+    const confirmed = await showConfirm(
         `연차 사용기한이 변경되어 새 적용 시작일 이전의 연차/반차 내역을 정리합니다.\n\n` +
         `삭제 대상: ${summary} (총 ${toDelete.length}건)\n\n` +
-        `삭제된 내역은 복구할 수 없습니다. 계속하시겠습니까?`
+        `삭제된 내역은 복구할 수 없습니다. 계속하시겠습니까?`,
+        { okText: '삭제하고 저장', danger: true }
     );
     if (!confirmed) return 'cancelled';
 
@@ -393,7 +394,7 @@ async function handleSaveAll() {
     const btn = document.getElementById('save-all-btn');
     // 버튼을 잠가도 단축키·다른 경로로 들어올 수 있으므로 함수 입구에서 한 번 더 막는다.
     if (privateLoadFailed) {
-        alert('급여·원가를 불러오지 못한 상태라 저장할 수 없습니다. 새로고침해 주세요.');
+        showAlert('급여·원가를 불러오지 못한 상태라 저장할 수 없습니다. 새로고침해 주세요.', { title: '저장할 수 없음', isError: true });
         return;
     }
     const btnHtml = btn ? btn.innerHTML : '';   // 끝나면 아이콘까지 그대로 되돌린다
@@ -448,10 +449,10 @@ async function handleSaveAll() {
         // 눌러도 열리지 않을 메뉴는 저장 전에 알린다(막지는 않는다 — 만들다 만 상태로 저장할 수도 있다).
         const deadMenus = findDeadMenuItems(newConfig.dashboardMenu);
         const nameless = countNamelessMenuRows();   // 이름이 비어 저장에서 빠질 줄
-        if ((deadMenus.length || nameless) && !confirm('⚠️ 메뉴 관리에 확인할 줄이 있습니다.\n\n'
+        if ((deadMenus.length || nameless) && !(await showConfirm('⚠️ 메뉴 관리에 확인할 줄이 있습니다.\n\n'
             + (deadMenus.length ? '눌러도 열리지 않는 메뉴(연결할 곳 없음):\n' + deadMenus.map(n => ' · ' + n).join('\n') + '\n\n' : '')
             + (nameless ? `이름이 비어 있어 저장되지 않고 사라질 메뉴: ${nameless}개\n\n` : '')
-            + '그래도 저장할까요?')) {
+            + '그래도 저장할까요?'))) {
             return;
         }
 
@@ -463,7 +464,7 @@ async function handleSaveAll() {
         // 다른 창이 먼저 저장했으면 덮지 않는다(permRev 비교) — 규칙의 permRev +1 검사가 게시되기 전에도 화면에서 같은 판정을 한다.
         const serverRev = await readServerPermRev();
         if (serverRev !== permModel.baseRev) {
-            alert('⚠️ 다른 창에서 먼저 저장했습니다 — 새로고침 후 다시 해 주세요.\n(이 화면에 입력한 내용은 그대로 두었습니다. 저장한 것은 없습니다)');
+            showAlert('⚠️ 다른 창에서 먼저 저장했습니다 — 새로고침 후 다시 해 주세요.\n(이 화면에 입력한 내용은 그대로 두었습니다. 저장한 것은 없습니다)', { title: '저장 멈춤', isError: true });
             return;
         }
 
@@ -485,7 +486,7 @@ async function handleSaveAll() {
         setAdminDirty(false);   // 저장 안 한 변경 경고 해제
         // 퇴사자는 저장할 때 접근이 전부 해제된다. 말없이 지우면 관리자가 눈치채지 못하므로 알린다.
         const resignedCount = Object.keys(newConfig.resignedMembers || {}).length;
-        alert('✅ 모든 변경사항이 성공적으로 저장되었습니다!'
+        showAlert('✅ 모든 변경사항이 성공적으로 저장되었습니다!'
             + (leaveCleanup && leaveCleanup.deletedCount ? `\n(연차 내역 ${leaveCleanup.deletedCount}건 정리됨)` : '')
             + (resignedCount > 0 ? `\n(퇴사자 ${resignedCount}명은 권한 목록에서 제외되고 접근이 해제됩니다)` : '')
             + (autoCount > 0 ? `\n(옛 권한에서 자동 배정된 ${autoCount}명이 새 권한 형식으로 저장되었습니다)` : ''));
@@ -496,9 +497,9 @@ async function handleSaveAll() {
     } catch (e) {
         console.error("저장 실패:", e);
         // 규칙(permRev +1 검사)이 게시된 뒤 옛 값으로 저장하려 하면 permission-denied 가 난다
-        alert(e && (e.code === 'permission-denied' || e.code === 'perm-rev-conflict')
+        showAlert(e && (e.code === 'permission-denied' || e.code === 'perm-rev-conflict')
             ? '❌ 저장 거부됨 — 다른 창에서 먼저 저장했거나 권한이 없습니다. 새로고침 후 다시 해 주세요.\n(이 화면에 입력한 내용은 그대로 두었습니다)'
-            : `❌ 저장 실패:\n${e.message}`);
+            : `❌ 저장 실패:\n${e.message}`, { title: '저장 실패', isError: true });
     } finally {
         if (btn) { btn.disabled = false; btn.innerHTML = btnHtml; }
         syncSaveAllUI();   // innerHTML 을 되돌리면 '저장 안 됨' 표시가 저장 전 모양으로 돌아가므로 다시 맞춘다
@@ -564,7 +565,7 @@ function addKeyTask(taskName) {
     const list = (cfg.keyTasks || []).slice();
 
     if (list.some(t => t.trim().toLowerCase() === nameToAdd.trim().toLowerCase())) {
-        alert("이미 등록된 업무입니다.");
+        showAlert("이미 등록된 업무입니다.");
         return;
     }
     list.push(nameToAdd);
@@ -579,7 +580,7 @@ function addQuantityTask(taskName) {
 
     if (list.some(t => t.trim().toLowerCase() === nameToAdd.trim().toLowerCase())) {
         if (taskJustAdded === taskName) return; 
-        alert("이미 등록된 업무입니다.");
+        showAlert("이미 등록된 업무입니다.");
         return;
     }
     list.push(nameToAdd);
@@ -607,7 +608,7 @@ function addTaskWidget(taskName) {
         quantityTaskTypes: cfg.quantityTaskTypes || [],
         taskIdNames: cfg.taskIdNames || {}
     }, taskIdOf(taskName, cfg.taskIdNames));
-    if (plan.error) { alert(plan.error); return; }
+    if (plan.error) { showAlert(plan.error, { isError: true }); return; }
     renderDashboardItemsConfig(plan.dashboardItems, cfg);
     renderQuantityTasks(plan.quantityTaskTypes, cfg.taskIdNames);
     setAdminDirty(true);
@@ -928,7 +929,7 @@ function applyNewTaskLinks(taskName, { quantity, key, widget }) {
             // 업무 수량 위젯 — 숫자는 이 업무 처리량이 자동으로(연결 설정 없음)
             const plan = planTaskWidget({ dashboardItems: cfg.dashboardItems || [], quantityTaskTypes: qtyTasks,
                 taskIdNames: cfg.taskIdNames || {} }, taskIdOf(taskName, cfg.taskIdNames));
-            if (plan.error) alert(plan.error);
+            if (plan.error) showAlert(plan.error, { isError: true });
             else { qtyTasks = plan.quantityTaskTypes; renderDashboardItemsConfig(plan.dashboardItems, cfg); }
         }
         renderQuantityTasks(qtyTasks, cfg.taskIdNames);

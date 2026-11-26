@@ -13,8 +13,8 @@ import { doc, getDoc, getDocs, setDoc, collection, query, where, documentId } fr
 import { buildLocIndex } from './lib/mibal2-rows.js?v=221b7a831bbe-37c39e3c';
 import { locSourceOf, locFreshMsOf, locStaleReason } from './lib/mibal2-live.js?v=7ccac6277373-d7d6b954';
 import { locPartsArr, mergeCsvLocs } from './lib/loc-mode.js?v=cbf323cf3e0b-33e59b85';
-import { readSheetRowsAOA } from './china-mibal2-live-admin.js?v=f86563a8eb18-7200c875';
-import { showConfirm } from './utils.js?v=b14a118c2b0c-7bf0fcab';
+import { readSheetRowsAOA } from './china-mibal2-live-admin.js?v=5b274bc824f4-b09af5b0';
+import { showConfirm, showAlert } from './utils.js?v=32969da5faa9-163bcbc9';
 
 const CHINA = 'ChinaStockGoods';
 const NUM_LOC_SHARDS = 8;
@@ -72,18 +72,18 @@ export function setupLiveLoc(ctx) {
             const rows = await readSheetRowsAOA(file, ['상품코드']);
             let hi = -1, headers = [];
             for (let i = 0; i < Math.min(20, rows.length); i++) { const cl = rows[i].map(cleanKey); if (cl.includes('상품코드')) { hi = i; headers = cl; break; } }
-            if (hi < 0) { setLoading(false); alert('상품코드 열을 찾지 못했습니다.'); return; }
+            if (hi < 0) { setLoading(false); showAlert('상품코드 열을 찾지 못했습니다.', { title: '올리지 못했습니다', isError: true }); return; }
             const codeIdx = headers.indexOf('상품코드');
             let locIdx = -1;
             for (const name of ['옵션추가항목1', '로케이션', '위치', '옵션']) { const idx = headers.indexOf(name); if (idx >= 0 && idx !== codeIdx) { locIdx = idx; break; } }
-            if (locIdx < 0) { setLoading(false); alert("'옵션추가항목1' 열을 찾지 못했습니다.\n헤더에 '옵션추가항목1'(또는 로케이션/위치)이 있어야 합니다."); return; }
+            if (locIdx < 0) { setLoading(false); showAlert("'옵션추가항목1' 열을 찾지 못했습니다.\n헤더에 '옵션추가항목1'(또는 로케이션/위치)이 있어야 합니다.", { title: '올리지 못했습니다', isError: true }); return; }
             const entries = [];
             for (let i = hi + 1; i < rows.length; i++) {
                 const code = (rows[i][codeIdx] || '').toString().trim().toUpperCase();
                 if (!code) continue;
                 entries.push([code, normLocList(rows[i][locIdx])]);
             }
-            if (!entries.length) { setLoading(false); alert('상품코드가 있는 행이 없습니다.\n(파일이 비었거나 형식이 올바르지 않아 올리지 못했습니다)'); return; }
+            if (!entries.length) { setLoading(false); showAlert('상품코드가 있는 행이 없습니다.\n(파일이 비었거나 형식이 올바르지 않아 올리지 못했습니다)', { title: '올리지 못했습니다', isError: true }); return; }
             const assign = assignMapOf(await readShards());
             const now = Date.now();
             const byShard = {};
@@ -106,7 +106,7 @@ export function setupLiveLoc(ctx) {
             for (const sid in byShard) await setDoc(doc(db, CHINA, sid), { map: byShard[sid], updatedAt: new Date() }, { merge: true });
             setLoading(false);
             showToast(`✅ 기존재고 위치값 세팅 완료 (${entries.length - keptToday}건${mergedCnt ? ` · 먼저 찍힌 ${mergedCnt}건 병합` : ''}${keptToday ? ` · 당일입고 지정 ${keptToday}건은 그대로 둠` : ''})`);
-        } catch (err) { setLoading(false); alert('기존재고 위치값 처리 실패: ' + errText(err)); }
+        } catch (err) { setLoading(false); showAlert('기존재고 위치값 처리 실패: ' + errText(err), { title: '처리 실패', isError: true }); }
     }
 
     // ── [위치 초기화] — 기존 clearLocationData 와 같다 ──
@@ -120,17 +120,17 @@ export function setupLiveLoc(ctx) {
             for (let i = 0; i < NUM_LOC_SHARDS; i++) await setDoc(doc(db, CHINA, 'LOC_SHARD_' + i), { map: {}, updatedAt: new Date() });
             setLoading(false);
             showToast('✅ 위치 데이터 초기화 완료');
-        } catch (e) { setLoading(false); alert('초기화 실패: ' + errText(e)); }
+        } catch (e) { setLoading(false); showAlert('초기화 실패: ' + errText(e), { title: '초기화 실패', isError: true }); }
     }
 
     // ── [기존재고 목록 비우기] — 기존 resetLocMove 와 같다 ──
     async function clearExisting() {
         setLoading(true, '위치 데이터 읽는 중...');
         let assign;
-        try { assign = assignMapOf(await readShards()); } catch (e) { setLoading(false); alert('위치 데이터를 읽지 못했습니다 — ' + errText(e)); return; }
+        try { assign = assignMapOf(await readShards()); } catch (e) { setLoading(false); showAlert('위치 데이터를 읽지 못했습니다 — ' + errText(e), { title: '읽기 실패', isError: true }); return; }
         setLoading(false);
         const cnt = Object.values(assign).filter(v => (v.sub || '') === 'existing').length;
-        if (!cnt) { alert('초기화할 기존재고 내역이 없습니다.'); return; }
+        if (!cnt) { showAlert('초기화할 기존재고 내역이 없습니다.', { title: '지울 내역이 없습니다' }); return; }
         if (!(await showConfirm(`기존재고 위치 이동 내역 ${cnt}건을 삭제할까요?\n(당일입고 위치확인은 유지됩니다. 되돌릴 수 없습니다.)`,
             { title: '기존재고 내역을 삭제할까요?', okText: '삭제하기', danger: true }))) return;
         setLoading(true, '기존재고 내역 삭제 중...');
@@ -143,7 +143,7 @@ export function setupLiveLoc(ctx) {
             for (const sid in byShard) await setDoc(doc(db, CHINA, sid), { map: byShard[sid], updatedAt: new Date() });
             setLoading(false);
             showToast('✅ 기존재고 내역 초기화 완료');
-        } catch (e) { setLoading(false); alert('기존재고 내역을 삭제하지 못했습니다 — ' + errText(e)); }
+        } catch (e) { setLoading(false); showAlert('기존재고 내역을 삭제하지 못했습니다 — ' + errText(e), { title: '삭제 실패', isError: true }); }
     }
 
     // ── [새 위치를 맨앞에] — 기존 setNewLocPosition 과 같다 ──
@@ -155,7 +155,7 @@ export function setupLiveLoc(ctx) {
             ctx.patchConfig({ newLocPosition: pos });
             showToast(`🆕 받기 시 새 자리가 기존값 ${pos === 'front' ? '맨앞' : '맨뒤'}에 놓입니다`);
         } catch (e) {
-            alert('새 위치 앞/뒤 설정을 저장하지 못했습니다 — ' + errText(e) + '.\n이전 설정(' + (prev === 'front' ? '맨앞' : '맨뒤') + ')을 그대로 씁니다.');
+            showAlert('새 위치 앞/뒤 설정을 저장하지 못했습니다 — ' + errText(e) + '.\n이전 설정(' + (prev === 'front' ? '맨앞' : '맨뒤') + ')을 그대로 씁니다.', { title: '저장 실패', isError: true });
         }
         if (locTools) locTools.refresh();
     }

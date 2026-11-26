@@ -3,11 +3,11 @@
 
 import * as DOM from './dom-elements.js?v=2b9f19ecbde2-82fbef91';
 import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
-import { showToast, getCurrentTime, getTodayDateString, showConfirm } from './utils.js?v=b14a118c2b0c-7bf0fcab';
-import { generateId, debouncedSaveState, updateDailyData } from './app-data.js?v=30feb9804a43-c4996a74';
-import { markDataAsDirty } from './app-lifecycle.js?v=0fbb86f343be-be3588c4';
-import { renderTeamSelectionModalContent } from './ui-modals.js?v=fff86ad4402d-e0eb0faf';
-import { startWorkGroup, addMembersToWorkGroup, processClockIn } from './app-logic.js?v=ad4b97375558-5cd27cd7';
+import { showToast, getCurrentTime, getTodayDateString, showConfirm } from './utils.js?v=32969da5faa9-163bcbc9';
+import { generateId, debouncedSaveState, updateDailyData } from './app-data.js?v=8f36032db1f2-c4996a74';
+import { markDataAsDirty } from './app-lifecycle.js?v=71197aa52702-be3588c4';
+import { renderTeamSelectionModalContent } from './ui-modals.js?v=936189672d98-e0eb0faf';
+import { startWorkGroup, addMembersToWorkGroup, processClockIn } from './app-logic.js?v=89673c97823e-5cd27cd7';
 import { collection, query, where, getDocs, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // 헬퍼 변수 (ui-modals.js renderTeamSelectionModalContent 의 selectedClasses 와 같아야 한다)

@@ -5,11 +5,11 @@
 //   손실(분)·기록 품질은 운영 리포트와 같은 계산(ops-metrics periodMetrics·staffing, ops-view-model notes 와 같은 조건).
 // ※ 순수 모듈(DOM·Firebase 없음). 테스트: tests/plan-monthly.test.js
 
-import { periodMetrics } from './ops-metrics.js?v=4607b43e8a55-58d6bcbb';
+import { periodMetrics } from './ops-metrics.js?v=89a4eac4b3f4-58d6bcbb';
 import { systemIdOfName, taskIdOf } from './task-ids.js?v=9c41e71742ef-83b1f46d';
-import { attendedMembers } from '../attendance-stats.js?v=efe8bde439ca-15815b0d';
+import { attendedMembers } from '../attendance-stats.js?v=f1f880ba8140-15815b0d';
 import { orderCountTotalOf } from '../revenue-channels.js?v=553320652df2-c473a26d';
-import { offDayOf } from './plan-week.js?v=f90a9596e539-f2dd7a70';
+import { offDayOf } from './plan-week.js?v=741958ee9724-f2dd7a70';
 import { CAP_MINUTES } from './task-owner.js?v=82e303e4c972-e73c99c8';
 import { isOffLeaveType } from '../state.js?v=c7f5fc984ef9-a2ce38c0';
 

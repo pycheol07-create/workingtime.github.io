@@ -1,5 +1,5 @@
 // === js/history-excel-utils.js ===
-import { showToast } from './utils.js?v=b14a118c2b0c-7bf0fcab';
+import { showToast } from './utils.js?v=32969da5faa9-163bcbc9';
 import { ensureHtml2pdf } from './lib/lazy-html2pdf.js?v=8e7180a5a596-4b2424ee';
 
 export const fitToColumn = (ws) => {

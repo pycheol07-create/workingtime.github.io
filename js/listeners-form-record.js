@@ -3,9 +3,9 @@
 
 import * as DOM from './dom-elements.js?v=2b9f19ecbde2-82fbef91';
 import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
-import { showToast, formatDuration, calcTotalPauseMinutes, calcElapsedMinutes, getTodayDateString, getCurrentTime, escapeHtml } from './utils.js?v=b14a118c2b0c-7bf0fcab';
-import { generateId } from './app-data.js?v=30feb9804a43-c4996a74';
-import { writeRecordsReleasingLocks } from './app-sync.js?v=27e6e35d51a5-ca1bb1f2';
+import { showToast, formatDuration, calcTotalPauseMinutes, calcElapsedMinutes, getTodayDateString, getCurrentTime, escapeHtml } from './utils.js?v=32969da5faa9-163bcbc9';
+import { generateId } from './app-data.js?v=8f36032db1f2-c4996a74';
+import { writeRecordsReleasingLocks } from './app-sync.js?v=e8f50ae37140-68f6c921';
 import { doc, updateDoc, deleteDoc, collection, query, where, getDocs, writeBatch, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { checkStartAfterClockIn, clampStartToClockIn, makeEditStamp } from './lib/attendance-guard.js?v=2a8059f9ce4c-c8aba679';
 

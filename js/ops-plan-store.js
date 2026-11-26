@@ -11,7 +11,7 @@ import { doc, getDoc, setDoc, updateDoc, runTransaction, serverTimestamp, delete
     from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
 import { targetsDocOf } from './lib/plan-targets.js?v=7af4f5052ce6-f20d5954';
-import { cleanDone } from './lib/plan-compare.js?v=d3af1d347d54-67916867';
+import { cleanDone } from './lib/plan-compare.js?v=7d98c96671f1-67916867';
 
 export const OPS_PLAN_COL = 'OpsPlan';
 const myEmail = () => String((State.auth && State.auth.currentUser && State.auth.currentUser.email) || '').toLowerCase();

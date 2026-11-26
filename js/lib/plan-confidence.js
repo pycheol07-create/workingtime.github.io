@@ -7,7 +7,7 @@
 //   문장에 금액·이름 없음.
 // ※ 순수 모듈(DOM·Firebase 없음). 테스트: tests/plan-monthly.test.js
 
-import { offDayOf, addDaysStr } from './plan-week.js?v=f90a9596e539-f2dd7a70';
+import { offDayOf, addDaysStr } from './plan-week.js?v=741958ee9724-f2dd7a70';
 
 export const CONF_LABEL = Object.freeze({ high: '높음', mid: '보통', low: '낮음' });
 export const CONF_RULES = Object.freeze({

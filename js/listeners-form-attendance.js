@@ -5,11 +5,11 @@ import * as DOM from './dom-elements.js?v=2b9f19ecbde2-82fbef91';
 import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
 import { isPersistentLeaveType, OTHER_LEAVE_TYPE, leaveTypeLabel } from './state.js?v=c7f5fc984ef9-a2ce38c0';
 import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=152edbc1d09a-ab7817f6';
-import { showToast, getTodayDateString, toDateString, getCurrentTime, calculateWorkingDays, isWeekday, showConfirm } from './utils.js?v=b14a118c2b0c-7bf0fcab';
-import { saveStateToFirestore } from './app-data.js?v=30feb9804a43-c4996a74';
+import { showToast, getTodayDateString, toDateString, getCurrentTime, calculateWorkingDays, isWeekday, showConfirm } from './utils.js?v=32969da5faa9-163bcbc9';
+import { saveStateToFirestore } from './app-data.js?v=8f36032db1f2-c4996a74';
 import { updateLeaveSchedule } from './config.js?v=242bb63abbe9-dd1665a9';
 import { removeByIds, removeRecord } from './lib/leave-ops.js?v=00d03912bc0d-1176096f';
-import { renderLeaveTypeModalOptions } from './ui-modals.js?v=fff86ad4402d-e0eb0faf';
+import { renderLeaveTypeModalOptions } from './ui-modals.js?v=936189672d98-e0eb0faf';
 import { findDailyLeaveDup } from './lib/attendance-guard.js?v=2a8059f9ce4c-c8aba679';
 import { normalizeClock } from './lib/clock-in-out.js?v=2b0fa162a240-d1eeb61e';
 import { doc, setDoc, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
@@ -289,8 +289,8 @@ export function setupFormAttendanceListeners() {
                             return;
                         }
                         if (minutesBefore(startTime, 지금) > PAST_CONFIRM_MIN
-                            && !confirm(`${type} 시작을 ${startTime} 로 기록합니다(지금 ${지금}).
-${startTime} 이후에 시작한 업무는 그대로 두고, 그 전부터 진행 중인 업무는 ${startTime} 로 끝납니다. 계속할까요?`)) {
+                            && !(await showConfirm(`${type} 시작을 ${startTime} 로 기록합니다(지금 ${지금}).
+${startTime} 이후에 시작한 업무는 그대로 두고, 그 전부터 진행 중인 업무는 ${startTime} 로 끝납니다. 계속할까요?`))) {
                             DOM.confirmLeaveBtn.disabled = false;
                             DOM.confirmLeaveBtn.textContent = originalBtnText;
                             return;
@@ -362,7 +362,7 @@ ${startTime} 이후에 시작한 업무는 그대로 두고, 그 전부터 진�
                     // 지난 시각으로 끊을 때는 그 시각 이후에 시작한 기록을 건드리지 않는다(onlyStartedBefore).
                     if ((type === '외출' || type === '조퇴') && !isScheduled) {
                         try {
-                            const { forceEndMemberWork } = await import('./app-sync.js?v=27e6e35d51a5-ca1bb1f2');
+                            const { forceEndMemberWork } = await import('./app-sync.js?v=e8f50ae37140-68f6c921');
                             const r = await forceEndMemberWork(memberName, newDailyEntry.startTime, { onlyStartedBefore: true });
                             if (r.ended > 0) {
                                 console.warn(`[외출/조퇴 자동 종료] ${memberName}: ${r.ended}건`, r.summaries);
@@ -490,7 +490,7 @@ ${startTime} 이후에 시작한 업무는 그대로 두고, 그 전부터 진�
                     if ((newType === '외출' || newType === '조퇴')
                         && !(originalType === 'daily' && newStartTime === originalStart)
                         && minutesBefore(newStartTime, 지금) > PAST_CONFIRM_MIN
-                        && !confirm(`${newType} 시작을 ${newStartTime} 로 바꿉니다(지금 ${지금}).\n그 시각 전부터 하던 업무가 ${newStartTime} 로 끝납니다. 맞습니까?`)) {
+                        && !(await showConfirm(`${newType} 시작을 ${newStartTime} 로 바꿉니다(지금 ${지금}).\n그 시각 전부터 하던 업무가 ${newStartTime} 로 끝납니다. 맞습니까?`))) {
                         return;
                     }
                     // 시작 전(예약) 외출에는 종료 시각을 넣지 않는다 — 자동 복귀는 하지 않는다(2026-11-12 사용자 결정 ①)

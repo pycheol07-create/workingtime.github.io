@@ -39,7 +39,7 @@ import { initializeFirebase } from './config.js?v=242bb63abbe9-dd1665a9';
 import { emulatorEnabled, connectStorageEmulatorIfEnabled } from './firebase-emulator.js?v=071adc2867a0-c60c17d2';
 import { setShellContext, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=b9a7199f3e1d-c80c27e9';
 import { memberNameFor } from './app-shell-data.js?v=e42c6a10ca7a-9319c795';
-import { friendlyFirebaseError, showConfirm } from './utils.js?v=b14a118c2b0c-7bf0fcab';
+import { friendlyFirebaseError, showConfirm } from './utils.js?v=32969da5faa9-163bcbc9';
 import { resolve, can } from './lib/perm.js?v=c1e53d91da8e-49afeea3';
 import { readBook, headerColumns } from './lib/ship-read.js?v=04fbd537e5b5-8c5bf86d';
 import { zikjinStep1, zikjinStep2, readZikjinMaster, extractZikjinMaster, indexZikjinMaster, MASTER_SHEET } from './lib/ship-zikjin.js?v=04e0b5ccc89f-79e18ba5';
@@ -1763,7 +1763,7 @@ async function autoGate(tab, step, { put, ambiguous = null, dupes = 0, mismatch 
     try { made = findMadeAny(await madeKeyOf(tab, step, S.files[tab][step])); } catch (_) { made = null; }
     let madeOk = false;
     if (made) {
-        if (!confirm(madeConfirmText(made, { step, transmit: transmitOn() }))) {
+        if (!(await showConfirm(madeConfirmText(made, { step, transmit: transmitOn() })))) {
             logLine('  다시 만들지 않았습니다(확인창에서 취소).');
             S.why = `${made.at} 에 이미 만든 묶음이라 확인한 뒤`;
             return null;
@@ -2197,10 +2197,10 @@ async function planBatch(location, packs, now, madeOk) {
             return { skip: 'exe 가 같은 소스를 덮어써 이 묶음 몫을 가릴 수 없음 — 보내지 않습니다(로케이션 관리에서 확인)' };
         }
         const at = atOf(key);
-        if (!confirm(`${at ? `${at} 에` : '오늘'} 보낸 묶음과 내용이 같지만, exe 기록과 섞여 로케이션에서 이 묶음 몫을 찾을 수 없습니다`
+        if (!(await showConfirm(`${at ? `${at} 에` : '오늘'} 보낸 묶음과 내용이 같지만, exe 기록과 섞여 로케이션에서 이 묶음 몫을 찾을 수 없습니다`
             + `(exe 가 오늘 다시 보내 묶음 내역이 지워짐).\n\n`
             + '확인 = 이번 묶음 몫만 옛 기록에서 빼고 다시 넣습니다(오늘 다른 묶음·exe 몫은 그대로)\n'
-            + '취소 = 보내지 않기(만든 파일은 그대로)')) return null;
+            + '취소 = 보내지 않기(만든 파일은 그대로)'))) return null;
         batch.mode = 'replace';
         batch.subtractLegacy = true;   // '_' 통째가 아니라 이번 묶음 코드별 수량만 뺀다
         S.runWarns.push('exe 기록과 섞여 이번 묶음 몫을 옛 기록(묶음 내역 없는 몫)에서 코드별로 빼고 다시 넣었습니다 — 오늘 다른 묶음·exe 몫은 그대로입니다.');
@@ -2209,21 +2209,21 @@ async function planBatch(location, packs, now, madeOk) {
     if (pv.sameKey) {
         const at = atOf(key);
         // [만들기]에서 '이미 만든 묶음 — 이 묶음 몫만 다시 바꿉니다'에 확인했으면 다시 묻지 않는다
-        const ok = madeOk || confirm(`${at ? `${at} 에` : '오늘'} 보낸 묶음과 내용이 같습니다.\n\n`
+        const ok = madeOk || await showConfirm(`${at ? `${at} 에` : '오늘'} 보낸 묶음과 내용이 같습니다.\n\n`
             + '확인 = 다시 보내기(그 묶음을 이번 것으로 바꿈 — 두 번 더해지지 않음)\n'
-            + '취소 = 보내지 않기(만든 파일은 그대로)');
+            + '취소 = 보내지 않기(만든 파일은 그대로)', { backdrop: false });   // 바깥 클릭이 '취소' 로 넘어가 아래 질문이 뜨지 않게
         if (ok) batch.mode = 'replace';
-        else if (confirm('같은 물건을 정말 한 번 더 내보냈나요?\n\n'
+        else if (await showConfirm('같은 물건을 정말 한 번 더 내보냈나요?\n\n'
             + '확인 = 새 묶음으로 한 번 더 더하기(로케이션 수량·봉 수가 늘어남)\n'
-            + '취소 = 보내지 않기')) batch.key = freshKey(key, pv.today.map(t => t.key));
+            + '취소 = 보내지 않기', { backdrop: false, danger: true, okText: '한 번 더 더하기' })) batch.key = freshKey(key, pv.today.map(t => t.key));
         else return null;
     } else {
         const o = pv.overlaps.find(x => x.share >= OVERLAP_ASK);
         if (o) {
             const who = o.key === LEGACY ? '오늘 exe(또는 옛 방식)가 보낸 몫' : `${atOf(o.key) ? `${atOf(o.key)} 에` : '오늘'} 보낸 묶음`;
-            if (confirm(`${who}과 ${Math.round(o.share * 100)}% 겹칩니다 — 고친 전표인가요?\n\n`
+            if (await showConfirm(`${who}과 ${Math.round(o.share * 100)}% 겹칩니다 — 고친 전표인가요?\n\n`
                 + '확인 = 고친 전표(그 묶음을 빼고 이번 것으로 바꿈)\n'
-                + '취소 = 다른 묶음(따로 더함)')) batch.drop = [o.key];
+                + '취소 = 다른 묶음(따로 더함)', { backdrop: false })) batch.drop = [o.key];
         }
     }
     if (pv.legacy > 0 && !batch.drop.includes(LEGACY)) {
@@ -2388,7 +2388,7 @@ async function uploadZgTemplate(file) {
             + `정리한 양식 ${sizeText(c.bytes.byteLength)} — 원래 파일은 올리지 않습니다.\n\n`
             + (S.zgTmpl.state === 'ok' ? '지금 양식을 이것으로 바꿉니다. ' : '')
             + '모든 직원이 이 양식으로 출고리스트를 만듭니다. 올릴까요?';
-        if (!confirm(msg)) { toast('양식을 올리지 않았습니다.'); return; }
+        if (!(await showConfirm(msg))) { toast('양식을 올리지 않았습니다.'); return; }
         setBusy(true, '양식 올리는 중…');
         await uploadBytes(sRef(storage(), ZG_TEMPLATE_PATH), c.bytes, { contentType: XLSX_TYPE });
         S.zgTmpl.badGen = '';
@@ -2463,7 +2463,7 @@ async function uploadAbTemplate(file) {
             + `정리한 양식 ${sizeText(c.bytes.byteLength)} — 원래 파일은 올리지 않습니다.\n\n`
             + (S.abTmpl.state === 'ok' ? '지금 양식을 이것으로 바꿉니다. ' : '')
             + '모든 직원이 이 양식으로 대량입고 파일을 만듭니다. 올릴까요?';
-        if (!confirm(msg)) { toast('양식을 올리지 않았습니다.'); return; }
+        if (!(await showConfirm(msg))) { toast('양식을 올리지 않았습니다.'); return; }
         setBusy(true, '양식 올리는 중…');
         await uploadBytes(sRef(storage(), AB_TEMPLATE_PATH), c.bytes, { contentType: XLSX_TYPE });
         S.abTmpl.badGen = '';
@@ -2554,7 +2554,7 @@ async function run(opts = {}) {
         const prev = mk ? findMadeAny(mk) : null;
         let madeOk = auto && opts.madeOk === true;
         if (prev && !auto) {
-            if (!confirm(madeConfirmText(prev, { step, transmit: transmitOn() }))) {
+            if (!(await showConfirm(madeConfirmText(prev, { step, transmit: transmitOn() })))) {
                 toast('다시 만들지 않았습니다.');
                 S.runCancelWhy = '같은 묶음 다시 만들기 확인창에서 취소';
                 return;
@@ -2581,9 +2581,9 @@ async function run(opts = {}) {
             }
             else if (!auto) {
                 renderZgMaster();
-                if (!confirm(`⚠ 직진배송 원본(직진배송출고ver.5)을 읽지 못했습니다 — ${m.why}.\n\n`
+                if (!(await showConfirm(`⚠ 직진배송 원본(직진배송출고ver.5)을 읽지 못했습니다 — ${m.why}.\n\n`
                     + '시즌·공장상품명이 빈칸으로 만들어집니다 — 원본을 고르세요(화면의 \'원본\' 줄 단추).\n\n'
-                    + '확인 = 그래도 시즌 빈칸으로 만들기\n취소 = 만들지 않기')) {
+                    + '확인 = 그래도 시즌 빈칸으로 만들기\n취소 = 만들지 않기'))) {
                     toast('만들지 않았습니다 — 원본을 고른 뒤 다시 [만들기]를 눌러 주세요.', 6000);
                     S.runCancelWhy = '직진배송 원본을 읽지 못해 확인창에서 취소';
                     return;

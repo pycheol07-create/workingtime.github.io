@@ -1,7 +1,7 @@
 import { initializeFirebase, loadAppConfig } from './config.js?v=242bb63abbe9-dd1665a9';
 import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, writeBatch, getDocs, query, where, documentId, deleteField, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { escapeHtml as escAttr, showConfirm } from './utils.js?v=b14a118c2b0c-7bf0fcab';
+import { escapeHtml as escAttr, showAlert, showConfirm } from './utils.js?v=32969da5faa9-163bcbc9';
 import { cleanRaw, isCostCol, isDroppedHeader, supplierCodeOf } from './lib/sensitive-cols.js?v=e134acbb436b-50d4f3cd';
 import { multiLocGroups, reserveLocIds, normLocId } from './lib/multi-loc.js?v=eaa90e2a913d-3eb38b15';
 import { codeOfRowB, pickRowB, checkUploadB, checkPermanent, newLocIds } from './lib/upload-check.js?v=818a8ddddd83-a4fba7cb';
@@ -11,19 +11,19 @@ import { memberNameFor } from './app-shell-data.js?v=e42c6a10ca7a-9319c795';
 import { menuConfigOf } from './lib/perm.js?v=c1e53d91da8e-49afeea3';
 import { readHash, writeHash, onHashNav } from './hash-state.js?v=41d515385973-40fe10fb';
 import { initPageNav } from './page-nav.js?v=2d9f4a86d931-b8f40ef7';
-import { initRefillCard } from './refill-card.js?v=397df2d049fc-fbc0ffd6';
-import { initLocRecCard } from './locrec-card.js?v=6d717084d331-8da41d23';
-import { getLocRecStore, peekLocRecStore } from './locrec-store.js?v=0b7dc2ac35fc-8cb15bb8';   // 오늘 변경 추천 예정 자리·최근 [처리함] 이동(엑셀 경고)
-import { initRebuildBar } from './rebuild-bar.js?v=1dc37e43d5a2-07a1bb60';
-import { mountRouteSlot } from './locrec-route-card.js?v=5643943914a9-3f4fe9bc';
+import { initRefillCard } from './refill-card.js?v=e6e569f04dc9-fbc0ffd6';
+import { initLocRecCard } from './locrec-card.js?v=7251c3c1fb3f-8da41d23';
+import { getLocRecStore, peekLocRecStore } from './locrec-store.js?v=6e183901a59d-bd971fd0';   // 오늘 변경 추천 예정 자리·최근 [처리함] 이동(엑셀 경고)
+import { initRebuildBar } from './rebuild-bar.js?v=44c074c9c476-5c8233b1';
+import { mountRouteSlot } from './locrec-route-card.js?v=ea6732c2556a-3f4fe9bc';
 import { whenPerm, onPerm, canFeature } from './feature-gate.js?v=7eaa46dbb8e9-a5458f75';   // 권한 개편 5단계 — 카드는 권한이 확인된 뒤에만 시작
-import { mountBusyBanner, createUploadStatus } from './busy-banner.js?v=4fb4e0ed4621-8677e3fb';
+import { mountBusyBanner, createUploadStatus } from './busy-banner.js?v=1049f7ce568c-b37af02e';
 import { uploadBlockText } from './lib/busy-view.js?v=659be9925d1c-88862baa';
 import { uploadStockView, ezStockView, stockSrcOf, countAuto, autoBadge } from './lib/ez-stock-view.js?v=e00def1b1135-64e359e0';
 import { INCOMING_WAIT_MAX_MS, SHEET_REQ_DAILY_MAX, incomingReadAt, requestServerMs, judgeIncomingSnap, createRunGuard, guardedRun, once, waitTimeoutText } from './lib/incoming-wait.js?v=47c3cd807778-95e00b98';
 import { angleSizeOf, SERVER_DEFAULTS, makeRankers, isEtcLocObj } from './lib/loc-recommend.js?v=f407d005b8a8-df186d4d';
 import { comboOf, isExcludedSlot, slotDigits, parseCards } from './lib/loc-cards.js?v=436e88b31445-bac5ec02';   // 자리 → 'A-1' 조합(카드 이름·제외 조합 같은 규칙)
-import { initLocSetPanel } from './locset-panel.js?v=0126144be34d-3938a79c';   // 환경설정 '추천·채우기' 탭(변경 추천 설정·채우기 설정)
+import { initLocSetPanel } from './locset-panel.js?v=87b78231498b-fa73784a';   // 환경설정 '추천·채우기' 탭(변경 추천 설정·채우기 설정)
 // 변경 추천 [처리함]이 옮긴 자리의 하루 표시(locRecMove)·오늘 재고 올리기 전 충돌 경고 — 계획·판정은 js/lib/locrec-apply.js
 import { zoneDocIdOf, moveBadge, uploadMoveConflicts, uploadConflictText, isDesignatedEmpty } from './lib/locrec-apply.js?v=7cca5e5163c6-5def8df3';
 import { dayKey as kstDayKey } from './lib/refill-view.js?v=3416a867c2d7-24e9bb3d';
@@ -959,7 +959,7 @@ window.downloadMainExcel = async function() {
     }
     
     if (!targetData || targetData.length === 0) {
-        alert('다운로드할 데이터가 없습니다.');
+        showAlert('다운로드할 데이터가 없습니다.');
         return;
     }
     
@@ -1300,7 +1300,7 @@ window.render2FTable = function() {
 
 window.download2FExcel = function() {
     if (!window.current2FList || window.current2FList.length === 0) {
-        alert("다운로드할 데이터가 없습니다. 먼저 조회해주세요.");
+        showAlert("다운로드할 데이터가 없습니다. 먼저 조회해주세요.");
         return;
     }
 
@@ -1635,7 +1635,7 @@ window.saveHeaderSettings = async () => {
         renderTableHeader(); 
         applyFiltersAndSort(); 
         showToast("화면 헤더 설정이 저장되었습니다.");
-    } catch(e) { console.error(e); alert('화면 헤더 설정을 저장하지 못했습니다(인터넷 연결 확인).' + (e?.code ? ` (${e.code})` : '')); }
+    } catch(e) { console.error(e); showAlert('화면 헤더 설정을 저장하지 못했습니다(인터넷 연결 확인).' + (e?.code ? ` (${e.code})` : ''), { isError: true, title: '저장하지 못했습니다' }); }
 };
 
 window.openSheetModal = (e) => {
@@ -1866,7 +1866,8 @@ window.applyAllRecommendations = async function() {
         await window.ensureOrderPairsCache();   // 추천 계산에 페어 캐시가 필요하다(화면을 열 때 읽지 않으므로)
         await locRecEnsure();                   // 오늘 변경 추천 예정 자리(권한 없는 화면은 이때 읽는다)
         if (!Array.isArray(window._cachedOrderPairs)) {
-            return alert("추천 자리에 쓸 주문 자료를 불러오지 못했습니다. 잠시 뒤 다시 눌러 주세요.");
+            showAlert("추천 자리에 쓸 주문 자료를 불러오지 못했습니다. 잠시 뒤 다시 눌러 주세요.", { isError: true, title: '불러오지 못했습니다' });
+            return;
         }
         // 1) 현재 입고대기 목록 (renderIncomingQueue와 같은 필터 적용)
         const filterSource = document.getElementById('filter-source')?.value || 'all';
@@ -1892,7 +1893,8 @@ window.applyAllRecommendations = async function() {
         });
         
         if (list.length === 0) {
-            return alert("일괄 적용할 입고대기 상품이 없습니다.");
+            showAlert("일괄 적용할 입고대기 상품이 없습니다.");
+            return;
         }
         
         // 2) 충돌 처리용 정렬: 출고예상일 빠른 순 → 같으면 미입고수량 많은 순
@@ -1920,7 +1922,8 @@ window.applyAllRecommendations = async function() {
         }
         
         if (assignments.length === 0) {
-            return alert("추천 가능한 자리가 없습니다. (3층 빈칸이 부족할 수 있습니다.)");
+            showAlert("추천 가능한 자리가 없습니다. (3층 빈칸이 부족할 수 있습니다.)");
+            return;
         }
         
         // 누가 오늘 재고·도면을 올리는 중이면 확인(기본 취소) — js/busy-banner.js. 0건 검사 뒤에 묻는다
@@ -1935,7 +1938,7 @@ window.applyAllRecommendations = async function() {
                     (assignments.some(a => a.rec && a.rec.planned)
                         ? `\n\n⚠ 남은 빈칸이 없어 변경 추천 예정 자리를 쓴 건이 ${assignments.filter(a => a.rec && a.rec.planned).length}개 있습니다(그 추천은 [처리함] 때 다른 자리를 찾습니다).` : '') +
                     `\n\n계속 진행하시겠습니까?`;
-        if (!confirm(msg)) return;
+        if (!(await showConfirm(msg, { okText: '일괄 적용', danger: true }))) return;
         
         // 5) zone 별로 묶어서 Firestore 일괄 저장
         const zoneUpdates = {};
@@ -1974,13 +1977,13 @@ window.applyAllRecommendations = async function() {
         }
     } catch (e) {
         console.error('[applyAllRecommendations] 실패:', e);
-        alert('일괄 적용 중 오류가 발생했습니다(인터넷 연결 확인). 일부 자리는 저장됐을 수 있으니 목록을 확인하세요.' + (e?.code ? ` (${e.code})` : ''));
+        showAlert('일괄 적용 중 오류가 발생했습니다(인터넷 연결 확인). 일부 자리는 저장됐을 수 있으니 목록을 확인하세요.' + (e?.code ? ` (${e.code})` : ''), { isError: true, title: '일괄 적용하지 못했습니다' });
     }
 };
 
 window.saveSheetUrl = async () => {
     // 2026-10-07 비활성: [시트 동기화]가 수집기 자료(incomingSheet)를 읽는다. 링크를 새로 저장하지 않는다.
-    alert('시트 링크 설정은 더 이상 사용하지 않습니다.\n[시트 동기화]는 자동 수집 자료를 가져옵니다.');
+    showAlert('시트 링크 설정은 더 이상 사용하지 않습니다.\n[시트 동기화]는 자동 수집 자료를 가져옵니다.');
     return;
     // eslint-disable-next-line no-unreachable
     const urlOrder = document.getElementById('modal-sheet-url-order').value.trim();
@@ -1992,7 +1995,7 @@ window.saveSheetUrl = async () => {
         window.sheetUrlBuy = urlBuy;
         showToast("구글시트 링크를 저장했습니다.");
         if (typeof window.closeSheetModal === 'function') window.closeSheetModal();
-    } catch(e) { console.error("링크 저장 실패:", e); alert('구글시트 링크를 저장하지 못했습니다(인터넷 연결 확인).' + (e?.code ? ` (${e.code})` : '')); }
+    } catch(e) { console.error("링크 저장 실패:", e); showAlert('구글시트 링크를 저장하지 못했습니다(인터넷 연결 확인).' + (e?.code ? ` (${e.code})` : ''), { isError: true, title: '저장하지 못했습니다' }); }
 };
 
 const cleanKey = (str) => (str || '').toString().replace(/[^a-zA-Z0-9가-힣]/g, '');
@@ -2017,7 +2020,7 @@ async function applyIncomingRows(finalJson, cancelledCodes, sourceMsg) {
         showToast(`입고 대기 상품 연동 완료\n${sourceMsg}`);
     } else {
         window.hideLoading();
-        alert("입고 대기(수량 1개 이상) 상품이 없거나 데이터를 찾지 못했습니다.");
+        await showAlert("입고 대기(수량 1개 이상) 상품이 없거나 데이터를 찾지 못했습니다.");
     }
 
     // ★ v3.96: 오더취소된 상품 중 선지정된 자리 찾기 → 모달 자동 표시
@@ -2083,7 +2086,7 @@ async function applyCollectorRows(col, extraMsg) {
         }
     } catch (error) {
         window.hideLoading();
-        alert(`반영 실패!\n(${error.message})`);
+        showAlert(`반영 실패!\n(${error.message})`, { isError: true, title: '반영하지 못했습니다' });
         console.error("입고예정 반영 실패:", error);
     }
 }
@@ -2160,7 +2163,7 @@ window.paintIncomingBasis = async (open) => {
 window.syncIncomingData = async () => {
     // syncIncomingRun 이 기다리기에 들어가면(true) 진행 중 표시는 그 기다림의 finish 가 내린다
     await guardedRun(incomingGuard, syncIncomingRun,
-        () => alert('지금 시트를 새로 읽는 중입니다. 끝나면 자동으로 반영됩니다.\n(기다리지 않으려면 패널의 [지금 자료로 반영]을 누르세요)'));
+        () => { showAlert('지금 시트를 새로 읽는 중입니다. 끝나면 자동으로 반영됩니다.\n(기다리지 않으려면 패널의 [지금 자료로 반영]을 누르세요)'); });
 };
 
 /**
@@ -2184,7 +2187,7 @@ function startIncomingWait(col, reqMs, baseHandledAt) {
         stop();
         try {
             if (kind === 'timeout') {
-                if (!confirm(`${msg}\n\n지금 있는 자료로라도 반영하려면 [확인]을 누르세요.`)) return;
+                if (!(await showConfirm(`${msg}\n\n지금 있는 자료로라도 반영하려면 [확인]을 누르세요.`))) return;
                 msg = '새로 읽기를 기다리지 못해 지금 있는 자료로 반영했습니다.';
             }
             const c2 = kind === 'keep' ? col : ((await loadIncomingFromCollector()) || col);
@@ -2256,7 +2259,7 @@ async function syncIncomingRun() {
     }
 
     // 2순위(전환 기간만): 옛 경로 — '웹에 게시' 시트를 직접 받는다. 시트 웹게시를 끄면 이 경로는 실패한다.
-    if (!window.sheetUrlOrder && !window.sheetUrlBuy) return alert("시트 자료를 읽지 못했습니다.\n(수집기 자료가 없고, 예전 시트 링크도 설정되어 있지 않습니다)");
+    if (!window.sheetUrlOrder && !window.sheetUrlBuy) { showAlert("시트 자료를 읽지 못했습니다.\n(수집기 자료가 없고, 예전 시트 링크도 설정되어 있지 않습니다)", { isError: true, title: '시트 자료를 읽지 못했습니다' }); return; }
     window.showLoading("원본 시트에서 데이터를 분석하여 가져오는 중입니다...");
     
     try {
@@ -2373,7 +2376,7 @@ async function syncIncomingRun() {
         await applyIncomingRows(finalJson, cancelledCodes, `(오더리스트 ${orderData.length}건, 사입리스트 ${buyData.length}건 · 웹게시 시트에서 직접)`);
     } catch (error) {
         window.hideLoading(); 
-        alert(`연결 실패!\n데이터를 가져오지 못했습니다.\n(${error.message})`); 
+        showAlert(`연결 실패!\n데이터를 가져오지 못했습니다.\n(${error.message})`, { isError: true, title: '연결하지 못했습니다' }); 
         console.error("데이터 동기화 실패:", error);
     }
 }
@@ -2418,7 +2421,7 @@ window.showCancelledPreAssignModal = function(items) {
 // ★ v3.96: 개별 선지정 해제
 window.releasePreAssign = async function(locId) {
     if (!locId) return;
-    if (!confirm(`[${locId}] 자리의 선지정을 해제하시겠습니까?`)) return;
+    if (!(await showConfirm(`[${locId}] 자리의 선지정을 해제하시겠습니까?`, { okText: '해제하기', danger: true }))) return;
     
     try {
         const zoneDocId = getZoneDocId(locId);
@@ -2457,7 +2460,7 @@ window.releasePreAssign = async function(locId) {
         }
     } catch (e) {
         console.error("선지정 해제 오류:", e);
-        alert("선지정 해제 중 오류가 발생했습니다.");
+        showAlert("선지정 해제 중 오류가 발생했습니다.", { isError: true, title: '해제하지 못했습니다' });
     }
 };
 
@@ -2466,7 +2469,7 @@ window.releaseAllCancelledPreAssigns = async function() {
     const items = window._cancelledPreAssignItems || [];
     if (items.length === 0) return;
     if (window.__locBusy && !(await window.__locBusy.confirmIfUploading('일괄 수정'))) return;   // 업로드 중 확인
-    if (!confirm(`총 ${items.length}건의 선지정을 모두 해제하시겠습니까?\n\n해제된 자리는 다시 빈 자리로 돌아갑니다.`)) return;
+    if (!(await showConfirm(`총 ${items.length}건의 선지정을 모두 해제하시겠습니까?\n\n해제된 자리는 다시 빈 자리로 돌아갑니다.`, { okText: '모두 해제', danger: true }))) return;
     
     window.showLoading(`${items.length}건의 선지정을 일괄 해제 중...`);
     
@@ -2512,7 +2515,7 @@ window.releaseAllCancelledPreAssigns = async function() {
     } catch (e) {
         window.hideLoading();
         console.error("일괄 해제 오류:", e);
-        alert("일괄 해제 중 오류가 발생했습니다.");
+        showAlert("일괄 해제 중 오류가 발생했습니다.", { isError: true, title: '해제하지 못했습니다' });
     }
 };
 
@@ -2520,13 +2523,13 @@ window.saveCapacity2F = async function() {
     const input = document.getElementById('input-cap-2f');
     if (!input) return;
     const newVal = parseInt(input.value.replace(/,/g, ''), 10);
-    if (isNaN(newVal) || newVal <= 0) return alert("올바른 수량을 입력해주세요.");
+    if (isNaN(newVal) || newVal <= 0) { showAlert("올바른 수량을 입력해주세요."); return; }
     try {
         await setDoc(doc(db, LOC_COLLECTION, 'INFO_CONFIG'), { capacity2F: newVal }, { merge: true });
         window.capacity2F = newVal;
         window.calculateAndRenderUsage();
         showToast(`2층 기준 수량을 ${newVal.toLocaleString()}장으로 바꿨습니다.`);
-    } catch(e) { console.error(e); alert("오류가 발생했습니다."); }
+    } catch(e) { console.error(e); showAlert("오류가 발생했습니다.", { isError: true, title: '저장하지 못했습니다' }); }
 };
 
 window.switchUsageTab = function(tab) { window.currentUsageTab = tab; window.calculateAndRenderUsage(); };
@@ -3534,7 +3537,7 @@ window.handleRowClick = async function(event, locId) {
                         }, { merge: true });
                     } catch(e) {
                         console.error(e);
-                        alert('선지정을 해제하지 못했습니다(인터넷 연결 확인).' + (e?.code ? ` (${e.code})` : ''));
+                        showAlert('선지정을 해제하지 못했습니다(인터넷 연결 확인).' + (e?.code ? ` (${e.code})` : ''), { isError: true, title: '해제하지 못했습니다' });
                         return;
                     }
                     showToast(`[${locId}] 선지정 취소 완료`);
@@ -3545,7 +3548,7 @@ window.handleRowClick = async function(event, locId) {
             if (!(await showConfirm(`이미 다른 상품(${loc.preAssignedCode})이 선지정된 자리입니다.\n기존 선지정을 무시하고 덮어쓰시겠습니까?`,
                 { title: '선지정을 덮어쓸까요?', okText: '덮어쓰기', danger: true }))) return; 
         } else {
-            if (hasContent) { alert("이미 물건이 들어있는 자리입니다. 텅 빈 빈칸을 선택해주세요."); return; }
+            if (hasContent) { showAlert("이미 물건이 들어있는 자리입니다. 텅 빈 빈칸을 선택해주세요."); return; }
         }
         
         try {
@@ -3563,7 +3566,7 @@ window.handleRowClick = async function(event, locId) {
             }, { merge: true });
             showToast(`[${locId}] 자리에 선지정했습니다`);
             window.cancelPreAssignMode();
-        } catch(e) { console.error(e); alert('선지정을 저장하지 못했습니다(인터넷 연결 확인).' + (e?.code ? ` (${e.code})` : '')); }
+        } catch(e) { console.error(e); showAlert('선지정을 저장하지 못했습니다(인터넷 연결 확인).' + (e?.code ? ` (${e.code})` : ''), { isError: true, title: '저장하지 못했습니다' }); }
         return;
     }
     
@@ -3572,7 +3575,7 @@ window.handleRowClick = async function(event, locId) {
     if (!targetData) return;
 
     if (targetData.preAssigned === true) {
-        if (confirm(`[${locId}] 선지정을 해제하시겠습니까?`)) {
+        if (await showConfirm(`[${locId}] 선지정을 해제하시겠습니까?`, { okText: '해제하기', danger: true })) {
             try {
                 const zoneDocId = getZoneDocId(locId);
                 await setDoc(doc(db, LOC_COLLECTION, zoneDocId), {
@@ -3584,7 +3587,7 @@ window.handleRowClick = async function(event, locId) {
                 showToast("선지정이 해제되었습니다.");
             } catch(e) {
                 console.error(e);
-                alert('선지정을 해제하지 못했습니다(인터넷 연결 확인).' + (e?.code ? ` (${e.code})` : ''));
+                showAlert('선지정을 해제하지 못했습니다(인터넷 연결 확인).' + (e?.code ? ` (${e.code})` : ''), { isError: true, title: '해제하지 못했습니다' });
             }
         }
     }
@@ -3935,7 +3938,7 @@ function _showUploadDiagnosisAlert(diagnosis, uploadType) {
               "파일 형식 또는 내용을 다시 확인해주세요.\n" +
               "(예상 헤더: " + headers + ")";
     }
-    alert(msg);
+    showAlert(msg, { isError: true, title: '파일을 확인해 주세요' });
 }
 
 // 플랫폼 출고·주차별 업로드 — 기존 데이터를 통째로 바꾸므로 파일을 읽은 뒤 검사하고 한 번 더 묻는다(js/lib/upload-check.js).
@@ -3945,7 +3948,7 @@ function _confirmUploadB(file, rows, kind) {
     if (!chk.ok) { _showUploadDiagnosisAlert('no-required-header', kind); return false; }
     const label = kind === 'zikjin' ? '플랫폼 출고' : '주차별';
     const extra = kind === 'zikjin' ? '\n(출고자동화가 보낸 기록도 지워집니다)' : '';
-    return confirm(`${label} 파일 「${file.name}」 유효 ${chk.valid.toLocaleString()}줄(전체 ${chk.total.toLocaleString()}줄)로 기존 [${label}] 데이터를 모두 바꿉니다.${extra}\n\n계속할까요?`);
+    return showConfirm(`${label} 파일 「${file.name}」 유효 ${chk.valid.toLocaleString()}줄(전체 ${chk.total.toLocaleString()}줄)로 기존 [${label}] 데이터를 모두 바꿉니다.${extra}\n\n계속할까요?`, { okText: '바꾸기', danger: true });
 }
 
 const fileInputZikjin = document.getElementById('excel-upload-zikjin');
@@ -3957,12 +3960,12 @@ if (fileInputZikjin) {
             const result = await universalExcelReader(file);
             if(result.rows.length > 0) {
                 window.hideLoading();
-                if (!_confirmUploadB(file, result.rows, 'zikjin')) { e.target.value=''; return; }
+                if (!(await _confirmUploadB(file, result.rows, 'zikjin'))) { e.target.value=''; return; }
                 window.showLoading('플랫폼 출고 데이터를 저장 중입니다...');
                 await updateDatabaseB(result.rows, 'ZikjinData', e.target, false);
             }
             else { window.hideLoading(); _showUploadDiagnosisAlert(result.diagnosis, 'zikjin'); e.target.value=''; }
-        } catch(err) { window.hideLoading(); console.error('직진배송 파일 처리 실패:', _errCode(err)); alert(`플랫폼 출고 파일을 읽거나 저장하지 못했습니다.\n파일 형식(xlsx·csv)과 인터넷 연결을 확인한 뒤 다시 올려 주세요.\n(오류 코드: ${_errCode(err)})`); e.target.value=''; }
+        } catch(err) { window.hideLoading(); console.error('직진배송 파일 처리 실패:', _errCode(err)); showAlert(`플랫폼 출고 파일을 읽거나 저장하지 못했습니다.\n파일 형식(xlsx·csv)과 인터넷 연결을 확인한 뒤 다시 올려 주세요.\n(오류 코드: ${_errCode(err)})`, { isError: true, title: '파일을 올리지 못했습니다' }); e.target.value=''; }
     });
 }
 
@@ -3975,12 +3978,12 @@ if (fileInputWeekly) {
             const result = await universalExcelReader(file);
             if(result.rows.length > 0) {
                 window.hideLoading();
-                if (!_confirmUploadB(file, result.rows, 'weekly')) { e.target.value=''; return; }
+                if (!(await _confirmUploadB(file, result.rows, 'weekly'))) { e.target.value=''; return; }
                 window.showLoading('주차별 데이터를 저장 중입니다...');
                 await updateDatabaseB(result.rows, 'WeeklyData', e.target, false);
             }
             else { window.hideLoading(); _showUploadDiagnosisAlert(result.diagnosis, 'weekly'); e.target.value=''; }
-        } catch(err) { window.hideLoading(); console.error('주차별 파일 처리 실패:', _errCode(err)); alert(`주차별 파일을 읽거나 저장하지 못했습니다.\n파일 형식(xlsx·csv)과 인터넷 연결을 확인한 뒤 다시 올려 주세요.\n(오류 코드: ${_errCode(err)})`); e.target.value=''; }
+        } catch(err) { window.hideLoading(); console.error('주차별 파일 처리 실패:', _errCode(err)); showAlert(`주차별 파일을 읽거나 저장하지 못했습니다.\n파일 형식(xlsx·csv)과 인터넷 연결을 확인한 뒤 다시 올려 주세요.\n(오류 코드: ${_errCode(err)})`, { isError: true, title: '파일을 올리지 못했습니다' }); e.target.value=''; }
     });
 }
 
@@ -3997,19 +4000,19 @@ if (fileInputA) {
                 window.hideLoading();
                 // 다른 사람이 오늘 재고·도면을 올리는 중이면 막는다(같은 자리를 동시에 덮어쓰면 섞인다). 상태를 못 읽으면 막지 않는다.
                 const _other = await window.__locBusy.checkOthers();
-                if (_other) { alert(uploadBlockText(_other)); return; }
+                if (_other) { showAlert(uploadBlockText(_other)); return; }
                 // 오늘(+ 최근 7일, 2026-11-12) 변경 추천 [처리함]으로 옮긴 자리가 이 엑셀에서는 옛 자리면 먼저 알린다(계속하면 엑셀이 이긴다 — 막지는 않는다)
                 await locRecEnsure();
                 const _lrs = peekLocRecStore();
                 const _mvConf = uploadMoveConflicts(result.rows, originalData, kstDayKey(Date.now()), _lrs ? _lrs.recentMoves() : []);
-                if (_mvConf.length && !confirm(uploadConflictText(_mvConf))) return;
+                if (_mvConf.length && !(await showConfirm(uploadConflictText(_mvConf)))) return;
                 if (!(await showConfirm(`오늘 재고 파일 「${file.name}」 ${result.rows.length.toLocaleString()}줄로 기존 로케이션 재고를 덮어씁니다.\n(파일에 없는 자리의 재고는 비워집니다 · 선지정된 자리는 보호됩니다)\n\n계속할까요?`,
                     { title: '로케이션 재고를 덮어쓸까요?', okText: '덮어쓰기', danger: true }))) return;
                 window.showLoading('일일 재고/상품 데이터를 최신화 중입니다...');
                 // 다른 사람 화면에 '오늘 재고 올리는 중' 띠 — 끝나면 done/failed. 기록 실패는 업로드를 막지 않는다
                 // 시작 기록은 트랜잭션 — 두 사람이 확인창을 동시에 눌러도 한쪽만 통과한다(남은 쪽은 여기서 막힘)
                 const _bg = await window.__locBusy.begin('daily');
-                if (_bg.busy) { window.hideLoading(); alert(uploadBlockText(_bg.busy)); return; }
+                if (_bg.busy) { window.hideLoading(); showAlert(uploadBlockText(_bg.busy)); return; }
                 let _upOk = false;
                 try { _upOk = (await updateDatabaseA(result.rows, 'daily')) === true; }
                 finally { window.__locBusy.end(_upOk); }
@@ -4017,7 +4020,7 @@ if (fileInputA) {
                 try { await setDoc(doc(db, LOC_COLLECTION, 'INFO_CONFIG'), { lastDataUpdate: Date.now() }, { merge: true }); } catch(_) {}
             }
             else { window.hideLoading(); _showUploadDiagnosisAlert(result.diagnosis, 'daily'); }
-        } catch(err) { window.hideLoading(); console.error('오늘 재고 파일 처리 실패:', _errCode(err)); alert(`오늘 재고 파일을 읽거나 반영하지 못했습니다.\n파일 형식(xlsx·csv)과 인터넷 연결을 확인한 뒤 같은 파일을 다시 올려 주세요.\n(오류 코드: ${_errCode(err)})`); }
+        } catch(err) { window.hideLoading(); console.error('오늘 재고 파일 처리 실패:', _errCode(err)); showAlert(`오늘 재고 파일을 읽거나 반영하지 못했습니다.\n파일 형식(xlsx·csv)과 인터넷 연결을 확인한 뒤 같은 파일을 다시 올려 주세요.\n(오류 코드: ${_errCode(err)})`, { isError: true, title: '파일을 반영하지 못했습니다' }); }
         finally { e.target.value=''; }
     });
 }
@@ -4034,7 +4037,7 @@ if (fileInputPerm) {
                 window.hideLoading();
                 // 오늘 재고 올리기와 같은 문서·같은 규칙 — 남이 올리는 중이면 막는다
                 const _other = await window.__locBusy.checkOthers();
-                if (_other) { alert(uploadBlockText(_other)); return; }
+                if (_other) { showAlert(uploadBlockText(_other)); return; }
                 const chk = checkPermanent(result.rows);
                 if (!chk.ok) { _showUploadDiagnosisAlert('no-required-header', 'permanent'); return; }
                 const newCnt = newLocIds(result.rows, originalData.map(d => d.id)).length;
@@ -4042,13 +4045,13 @@ if (fileInputPerm) {
                     { title: '도면 데이터를 덮어쓸까요?', okText: '덮어쓰기', danger: true }))) return;
                 window.showLoading('도면(동/위치) 영구 데이터를 덮어쓰기 세팅 중입니다...');
                 const _bg = await window.__locBusy.begin('permanent');
-                if (_bg.busy) { window.hideLoading(); alert(uploadBlockText(_bg.busy)); return; }
+                if (_bg.busy) { window.hideLoading(); showAlert(uploadBlockText(_bg.busy)); return; }
                 let _upOk = false;
                 try { _upOk = (await updateDatabaseA(result.rows, 'permanent')) === true; }
                 finally { window.__locBusy.end(_upOk); }
             }
             else { window.hideLoading(); _showUploadDiagnosisAlert(result.diagnosis, 'permanent'); }
-        } catch(err) { window.hideLoading(); console.error('도면 파일 처리 실패:', _errCode(err)); alert(`도면(동/위치) 파일을 읽거나 반영하지 못했습니다.\n파일 형식(xlsx·csv)과 인터넷 연결을 확인한 뒤 같은 파일을 다시 올려 주세요.\n(오류 코드: ${_errCode(err)})`); }
+        } catch(err) { window.hideLoading(); console.error('도면 파일 처리 실패:', _errCode(err)); showAlert(`도면(동/위치) 파일을 읽거나 반영하지 못했습니다.\n파일 형식(xlsx·csv)과 인터넷 연결을 확인한 뒤 같은 파일을 다시 올려 주세요.\n(오류 코드: ${_errCode(err)})`, { isError: true, title: '파일을 반영하지 못했습니다' }); }
         finally { e.target.value=''; }
     });
 }
@@ -4081,7 +4084,7 @@ if (fileInputOrders) {
             window.hideLoading();
             // 오류 문구에 주문번호가 섞일 수 있어 코드·이름만 남긴다
             console.error('주문 파일 처리 오류:', (err && (err.code || err.name)) || 'unknown');
-            alert('오류 발생: ' + ((err && (err.code || err.name)) || '알 수 없는 오류'));
+            showAlert('오류 발생: ' + ((err && (err.code || err.name)) || '알 수 없는 오류'), { isError: true, title: '파일을 처리하지 못했습니다' });
             e.target.value = '';
         } finally {
             e.target.value = '';
@@ -4134,7 +4137,7 @@ window.processOrderData = async function(rows) {
         const orderNos = Object.keys(orderMap);
         if (orderNos.length === 0) {
             window.hideLoading();
-            alert('처리할 주문 데이터가 없습니다.');
+            showAlert('처리할 주문 데이터가 없습니다.');
             return;
         }
 
@@ -4150,7 +4153,7 @@ window.processOrderData = async function(rows) {
 
         if (targetOrderNos.length === 0) {
             window.hideLoading();
-            alert(`모든 주문이 이미 처리되었습니다.\n\n파일 총 주문: ${orderNos.length.toLocaleString()}건\n이미 처리됨: ${dupCount.toLocaleString()}건\n\n이전에 같은 파일을 업로드했을 가능성이 큽니다.`);
+            showAlert(`모든 주문이 이미 처리되었습니다.\n\n파일 총 주문: ${orderNos.length.toLocaleString()}건\n이미 처리됨: ${dupCount.toLocaleString()}건\n\n이전에 같은 파일을 업로드했을 가능성이 큽니다.`);
             return;
         }
 
@@ -4342,7 +4345,7 @@ window.processOrderData = async function(rows) {
         // 오류 문구(문서 경로 등)에 주문번호가 섞일 수 있어 코드·이름만 남긴다
         const why = (e && (e.code || e.name)) || '알 수 없는 오류';
         console.error('processOrderData 오류:', why);
-        alert('주문 데이터 처리 중 오류가 발생했습니다.\n' + why);
+        showAlert('주문 데이터 처리 중 오류가 발생했습니다.\n' + why, { isError: true, title: '처리하지 못했습니다' });
     }
 };
 
@@ -4502,7 +4505,7 @@ window.resetOrderAnalysis = async function() {
         window._cachedOrderMeta = {};
     } catch (e) {
         window.hideLoading(); console.error('초기화 오류:', e);
-        alert('누적 데이터를 초기화하지 못했습니다(인터넷 연결 확인). 일부는 지워졌을 수 있으니 다시 시도하세요.' + (e?.code ? ` (${e.code})` : ''));
+        showAlert('누적 데이터를 초기화하지 못했습니다(인터넷 연결 확인). 일부는 지워졌을 수 있으니 다시 시도하세요.' + (e?.code ? ` (${e.code})` : ''), { isError: true, title: '초기화하지 못했습니다' });
     }
 };
 
@@ -4562,7 +4565,7 @@ async function updateDatabaseB(rows, collectionName, inputElement, silent = fals
         
     } catch (error) { 
         console.error(`${label} 실패:`, error); 
-        if (!silent) alert(`${label} 중 오류가 발생했습니다.`); 
+        if (!silent) await showAlert(`${label} 중 오류가 발생했습니다.`, { isError: true, title: '저장하지 못했습니다' }); 
         throw error; 
     } finally { 
         if(inputElement && !silent) inputElement.value = ''; 
@@ -5018,7 +5021,7 @@ async function updateDatabaseA(rows, mode = 'daily') {
         return true;   // 성공 — 업로드 상태(계약 B) done 판정용
     } catch (error) { 
         console.error("실패:", error); 
-        alert(`로케이션 데이터를 반영하지 못했습니다. 일부만 반영됐을 수 있습니다.\n인터넷 연결을 확인한 뒤 같은 파일을 다시 올려 주세요(다시 올려도 중복되지 않습니다).\n계속되면 관리자에게 아래 오류 코드를 알려 주세요.\n(오류 코드: ${_errCode(error)})`); 
+        showAlert(`로케이션 데이터를 반영하지 못했습니다. 일부만 반영됐을 수 있습니다.\n인터넷 연결을 확인한 뒤 같은 파일을 다시 올려 주세요(다시 올려도 중복되지 않습니다).\n계속되면 관리자에게 아래 오류 코드를 알려 주세요.\n(오류 코드: ${_errCode(error)})`, { isError: true, title: '반영하지 못했습니다' }); 
         return false;
     } finally { 
         if(document.getElementById('excel-upload-a')) document.getElementById('excel-upload-a').value = ''; 
@@ -5424,7 +5427,7 @@ window.copyLocationToClipboard = async (event, locId) => {
             const reserverName = data.reservedBy || '다른 작업자';
             
             if (isReserved && reserverName === currentUserName) {
-                if (confirm(`[${locId}] 내가 예약한 자리입니다.\n해제하시겠습니까?`)) {
+                if (await showConfirm(`[${locId}] 내가 예약한 자리입니다.\n해제하시겠습니까?`)) {
                     await setDoc(docRef, { [locId]: { reserved: false, reservedAt: 0, reservedBy: '', assignedAt: 0, codeTag: '', codeTagAt: 0, updatedAt: new Date() } }, { merge: true });
                     showToast(`[${locId}] 해제 완료`);
                 } else { navigator.clipboard.writeText(locId); showToast(`[${locId}] 복사 완료!`); }
@@ -5432,7 +5435,7 @@ window.copyLocationToClipboard = async (event, locId) => {
             }
             
             if (isReserved) {
-                if (confirm(`[${locId}]은 현재 [${reserverName}]님이 사용 중입니다.\n강제로 예약을 가져오시겠습니까?`)) {
+                if (await showConfirm(`[${locId}]은 현재 [${reserverName}]님이 사용 중입니다.\n강제로 예약을 가져오시겠습니까?`, { okText: '가져오기', danger: true })) {
                     await setDoc(docRef, { [locId]: { reserved: true, reservedAt: now, assignedAt: now, reservedBy: currentUserName, codeTag: '당일지정', codeTagAt: now, updatedAt: new Date() } }, { merge: true });
                     navigator.clipboard.writeText(locId); showToast(`[${locId}] 강제 복사 완료!`);
                 }
@@ -5449,11 +5452,11 @@ window.copyLocationToClipboard = async (event, locId) => {
             // 오늘 변경 추천이 상품을 넣기로 한 자리면 알린다(막지는 않는다 — 사용자 결정 2026-11-12)
             await locRecEnsure();
             const _plan = locRecPlanned().get(String(locId).trim());
-            if (_plan && !confirm(`[${locId}]은 오늘 변경 추천에서 ${_plan.code} 를 넣기로 한 자리입니다.\n당일지정하면 그 추천은 [처리함] 때 다른 자리를 찾거나 '자리 막힘'이 됩니다.\n\n그래도 당일지정할까요?`)) return;
+            if (_plan && !(await showConfirm(`[${locId}]은 오늘 변경 추천에서 ${_plan.code} 를 넣기로 한 자리입니다.\n당일지정하면 그 추천은 [처리함] 때 다른 자리를 찾거나 '자리 막힘'이 됩니다.\n\n그래도 당일지정할까요?`))) return;
             await setDoc(docRef, { [locId]: { reserved: true, reservedAt: now, assignedAt: now, reservedBy: currentUserName, codeTag: '당일지정', codeTagAt: now, updatedAt: new Date() } }, { merge: true });
             navigator.clipboard.writeText(locId).then(() => { showToast(`[${locId}] 복사 및 예약 완료!`); });
         }
-    } catch (error) { console.error(error); alert('자리를 예약하지 못했습니다(인터넷 연결 확인).' + (error?.code ? ` (${error.code})` : '')); }
+    } catch (error) { console.error(error); showAlert('자리를 예약하지 못했습니다(인터넷 연결 확인).' + (error?.code ? ` (${error.code})` : ''), { isError: true, title: '예약하지 못했습니다' }); }
 };
 
 function showToast(message, ms) {
@@ -5469,21 +5472,21 @@ function showToast(message, ms) {
 
 window.addSingleLocationFromSetting = async () => {
     const inputObj = document.getElementById('setting-new-loc'); const newId = inputObj.value.trim().toUpperCase();
-    if (!newId) return alert("로케이션 번호를 입력하세요.");
+    if (!newId) { showAlert("로케이션 번호를 입력하세요."); return; }
     try {
         const zoneDocId = getZoneDocId(newId);
         const docRef = doc(db, LOC_COLLECTION, zoneDocId); 
         const docSnap = await getDoc(docRef);
-        if (docSnap.exists() && docSnap.data()[newId]) return alert(`이미 존재합니다.`);
+        if (docSnap.exists() && docSnap.data()[newId]) { showAlert(`이미 존재합니다.`); return; }
         await setDoc(docRef, { [newId]: { dong: '', pos: '', code: '', name: '', option: '', stock: '0', reserved: false, reservedAt: 0, assignedAt: 0, reservedBy: '', updatedAt: new Date(), rawData: {} } }, { merge: true });
         inputObj.value = ''; showToast(`로케이션 ${newId} 추가 완료`);
-    } catch (error) { console.error(error); alert('로케이션을 추가하지 못했습니다(인터넷 연결 확인).' + (error?.code ? ` (${error.code})` : '')); }
+    } catch (error) { console.error(error); showAlert('로케이션을 추가하지 못했습니다(인터넷 연결 확인).' + (error?.code ? ` (${error.code})` : ''), { isError: true, title: '추가하지 못했습니다' }); }
 };
 
 window.deleteSelectedLocations = async () => {
     // 가상 스크롤이라 화면에 그려진 줄만 querySelectorAll 에 잡힌다 → 선택 집합을 쓴다
     const checkedIds = [...VS.checkedIds];
-    if (checkedIds.length === 0) return alert("삭제할 대상을 선택하세요.");
+    if (checkedIds.length === 0) { showAlert("삭제할 대상을 선택하세요."); return; }
     if (window.__locBusy && !(await window.__locBusy.confirmIfUploading('일괄 수정'))) return;   // 업로드 중 확인
     const _preview = checkedIds.slice(0, 5).join(', ') + (checkedIds.length > 5 ? ` 외 ${checkedIds.length - 5}개` : '');
     if (!(await showConfirm(`선택한 로케이션 ${checkedIds.length}개를 삭제합니다. 되돌릴 수 없습니다.\n대상: ${_preview}\n(그 자리의 재고·선지정 정보도 함께 지워집니다)\n\n삭제할까요?`,
@@ -5501,7 +5504,7 @@ window.deleteSelectedLocations = async () => {
         VS.checkedIds.clear();
         updateLocBulkBar();
         showToast(`로케이션 ${checkedIds.length}개 삭제 완료`);
-    } catch (error) { console.error(error); alert('로케이션을 삭제하지 못했습니다(인터넷 연결 확인). 일부는 지워졌을 수 있으니 목록을 확인하세요.' + (error?.code ? ` (${error.code})` : '')); }
+    } catch (error) { console.error(error); showAlert('로케이션을 삭제하지 못했습니다(인터넷 연결 확인). 일부는 지워졌을 수 있으니 목록을 확인하세요.' + (error?.code ? ` (${error.code})` : ''), { isError: true, title: '삭제하지 못했습니다' }); }
 };
 
 // ============================================================
@@ -5511,7 +5514,7 @@ window.deleteSelectedLocations = async () => {
 // ============================================================
 window.openLocBulkEdit = function () {
     const ids = [...VS.checkedIds];
-    if (ids.length === 0) return alert('수정할 로케이션을 먼저 선택하세요.');
+    if (ids.length === 0) { showAlert('수정할 로케이션을 먼저 선택하세요.'); return; }
     const modal = document.getElementById('loc-bulk-modal');
     const target = document.getElementById('loc-bulk-target');
     if (!modal || !target) return;
@@ -5545,13 +5548,13 @@ window.applyLocBulkEdit = async function () {
     // 실제로 있는 자리만 — 없는 id 에 저장하면 빈 껍데기 자리가 새로 생긴다
     const exist = new Set(originalData.map(l => l.id));
     const ids = [...VS.checkedIds].filter(id => exist.has(id));
-    if (ids.length === 0) return alert('수정할 로케이션을 먼저 선택하세요.');
+    if (ids.length === 0) { showAlert('수정할 로케이션을 먼저 선택하세요.'); return; }
 
     const useDong = document.getElementById('loc-bulk-use-dong')?.checked;
     const usePos = document.getElementById('loc-bulk-use-pos')?.checked;
     const useCat = document.getElementById('loc-bulk-use-cat')?.checked;
     const useAngle = document.getElementById('loc-bulk-use-angle')?.checked;
-    if (!useDong && !usePos && !useCat && !useAngle) return alert('바꿀 항목을 체크해 주세요.');
+    if (!useDong && !usePos && !useCat && !useAngle) { showAlert('바꿀 항목을 체크해 주세요.'); return; }
 
     const patch = {};
     if (useDong) patch.dong = (document.getElementById('loc-bulk-dong')?.value || '').trim();
@@ -5560,7 +5563,7 @@ window.applyLocBulkEdit = async function () {
     if (useAngle) {
         // 칸수는 영구보전 업로드와 같은 곳(angleSize, 문자열)에 쓴다. 비우면 칸수 없음(괄호 표시 안 함).
         const a = (document.getElementById('loc-bulk-angle')?.value || '').trim();
-        if (a && !/^\d{1,3}$/.test(a)) return alert('칸수는 숫자(1~999)로 넣거나, 칸수를 없애려면 비워 두세요.');
+        if (a && !/^\d{1,3}$/.test(a)) { showAlert('칸수는 숫자(1~999)로 넣거나, 칸수를 없애려면 비워 두세요.'); return; }
         patch.angleSize = a.replace(/^0+(?=\d)/, '');
     }
 
@@ -5574,7 +5577,7 @@ window.applyLocBulkEdit = async function () {
         if (fixed.length) notes.push(`※ ${fixed.length}개(비축·SAM 번호)는 번호 규칙상 항상 '기타'로 취급됩니다 — 대분류를 바꿔도 화면 집계는 그대로입니다.`);
     }
     if (window.__locBusy && !(await window.__locBusy.confirmIfUploading('일괄 수정'))) return;   // 업로드 중 확인
-    if (!confirm(`${ids.length}개 로케이션을 바꿉니다.\n\n${what}\n${notes.length ? '\n' + notes.join('\n') + '\n' : ''}\n진행할까요?`)) return;
+    if (!(await showConfirm(`${ids.length}개 로케이션을 바꿉니다.\n\n${what}\n${notes.length ? '\n' + notes.join('\n') + '\n' : ''}\n진행할까요?`, { okText: '바꾸기', danger: true }))) return;
 
     window.showLoading(`${ids.length}개 로케이션 수정 중...`);
     try {
@@ -5600,7 +5603,7 @@ window.applyLocBulkEdit = async function () {
     } catch (e) {
         window.hideLoading();
         console.error('[location] 일괄 수정 실패:', e);
-        alert('로케이션을 수정하지 못했습니다(인터넷 연결 확인). 일부는 바뀌었을 수 있으니 목록을 확인하세요.' + (e?.code ? ` (${e.code})` : ''));
+        showAlert('로케이션을 수정하지 못했습니다(인터넷 연결 확인). 일부는 바뀌었을 수 있으니 목록을 확인하세요.' + (e?.code ? ` (${e.code})` : ''), { isError: true, title: '수정하지 못했습니다' });
     }
 };
 
@@ -5837,13 +5840,13 @@ function _ttRenderTabs(tip, key, activeTab) {
     content.querySelectorAll('.tt-btn-reset').forEach(btn => {
         btn.addEventListener('click', async (e) => {
             e.stopPropagation();
-            if (!confirm('설명을 기본값으로 복원하시겠습니까?')) return;
+            if (!(await showConfirm('설명을 기본값으로 복원하시겠습니까?', { okText: '복원', danger: true }))) return;
             delete customTooltips[key + '__desc'];
             try {
                 await setDoc(doc(db, LOC_COLLECTION, 'INFO_CONFIG'), { customTooltips }, { merge: true });
                 showToast("기본값으로 복원되었습니다.");
                 _ttRenderTabs(tip, key, 'desc');
-            } catch(err) { console.error(err); alert("복원 실패"); }
+            } catch(err) { console.error(err); showAlert("복원 실패", { isError: true, title: '복원하지 못했습니다' }); }
         });
     });
 }
@@ -6012,7 +6015,7 @@ function _ttShowEditor(tip, key, target) {
             _ttEditingLock = false;
             tip.classList.remove('tt-editing');
             _ttRenderTabs(tip, key, target);
-        } catch(err) { console.error(err); alert(`${target === 'desc' ? '설명' : '메뉴얼'}을 저장하지 못했습니다(인터넷 연결 확인).` + (err?.code ? ` (${err.code})` : '')); }
+        } catch(err) { console.error(err); showAlert(`${target === 'desc' ? '설명' : '메뉴얼'}을 저장하지 못했습니다(인터넷 연결 확인).` + (err?.code ? ` (${err.code})` : ''), { isError: true, title: '저장하지 못했습니다' }); }
     });
 }
 
@@ -7903,7 +7906,7 @@ window.__dashRerenderBucketList = function () {
 // 엑셀 다운로드 (XLSX는 페이지에 이미 로드됨)
 window.__dashDownloadBucketExcel = function () {
     if (!__dashLastBucketList || !__dashLastBucketList.items || __dashLastBucketList.items.length === 0) {
-        alert('다운로드할 데이터가 없습니다.');
+        showAlert('다운로드할 데이터가 없습니다.');
         return;
     }
     const { bucket, zoneFilter, dongFilter, items } = __dashLastBucketList;

@@ -1,13 +1,13 @@
 // === js/history-data-manager.js ===
 import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
-import { getTodayDateString, toDateString, getCurrentTime, calcElapsedMinutes, showToast, friendlyFirebaseError, showConfirm } from './utils.js?v=b14a118c2b0c-7bf0fcab';
+import { getTodayDateString, toDateString, getCurrentTime, calcElapsedMinutes, showToast, friendlyFirebaseError, showConfirm } from './utils.js?v=32969da5faa9-163bcbc9';
 import { clampOpenRecords } from './lib/record-close.js?v=c8683e426085-11b6fe97';
 import { decideHistoryMerge, historyHasContent } from './lib/history-merge.js?v=f882da56f066-3d3139d2';
 import { validateClockInOut, normalizeClock } from './lib/clock-in-out.js?v=2b0fa162a240-d1eeb61e';
 import {
     checkStartAfterClockIn, recordsBeforeClockIn, isTardyClockIn, tardyThreshold, removeTardyOf, makeEditStamp
 } from './lib/attendance-guard.js?v=2a8059f9ce4c-c8aba679';
-import { validMemberNames, systemAccountSet } from './attendance-stats.js?v=efe8bde439ca-15815b0d';
+import { validMemberNames, systemAccountSet } from './attendance-stats.js?v=f1f880ba8140-15815b0d';
 import { can } from './lib/perm.js?v=c1e53d91da8e-49afeea3';
 import { addRecord, updateRecord, removeRecord } from './lib/history-record-ops.js?v=245faca66ae0-da67cec6';
 import { mergeAttendanceServerFirst } from './lib/attendance-merge.js?v=bbd046e11da5-356da462';
@@ -16,7 +16,7 @@ import { normalizeAdminWorkers, DEFAULT_ADMIN_WORKERS } from './lib/forecast-exc
 import { buildPlannedDoc } from './lib/planned-fields.js?v=d045515d71d6-6077efa3';
 import { sameTaskKeys, aliasTaskName } from './lib/task-alias-view.js?v=2e131477eb8e-af660ceb';
 // 진행 중 기록을 끝내거나 지울 때 멤버 잠금(activeLocks)도 같이 푼다
-import { writeRecordsReleasingLocks, markLocalWorkEnded } from './app-sync.js?v=27e6e35d51a5-ca1bb1f2';
+import { writeRecordsReleasingLocks, markLocalWorkEnded } from './app-sync.js?v=e8f50ae37140-68f6c921';
 import {
     doc, setDoc, getDoc, getDocFromServer, collection, getDocs, getDocsFromServer,
     deleteDoc, deleteField,
@@ -2262,7 +2262,7 @@ export async function backfillFxRates(fromDate = '2026-06-01') {
         .sort();
 
     if (targets.length === 0) { showToast('채울 과거 환율이 없습니다. (이미 모두 입력됨)'); return { ok: 0, fail: 0 }; }
-    if (!confirm(`${fromDate}부터 환율이 비어있는 ${targets.length}일을 과거 환율로 채웁니다.\n진행할까요?`)) return { ok: 0, fail: 0, canceled: true };
+    if (!(await showConfirm(`${fromDate}부터 환율이 비어있는 ${targets.length}일을 과거 환율로 채웁니다.\n진행할까요?`))) return { ok: 0, fail: 0, canceled: true };
 
     let ok = 0, fail = 0;
     for (const date of targets) {

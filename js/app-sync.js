@@ -3,16 +3,15 @@ import { nameWithPosition } from './lib/member-title.js?v=9a5f2a824905-0bafbd16'
 import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
 import { isPersistentLeaveType } from './state.js?v=c7f5fc984ef9-a2ce38c0';
 import * as DOM from './dom-elements.js?v=2b9f19ecbde2-82fbef91';
-import { getTodayDateString, getCurrentTime, showToast } from './utils.js?v=b14a118c2b0c-7bf0fcab';
+import { getTodayDateString, getCurrentTime, showToast } from './utils.js?v=32969da5faa9-163bcbc9';
 // ✨ limit가 추가되었습니다.
 import { doc, onSnapshot, collection, query, where, limit, writeBatch, getDocs, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { renderDashboardLayout, renderTaskSelectionModal } from './ui.js?v=27e6e35d51a5-a84d3554';
-import { renderTodoList } from './inspection-logic.js?v=4e432a2b872c-e4d6f36f';
-import { renderNotificationList } from './app-notifications.js?v=5ab4b1ad1e64-af702167';
+import { renderDashboardLayout, renderTaskSelectionModal } from './ui.js?v=e8f50ae37140-a84d3554';
+import { renderTodoList } from './inspection-logic.js?v=915a0ed30c26-e4d6f36f';
+import { renderNotificationList } from './app-notifications.js?v=70dd61ae1d0a-af702167';
 import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=152edbc1d09a-ab7817f6';
 import { PRIVATE_CONFIG_KEYS } from './config.js?v=242bb63abbe9-dd1665a9';
 import { isAutomation, loadDismissed, pickPopup, findOpenModal } from './lib/noti-popup.js?v=a01e8d07acd1-85d726e6';
-import { isTvMode } from './tv-mode.js?v=0445721694c6-0cde3796';
 import { desktopNotify } from './desktop-noti.js?v=d70206b658ab-45c58629';
 import { migrateDashboardTaskItems } from './lib/task-config-sync.js?v=970a6d3589ff-85dd0720';
 import { planForceEnd } from './lib/leave-timing.js?v=56494f977986-82fd27e6';
@@ -42,7 +41,7 @@ const NOTI_WAIT_STEP = 1000;
 const NOTI_WAIT_MAX = 30 * 60 * 1000;
 let notiWaitTimer = null;
 function maybeOpenNotificationModal() {
-    if (isAutomation() || isTvMode() || !State.appState.currentUser) return;   // 현장 TV 보기는 알림 창을 띄우지 않는다
+    if (isAutomation() || !State.appState.currentUser) return;
     const modal = document.getElementById('notification-modal');
     if (!modal || !modal.classList.contains('hidden')) return;          // 없음 · 이미 열림(목록은 스냅샷이 다시 그린다)
     if (!pickPopup(State.appState.notifications, loadDismissed()).length) return;
@@ -252,7 +251,7 @@ export function setupFirebaseListeners(renderCallback, markDirtyCallback, force 
             snapshot.docChanges().forEach((change) => {
                 if (change.type === 'added' && !isInitialLoad && !change.doc.data().isRead) {
                     freshUnread = true;
-                    if (!isTvMode()) desktopNotify({ id: change.doc.id, ...change.doc.data() });   // 일정 알림은 Windows 알림으로도(화면이 안 보일 때) — 현장 TV 는 안 띄움
+                    desktopNotify({ id: change.doc.id, ...change.doc.data() });   // 일정 알림은 Windows 알림으로도(화면이 안 보일 때)
                 }
             });
             // 봇(업무예상알림이 #toast 글자를 읽는다)에서는 토스트도 띄우지 않는다

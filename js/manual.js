@@ -8,7 +8,7 @@ import { connectEmulatorsIfEnabled } from './firebase-emulator.js?v=071adc2867a0
 import { setShellContext, goHome, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=b9a7199f3e1d-c80c27e9';
 import { memberNameFor } from './app-shell-data.js?v=e42c6a10ca7a-9319c795';
 import { menuConfigOf } from './lib/perm.js?v=c1e53d91da8e-49afeea3';
-import { escapeHtml, friendlyFirebaseError, showConfirm } from './utils.js?v=b14a118c2b0c-7bf0fcab';
+import { escapeHtml, friendlyFirebaseError, showConfirm, showAlert } from './utils.js?v=32969da5faa9-163bcbc9';
 import { checkAttachment, checkInlineImage, accessFieldsFor, backfillPatchFor, canViewManual as canViewManualFor, mergeManualLists } from './lib/manual-access.js?v=11ac8af27348-8605df04';
 
 let app, db, auth, storage;
@@ -285,7 +285,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             loadManuals();
         } else {
             setShellContext({ signedIn: false });
-            alert("로그인이 필요합니다.");
+            await showAlert("로그인이 필요합니다.");
             window.location.href = 'index.html';
         }
     });
@@ -294,7 +294,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 async function uploadInlineImageToStorage(file) {
     // 형식·크기 검사(storage.rules manuals/images 와 같은 기준) — 어긋나면 올리지 않고 알린다
     const chk = checkInlineImage(file);
-    if (!chk.ok) { alert(chk.reason); return; }
+    if (!chk.ok) { showAlert(chk.reason, { title: '올릴 수 없음', isError: true }); return; }
     const btn = document.getElementById('btn-save-manual');
     const originalText = btn.textContent;
     btn.textContent = '이미지 업로드 중...';
@@ -312,7 +312,7 @@ async function uploadInlineImageToStorage(file) {
         quillEditor.setSelection(range.index + 1);
     } catch (e) {
         console.error("본문 이미지 업로드 실패:", e);
-        alert("이미지를 서버에 업로드하는데 실패했습니다.\n- 용량이 너무 큰 이미지이거나 네트워크 연결이 끊겼습니다.\n- 계속되면 관리자에게 알려 주세요.");
+        showAlert("이미지를 서버에 업로드하는데 실패했습니다.\n- 용량이 너무 큰 이미지이거나 네트워크 연결이 끊겼습니다.\n- 계속되면 관리자에게 알려 주세요.", { title: '업로드 실패', isError: true });
     } finally {
         btn.textContent = originalText;
         btn.disabled = false;
@@ -428,7 +428,7 @@ function setupEventListeners() {
             // 실행 파일·압축 파일·20MB 초과는 고르는 순간 돌려보낸다(저장 때 한 번 더 본다)
             const chk = checkAttachment(e.target.files[0]);
             if (!chk.ok) {
-                alert(chk.reason);
+                showAlert(chk.reason, { title: '첨부할 수 없음', isError: true });
                 e.target.value = '';
                 return;
             }
@@ -442,7 +442,7 @@ function setupEventListeners() {
     document.getElementById('btn-edit-manual').addEventListener('click', () => {
         const item = manualList.find(m => m.id === currentEditingId);
         if (!item) return;
-        if (!canEditManual(item)) { alert(EDIT_DENIED_MSG); return; }
+        if (!canEditManual(item)) { showAlert(EDIT_DENIED_MSG, { title: '권한 없음', isError: true }); return; }
         openEditor(item);
     });
 
@@ -730,7 +730,7 @@ function renderList() {
 function openEditor(item = null) {
     // 정화 모듈을 못 읽었으면 기존 본문이 글자로 바뀐 채 저장될 수 있어 수정을 막는다
     if (item && !hasPurify()) {
-        alert('보안 모듈을 불러오지 못해 지금은 매뉴얼을 수정할 수 없습니다.\n새로고침 후 다시 시도하고, 계속되면 관리자에게 알려 주세요.');
+        showAlert('보안 모듈을 불러오지 못해 지금은 매뉴얼을 수정할 수 없습니다.\n새로고침 후 다시 시도하고, 계속되면 관리자에게 알려 주세요.', { title: '수정할 수 없음', isError: true });
         return;
     }
     currentEditingId = item ? item.id : null;
@@ -794,7 +794,7 @@ async function saveManual() {
     const content = quillEditor.root.innerHTML;
     
     if (!title) {
-        alert("제목을 반드시 입력해주세요.");
+        showAlert("제목을 반드시 입력해주세요.", { title: '입력 확인', isError: true });
         return;
     }
 
@@ -805,7 +805,7 @@ async function saveManual() {
             allowedMembers.push(cb.value);
         });
         if (allowedMembers.length === 0) {
-            alert("비공개(특정 인원 열람) 설정 시, 열람을 허용할 인원을 최소 1명 이상 체크해야 합니다.");
+            showAlert("비공개(특정 인원 열람) 설정 시, 열람을 허용할 인원을 최소 1명 이상 체크해야 합니다.", { title: '입력 확인', isError: true });
             return; 
         }
     }
@@ -813,7 +813,7 @@ async function saveManual() {
     const access = accessFieldsFor(allowedMembers, appConfig.memberEmails);
     if (!access.isPublic) {
         const noEmail = allowedMembers.filter(n => accessFieldsFor([n], appConfig.memberEmails).allowedEmails.length === 0);
-        if (noEmail.length > 0 && !confirm(`이메일이 등록되지 않은 인원은 이 매뉴얼을 볼 수 없습니다: ${noEmail.join(', ')}\n(관리자 페이지에서 이메일을 등록한 뒤 다시 저장하면 볼 수 있습니다)\n\n이대로 저장할까요?`)) {
+        if (noEmail.length > 0 && !(await showConfirm(`이메일이 등록되지 않은 인원은 이 매뉴얼을 볼 수 없습니다: ${noEmail.join(', ')}\n(관리자 페이지에서 이메일을 등록한 뒤 다시 저장하면 볼 수 있습니다)\n\n이대로 저장할까요?`))) {
             return;
         }
     }
@@ -821,14 +821,14 @@ async function saveManual() {
     // 첨부 형식·크기 — 고를 때 봤지만 한 번 더(storage.rules 와 같은 기준)
     const fileCheck = selectedFile ? checkAttachment(selectedFile) : null;
     if (fileCheck && !fileCheck.ok) {
-        alert(fileCheck.reason);
+        showAlert(fileCheck.reason, { title: '첨부할 수 없음', isError: true });
         return;
     }
 
     // 남의 매뉴얼은 규칙이 거부한다 — 첨부를 올리기 전에 막는다(올린 파일만 남지 않게)
     const existingItem = currentEditingId ? manualList.find(m => m.id === currentEditingId) : null;
     if (existingItem && !canEditManual(existingItem)) {
-        alert(`저장할 수 없습니다. ${EDIT_DENIED_MSG}`);
+        showAlert(`저장할 수 없습니다. ${EDIT_DENIED_MSG}`, { title: '권한 없음', isError: true });
         return;
     }
 
@@ -893,11 +893,11 @@ async function saveManual() {
     } catch (e) {
         console.error("저장 오류:", e);
         if (e.message === "OVERSIZED_CONTENT" || e.code === "resource-exhausted") {
-            alert("저장 실패: 본문 텍스트 용량이 초과되었습니다.\n\n(이미지 업로드가 실패하여 강제로 글자로 변환된 이미지가 남아있을 수 있습니다. 이미지를 지우고 다시 시도하고, 계속되면 관리자에게 알려 주세요.)");
+            showAlert("저장 실패: 본문 텍스트 용량이 초과되었습니다.\n\n(이미지 업로드가 실패하여 강제로 글자로 변환된 이미지가 남아있을 수 있습니다. 이미지를 지우고 다시 시도하고, 계속되면 관리자에게 알려 주세요.)", { title: '저장 실패', isError: true });
         } else if (e && e.code === 'permission-denied') {
-            alert(`저장 권한이 없습니다. ${EDIT_DENIED_MSG}`);
+            showAlert(`저장 권한이 없습니다. ${EDIT_DENIED_MSG}`, { title: '권한 없음', isError: true });
         } else {
-            alert(`저장에 실패했습니다 — ${friendlyFirebaseError(e)}`);
+            showAlert(`저장에 실패했습니다 — ${friendlyFirebaseError(e)}`, { title: '저장 실패', isError: true });
         }
     } finally {
         btn.disabled = false;
@@ -974,7 +974,7 @@ function closeManualView() {
 async function deleteManual() {
     const item = manualList.find(m => m.id === currentEditingId);
     if (!item) return;
-    if (!canEditManual(item)) { alert(EDIT_DENIED_MSG); return; }
+    if (!canEditManual(item)) { showAlert(EDIT_DENIED_MSG, { title: '권한 없음', isError: true }); return; }
     if (!(await showConfirm('복구할 수 없습니다.', { title: '이 매뉴얼을 삭제할까요?', okText: '삭제하기', danger: true }))) return;
 
     try {
@@ -982,8 +982,8 @@ async function deleteManual() {
         closeManualView();
         await loadManuals();
     } catch(e) {
-        alert(e && e.code === 'permission-denied'
+        showAlert(e && e.code === 'permission-denied'
             ? `삭제 권한이 없습니다. ${EDIT_DENIED_MSG}`
-            : `삭제에 실패했습니다 — ${friendlyFirebaseError(e)}`);
+            : `삭제에 실패했습니다 — ${friendlyFirebaseError(e)}`, { title: '삭제 실패', isError: true });
     }
 }

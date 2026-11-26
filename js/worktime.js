@@ -15,7 +15,7 @@
 import { initializeFirebase } from './config.js?v=242bb63abbe9-dd1665a9';
 import { setShellContext, goHome, onBeforeLeaveSave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=b9a7199f3e1d-c80c27e9';
 import { memberNameFor } from './app-shell-data.js?v=e42c6a10ca7a-9319c795';
-import { escapeHtml as esc, showConfirm } from './utils.js?v=b14a118c2b0c-7bf0fcab';
+import { escapeHtml as esc, showConfirm } from './utils.js?v=32969da5faa9-163bcbc9';
 import { doc, getDoc, setDoc, collection, getDocs, query, orderBy, startAt, endAt, documentId }
     from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
@@ -614,9 +614,9 @@ $('btn-bulk-clear').addEventListener('click', async () => {
     if (!monthReady()) return;
     const withData = [...selected].filter(dayHasData).length;
     if (withData === 0) { toast('선택한 날에 지울 기록이 없습니다.'); return; }
-    if (!confirm(`선택한 ${selected.size}일 중 기록이 있는 ${withData}일을 지웁니다.
+    if (!(await showConfirm(`선택한 ${selected.size}일 중 기록이 있는 ${withData}일을 지웁니다.
 
-되돌릴 수 없습니다. 계속할까요?`)) return;
+되돌릴 수 없습니다. 계속할까요?`, { okText: '지우기', danger: true }))) return;
 
     selected.forEach(key => { if (records[currentPid]) delete records[currentPid][key]; });
     renderSheet();

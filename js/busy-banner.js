@@ -16,6 +16,7 @@
 // ⚠️ 띠·문서에 이메일을 넣지 않는다. 이름은 memberNameFor 결과만(busy-view.js cleanBy 가 '@' 섞인 값을 버린다).
 import { doc, onSnapshot, getDocFromServer, runTransaction, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { leaseView, uploadView, mibalRequestView, bannerText, bannerKey, cleanBy, fmtHM, BY_MAX } from './lib/busy-view.js?v=659be9925d1c-88862baa';
+import { showConfirm } from './utils.js?v=32969da5faa9-163bcbc9';
 
 const RECHECK_MS = 30 * 1000;
 const BEAT_MS = 60 * 1000;
@@ -161,8 +162,8 @@ export function createUploadStatus({ db, path, kind = '', getName = null } = {})
             const v = await api.checkOthers();
             if (!v) return true;
             const by = cleanBy(v.by);
-            return confirm(`${by ? `${by}님이` : '다른 사람이'} ${fmtHM(v.sinceMs)}부터 ${v.label}입니다(마지막 신호 ${fmtHM(v.beatMs)}).\n`
-                + `끝나기 전에 「${jobName || '이 작업'}」 작업을 하면 올리는 중인 자료와 섞일 수 있습니다.\n\n그래도 계속할까요?`);
+            return showConfirm(`${by ? `${by}님이` : '다른 사람이'} ${fmtHM(v.sinceMs)}부터 ${v.label}입니다(마지막 신호 ${fmtHM(v.beatMs)}).\n`
+                + `끝나기 전에 「${jobName || '이 작업'}」 작업을 하면 올리는 중인 자료와 섞일 수 있습니다.\n\n그래도 계속할까요?`, { okText: '계속하기', danger: true });
         }
     };
     return api;

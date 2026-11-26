@@ -14,7 +14,7 @@ import {
 } from './lib/perm-model.js?v=84f63a17f29d-4f0ab0b3';
 import { withBuiltinMenus, SHELL_EXCLUDED_ACTIONS } from './menu-catalog.js?v=8219e3fbbda6-bda14b1d';
 import { isAdminOnlyNow, DATA_ADMIN_ONLY_NOTE, lastDayKeys, sumHits, HIT_COLLECTION } from './lib/perm-gate.js?v=e8be6a31f3ef-c9741504';
-import { showConfirm } from './utils.js?v=b14a118c2b0c-7bf0fcab';
+import { showConfirm, showAlert } from './utils.js?v=32969da5faa9-163bcbc9';
 
 let model = null;
 let config = null;
@@ -305,8 +305,8 @@ function drawFeatures() {
 
 const DANGER_MSG = '되돌리기 어려운 기능입니다(덮어쓰기·삭제·마감).\n정말 이 권한을 줄까요?';
 /** data.* 를 일반 직원에게 줄 때 — 막지 않고 안내만(사용자 결정: 데이터 관리는 지금 관리자만). */
-const warnAdminOnlyNow = (id, on) => { if (on && isAdminOnlyNow(id)) alert(DATA_ADMIN_ONLY_NOTE); };
-const confirmDanger = (id, on) => !on || !FEATURE_BY_ID[id] || FEATURE_BY_ID[id].danger < 2 || confirm(DANGER_MSG);
+const warnAdminOnlyNow = (id, on) => { if (on && isAdminOnlyNow(id)) showAlert(DATA_ADMIN_ONLY_NOTE); };
+const confirmDanger = async (id, on) => !on || !FEATURE_BY_ID[id] || FEATURE_BY_ID[id].danger < 2 || showConfirm(DANGER_MSG, { okText: '권한 주기', danger: true });
 
 async function onClick(e) {
     const t = e.target.closest('[data-pm-act]');
@@ -321,12 +321,12 @@ async function onClick(e) {
     if (act === 'role-dup') { addRole(model, null, t.dataset.role); draw(); return; }
     if (act === 'role-del') {
         if (!(await showConfirm('', { title: '이 역할을 지울까요?', okText: '지우기', danger: true }))) return;
-        if (!deleteRole(model, t.dataset.role)) alert('쓰는 사람이 있거나 새 직원 기본 역할이라 지울 수 없습니다.');
+        if (!deleteRole(model, t.dataset.role)) showAlert('쓰는 사람이 있거나 새 직원 기본 역할이라 지울 수 없습니다.', { title: '지울 수 없음', isError: true });
         draw();
     }
 }
 
-function onChange(e) {
+async function onChange(e) {
     const t = e.target.closest('[data-pm-act]');
     if (!t || !model) return;
     const act = t.dataset.pmAct;
@@ -337,11 +337,11 @@ function onChange(e) {
     } else if (act === 'role') {
         setRole(model, email, t.value);
     } else if (act === 'feat') {
-        if (!confirmDanger(t.dataset.id, t.checked)) { t.checked = false; return; }
+        if (!(await confirmDanger(t.dataset.id, t.checked))) { t.checked = false; return; }
         warnAdminOnlyNow(t.dataset.id, t.checked);
         setFeature(model, email, t.dataset.id, t.checked);
     } else if (act === 'role-feat') {
-        if (!confirmDanger(t.dataset.id, t.checked)) { t.checked = false; return; }
+        if (!(await confirmDanger(t.dataset.id, t.checked))) { t.checked = false; return; }
         warnAdminOnlyNow(t.dataset.id, t.checked);
         setRoleFeature(model, t.dataset.role, t.dataset.id, t.checked);
     } else if (act === 'role-name') {

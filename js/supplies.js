@@ -15,7 +15,7 @@
 import { initializeFirebase } from './config.js?v=242bb63abbe9-dd1665a9';
 import { setShellContext, goHome } from './app-shell-bridge.js?v=b9a7199f3e1d-c80c27e9';
 import { memberNameFor } from './app-shell-data.js?v=e42c6a10ca7a-9319c795';
-import { escapeHtml as esc, showConfirm } from './utils.js?v=b14a118c2b0c-7bf0fcab';
+import { escapeHtml as esc, showConfirm, showAlert } from './utils.js?v=32969da5faa9-163bcbc9';
 import { kstDateTime } from './lib/kst-time.js?v=1f1e277244a9-6fe98384';
 import { checkStockAdjust } from './lib/supplies-stock-check.js?v=bece1017afad-45058477';
 import {
@@ -276,7 +276,7 @@ async function load() {
     } catch (e) {
         if (e && e.handled) return;   // 처음 만들기 저장이 충돌 — persist 가 이미 안내하고 다시 불러왔다
         console.error('비품 데이터 로드 실패:', e);
-        alert('비품 데이터를 불러오지 못했습니다: ' + (e.message || e));
+        showAlert('비품 데이터를 불러오지 못했습니다: ' + (e.message || e), { title: '불러오기 실패', isError: true });
     }
 }
 
@@ -315,8 +315,8 @@ async function persist(opts = {}) {
     } catch (e) {
         if (e instanceof SuppliesConflict) {
             // 이 화면에서 바꾼 것은 버리고 서버 최신으로 다시 그린다(keepModal 이 아니면 열린 창은 닫는다)
-            alert(opts.conflictMsg || ('다른 곳에서 비품이 바뀌었습니다 — 최신 내용으로 다시 불러옵니다.\n'
-                + '방금 저장하려던 내용과 창에 입력해 두고 저장하지 않은 수정은 모두 사라졌습니다. 다시 열어 입력해 주세요.'));
+            showAlert(opts.conflictMsg || ('다른 곳에서 비품이 바뀌었습니다 — 최신 내용으로 다시 불러옵니다.\n'
+                + '방금 저장하려던 내용과 창에 입력해 두고 저장하지 않은 수정은 모두 사라졌습니다. 다시 열어 입력해 주세요.'), { title: '다른 곳에서 바뀜', isError: true });
             if (!opts.keepModal) closeModal('item-modal');
             await load();
             renderAll();
@@ -959,11 +959,11 @@ async function handleStockFile(file) {
         note.classList.remove('hidden');
         $('btn-save-stock').focus();
     } catch (e) {
-        alert(`파일을 읽지 못했습니다.
+        showAlert(`파일을 읽지 못했습니다.
 
 ${e.message}
 
-'현재고조회' 엑셀(작업일 · 작업 · 수량 · 재고 열) 형식을 올려주세요.`);
+'현재고조회' 엑셀(작업일 · 작업 · 수량 · 재고 열) 형식을 올려주세요.`, { title: '파일 읽기 실패', isError: true });
     }
 }
 
@@ -1060,7 +1060,7 @@ async function saveStock() {
     if (after < 0) return showError('stock-panel-error', '재고가 0보다 작아질 수 없습니다.');
     // 실사 0·큰 변화는 확인을 받는다(앞서 띄운 오류 문구는 지운다 — 취소해도 옛 오류가 남지 않게)
     showError('stock-panel-error', '');
-    if (chk.confirm && !confirm(chk.confirm)) return;
+    if (chk.confirm && !(await showConfirm(chk.confirm))) return;
 
     const btn = $('btn-save-stock');
     btn.disabled = true;
@@ -1090,7 +1090,7 @@ async function saveStock() {
             // 조정 수량·메모는 남겨 둬 확인 후 바로 다시 누를 수 있게 한다(미리보기는 새 현재고 기준으로 다시 계산).
             const fresh = items.find(x => x.id === stockTargetId);
             if (!fresh) {
-                alert('이 비품은 다른 곳에서 삭제되었습니다. 창을 닫습니다.');
+                showAlert('이 비품은 다른 곳에서 삭제되었습니다. 창을 닫습니다.', { isError: true });
                 closeModal('item-modal');
                 return;
             }
@@ -1239,7 +1239,7 @@ async function runForecastAction(fn) {
         renderAll();
     } catch (e) {
         if (e instanceof OrderConflict) {
-            alert('다른 사람이 먼저 이 비품의 발주 상태를 바꿨습니다 — 최신 상태로 다시 그립니다.\n확인하고 필요하면 다시 눌러 주세요.');
+            showAlert('다른 사람이 먼저 이 비품의 발주 상태를 바꿨습니다 — 최신 상태로 다시 그립니다.\n확인하고 필요하면 다시 눌러 주세요.', { title: '다른 사람이 먼저 바꿈', isError: true });
             renderStockPanel();
             renderAll();
             showError('fc-error', '다른 사람이 먼저 바꿨습니다. 지금 상태를 확인해 주세요.');
@@ -1270,7 +1270,7 @@ async function forecastOrder() {
 async function forecastReceive() {
     const t = orderTarget();
     if (!t || !t.order) return;
-    if (!confirm('입고된 것으로 표시할까요?\n이지어드민에 입고를 입력했다면 다음 날 아침 자동으로도 확인됩니다.')) return;
+    if (!(await showConfirm('입고된 것으로 표시할까요?\n이지어드민에 입고를 입력했다면 다음 날 아침 자동으로도 확인됩니다.'))) return;
     const d = todayStr();
     await runForecastAction(() => writeOrder(t.it.id, ['ordered'],
         (cur) => ({ ...cur, status: 'received', receivedDate: d, receivedBy: currentUser, evidence: 'manual' }),
@@ -1307,7 +1307,7 @@ async function saveItemFields(patch) {
         if (e.handled) {
             const fresh = items.find(x => x.id === stockTargetId);
             if (!fresh) {
-                alert('이 비품은 다른 곳에서 삭제되었습니다. 창을 닫습니다.');
+                showAlert('이 비품은 다른 곳에서 삭제되었습니다. 창을 닫습니다.', { isError: true });
                 closeModal('item-modal');
                 return;
             }
@@ -1395,10 +1395,10 @@ $('summary').addEventListener('click', (e) => {
 
 // ×·[취소]·ESC(js/modal-esc.js 가 × 를 누른다) — 상세 창에 저장 안 한 수정이 있으면 묻는다
 document.querySelectorAll('[data-close]').forEach(btn => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', async () => {
         const m = btn.closest('.fixed');
         if (!m) return;
-        if (m.id === 'item-modal' && isItemDirty() && !confirm('저장하지 않은 수정이 있습니다. 닫을까요?')) return;
+        if (m.id === 'item-modal' && isItemDirty() && !(await showConfirm('저장하지 않은 수정이 있습니다. 닫을까요?'))) return;
         closeModal(m.id);
     });
 });

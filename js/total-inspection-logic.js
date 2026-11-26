@@ -14,15 +14,15 @@
 // ⚠️ 이 창은 index.html·history.html 에 붙는다 — role="dialog"·data-act·end-shift-* 를 쓰지 않는다(업무마감봇 선택자).
 import * as DOM from './dom-elements.js?v=2b9f19ecbde2-82fbef91';
 import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
-import { showToast, getTodayDateString, getCurrentTime, escapeHtml, showConfirm } from './utils.js?v=b14a118c2b0c-7bf0fcab';
+import { showToast, getTodayDateString, getCurrentTime, escapeHtml, showConfirm } from './utils.js?v=32969da5faa9-163bcbc9';
 import {
     doc, getDoc, collection, query, where, limit as fsLimit, onSnapshot, runTransaction, serverTimestamp, increment, deleteField
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { TASK, tName } from './task-names.js?v=33eb5ccd69bc-26ab8ff7';
-import { openManualAdd } from './inspection-manual.js?v=4e432a2b872c-6555fd07';
+import { openManualAdd } from './inspection-manual.js?v=915a0ed30c26-6555fd07';
 import { S as PS, loadLoc, locOf, fmtDateTime, tsMs } from './products-store.js?v=12e37e026ce6-ee5ce71b';   // [재고 연동] — 위치·재고 요약(ProductLoc, IndexedDB 캐시 같이 씀)
-import { getCurrentInspItem } from './inspection-logic.js?v=4e432a2b872c-e4d6f36f';
-import { listKeyLogs, removeOrRevertOne } from './total-insp-edit.js?v=84ada9335df8-892af557';   // 잘못 연 회차 되돌리기(직전 회차 기록 합산)
+import { getCurrentInspItem } from './inspection-logic.js?v=915a0ed30c26-e4d6f36f';
+import { listKeyLogs, removeOrRevertOne } from './total-insp-edit.js?v=d734fd706261-892af557';   // 잘못 연 회차 되돌리기(직전 회차 기록 합산)
 import {
     ON, DONE, canRevertRound, reopenConfirmText, isDoneToday, totalKey, startOrReopen, applySave, applyInfoSave, isInfoOnly, periodLabel, ymd, markDone, markReopen, progressOf, todayQtyOf,
     sortList, nextOnKey, filterRows, exactRow, logOf, fromSampleItem, stockFromLoc, infoChangedLabels, stockBasisText, removePlan, removeCounts, removeMessage

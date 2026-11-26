@@ -3,12 +3,12 @@
 //  - renderPredictionTab: 실적 예측 탭 (차트/KPI)
 //  - renderForecastTab: 업무 예상 탭 (시뮬레이션·요약 카드)
 
-import { predictFutureTrends } from './analysis-logic.js?v=a8ea0264d46f-0bfe0ae3';
+import { predictFutureTrends } from './analysis-logic.js?v=b42aaa862645-0bfe0ae3';
 import { doc, getDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { mibalByArrival, makeArrivalLookup, makeArrivalsLookup } from './lib/mibal-forecast.js?v=60b17128e7b7-2e3b80a2';
 import { parseInspPacks, sampleCardsByArrival } from './lib/insp-packs.js?v=e3fa3546a650-16eb76b5';
 import { inspListCountFor } from './lib/insp-day.js?v=d859a7e39527-456c14c8';
-import { getSubscribedDate } from './app-sync.js?v=27e6e35d51a5-ca1bb1f2';
+import { getSubscribedDate } from './app-sync.js?v=e8f50ae37140-68f6c921';
 import { runDay } from './lib/refill-view.js?v=3416a867c2d7-24e9bb3d';
 import { parseRecDay, pickRecDay, recCount, applyLocRecCount, dayKey as recDayKey } from './lib/locrec-view.js?v=e93900011313-fdf32cdb';
 import { LOCREC_TASK } from './lib/feature-catalog.js?v=b88b1c1e60c1-81ffd467';
@@ -25,22 +25,22 @@ import { precursorOffGate, noneNextStats, noneNextObs, precursorStateOfDay as pr
 import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=553320652df2-c473a26d';
 import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
 import { saveView } from './view-state.js?v=c2e4bf06fdce-0da8b754';
-import { getTodayDateString, getRegularMembersForCount, showToast, showConfirm, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=b14a118c2b0c-7bf0fcab';
-import { groupIncomingRowsByArrival } from './widget-incoming-schedule.js?v=4cffb65f59ad-237bc1dd';
+import { getTodayDateString, getRegularMembersForCount, showToast, showConfirm, showAlert, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=32969da5faa9-163bcbc9';
+import { groupIncomingRowsByArrival } from './widget-incoming-schedule.js?v=8fa451d87d70-237bc1dd';
 import { getIncomingQtyByDateFromCache, getIncomingDetailsByDateFromCache,
-         isIncomingCacheFreshToday } from './widget-incoming-schedule.js?v=4cffb65f59ad-237bc1dd';
+         isIncomingCacheFreshToday } from './widget-incoming-schedule.js?v=8fa451d87d70-237bc1dd';
 import { getPlannedQuantitiesForDate, getPlannedTimeTasksForDate, getPlannedExcludeMinutesForDate, getPlannedAdminWorkersForDate,
          fetchPlannedData, savePlannedQuantities,
          saveForecastSnapshot, saveForecastSnapshotIfAbsent, deleteForecastSnapshot, fetchForecastSnapshots,
-         getForecastSnapshotForDate, historyLoadFailed, hasHistoryLoaded, fetchAllHistoryData } from './history-data-manager.js?v=27e6e35d51a5-6e3a2ca6';
+         getForecastSnapshotForDate, historyLoadFailed, hasHistoryLoaded, fetchAllHistoryData } from './history-data-manager.js?v=e8f50ae37140-a9403e97';
 import { decomposeAccuracy, summarizeAccuracyRows, aggregateByTask, excludeTasksForAccuracy } from './forecast-accuracy.js?v=14735a690ed1-00c766d3';
 import { computeDayProgress, buildProgressRows, projectFinish, spentMinutesOf,
-         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=1f5572453152-40fe586a';
+         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=e0ea5ced9d5a-40fe586a';
 import { LUNCH_END_MIN } from './lib/calc.js?v=c29c2f406e7f-0cf37820';
 import { applyAdminWorkers, normalizeAdminWorkers, ADMIN_TASK_ID, DEFAULT_ADMIN_WORKERS,
          buildExcludedProgressRows, excludedActualByTask } from './lib/forecast-exclude.js?v=16797e217c0c-3d086ab1';
 import { taskUph, recentDays, RECENT_SPEED, recentTaskSpeeds } from './task-throughput.js?v=6c5add29d96b-0d55f842';
-import { normalizedUtilization } from './lib/ops-metrics.js?v=4607b43e8a55-58d6bcbb';
+import { normalizedUtilization } from './lib/ops-metrics.js?v=89a4eac4b3f4-58d6bcbb';
 import { foldReasonFor, FOLD_REASON_TEXT, shouldSaveQty, shouldSaveTime,
          normalizeTimeEntry } from './lib/sim-fold.js?v=47dacd3eb964-9cb392d3';
 import { learnCarryPerOffDay, backlogFactor, carryReason, carrySourceNote,
@@ -3358,7 +3358,7 @@ const runSimulation = ({ silent = false } = {}) => {
     const dateEl = document.getElementById('sim-target-date');
     const modeEl = document.getElementById('sim-mode');
     if (!dateEl?.value) {
-        if (!silent) alert('대상일을 선택해주세요.');
+        if (!silent) showAlert('대상일을 선택해주세요.', { title: '입력 확인', isError: true });
         else showResultPlaceholder();
         return;
     }
@@ -4395,7 +4395,7 @@ const updateSavedInfo = (dateStr) => {
 
 const saveSimQuantities = async () => {
     const dateStr = document.getElementById('sim-target-date')?.value;
-    if (!dateStr) { alert('대상일을 선택해주세요.'); return; }
+    if (!dateStr) { showAlert('대상일을 선택해주세요.', { title: '입력 확인', isError: true }); return; }
     if (dateStr < getTodayDateString()) {
         showToast('지난 날짜의 작업량은 저장할 수 없습니다. (예정 물량은 오늘 이후만 보관합니다)', true);
         return;
@@ -4545,7 +4545,7 @@ ${list}
 
 다른 PC 에서 저장한 값도 함께 지워질 수 있습니다.
 삭제한 값은 되돌릴 수 없습니다. 계속할까요?`;
-        if (!confirm(msg)) return;
+        if (!(await showConfirm(msg, { okText: '삭제하고 되돌리기', danger: true }))) return;
         // 지울 업무만 보낸다(null = 지우기) — 이 화면에 없는 업무(예: 해외배송)는 서버 값 그대로 남는다.
         // 수량형으로 옮겨간 업무의 시간형 잔재도 지운다(남겨 두면 나중에 되살아나 이중 계산된다).
         // 🆔 옛 이름으로 저장된 같은 업무 값은 savePlannedQuantities 가 서버 문서에서 같이 지운다(sameTaskKeys)
@@ -4700,13 +4700,13 @@ const setupSimulationListeners = () => {
     // 📌 계획 확정 — 지금 값을 그 날짜의 '확정 계획'으로 얼려 둔다
     document.getElementById('sim-snapshot-btn')?.addEventListener('click', async () => {
         const dateStr = document.getElementById('sim-target-date')?.value;
-        if (!dateStr) { alert('대상일을 선택해주세요.'); return; }
+        if (!dateStr) { showAlert('대상일을 선택해주세요.', { title: '입력 확인', isError: true }); return; }
         if (dateStr < getTodayDateString()) {
             showToast('지난 날짜는 확정할 수 없습니다. 지금 값으로 얼려도 그날의 예상치가 아니기 때문입니다.', true);
             return;
         }
         const already = getForecastSnapshotForDate(dateStr);
-        if (already && !confirm(`${dateStr} 계획은 이미 확정되어 있습니다.\n지금 값으로 다시 확정할까요?`)) return;
+        if (already && !(await showConfirm(`${dateStr} 계획은 이미 확정되어 있습니다.\n지금 값으로 다시 확정할까요?`))) return;
 
         const btn = document.getElementById('sim-snapshot-btn');
         if (btn) { btn.disabled = true; btn.textContent = '확정 중…'; }

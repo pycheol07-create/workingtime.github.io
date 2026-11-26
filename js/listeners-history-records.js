@@ -3,15 +3,15 @@
 
 import * as DOM from './dom-elements.js?v=2b9f19ecbde2-82fbef91';
 import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
-import { showToast, showConfirm, getTodayDateString, calcElapsedMinutes } from './utils.js?v=b14a118c2b0c-7bf0fcab';
+import { showToast, showConfirm, getTodayDateString, calcElapsedMinutes } from './utils.js?v=32969da5faa9-163bcbc9';
 import {
     updateHistoryWorkRecord,
     deleteHistoryWorkRecord,
     addHistoryWorkRecord
-} from './history-data-manager.js?v=27e6e35d51a5-6e3a2ca6';
-import { renderHistoryDetail } from './app-history-logic.js?v=a1e0a6b2bf6c-ef63fd43';
-import { renderHistoryRecordsTable, openHistoryRecordManager, countDirtyRecordRows, isRecordRowDirty } from './history-record-table.js?v=742e688a66aa-0a2c5a8f';
-import { generateId } from './app-data.js?v=30feb9804a43-c4996a74';
+} from './history-data-manager.js?v=e8f50ae37140-a9403e97';
+import { renderHistoryDetail } from './app-history-logic.js?v=824e9c22e47c-ef63fd43';
+import { renderHistoryRecordsTable, openHistoryRecordManager, countDirtyRecordRows, isRecordRowDirty } from './history-record-table.js?v=54b4ccedceab-0a2c5a8f';
+import { generateId } from './app-data.js?v=8f36032db1f2-c4996a74';
 import { checkStartAfterClockIn, clampStartToClockIn } from './lib/attendance-guard.js?v=2a8059f9ce4c-c8aba679';
 import { setPauseMinutes } from './lib/pause-edit.js?v=92411e3106e1-3c05ca8b';
 
@@ -48,10 +48,10 @@ export function setupHistoryRecordListeners() {
         const rememberPrev = () => { selectEl.dataset.prev = selectEl.value; };
         selectEl.addEventListener('focus', rememberPrev);
         selectEl.addEventListener('mousedown', rememberPrev);
-        selectEl.addEventListener('change', () => {
+        selectEl.addEventListener('change', async () => {
             const dateKey = currentRecordsDateKey();
             const dirty = countDirtyRecordRows(dateKey);
-            if (dirty > 0 && !confirm(`저장하지 않은 수정 ${dirty}건이 사라집니다. 필터를 바꿀까요?`)) {
+            if (dirty > 0 && !(await showConfirm(`저장하지 않은 수정 ${dirty}건이 사라집니다. 필터를 바꿀까요?`))) {
                 selectEl.value = selectEl.dataset.prev ?? '';
                 return;
             }
@@ -73,7 +73,7 @@ export function setupHistoryRecordListeners() {
             if (!newStart && !newEnd) { showToast('수정할 시작 또는 종료 시간을 입력해주세요.', true); return; }
             if (newStart && newEnd && newStart >= newEnd) { showToast('시작 시간이 종료 시간보다 빨라야 합니다.', true); return; }
 
-            if (!confirm(`선택된 업무(${taskFilterVal})의 모든 기록을 일괄 수정하시겠습니까?${dirtyNote(countDirtyRecordRows(dateKey))}`)) return;
+            if (!(await showConfirm(`선택된 업무(${taskFilterVal})의 모든 기록을 일괄 수정하시겠습니까?${dirtyNote(countDirtyRecordRows(dateKey))}`))) return;
 
             try {
                 const data = State.allHistoryData.find(d => d.id === dateKey);
@@ -181,7 +181,7 @@ export function setupHistoryRecordListeners() {
              if (startTime >= endTime) { showToast('종료 시간은 시작 시간보다 늦어야 합니다.', true); return; }
              // 추가하면 표를 다시 그린다 — 저장 안 한 수정이 사라진다
              const dirty = countDirtyRecordRows(dateKey);
-             if (dirty > 0 && !confirm(`저장하지 않은 수정 ${dirty}건이 사라집니다. 기록을 추가할까요?`)) return;
+             if (dirty > 0 && !(await showConfirm(`저장하지 않은 수정 ${dirty}건이 사라집니다. 기록을 추가할까요?`))) return;
 
              // 저장이 끝날 때까지 버튼을 잠근다 — 명단 확인창이 떠 있는 동안 다시 눌려도 두 번 저장되지 않게.
              const btn = DOM.confirmHistoryAddBtn;
@@ -269,7 +269,8 @@ export function setupHistoryRecordListeners() {
                 if (originalRecord) {
                     if (duplicating) return;   // 앞 복제가 끝나기 전 연타 — 같은 기록이 여러 번 생기지 않게
                     const dirty = countDirtyRecordRows(dateKey);
-                    if (dirty > 0 && !confirm(`저장하지 않은 수정 ${dirty}건이 사라집니다. 복제할까요?`)) return;
+                    if (dirty > 0 && !(await showConfirm(`저장하지 않은 수정 ${dirty}건이 사라집니다. 복제할까요?`))) return;
+                    if (duplicating) return;
                     duplicating = true;
                     try {
                         const newRecord = {

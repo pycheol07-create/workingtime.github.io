@@ -31,7 +31,7 @@ import { getStorage, ref as sRef, uploadBytes, getBlob, deleteObject } from "htt
 import { emulatorEnabled, connectStorageEmulatorIfEnabled } from './firebase-emulator.js?v=071adc2867a0-c60c17d2';
 import { setShellContext, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=b9a7199f3e1d-c80c27e9';
 import { memberNameFor } from './app-shell-data.js?v=e42c6a10ca7a-9319c795';
-import { showConfirm } from './utils.js?v=b14a118c2b0c-7bf0fcab';   // utils.js 는 import 가 없어 앱 전체를 끌어오지 않는다
+import { showConfirm } from './utils.js?v=32969da5faa9-163bcbc9';   // utils.js 는 import 가 없어 앱 전체를 끌어오지 않는다
 import { DEFAULT_FORMS, STATUS, FIELD_TYPES, BOX_ROLES, MAX_FIELDS, MAX_BOXES, COMMENT_MAX, mergeForms, normalizeForm, validateForm,
     validateValues, cleanValues, actionsFor, buildCreate, buildSave, buildSubmit, buildWithdraw, buildDecision,
     tardyPrefill, printFitLevel, rangeFields, rangeTimeField, fieldText, END_SUFFIX, RANGE_KIND, stampTime, sortDocs, docTitle, newFormId, lower, approverCandidates, whyNot,
@@ -451,14 +451,14 @@ function ownBtns(d, big = false) {
     return b('edit', '수정') + b('withdraw', '회수') + b('delete', '삭제', 'd-btn-risk');
 }
 function bindRowActs(root) {
-    root.querySelectorAll('[data-row-act]').forEach(btn => btn.addEventListener('click', (e) => {
+    root.querySelectorAll('[data-row-act]').forEach(btn => btn.addEventListener('click', async (e) => {
         e.stopPropagation();
         if (btn.classList.contains('is-off')) { toast(btn.title, 4500); return; }
         const d = findDoc(btn.dataset.id); if (!d) return;
         const act = btn.dataset.rowAct;
         if (act === 'view') location.hash = 'd=' + encodeURIComponent(d.id);
         else if (act === 'edit') location.hash = 'e=' + encodeURIComponent(d.id);
-        else if (act === 'withdraw') { if (confirm('결재 전 기안서를 회수할까요?\n임시저장으로 돌아가 고칠 수 있습니다.')) authorWrite(d.id, 'withdraw'); }
+        else if (act === 'withdraw') { if (await showConfirm('결재 전 기안서를 회수할까요?\n임시저장으로 돌아가 고칠 수 있습니다.')) authorWrite(d.id, 'withdraw'); }
         else if (act === 'delete') deleteApproval(d);
     }));
     root.querySelectorAll('.ap-row-btns').forEach(cell => cell.addEventListener('click', (e) => e.stopPropagation()));   // 버튼 사이 빈칸을 눌러도 행 열기 안 함
@@ -699,7 +699,7 @@ async function renderView(main, id) {
             const rj = await rejudgeLine(ln, ccNow);
             if (rj.note) { ln = rj.approvers; ccNow = rj.ccs; lineNote = `\n\n${rj.note}`; newLine = true; }
         }
-        if (!confirm(`이 기안서를 제출할까요?\n결재 순서: ${ln.map(a => a.name).join(' → ')}${ccNow.length ? `\n참조: ${ccNow.map(a => a.name).join(', ')}` : ''}\n제출하면 1차 결재자(${ln[0].name})에게 알림이 갑니다.${lineNote}${leaveConfirmLine(d.form, d.values)}`)) return;
+        if (!(await showConfirm(`이 기안서를 제출할까요?\n결재 순서: ${ln.map(a => a.name).join(' → ')}${ccNow.length ? `\n참조: ${ccNow.map(a => a.name).join(', ')}` : ''}\n제출하면 1차 결재자(${ln[0].name})에게 알림이 갑니다.${lineNote}${leaveConfirmLine(d.form, d.values)}`))) return;
         // 값은 트랜잭션 안에서 읽은 서버 값(화면의 옛 값으로 덮지 않게). 결재선을 다시 정했을 때만 결재선·참조를 넘긴다
         if (newLine) authorWrite(d.id, 'submit', undefined, ln, ccNow); else authorWrite(d.id, 'submit');
     });
@@ -714,7 +714,7 @@ async function deleteApproval(d) {
     const who = d.authorEmail === S.email ? '본인' : `작성자 ${d.authorName || '직원'}`;   // 이름은 화면에 이미 있는 값만
     const msg = ownDraft ? '이 임시저장 기안서를 지울까요? 첨부 파일도 함께 지워지고 되돌릴 수 없습니다.'
         : `[${STATUS[d.status] || d.status}] 기안서(${who})를 지울까요?\n\n결재 이력·의견·첨부가 모두 사라지고 되돌릴 수 없습니다.`;
-    if (!confirm(msg)) return;
+    if (!(await showConfirm(msg, { okText: '지우기', danger: true }))) return;
     setLoading(true, '지우는 중…');
     try {
         const snap = await getDocFromServer(doc(S.db, DOCS, d.id));
@@ -929,9 +929,10 @@ async function decide(id, act, comment) {
     const ln = cd ? approversOf(cd) : [];
     const seenStep = cd ? stepOf(cd) : 0;
     const last = seenStep + 1 >= ln.length;
-    if (!confirm((proxy ? `차례 결재자(${cur.name}) 대신 결재(대결)합니다.\n` : '')
+    if (!(await showConfirm((proxy ? `차례 결재자(${cur.name}) 대신 결재(대결)합니다.\n` : '')
         + (act === 'approve' ? (last ? '승인할까요? 마지막 결재라 승인하면 고칠 수 없습니다.' : `승인할까요? 다음 결재자(${ln[seenStep + 1].name})에게 넘어갑니다.`)
-            : '반려할까요? 작성자가 고쳐서 다시 낼 수 있습니다(다시 내면 1차부터).'))) return;
+            : '반려할까요? 작성자가 고쳐서 다시 낼 수 있습니다(다시 내면 1차부터).'),
+        (act === 'approve' && last) ? { okText: '승인', danger: true } : {}))) return;
     const me = { email: S.email, name: S.name };
     let doneDoc = null, res = null;
     setLoading(true, '결재 중…');
@@ -1253,7 +1254,7 @@ async function renderEditor(main, { id, formId }) {
             const ask = editing
                 ? `고친 내용으로 다시 낼까요?\n${lineText}\n${clearText}1차 결재자부터 다시 결재합니다. 1차 결재자에게 '다시 올라옴' 알림이 갑니다.`
                 : `제출할까요?\n${lineText}\n1차 결재자에게 알림이 가고, 아무도 결재하기 전까지는 회수할 수 있습니다.`;
-            if (!confirm(ask + lineNote + leaveConfirmLine(form, values))) return;
+            if (!(await showConfirm(ask + lineNote + leaveConfirmLine(form, values)))) return;
         }
         if (d) return authorWrite(d.id, editing ? 'edit' : submit ? 'submit' : 'save', values, approvers, ccs);
         setLoading(true, '저장 중…');

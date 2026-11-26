@@ -1,8 +1,8 @@
 // === js/ui-history-management.js ===
 // 설명: 경영 지표(재고, 매출 등)의 입력 및 기간별 분석 리포트 렌더링을 담당합니다.
 
-import { formatDuration, getWeekOfYear, isWeekday, toDateString, buildMemberHourlyWageMap, escapeHtml } from './utils.js?v=b14a118c2b0c-7bf0fcab';
-import { getDiffHtmlForMetric, analyzeUnitCost } from './ui-history-reports-logic.js?v=63b4c75e437b-28b3f058';
+import { formatDuration, getWeekOfYear, isWeekday, toDateString, buildMemberHourlyWageMap, escapeHtml } from './utils.js?v=32969da5faa9-163bcbc9';
+import { getDiffHtmlForMetric, analyzeUnitCost } from './ui-history-reports-logic.js?v=3677971659b5-28b3f058';
 import { appConfig, context } from './state.js?v=c7f5fc984ef9-a2ce38c0';
 import {
     REVENUE_CHANNELS, CHANNEL_METRICS,

@@ -5,7 +5,7 @@
 // 읽기만 한다 — 메모리의 최근 13개월 이력(State.allHistoryData, + 이번 달)만 쓰고 Firestore 를 따로 읽지 않는다.
 // ⚠️ 콘솔·로그에 직원 이름을 찍지 않는다. role="dialog"·data-act 를 쓰지 않는다(업무마감봇 선택자).
 import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
-import { escapeHtml as esc, getTodayDateString } from './utils.js?v=b14a118c2b0c-7bf0fcab';
+import { escapeHtml as esc, getTodayDateString } from './utils.js?v=32969da5faa9-163bcbc9';
 import { aliasHistoryView, aliasTaskName } from './lib/task-alias-view.js?v=2e131477eb8e-af660ceb';
 import { TASK, tName } from './task-names.js?v=33eb5ccd69bc-26ab8ff7';
 import { D, alpha } from './d-chart.js?v=e918595219dd-dfe55644';

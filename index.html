@@ -13,8 +13,6 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = { darkMode: 'class', }
-        // 현장 TV 보기(?tv=1) — 클래스를 먼저 붙여 전체 화면이 번쩍이지 않게(js/tv-mode.js)
-        if (/[?&]tv=1(&|$)/.test(location.search)) document.documentElement.classList.add('tv-mode');
         if (localStorage.getItem('color-theme') === 'dark' || (!('color-theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
             document.documentElement.classList.add('dark');
         } else {
@@ -28,7 +26,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="css/suit.css?v=46e3de7a3d1d-51b336f8">
     <link rel="stylesheet" href="css/style.css?v=f40b368af7cc-35ff4575">
-    <link rel="stylesheet" href="css/dash-d.css?v=398752eeedc4-aa40cd4b">
+    <link rel="stylesheet" href="css/dash-d.css?v=41d0eb25ca36-c77dc155">
     <link rel="stylesheet" href="css/form-d.css?v=518b14ef02d3-a3ea6587">
     <link rel="stylesheet" href="css/refill-modal.css?v=a63329052b3a-7a596bea">
     <link rel="stylesheet" href="css/locrec-modal.css?v=4809c2c7f94e-5cc41d2c">
@@ -161,9 +159,6 @@
                         <span class="notification-badge hidden absolute top-1 right-1 w-2.5 h-2.5 d-badge rounded-full border-2"></span>
                     </button>
 
-                    <a href="index.html?tv=1" id="tv-mode-link" class="d-roundbtn flex items-center justify-center" title="현장 TV 보기 — 오늘 진행·업무 처리량만 크게(이름 없음)" aria-label="현장 TV 보기">
-                        <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="12" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
-                    </a>
                     <button id="theme-toggle" type="button" aria-label="테마 전환" class="d-roundbtn flex items-center justify-center">
                         <svg id="theme-toggle-dark-icon" class="hidden w-5 h-5" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"></path></svg>
                         <svg id="theme-toggle-light-icon" class="hidden w-5 h-5" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M10 2a1 1 0 0 1 1 1v1a1 1 0 1 1-2 0V3a1 1 0 0 1 1-1zm4 8a4 4 0 1 1-8 0 4 4 0 0 1 8 0zm-.464 4.95l.707.707a1 1 0 0 0 1.414-1.414l-.707-.707a1 1 0 0 0-1.414 1.414zm2.12-10.607a1 1 0 0 1 0 1.414l-.706.707a1 1 0 1 1-1.414-1.414l.707-.707a1 1 0 0 1 1.414 0zM17 11a1 1 0 1 0 0-2h-1a1 1 0 1 0 0 2h1zm-7 4a1 1 0 0 1 1 1v1a1 1 0 1 1-2 0v-1a1 1 0 0 1 1-1zM5.05 6.464A1 1 0 1 0 6.465 5.05l-.708-.707a1 1 0 0 0-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 0 1-1.414-1.414l.707-.707a1 1 0 0 1 1.414 1.414zM4 11a1 1 0 1 0 0-2H3a1 1 0 0 0 0 2h1z" fill-rule="evenodd" clip-rule="evenodd"></path></svg>
@@ -180,26 +175,20 @@
                      휴대폰은 위에 붙어 있다(sticky — 스크롤 칸의 p-4 만큼 -top-4 로 올려 위 틈을 없앤다). ⚠️ role=dialog·data-act 를 넣지 말 것(업무마감봇 선택자) -->
                 <!-- 넓은 화면(xl·1280px 이상)은 '내 업무'(좁게)·'오늘 진행'을 한 줄로(2026-11-25 사용자 요청). 그보다 좁으면 contents 로 풀려 예전처럼 위아래 —
                      휴대폰 order·sticky 도 그대로 -->
-                <!-- 현장 TV 보기 머리(?tv=1 때만 — css/dash-d.css .tv-mode, js/tv-mode.js) -->
-                <div id="tv-head" data-tv="head" class="items-baseline justify-between gap-4">
-                    <div><span id="tv-date" class="t-2"></span> <span class="t-1 font-semibold">출고 현황</span></div>
-                    <div class="flex items-baseline gap-5"><span id="tv-clock" class="tabular-nums font-semibold t-1"></span>
-                        <a href="index.html" class="text-sm t-accent hover:underline">TV 보기 끄기</a></div>
-                </div>
                 <!-- 오래 켜진 업무 경고 — 내 진행 기록이 6시간을 넘으면(js/long-run-warn.js). ⚠️ role=dialog·data-act 를 넣지 말 것(업무마감봇 선택자) -->
                 <div id="long-run-warn" hidden class="order-first flex flex-col gap-2" role="status" aria-live="polite"></div>
-                <div data-tv="keep" class="contents xl:flex xl:items-stretch xl:gap-4">
+                <div class="contents xl:flex xl:items-stretch xl:gap-4">
                 <section id="my-work-bar" aria-label="내 업무"
                          class="hidden order-1 sticky -top-4 z-[25] md:static d-card px-4 py-3 md:px-6 md:py-4 xl:px-4 xl:py-3 xl:w-[32%] xl:max-w-[26rem] xl:shrink-0 xl:min-w-0"></section>
 
                 <!-- 오늘 진행 — 업무 예상(계획) 대비 지금까지 쓴 시간. 누르면 데이터관리의 '오늘 현황'으로 -->
-                <div id="today-progress-strip" data-tv="main"
+                <div id="today-progress-strip"
                      class="hidden order-3 cursor-pointer d-card is-link px-5 py-4 md:px-7 md:py-5 md:!mt-4 xl:!mt-0 xl:flex-1 xl:min-w-0"></div>
                 </div>
 
                 <!-- 휴대폰은 이 묶음을 풀어(contents) 카드마다 order 를 준다 — '주요 일정 및 알림'만 위(order-1)로. PC 는 그대로 3칸 grid(md:order-none).
                      카드가 세로 flex 의 직접 자식이 되므로 shrink-0 — 없으면 overflow-hidden 카드가 2px 로 눌린다 -->
-                <div data-tv="keep" class="contents md:grid md:grid-cols-2 lg:grid-cols-3 md:gap-6 md:!mt-5">
+                <div class="contents md:grid md:grid-cols-2 lg:grid-cols-3 md:gap-6 md:!mt-5">
 
                     <div class="order-3 md:order-none shrink-0 d-card flex flex-col h-auto md:h-full overflow-hidden">
                         <div id="toggle-personnel" class="p-4 d-card-head flex justify-between items-center shrink-0 cursor-pointer md:cursor-auto group">
@@ -214,7 +203,7 @@
                         </div>
                     </div>
 
-                    <div data-tv="main" class="order-3 md:order-none shrink-0 d-card flex flex-col h-auto md:h-full overflow-hidden">
+                    <div class="order-3 md:order-none shrink-0 d-card flex flex-col h-auto md:h-full overflow-hidden">
                         <div id="toggle-workload" class="p-4 d-card-head flex justify-between items-center shrink-0 cursor-pointer md:cursor-auto group">
                             <h3 class="text-[15px] flex items-center gap-2">
                                 오늘 업무 처리량
@@ -372,7 +361,25 @@
                     </div>
                 </div>
 
-                <div class="order-3 shrink-0 d-card md:mt-8 overflow-hidden">
+                <!-- 대시보드 하단 세 카드(2026-11-26 — '오늘의 업무 분석' 대신, js/dash-insights.js). 넓은 화면은 가로 한 줄, 좁으면 위아래.
+                     ⚠️ role=dialog·data-act 를 넣지 말 것(업무마감봇 선택자) -->
+                <section id="dash-insights" aria-label="내일 준비 · 오늘 흐름 · 속도" class="order-3 shrink-0 md:mt-8 grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
+                    <div class="d-card p-5 min-w-0">
+                        <h3 class="text-[15px] mb-2">내일·이번 주 준비</h3>
+                        <div id="di-prep-body"><p class="text-sm t-3 py-6 text-center">불러오는 중…</p></div>
+                    </div>
+                    <div class="d-card p-5 min-w-0">
+                        <h3 class="text-[15px] mb-2">오늘 시간대별 흐름</h3>
+                        <div id="di-flow-body"><p class="text-sm t-3 py-6 text-center">불러오는 중…</p></div>
+                    </div>
+                    <div class="d-card p-5 min-w-0">
+                        <h3 class="text-[15px] mb-2">평소 속도 대비 오늘</h3>
+                        <div id="di-speed-body"><p class="text-sm t-3 py-6 text-center">불러오는 중…</p></div>
+                    </div>
+                </section>
+
+                <!-- 옛 '오늘의 업무 분석'(업무별 요약·개인별 통계) — 데이터 관리와 겹쳐 숨김(2026-11-26). 코드가 요소를 찾으므로 마크업은 둔다 -->
+                <div hidden class="order-3 shrink-0 d-card md:mt-8 overflow-hidden" style="display:none">
                     <div id="toggle-analysis" class="p-5 d-card-head is-click flex justify-between items-center cursor-pointer">
                         <h3 class="text-[15px] flex items-center gap-2">
                             오늘의 업무 분석
@@ -560,7 +567,7 @@
             ]);
 
             try {
-                await import('./js/app.js?v=0fbb86f343be-2ba8f711');
+                await import('./js/app.js?v=71197aa52702-2ba8f711');
             } catch (e) {
                 console.error("메인 앱 스크립트 로딩 실패:", e);
             }
@@ -647,12 +654,12 @@
 
     <script type="module">
         import { appState } from './js/state.js?v=c7f5fc984ef9-a2ce38c0';
-        import { addNotice, toggleNotice, deleteNotice, editNotice, noticeMemberNames } from './js/notice-logic.js?v=54a2aed161c8-c08a5845';
-        import { renderNoticeWidget } from './js/ui-main.js?v=27e6e35d51a5-d7b62405';
-        import { initIncomingScheduleWidget } from './js/widget-incoming-schedule.js?v=4cffb65f59ad-237bc1dd';
-        import { initTodayProgressStrip } from './js/widget-today-progress.js?v=3ef87d066802-cd4c7c7e';
-        import { initTvMode } from './js/tv-mode.js?v=0445721694c6-0cde3796';
-        initTvMode();   // 현장 TV 보기(?tv=1)
+        import { addNotice, toggleNotice, deleteNotice, editNotice, noticeMemberNames } from './js/notice-logic.js?v=3cf51289851a-c08a5845';
+        import { renderNoticeWidget } from './js/ui-main.js?v=e8f50ae37140-d7b62405';
+        import { initIncomingScheduleWidget } from './js/widget-incoming-schedule.js?v=8fa451d87d70-237bc1dd';
+        import { initTodayProgressStrip } from './js/widget-today-progress.js?v=78d19f516493-e2bff3e0';
+        import { initDashInsights } from './js/dash-insights.js?v=2befdbf956ec-8750fc39';
+        initDashInsights();   // 하단 세 카드 — 오늘 진행 띠가 자료를 다 실은 뒤 그린다('dash-forecast-ready')
 
         // 🚚 입고 예정 위젯 — 캐시부터 그림. 데이터 구독은 로그인 후 app.js 가 시작
         initIncomingScheduleWidget();
@@ -878,6 +885,6 @@
     <script type="module" src="js/modal-drag.js?v=c3010af0cdbe-22d0d415"></script>
     <!-- 공통 상단바(대시보드는 바 없이 메뉴 캐시만 채운다 — data-shell-bar="off") -->
     <script type="module" src="js/app-shell.js?v=0ad2923a7c3b-bf6553e1"></script>
-    <script src="js/app-version.js?v=a5a2f20aaa5f-6e4d3c34"></script>
+    <script src="js/app-version.js?v=fd554260a5b7-9db92052"></script>
 </body>
 </html>
