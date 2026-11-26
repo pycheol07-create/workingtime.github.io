@@ -12,8 +12,8 @@
 //       — 상품 코드·이름·파일 내용은 넣지 않는다. 화면 '오늘 작업 현황'(4칸)·'오늘 진행 기록'(모든 자리)이 읽는다.
 //   날짜가 바뀌면 통째로 새로 쓴다. 최대 RUNS_MAX 개(오래된 것부터 지움).
 
-import { kstDay } from './ship-core.js?v=202611260912';
-import { kstHHMM } from './ship-made.js?v=202611260912';
+import { kstDay } from './ship-core.js?v=202611260923';
+import { kstHHMM } from './ship-made.js?v=202611260923';
 
 export const ACTIVITY_PATH = ['artifacts', 'team-work-logger-v2', 'persistent_data', 'shipActivity'];
 export const RUNS_MAX = 60;

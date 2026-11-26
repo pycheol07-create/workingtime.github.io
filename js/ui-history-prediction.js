@@ -3,55 +3,55 @@
 //  - renderPredictionTab: 실적 예측 탭 (차트/KPI)
 //  - renderForecastTab: 업무 예상 탭 (시뮬레이션·요약 카드)
 
-import { predictFutureTrends } from './analysis-logic.js?v=202611260912';
+import { predictFutureTrends } from './analysis-logic.js?v=202611260923';
 import { doc, getDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { mibalByArrival, makeArrivalLookup, makeArrivalsLookup } from './lib/mibal-forecast.js?v=202611260912';
-import { parseInspPacks, sampleCardsByArrival } from './lib/insp-packs.js?v=202611260912';
-import { inspListCountFor } from './lib/insp-day.js?v=202611260912';
-import { getSubscribedDate } from './app-sync.js?v=202611260912';
-import { runDay } from './lib/refill-view.js?v=202611260912';
-import { parseRecDay, pickRecDay, recCount, applyLocRecCount, dayKey as recDayKey } from './lib/locrec-view.js?v=202611260912';
-import { LOCREC_TASK } from './lib/feature-catalog.js?v=202611260912';
-import { TASK, tName, isT, tQty } from './task-names.js?v=202611260912';
-import { systemIdOfName, taskIdOf } from './lib/task-ids.js?v=202611260912';
+import { mibalByArrival, makeArrivalLookup, makeArrivalsLookup } from './lib/mibal-forecast.js?v=202611260923';
+import { parseInspPacks, sampleCardsByArrival } from './lib/insp-packs.js?v=202611260923';
+import { inspListCountFor } from './lib/insp-day.js?v=202611260923';
+import { getSubscribedDate } from './app-sync.js?v=202611260923';
+import { runDay } from './lib/refill-view.js?v=202611260923';
+import { parseRecDay, pickRecDay, recCount, applyLocRecCount, dayKey as recDayKey } from './lib/locrec-view.js?v=202611260923';
+import { LOCREC_TASK } from './lib/feature-catalog.js?v=202611260923';
+import { TASK, tName, isT, tQty } from './task-names.js?v=202611260923';
+import { systemIdOfName, taskIdOf } from './lib/task-ids.js?v=202611260923';
 import { LEGACY_SIM_TASKS, legacySimTasksOf, namesOf, timeTaskExcludeOf, DEFAULT_SIM_ALWAYS_TASKS, DEFAULT_SIM_ZERO_TASKS,
          DEFAULT_FORECAST_EXCLUDED_TASKS, DEFAULT_LOADOUT_SOURCES, defaultAutoModeOf, defaultTimeTaskDepsOf,
-         isDefaultNextDayDep, defaultPrecursorMapOf, transmitTaskIdOf } from './lib/forecast-task-ids.js?v=202611260912';
+         isDefaultNextDayDep, defaultPrecursorMapOf, transmitTaskIdOf } from './lib/forecast-task-ids.js?v=202611260923';
 import { summarizeTransmitChunks, transmitValueFor, transmitNoneFor, lastWorkedDayBefore, lockedTransmitNone, mergeTransmitByDate, TRANSMIT_SOURCES,
-         parsePickMarks, PICK_MARK_TASKS, PICK_MARK_KEEP_DAYS } from './lib/ship-transmit.js?v=202611260912';
-import { setPickMark, PICK_MARKS_PATH } from './pick-mark-store.js?v=202611260912';
-import { can } from './lib/perm.js?v=202611260912';
-import { precursorOffGate, noneNextStats, noneNextObs, precursorStateOfDay as precursorStateOfDayLib, looksRecorded } from './lib/cadence-gate.js?v=202611260912';
-import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202611260912';
-import * as State from './state.js?v=202611260912';
-import { saveView } from './view-state.js?v=202611260912';
-import { getTodayDateString, getRegularMembersForCount, showToast, showConfirm, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202611260912';
-import { groupIncomingRowsByArrival } from './widget-incoming-schedule.js?v=202611260912';
+         parsePickMarks, PICK_MARK_TASKS, PICK_MARK_KEEP_DAYS } from './lib/ship-transmit.js?v=202611260923';
+import { setPickMark, PICK_MARKS_PATH } from './pick-mark-store.js?v=202611260923';
+import { can } from './lib/perm.js?v=202611260923';
+import { precursorOffGate, noneNextStats, noneNextObs, precursorStateOfDay as precursorStateOfDayLib, looksRecorded } from './lib/cadence-gate.js?v=202611260923';
+import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202611260923';
+import * as State from './state.js?v=202611260923';
+import { saveView } from './view-state.js?v=202611260923';
+import { getTodayDateString, getRegularMembersForCount, showToast, showConfirm, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202611260923';
+import { groupIncomingRowsByArrival } from './widget-incoming-schedule.js?v=202611260923';
 import { getIncomingQtyByDateFromCache, getIncomingDetailsByDateFromCache,
-         isIncomingCacheFreshToday } from './widget-incoming-schedule.js?v=202611260912';
+         isIncomingCacheFreshToday } from './widget-incoming-schedule.js?v=202611260923';
 import { getPlannedQuantitiesForDate, getPlannedTimeTasksForDate, getPlannedExcludeMinutesForDate, getPlannedAdminWorkersForDate,
          fetchPlannedData, savePlannedQuantities,
          saveForecastSnapshot, saveForecastSnapshotIfAbsent, deleteForecastSnapshot, fetchForecastSnapshots,
-         getForecastSnapshotForDate, historyLoadFailed, hasHistoryLoaded, fetchAllHistoryData } from './history-data-manager.js?v=202611260912';
-import { decomposeAccuracy, summarizeAccuracyRows, aggregateByTask, excludeTasksForAccuracy } from './forecast-accuracy.js?v=202611260912';
+         getForecastSnapshotForDate, historyLoadFailed, hasHistoryLoaded, fetchAllHistoryData } from './history-data-manager.js?v=202611260923';
+import { decomposeAccuracy, summarizeAccuracyRows, aggregateByTask, excludeTasksForAccuracy } from './forecast-accuracy.js?v=202611260923';
 import { computeDayProgress, buildProgressRows, projectFinish, spentMinutesOf,
-         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202611260912';
-import { LUNCH_END_MIN } from './lib/calc.js?v=202611260912';
+         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202611260923';
+import { LUNCH_END_MIN } from './lib/calc.js?v=202611260923';
 import { applyAdminWorkers, normalizeAdminWorkers, ADMIN_TASK_ID, DEFAULT_ADMIN_WORKERS,
-         buildExcludedProgressRows, excludedActualByTask } from './lib/forecast-exclude.js?v=202611260912';
-import { taskUph, recentDays, RECENT_SPEED, recentTaskSpeeds } from './task-throughput.js?v=202611260912';
-import { normalizedUtilization } from './lib/ops-metrics.js?v=202611260912';
+         buildExcludedProgressRows, excludedActualByTask } from './lib/forecast-exclude.js?v=202611260923';
+import { taskUph, recentDays, RECENT_SPEED, recentTaskSpeeds } from './task-throughput.js?v=202611260923';
+import { normalizedUtilization } from './lib/ops-metrics.js?v=202611260923';
 import { foldReasonFor, FOLD_REASON_TEXT, shouldSaveQty, shouldSaveTime,
-         normalizeTimeEntry } from './lib/sim-fold.js?v=202611260912';
+         normalizeTimeEntry } from './lib/sim-fold.js?v=202611260923';
 import { learnCarryPerOffDay, backlogFactor, carryReason, carrySourceNote,
          DEFAULT_CARRY, resolveBacklogTasks, carriedQty,
-         excessOffDays } from './lib/backlog-carry.js?v=202611260912';
-import { D } from './d-chart.js?v=202611260912';
-import { aliasHistoryView, aliasNameMap, aliasSnapshot, aliasTaskName, sameTaskKeys } from './lib/task-alias-view.js?v=202611260912';
-import { withCorrected, correctSnapRange, correctInputOf, NOTE_CALC_FAILED, NOTE_SNAP_FETCH_FAILED } from './lib/forecast-correct-snap.js?v=202611260912';
-import { correctPlan, toAccuracySnap } from './lib/forecast-correct.js?v=202611260912';
+         excessOffDays } from './lib/backlog-carry.js?v=202611260923';
+import { D } from './d-chart.js?v=202611260923';
+import { aliasHistoryView, aliasNameMap, aliasSnapshot, aliasTaskName, sameTaskKeys } from './lib/task-alias-view.js?v=202611260923';
+import { withCorrected, correctSnapRange, correctInputOf, NOTE_CALC_FAILED, NOTE_SNAP_FETCH_FAILED } from './lib/forecast-correct-snap.js?v=202611260923';
+import { correctPlan, toAccuracySnap } from './lib/forecast-correct.js?v=202611260923';
 import { correctedInputs, planBaseOf, noExtraKeysOf, RESERVE_KEY, presenceSureKeys, presenceDoneKeys,
-         maybeAltKeys, maybeBasisOf } from './lib/forecast-correct-apply.js?v=202611260912';
+         maybeAltKeys, maybeBasisOf } from './lib/forecast-correct-apply.js?v=202611260923';
 
 /** 🆔 계산용 이력 — 업무 이름을 바꾼 뒤에도 옛 이름 기록을 지금 이름으로 합쳐 본 사본(업무 id 3단계).
  *  원본(State.allHistoryData)과 저장은 그대로다. 이 파일은 이력을 읽기만 하고 저장하지 않는다.
@@ -292,7 +292,7 @@ const buildSimTasks = (historyData, appConfig) => {
         if (!registered.has(key)) return;
         if (!((totals.get(key) || 0) > 0)) return;
         // 새 업무의 기본 추정은 'cadence' — 안 하는 날은 0으로 잡혀 화면에서 접힌다.
-        // 표본이 적으면 cadenceValueFor 가 알아서 지난 7회 평균으로 떨어진다.
+        // 표본이 적으면(최근 4번 미만) cadenceValueFor 가 0(안 하는 날)으로 두고, 하는 날 값은 '하는 날' 단추로 넣는다.
         // 확실한 근거가 있는 업무(상.하차 ← 입고 박스 수)는 그 방식을 쓴다.
         list.push({ id: safeTaskId(key, used), key, label: key, auto: autoModeFor(key) });
     });
@@ -572,7 +572,11 @@ const UPH_MIN_MINUTES_NEW = RECENT_SPEED.minTaskMinutes;   // 새로 편입된 �
 const HAZARD_MAX_GAP = 5;         // 마지막 진행 후 5근무일 이상은 한 칸으로 묶어 본다
 const CADENCE_ON_P = 0.6;         // 이 확률 이상이면 '하는 날'로 보고 물량을 넣는다
 const CADENCE_OFF_P = 0.3;        // 이 확률 이하면 '안 하는 날'
-const CADENCE_MIN_HITS = 4;       // 판정에 필요한 최소 진행 횟수
+const CADENCE_MIN_HITS = 4;       // 판정에 필요한 최소 진행 횟수 — 이보다 적게 한 업무는 '가끔 하는 업무'로 보고 0(안 하는 날)
+// ⏳ 시간형도 빈도로 본다(2026-11-26 사용자 요청) — 업무 키 앞에 붙여 analyzeCadence·weekPlanFor 가 근무 기록의 분으로 센다.
+//    진행률이 이 값 이상이면 '매일 하는 업무'로 보고 예전처럼 평균을 쓴다(실측 40근무일: 로케이션관리 40/40).
+const TIME_CAD_PREFIX = 't:';
+const TIME_DAILY_P = 0.95;
 // 창 길이: 패턴(요일·연속성)은 최근 40근무일, '하는 날 물량'은 최근 5회 진행분.
 // 빈도보다 물량이 먼저 변한다(예: 채우기는 최근 한 달 하는 날 물량이 437 → 68로 줄었다).
 const CADENCE_PATTERN_DAYS = 40;
@@ -832,6 +836,13 @@ const autoTimeValueFor = (dateStr, t, historyData, qtyLookup = null) => {
         dayFilter = depDayFilter(historyData, deps, nextDay);
     }
 
+    // 🗓️ 연동 물량이 없는 시간형 — 매일 하는 업무가 아니면 '하는 날'에만 하루치를 넣는다(2026-11-26 사용자 요청).
+    //    예전에는 4주 평균(안 한 날의 0 포함)을 매일 넣어, 주 2회 업무가 매일 조금씩 잡혔다.
+    if (deps.length === 0 && !nextDay) {
+        const cad = timeCadenceFor(dateStr, t, historyData);
+        if (cad) return cad;
+    }
+
     const st = computeTimeTaskStats(historyData, t.key, 28, dayFilter);
     if (!st) return { minutes: 0, workers: 0, unitMinutes: 0, source: 'record-avg', detail: '최근 4주 기록 없음' };
     // 시간·인원 모두 1명 기준 — 여러 명이 붙는 업무는 화면에서 동시 인원을 올린다
@@ -843,6 +854,41 @@ const autoTimeValueFor = (dateStr, t, historyData, qtyLookup = null) => {
               + ` · 실적은 평균 ${st.workers}명이 하루 ${st.teamMinutes}분(팀 합계)`
               + ` — 인원을 올리면 1인 시간만큼 총 시간이 더해집니다`
     };
+};
+
+/** 🗓️ 시간형 빈도 판정 — 매일 하는 업무(진행률 TIME_DAILY_P 이상)·기록 없는 업무는 null(부르는 쪽이 예전 평균).
+ *  하는 날 = 수량형과 같은 주간 배정(weekPlanFor) — 요일·마지막 진행 뒤 며칠째·주당 횟수.
+ *  하는 날 값 = 최근 4주 '그 업무를 한 날'의 1인 평균(없으면 빈도 표본의 하는 날 시간). 1명 기준 — 인원은 화면에서 올린다. */
+const timeCadenceFor = (dateStr, t, historyData) => {
+    const ckey = TIME_CAD_PREFIX + t.key;
+    const c = analyzeCadence(historyData, ckey);
+    if (!c || !(c.sampleDays > 0)) return null;
+    if (c.overallP >= TIME_DAILY_P) return null;            // 매일 하는 업무
+    const st = computeTimeTaskStats(historyData, t.key, 28);
+    // 1인 기준은 최근 4주 '한 날' 평균만 쓴다(빈도 표본의 하루 값은 여러 명의 합계라 1인 기준으로 쓰면 부푼다)
+    const unit = (st && st.hitAvgMinutes > 0) ? st.hitAvgMinutes : 0;
+    const why = `최근 근무일 ${c.sampleDays}일 중 ${c.hits}일 진행` + (c.weeklyCount > 0 ? ` (주 ${c.weeklyCount}회꼴)` : '')
+              + (c.lastDate ? ` · 마지막 진행 ${c.lastDate}` : '')
+              + (unit > 0 ? ` · 하는 날 1인 ${unit}분` : '');
+    const off = (source, head) => ({ minutes: 0, workers: 0, unitMinutes: unit, source,
+        detail: `${head}\n${why}` + (unit > 0 ? `\n하는 날이면 [진행] 을 누르거나 인원을 올리세요(1인 ${unit}분).` : '') });
+    // 오늘·지난 날은 실제로 한 날이면 하는 날이다 — 주간 배정은 '정해진 날'(실적 있는 날)을 배정 후보에서 빼므로
+    //  그대로 두면 기록이 들어오는 순간 오늘이 '안 하는 날 0분'으로 바뀐다(수량형은 autoValueFor 가 실측을 먼저 본다)
+    if (dateStr <= getTodayDateString() && unit > 0) {
+        const day = (historyData || []).find(x => x.id === dateStr);
+        if (day && cadenceDayValueOf(ckey)(day) > 0) {
+            return { minutes: unit, workers: 1, unitMinutes: unit, source: 'cadence-on', detail: `이 날 기록이 있어 하는 날로 봅니다.\n${why}` };
+        }
+    }
+    if (c.hits < CADENCE_MIN_HITS || !(unit > 0)) return off('cadence-off', '가끔 하는 업무라 0 으로 둡니다.');
+    const pr = cadenceProbFor(c, dateStr);
+    const plan = weekPlanFor(historyData, ckey, dateStr);
+    const picked = (plan && Object.prototype.hasOwnProperty.call(plan, dateStr)) ? plan[dateStr] > 0 : (pr.p >= CADENCE_ON_P);
+    const planNote = plan ? `이번 주 ${plan.__quota}회 배정 기준 · ${picked ? '이 날 배정됨' : '이 날은 미배정'}` : '';
+    const head = `${planNote}${planNote ? ' ' : ''}(이 날 진행 확률 ${Math.round(pr.p * 100)}%)`;
+    if (picked) return { minutes: unit, workers: 1, unitMinutes: unit, source: 'cadence-on', detail: `${head}\n${why}` };
+    // 시간형은 '진행 불확실' 을 따로 두지 않는다 — '진행 시' 계산·슬랙 목록이 수량형만 본다(배지만 불확실로 뜨면 숫자와 어긋난다)
+    return off('cadence-off', head + (pr.p > CADENCE_OFF_P ? ' — 할 수도 있는 날이면 [진행] 을 누르세요' : ''));
 };
 
 /** 지난 7회 업무량 평균 — 그 업무가 실제로 발생한 최근 7일(물량 > 0)의 평균.
@@ -893,7 +939,17 @@ const analyzeCadence = (historyData, taskKey, windowWorkDays = CADENCE_PATTERN_D
     return result;
 };
 
+/** 그 날 그 업무의 값 — 수량형은 처리량, 시간형('t:' + 업무명)은 근무 기록 분 합(여러 명이면 합계) */
+const cadenceDayValueOf = (taskKey) => {
+    if (String(taskKey).startsWith(TIME_CAD_PREFIX)) {
+        const name = String(taskKey).slice(TIME_CAD_PREFIX.length);
+        return (d) => (d?.workRecords || []).reduce((a, r) => a + ((r && r.task === name) ? (Number(r.duration) || 0) : 0), 0);
+    }
+    return (d) => Number(d?.taskQuantities?.[taskKey]) || 0;
+};
+
 const analyzeCadenceUncached = (historyData, taskKey, windowWorkDays, today) => {
+    const qOf = cadenceDayValueOf(taskKey);
     const days = (historyData || [])
         .filter(d => d && typeof d.id === 'string' && d.id <= today)
         .filter(d => (d.workRecords || []).length > 0)
@@ -909,7 +965,7 @@ const analyzeCadenceUncached = (historyData, taskKey, windowWorkDays, today) => 
         const wd = new Date(d.id + 'T00:00:00').getDay();
         if (isNaN(wd)) return;
         byWd[wd].total++;
-        const q = Number(d.taskQuantities?.[taskKey]) || 0;
+        const q = qOf(d);
         if (q > 0) {
             byWd[wd].hit++; byWd[wd].sum += q;
             hits++; sum += q;
@@ -925,7 +981,7 @@ const analyzeCadenceUncached = (historyData, taskKey, windowWorkDays, today) => 
     // 달력 날짜로 세면 주말이 낀 구간만 2일씩 길어져, 규칙적으로 하는 업무도
     // 불규칙해 보인다(3근무일 주기가 3·3·5일로 흩어진다).
     const hitIdx = [];
-    days.forEach((d, i) => { if ((Number(d.taskQuantities?.[taskKey]) || 0) > 0) hitIdx.push(i); });
+    days.forEach((d, i) => { if ((qOf(d)) > 0) hitIdx.push(i); });
     const gaps = [];
     for (let i = 1; i < hitIdx.length; i++) gaps.push(hitIdx[i] - hitIdx[i - 1]);
     const sorted = [...gaps].sort((x, y) => x - y);
@@ -939,7 +995,7 @@ const analyzeCadenceUncached = (historyData, taskKey, windowWorkDays, today) => 
         const v = arr.filter(x => x > 0).sort((x, y) => x - y);
         return v.length ? Math.round(v[Math.floor(v.length / 2)]) : 0;
     };
-    const hitQtys = days.map(d => Number(d.taskQuantities?.[taskKey]) || 0).filter(q => q > 0);
+    const hitQtys = days.map(d => qOf(d)).filter(q => q > 0);
     // 하는 날 물량 — '최근 5회 평균'. 한 번 크게 한 날은 그 5회 중앙값의 2배로 눌러서 넣는다.
     //   · 중앙값만 쓰면 물량이 오르는 추세를 못 따라가 계획이 꾸준히 12% 적게 잡혔다(실측).
     //   · 평균만 쓰면 하루 튄 날에 끌려간다 → 상한을 씌워 둘을 절충(검증: 편향 -12% → -5%).
@@ -960,7 +1016,7 @@ const analyzeCadenceUncached = (historyData, taskKey, windowWorkDays, today) => 
     //    ⚠️ dayQty 자체는 바꾸지 않는다 — weekPlanFor·picked 판정이 그 값을 쓰고 있다.
     const cleanQtys = days
         .filter(d => excessOffDays(d.id, isOffDay) === 0)
-        .map(d => Number(d.taskQuantities?.[taskKey]) || 0)
+        .map(d => qOf(d))
         .filter(q => q > 0);
     // 표본이 모자라면 평소값을 못 낸다 → dayQty 를 쓴다(보정이 과해지는 쪽보다 낫다)
     const dayQtyClean = cleanQtys.length >= 3 ? 하는날물량(cleanQtys) : dayQty;
@@ -971,7 +1027,7 @@ const analyzeCadenceUncached = (historyData, taskKey, windowWorkDays, today) => 
     const hazard = {};
     let since = null;
     days.forEach(d => {
-        const q = Number(d.taskQuantities?.[taskKey]) || 0;
+        const q = qOf(d);
         if (since != null) {
             const k = Math.min(since, HAZARD_MAX_GAP);
             if (!hazard[k]) hazard[k] = { hit: 0, total: 0 };
@@ -993,7 +1049,7 @@ const analyzeCadenceUncached = (historyData, taskKey, windowWorkDays, today) => 
             const st = precursorStateOfDay(days[i - 1], preKeys, outKeys);
             if (!precursor[st]) precursor[st] = { hit: 0, total: 0 };
             precursor[st].total++;
-            if ((Number(days[i].taskQuantities?.[taskKey]) || 0) > 0) precursor[st].hit++;
+            if ((qOf(days[i])) > 0) precursor[st].hit++;
         }
     }
     // 🚫 '사전작업 없음 → 다음날 출고 없음' 판정용 — 최근 '사전작업 없는 다음날' 중 출고한 날(js/lib/cadence-gate.js).
@@ -1007,7 +1063,7 @@ const analyzeCadenceUncached = (historyData, taskKey, windowWorkDays, today) => 
         const wk = isoWeekKey(d.id);
         if (!wk) return;
         if (!perWeek[wk]) perWeek[wk] = 0;
-        if ((Number(d.taskQuantities?.[taskKey]) || 0) > 0) perWeek[wk]++;
+        if ((qOf(d)) > 0) perWeek[wk]++;
     });
     const weekCounts = Object.values(perWeek).sort((x, y) => x - y);
     const weeklyCount = weekCounts.length ? weekCounts[Math.floor(weekCounts.length / 2)] : 0;
@@ -1181,9 +1237,14 @@ const cadenceProbFor = (c, dateStr) => {
  */
 const cadenceValueFor = (historyData, taskKey, dateStr) => {
     const c = analyzeCadence(historyData, taskKey);
-    // 표본이 적으면 예전 방식이 그나마 안전하다
+    // 가끔 하는 업무(최근 근무일 중 4번 미만) — 예전에는 '지난 7회 평균'을 매일 넣어 주간 총량이 몇 배로 부풀었다.
+    // 0(안 하는 날)으로 두고, 하는 날 값은 '하는 날' 단추·[진행] 으로 넣게 한다(2026-11-26 사용자 요청).
     if (!c || c.hits < CADENCE_MIN_HITS) {
-        return { value: computeLast7Avg(historyData, taskKey), source: 'last7' };
+        const last7 = computeLast7Avg(historyData, taskKey);
+        if (!(last7 > 0)) return { value: 0, source: 'last7' };   // 기록이 아예 없는 업무 — 예전과 같다
+        return { value: 0, source: 'cadence-off', prob: c ? c.overallP : 0, dayValue: last7,
+                 detail: (c ? `최근 근무일 ${c.sampleDays}일 중 ${c.hits}일만 진행` : '최근 근무일에 진행 기록 없음')
+                       + ` — 가끔 하는 업무라 0 으로 둡니다.\n하는 날이면 [진행] 또는 옆의 하는 날 값(지난 7회 평균 ${last7.toLocaleString()}개)을 누르세요.` };
     }
 
     const WD_NAME = ['일', '월', '화', '수', '목', '금', '토'];
@@ -1318,14 +1379,24 @@ const weekPlanFor = (historyData, taskKey, dateStr) => {
     const today = getTodayDateString();
     const fixedDates = new Set();
     let done = 0;
+    const isTime = String(taskKey).startsWith(TIME_CAD_PREFIX);
+    const timeName = isTime ? String(taskKey).slice(TIME_CAD_PREFIX.length) : '';
+    const qOf = cadenceDayValueOf(taskKey);
     const fixedKey = dates.map(d => {
         let v = null;
         if (d <= today) {
             const day = (historyData || []).find(x => x.id === d);
             if (day) {
-                const q = Math.round(Number(day.taskQuantities?.[taskKey]) || 0);
-                if (d < today || q > 0 || qtyZeroConfirmed(day, taskKey)) v = q;
+                const q = Math.round(qOf(day));
+                // 시간형 오늘은 기록이 들어온 경우만(아직 안 했을 수 있다 — 0 을 정해진 값으로 보지 않는다)
+                if (d < today || q > 0 || (!isTime && qtyZeroConfirmed(day, taskKey))) v = q;
             }
+        }
+        if (isTime) {
+            // 저장해 둔 예정 시간 — 0명은 '그날 안 함'(autoTimeValueFor 와 같은 정의)
+            if (v == null) { const pt = getPlannedTime(d, timeName); if (pt) v = pt.workers > 0 ? Math.round(Number(pt.minutes) || 0) : 0; }
+            if (v != null) { fixedDates.add(d); if (v > 0) done++; }
+            return v == null ? '' : String(v);
         }
         // 📤 전송값은 예정 물량보다 앞선다(autoValueFor 와 같은 순서) — 값이 fixedKey 에 들어가 캐시도 같이 바뀐다
         if (v == null) { const tr = transmitFor(d, taskKey, historyData) || transmitNoneForDate(d, taskKey, historyData); if (tr) v = tr.value; }
@@ -2577,14 +2648,17 @@ const markTimeSourceBadge = (t, source, detail = '') => {
     el.className = saved
         ? `${base} font-bold rounded-md bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300`
         : `${base} font-medium text-gray-400 dark:text-gray-500`;
-    el.textContent = saved ? '저장값' : (zero ? '기본 0명' : '지난 4주 평균');
+    const CAD_TEXT = { 'cadence-on': '하는 날', 'cadence-off': '안 하는 날' };
+    el.textContent = saved ? '저장값' : (zero ? '기본 0명' : (CAD_TEXT[source] || '지난 4주 평균'));
     delete el.dataset.srcText;   // 보관해 둔 옛 글씨를 버린다(markSourceBadge 와 같은 이유)
     delete el.dataset.warn;
     const tip = saved
         ? '이 날짜에 직접 저장해 둔 투입시간입니다. 실적 평균보다 먼저 적용됩니다.'
         : (zero
             ? '기본 0명으로 두는 업무입니다. 평균을 미리 깔지 않으니 계획 시간이 부풀지 않고, 하는 날에 인원만 올리면 계획에 들어갑니다.'
-            : '최근 4주 업무 기록의 실제 투입시간을 근무일 1일 평균으로 낸 값입니다.');
+            : (CAD_TEXT[source]
+                ? '매일 하지 않는 업무라 진행 빈도(요일·마지막 진행 뒤 며칠째·주당 횟수)로 하는 날만 하루치를 넣습니다.'
+                : '최근 4주 업무 기록의 실제 투입시간을 근무일 1일 평균으로 낸 값입니다.'));
     el.title = detail ? `${tip}
 
 ${detail}` : tip;
@@ -3167,7 +3241,7 @@ const simulateDayPlan = (dateStr, inputs, taskUPH, config, opts = {}) => {
             target: dateStr, today, history: 이력(), snapshots: liveCorrectCtx.snapshots,
             cfg: State.appConfig, excluded: forecastExcludedTasks(), sources, sureKeys
         }));
-        const noExtraKeys = noExtraKeysOf(sources, inputs.tasks);
+        const noExtraKeys = [...noExtraKeysOf(sources, inputs.tasks), ...timeNoExtraKeysOf(dateStr, inputs)];
         const ap = correctedInputs(inputs, taskUPH, c, manualKeysOf(dateStr, sources, opts.manualKeys), { noExtraKeys, fullKeys: opts.fullKeys });
         const r1 = simulateOneDay(dateStr, ap.inputs, ap.taskUPH, config);
         if (![r1.rawRequiredFTE, r1.totalHours, r1.elapsedHours].every(Number.isFinite)) return off(NOTE_CALC_FAILED);
@@ -5482,6 +5556,16 @@ const fetchCorrectSnapCtx = async (dateStr) => {
 };
 
 /** 업무별 자동값 출처(물량을 자료로 정했는지 — 보정이 속도 몫만 볼지 정한다). autoValueFor 를 그대로 부른다. */
+/** 시간형 빈도 '안 하는 날'이고 칸도 0분인 업무 — 보정이 확률만큼 시간을 다시 붙이지 않게(수량형 NO_EXTRA_WHEN_ZERO 'cadence-off' 와 같은 규칙) */
+const timeNoExtraKeysOf = (dateStr, inputs) => {
+    const tt = inputs?.timeTasks || {};
+    const data = 이력();
+    return activeTimeTasks()
+        .filter(t => !((Number(tt[t.key]?.minutes) || 0) > 0 && (Number(tt[t.key]?.workers) || 0) > 0))
+        .filter(t => { try { return autoTimeValueFor(dateStr, t, data)?.source === 'cadence-off'; } catch (e) { return false; } })
+        .map(t => t.key);
+};
+
 const sourcesOf = (dateStr, data) => {
     const out = {};
     SIM_TASKS.forEach(t => { out[t.key] = autoValueFor(dateStr, t, data)?.source ?? null; });
