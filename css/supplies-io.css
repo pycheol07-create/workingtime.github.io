@@ -1,0 +1,80 @@
+/* === css/supplies-io.css — 비품 입·출고(supplies-io.html) 전용 (2026-11-26) ===
+   - 토큰은 css/d-theme.css 의 --c-*. 접두어 si- . d-btn·d-seg·d-card 는 d-theme.css 것을 그대로 쓴다.
+   - 휴대폰 우선(한 줄 640px 까지), PC 도 같은 모양. */
+
+body { margin: 0; }
+[hidden] { display: none !important; }
+
+.si-wrap { max-width: 640px; margin: 0 auto; padding: 12px 12px 40px; display: flex; flex-direction: column; gap: 12px; }
+.si-pad { padding: 14px; }
+.si-center { text-align: center; }
+.si-grow { flex: 1; }
+.si-h { font-size: 14px; font-weight: 700; margin: 0 0 10px; color: var(--c-text); }
+.si-small { font-size: 12px; margin-top: 6px; }
+.si-loading { padding: 60px 16px; text-align: center; color: var(--c-text-2); }
+
+.si-top { display: flex; align-items: center; gap: 8px; }
+.si-seg { display: inline-flex; }
+.si-seg .d-seg-btn { min-height: 40px; padding: 0 22px; font-size: 15px; }
+#si-scan { min-height: 40px; }
+#si-scan[aria-pressed="true"] { background: var(--c-accent-soft); border-color: var(--c-accent); color: var(--c-accent-deep); font-weight: 600; }
+
+.si-alert { border-radius: var(--r-sm); padding: 10px 14px; font-size: 13px; line-height: 1.6; }
+.si-alert.warn { background: var(--c-warn-soft); color: var(--c-warn-text); }
+.si-alert.risk { background: var(--c-risk-soft); color: var(--c-risk-text); white-space: pre-line; }
+
+.si-reader-wrap { background: var(--c-surface); border: 1px solid var(--c-line); border-radius: var(--r-card); padding: 10px; }
+.si-reader { width: 100%; min-height: 200px; border-radius: var(--r-inner); overflow: hidden; }
+
+.si-input { box-sizing: border-box; width: 100%; min-height: 46px; padding: 0 14px; font: inherit; font-size: 16px;
+    border: 1px solid var(--c-line-strong); border-radius: var(--r-sm); background: var(--c-surface); color: var(--c-text); }
+.si-input:focus { outline: none; border-color: var(--c-accent); box-shadow: 0 0 0 3px var(--c-accent-soft); }
+
+.si-results { margin-top: 6px; border: 1px solid var(--c-line); border-radius: var(--r-sm); max-height: 50vh; overflow: auto; }
+.si-row { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 46px; padding: 6px 12px; border: 0; border-bottom: 1px solid var(--c-line-soft);
+    background: var(--c-surface); color: var(--c-text); font: inherit; font-size: 14px; text-align: left; cursor: pointer; }
+.si-row:last-child { border-bottom: 0; }
+.si-row:hover { background: var(--c-accent-row); }
+.si-row-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.si-row-stock { color: var(--c-text-2); font-size: 13px; white-space: nowrap; }
+.si-empty { padding: 10px 12px; font-size: 13px; color: var(--c-text-2); }
+.si-msg { margin: 8px 0 0; font-size: 13px; color: var(--c-warn-text); }
+.si-msg.ok { color: var(--c-ok-text); }
+
+.si-favs-wrap { margin-top: 10px; }
+.si-favs { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.si-favs .d-btn { min-height: 40px; padding: 0 16px; font-size: 14px; }
+
+.si-card { border-color: var(--c-accent-light); }
+.si-card-head { display: flex; align-items: center; gap: 6px; }
+.si-card-name { font-size: 17px; }
+.si-card-stock { margin-top: 6px; font-size: 14px; color: var(--c-text-2); }
+.si-card-stock b { color: var(--c-text); }
+.si-card-stock.short, .si-card-stock.short b { color: var(--c-risk-text); }
+.si-units { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; margin-top: 12px; }
+.si-unit { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 62px; padding: 6px;
+    border: 1px solid var(--c-line-strong); border-radius: var(--r-inner); background: var(--c-surface); color: var(--c-text); font: inherit; cursor: pointer; }
+.si-unit:hover { background: var(--c-surface-2); }
+.si-unit.on { border-color: var(--c-accent); background: var(--c-accent-soft); }
+.si-unit-name { font-size: 16px; font-weight: 700; }
+.si-unit-base { font-size: 11px; color: var(--c-text-2); }
+.si-unit-n { position: absolute; top: 4px; right: 6px; font-size: 12px; font-weight: 700; color: var(--c-accent-deep); }
+.si-calc { margin-top: 10px; min-height: 20px; font-size: 15px; font-weight: 600; color: var(--c-text); }
+
+.si-big { width: 100%; min-height: 54px; margin-top: 12px; font-size: 17px; border-radius: var(--r-inner); }
+
+.si-list { list-style: none; margin: 0; padding: 0; }
+.si-li { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--c-line-soft); }
+.si-li-main { flex: 1; min-width: 0; }
+.si-li-name { font-weight: 600; font-size: 14px; }
+.si-li-desc { font-size: 12px; color: var(--c-text-2); overflow-wrap: anywhere; }
+.si-li-qty { font-weight: 700; white-space: nowrap; }
+.si-x { min-width: 40px; min-height: 40px; border: 1px solid var(--c-line); border-radius: var(--r-pill); background: var(--c-surface); color: var(--c-text-2); font-size: 16px; cursor: pointer; }
+.si-x:hover { color: var(--c-risk-text); border-color: var(--c-risk); }
+.si-li-empty { padding: 8px 0; color: var(--c-text-2); font-size: 13px; }
+
+.si-result { margin-top: 10px; border-radius: var(--r-sm); padding: 10px 14px; font-size: 13px; line-height: 1.6; background: var(--c-surface-2); }
+.si-result.ok { background: var(--c-ok-soft); color: var(--c-ok-text); }
+.si-result.part { background: var(--c-warn-soft); color: var(--c-warn-text); }
+.si-result.bad { background: var(--c-risk-soft); color: var(--c-risk-text); }
+.si-result ul { margin: 4px 0 6px; padding-left: 18px; }

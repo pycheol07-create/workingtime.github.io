@@ -27,8 +27,8 @@ import { kstDateTime } from './lib/kst-time.js?v=1f1e277244a9-6fe98384';
 import { checkStockAdjust } from './lib/supplies-stock-check.js?v=bece1017afad-45058477';
 import { normalizeItemUnits, validateUnits, unitButtons, checkBaseQty, findByBarcode, MAX_BARCODES, MAX_UNITS, MAX_UNIT_QTY } from './lib/supplies-units.js?v=38146ad5b84d-33598b26';
 import { isLive, atMs, stockOf, isLowBy, ezLeftover, resumeBatchId, ledgerWho, cutoverStale, cutoverStartBlock, liveOnBlock } from './lib/supplies-mode.js?v=5f016d6adc90-90c9a625';
-import { ledgerErrorText, ITEM_ID_RE } from './lib/supplies-ledger.js?v=1d95dd023593-77eaa88c';
-import { newBatchId, loadStock, loadStockOf, loadLedger, commitLines, commitCount, commitRevert } from './supplies-ledger-store.js?v=f3ed79d90f82-e24fd78d';
+import { ledgerErrorText, ITEM_ID_RE } from './lib/supplies-ledger.js?v=44c94c8b86ad-92d65f68';
+import { newBatchId, loadStock, loadStockOf, loadLedger, commitLines, commitCount, commitRevert } from './supplies-ledger-store.js?v=d18800c379ed-8adb83c4';
 import {
     effectiveStatus, statusBadge, depleteText, depleteSortValue, reorderText, reorderSortValue, reorderDaysLeft, recommendText, isStale, parseQty, mdw, basisText,
     leadTimeText, expectedDateFor, orderSummaryText, appOnlyWarning, packsProgressText, safetySuggestion, alertReasons, sortAlertRows,

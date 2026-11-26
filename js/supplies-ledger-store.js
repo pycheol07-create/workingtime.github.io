@@ -2,8 +2,8 @@
 // 계산은 js/lib/supplies-ledger.js(순수), 검사는 firestore.rules(suppliesLedger·suppliesStock 블록).
 // 쓰기는 늘 한 트랜잭션: 비품마다 [기록 만들기 + 재고 문서 바꾸기]. 규칙이 둘이 맞는지(before·after·lastEntry) 본다.
 // 같은 묶음(batchId)을 두 번 보내면 — 기록 id 가 같아 이미 있으면 그 묶음은 '이미 저장됨' 으로 끝낸다(중복 저장 없음).
-import { doc, getDoc, collection, getDocs, query, where, orderBy, limit, startAfter, runTransaction, serverTimestamp, Timestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { planBatch, planCount, planRevert, splitLines } from './lib/supplies-ledger.js?v=1d95dd023593-77eaa88c';
+import { doc, getDoc, getDocFromServer, collection, getDocs, query, where, orderBy, limit, startAfter, runTransaction, serverTimestamp, Timestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { planBatch, planCount, planRevert, splitLines } from './lib/supplies-ledger.js?v=44c94c8b86ad-92d65f68';
 
 const BASE = ['artifacts', 'team-work-logger-v2'];
 export const LEDGER_COLL = 'suppliesLedger';
@@ -47,6 +47,16 @@ export async function loadLedger(db, { days = 30, max = 500, before = null } = {
     return out;
 }
 
+/**
+ * 기록 id 들이 서버에 있나 — 있는 id 의 Set. 서버에서 못 읽으면 예외(캐시로 답하지 않는다 — 연결이 없을 때 캐시는 '없음' 으로 보여
+ * 들어간 기록을 '안 들어감' 으로 잘못 알고 새 묶음으로 두 번 저장하게 된다). 연결 오류 뒤 '들어갔나' 확인용(js/supplies-io.js).
+ */
+export async function ledgerEntriesOnServer(db, ids) {
+    const list = [...new Set((Array.isArray(ids) ? ids : []).map(String))];
+    const snaps = await Promise.all(list.map(id => getDocFromServer(ledgerRef(db, id))));
+    return new Set(list.filter((id, k) => snaps[k].exists()));
+}
+
 function writeEntry(tx, db, e, me, extra = {}) {
     tx.set(ledgerRef(db, e.id), {
         itemId: e.itemId, kind: e.kind, qty: e.qty, before: e.before, after: e.after,
@@ -69,12 +79,20 @@ export async function commitLines(db, lines, dir, me, batchId) {
     const pre = planBatch(lines, dir, {}, batchId);   // 모양 검사(비품 id·수량)
     if (!pre.ok && pre.errors.some(e => e.reason !== 'short')) return { parts: [{ ok: false, errors: pre.errors }] };
     try {
+        // 같은 묶음을 다시 보낸 것(연결이 끊겨 결과를 몰랐던 경우)이면 미리 검사를 건너뛴다 — 이미 빠진 재고로 '재고 부족' 이 나지 않게.
+        //   실제 저장 여부는 아래 덩어리마다 트랜잭션이 기록 id 로 판정한다
+        const first = splitLines(lines)[0] || [];
+        const firstId = first.length ? String(first[0].itemId) : '';
+        // 서버에서만 본다 — 연결이 없을 때 캐시(빈 사본)로 '없음' 을 믿으면 이미 빠진 재고로 미리 검사해 '재고 부족' 이 난다
+        if (firstId && (await getDocFromServer(ledgerRef(db, `${batchId}-0-${firstId}`))).exists()) throw { skipPre: true };
         const now = {};
         const ss = await Promise.all(allIds.map(id => getDoc(stockRef(db, id))));
         ss.forEach((s, k) => { now[allIds[k]] = s.exists() ? (Number(s.data().qty) || 0) : 0; });
         const whole = planBatch(lines, dir, now, batchId);
         if (!whole.ok) return { parts: [{ ok: false, errors: whole.errors }] };
-    } catch (e) { return { parts: [{ ok: false, errors: [{ itemId: '', reason: 'write', code: e && e.code }] }] }; }
+    } catch (e) {
+        if (!(e && e.skipPre)) return { parts: [{ ok: false, errors: [{ itemId: '', reason: 'write', code: e && e.code }] }] };
+    }
     const chunks = splitLines(lines);
     for (let i = 0; i < chunks.length; i++) {
         const bid = `${batchId}-${i}`;   // 덩어리가 하나여도 번호를 붙인다(다시 보낼 때 덩어리 구분이 바뀌지 않게)

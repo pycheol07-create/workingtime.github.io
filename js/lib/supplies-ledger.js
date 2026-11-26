@@ -13,7 +13,7 @@
 //   묶음 저장 = `${batchId}-${덩어리번호}-${itemId}` · 실사 = `ct-${batchId}-${itemId}` · 되돌림 = `rv-${원 기록 id}`(한 기록은 한 번만 되돌림)
 //   ⚠️ 같은 batchId 를 다시 쓰는 것은 '같은 줄 그대로' 다시 보낼 때만. 줄을 고쳤으면 새 batchId(js/supplies-ledger-store.js 가 일부만 있으면 멈춤).
 //   'rv-'·'ct-' 로 시작하는 id 는 되돌림·실사만 쓴다(규칙도 막음).
-// 한 트랜잭션에 담는 비품 수는 MAX_TX_ITEMS 까지 — 보안 규칙 문서 확인 횟수(운영 트랜잭션당 20): 비품당 4 + 설정 1 → 3개면 13(넉넉히).
+// 한 트랜잭션에 담는 비품 수는 MAX_TX_ITEMS 까지 — 보안 규칙 문서 확인 횟수(운영 트랜잭션당 20): 비품당 4 + 설정(mainConfig) 1 + 스위치(suppliesSettings) 1 → 3개면 14(넉넉히, 6개면 26 — 넘음).
 //   에뮬레이터는 이 한도를 운영처럼 막지 않으므로 게시 뒤 운영에서 한 번 확인할 것. 넘으면 나눠 보낸다(splitLines).
 
 export const KINDS = ['in', 'out', 'count', 'revert'];
