@@ -5,7 +5,7 @@
 //
 // 물류장부 muljang/report/customs_cost.py 가 박스기준(LCL·수수료 퍼센트 0) 식을 파이썬으로 같은 순서로 다시 쓴다 —
 //   이 식을 바꾸면 그쪽도 같이(계약 시험 물류장부 tests/test_customs_cost_contract.py, 같은 사례 tests/fixtures/customs-cost-cases.json).
-import { parseNum, missingRateFields } from './calc-num.js?v=202611251358';
+import { parseNum, missingRateFields } from './calc-num.js?v=202611260912';
 
 /** 통관비 탭 입력 칸 기본값 중 코드 상수(관세율·LCL·수수료 퍼센트 0 …). 평균 칸(단가·입수·무게)은 settings.customs 에서 온다 */
 export const CUSTOMS_FORM_DEFAULTS = Object.freeze({

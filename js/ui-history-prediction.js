@@ -3,55 +3,55 @@
 //  - renderPredictionTab: 실적 예측 탭 (차트/KPI)
 //  - renderForecastTab: 업무 예상 탭 (시뮬레이션·요약 카드)
 
-import { predictFutureTrends } from './analysis-logic.js?v=202611251358';
+import { predictFutureTrends } from './analysis-logic.js?v=202611260912';
 import { doc, getDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { mibalByArrival, makeArrivalLookup, makeArrivalsLookup } from './lib/mibal-forecast.js?v=202611251358';
-import { parseInspPacks, sampleCardsByArrival } from './lib/insp-packs.js?v=202611251358';
-import { inspListCountFor } from './lib/insp-day.js?v=202611251358';
-import { getSubscribedDate } from './app-sync.js?v=202611251358';
-import { runDay } from './lib/refill-view.js?v=202611251358';
-import { parseRecDay, pickRecDay, recCount, applyLocRecCount, dayKey as recDayKey } from './lib/locrec-view.js?v=202611251358';
-import { LOCREC_TASK } from './lib/feature-catalog.js?v=202611251358';
-import { TASK, tName, isT, tQty } from './task-names.js?v=202611251358';
-import { systemIdOfName, taskIdOf } from './lib/task-ids.js?v=202611251358';
+import { mibalByArrival, makeArrivalLookup, makeArrivalsLookup } from './lib/mibal-forecast.js?v=202611260912';
+import { parseInspPacks, sampleCardsByArrival } from './lib/insp-packs.js?v=202611260912';
+import { inspListCountFor } from './lib/insp-day.js?v=202611260912';
+import { getSubscribedDate } from './app-sync.js?v=202611260912';
+import { runDay } from './lib/refill-view.js?v=202611260912';
+import { parseRecDay, pickRecDay, recCount, applyLocRecCount, dayKey as recDayKey } from './lib/locrec-view.js?v=202611260912';
+import { LOCREC_TASK } from './lib/feature-catalog.js?v=202611260912';
+import { TASK, tName, isT, tQty } from './task-names.js?v=202611260912';
+import { systemIdOfName, taskIdOf } from './lib/task-ids.js?v=202611260912';
 import { LEGACY_SIM_TASKS, legacySimTasksOf, namesOf, timeTaskExcludeOf, DEFAULT_SIM_ALWAYS_TASKS, DEFAULT_SIM_ZERO_TASKS,
          DEFAULT_FORECAST_EXCLUDED_TASKS, DEFAULT_LOADOUT_SOURCES, defaultAutoModeOf, defaultTimeTaskDepsOf,
-         isDefaultNextDayDep, defaultPrecursorMapOf, transmitTaskIdOf } from './lib/forecast-task-ids.js?v=202611251358';
+         isDefaultNextDayDep, defaultPrecursorMapOf, transmitTaskIdOf } from './lib/forecast-task-ids.js?v=202611260912';
 import { summarizeTransmitChunks, transmitValueFor, transmitNoneFor, lastWorkedDayBefore, lockedTransmitNone, mergeTransmitByDate, TRANSMIT_SOURCES,
-         parsePickMarks, PICK_MARK_TASKS, PICK_MARK_KEEP_DAYS } from './lib/ship-transmit.js?v=202611251358';
-import { setPickMark, PICK_MARKS_PATH } from './pick-mark-store.js?v=202611251358';
-import { can } from './lib/perm.js?v=202611251358';
-import { precursorOffGate, noneNextStats, noneNextObs, precursorStateOfDay as precursorStateOfDayLib, looksRecorded } from './lib/cadence-gate.js?v=202611251358';
-import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202611251358';
-import * as State from './state.js?v=202611251358';
-import { saveView } from './view-state.js?v=202611251358';
-import { getTodayDateString, getRegularMembersForCount, showToast, showConfirm, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202611251358';
-import { groupIncomingRowsByArrival } from './widget-incoming-schedule.js?v=202611251358';
+         parsePickMarks, PICK_MARK_TASKS, PICK_MARK_KEEP_DAYS } from './lib/ship-transmit.js?v=202611260912';
+import { setPickMark, PICK_MARKS_PATH } from './pick-mark-store.js?v=202611260912';
+import { can } from './lib/perm.js?v=202611260912';
+import { precursorOffGate, noneNextStats, noneNextObs, precursorStateOfDay as precursorStateOfDayLib, looksRecorded } from './lib/cadence-gate.js?v=202611260912';
+import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=202611260912';
+import * as State from './state.js?v=202611260912';
+import { saveView } from './view-state.js?v=202611260912';
+import { getTodayDateString, getRegularMembersForCount, showToast, showConfirm, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=202611260912';
+import { groupIncomingRowsByArrival } from './widget-incoming-schedule.js?v=202611260912';
 import { getIncomingQtyByDateFromCache, getIncomingDetailsByDateFromCache,
-         isIncomingCacheFreshToday } from './widget-incoming-schedule.js?v=202611251358';
+         isIncomingCacheFreshToday } from './widget-incoming-schedule.js?v=202611260912';
 import { getPlannedQuantitiesForDate, getPlannedTimeTasksForDate, getPlannedExcludeMinutesForDate, getPlannedAdminWorkersForDate,
          fetchPlannedData, savePlannedQuantities,
          saveForecastSnapshot, saveForecastSnapshotIfAbsent, deleteForecastSnapshot, fetchForecastSnapshots,
-         getForecastSnapshotForDate, historyLoadFailed, hasHistoryLoaded, fetchAllHistoryData } from './history-data-manager.js?v=202611251358';
-import { decomposeAccuracy, summarizeAccuracyRows, aggregateByTask, excludeTasksForAccuracy } from './forecast-accuracy.js?v=202611251358';
+         getForecastSnapshotForDate, historyLoadFailed, hasHistoryLoaded, fetchAllHistoryData } from './history-data-manager.js?v=202611260912';
+import { decomposeAccuracy, summarizeAccuracyRows, aggregateByTask, excludeTasksForAccuracy } from './forecast-accuracy.js?v=202611260912';
 import { computeDayProgress, buildProgressRows, projectFinish, spentMinutesOf,
-         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202611251358';
-import { LUNCH_END_MIN } from './lib/calc.js?v=202611251358';
+         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=202611260912';
+import { LUNCH_END_MIN } from './lib/calc.js?v=202611260912';
 import { applyAdminWorkers, normalizeAdminWorkers, ADMIN_TASK_ID, DEFAULT_ADMIN_WORKERS,
-         buildExcludedProgressRows, excludedActualByTask } from './lib/forecast-exclude.js?v=202611251358';
-import { taskUph, recentDays, RECENT_SPEED, recentTaskSpeeds } from './task-throughput.js?v=202611251358';
-import { normalizedUtilization } from './lib/ops-metrics.js?v=202611251358';
+         buildExcludedProgressRows, excludedActualByTask } from './lib/forecast-exclude.js?v=202611260912';
+import { taskUph, recentDays, RECENT_SPEED, recentTaskSpeeds } from './task-throughput.js?v=202611260912';
+import { normalizedUtilization } from './lib/ops-metrics.js?v=202611260912';
 import { foldReasonFor, FOLD_REASON_TEXT, shouldSaveQty, shouldSaveTime,
-         normalizeTimeEntry } from './lib/sim-fold.js?v=202611251358';
+         normalizeTimeEntry } from './lib/sim-fold.js?v=202611260912';
 import { learnCarryPerOffDay, backlogFactor, carryReason, carrySourceNote,
          DEFAULT_CARRY, resolveBacklogTasks, carriedQty,
-         excessOffDays } from './lib/backlog-carry.js?v=202611251358';
-import { D } from './d-chart.js?v=202611251358';
-import { aliasHistoryView, aliasNameMap, aliasSnapshot, aliasTaskName, sameTaskKeys } from './lib/task-alias-view.js?v=202611251358';
-import { withCorrected, correctSnapRange, correctInputOf, NOTE_CALC_FAILED, NOTE_SNAP_FETCH_FAILED } from './lib/forecast-correct-snap.js?v=202611251358';
-import { correctPlan, toAccuracySnap } from './lib/forecast-correct.js?v=202611251358';
+         excessOffDays } from './lib/backlog-carry.js?v=202611260912';
+import { D } from './d-chart.js?v=202611260912';
+import { aliasHistoryView, aliasNameMap, aliasSnapshot, aliasTaskName, sameTaskKeys } from './lib/task-alias-view.js?v=202611260912';
+import { withCorrected, correctSnapRange, correctInputOf, NOTE_CALC_FAILED, NOTE_SNAP_FETCH_FAILED } from './lib/forecast-correct-snap.js?v=202611260912';
+import { correctPlan, toAccuracySnap } from './lib/forecast-correct.js?v=202611260912';
 import { correctedInputs, planBaseOf, noExtraKeysOf, RESERVE_KEY, presenceSureKeys, presenceDoneKeys,
-         maybeAltKeys, maybeBasisOf } from './lib/forecast-correct-apply.js?v=202611251358';
+         maybeAltKeys, maybeBasisOf } from './lib/forecast-correct-apply.js?v=202611260912';
 
 /** 🆔 계산용 이력 — 업무 이름을 바꾼 뒤에도 옛 이름 기록을 지금 이름으로 합쳐 본 사본(업무 id 3단계).
  *  원본(State.allHistoryData)과 저장은 그대로다. 이 파일은 이력을 읽기만 하고 저장하지 않는다.
@@ -1545,6 +1545,40 @@ const setQty = (id, val) => {
     const el = document.getElementById(`sim-qty-${id}`);
     if (!el) return;
     el.value = (val == null || val === 0 || val === '') ? '' : val;
+    paintOnToggle('qty', id);
+};
+
+/** [진행]/[안함] 단추(2026-11-26 사용자 요청) — 칸 값으로만 정한다(따로 상태를 두지 않는다).
+ *  수량형은 수량 > 0, 시간형은 분 > 0 이고 인원 > 0 이면 '진행'. */
+const isRowOn = (kind, id) => {
+    if (kind === 'time') {
+        const m = Number(document.getElementById(`sim-time-${id}`)?.value) || 0;
+        const w = Number(document.getElementById(`sim-workers-${id}`)?.value) || 0;
+        return m > 0 && w > 0;
+    }
+    return (Number(document.getElementById(`sim-qty-${id}`)?.value) || 0) > 0;
+};
+const paintOnToggle = (kind, id) => {
+    const btn = document.getElementById(kind === 'time' ? `sim-on-t-${id}` : `sim-on-${id}`);
+    if (!btn) return;
+    const on = isRowOn(kind, id);
+    btn.dataset.on = on ? '1' : '0';
+    btn.textContent = on ? '진행' : '안함';
+    btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    btn.title = on ? '누르면 이 날은 안 하는 업무로 바꿉니다(0)' : '누르면 이 날 하는 업무로 바꿉니다(안함 직전 값 › 하는 날 값 › 자동값 › 평균)';
+    btn.className = `pred-on-toggle shrink-0 w-9 sm:w-11 px-0 py-0.5 rounded-md border text-[11px] font-bold transition ${on
+        ? 'border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
+        : 'border-gray-200 bg-gray-100 text-gray-400 hover:bg-gray-200 dark:border-gray-600 dark:bg-gray-700/60 dark:text-gray-400'}`;
+};
+/** [안함] 직전 값 기억을 버린다 — 화면을 자동값으로 다시 채울 때(날짜 변경·초기화·저장·자동값) 옛 날짜 값이 되살아나지 않게 */
+const forgetOnTogglePrev = () => {
+    document.querySelectorAll('#sim-task-list .pred-on-toggle').forEach(b => {
+        delete b.dataset.prev; delete b.dataset.prevMin; delete b.dataset.prevWorkers;
+    });
+};
+const paintAllOnToggles = () => {
+    SIM_TASKS.forEach(t => paintOnToggle('qty', t.id));
+    SIM_TIME_TASKS.forEach(t => paintOnToggle('time', t.id));
 };
 
 /** 대상일이 오늘일 때, '오늘 처리량 입력'에 이미 들어간 실측값. 없으면 null.
@@ -2410,6 +2444,7 @@ const renderSimTaskInputs = () => {
     // 업무명은 관리자 설정에서 오는 임의 문자열이다 — 따옴표 하나에 줄 전체가 깨진다
     const row = (t) => `
         <div id="sim-row-${escapeHtml(t.id)}" data-row-id="${escapeHtml(t.id)}" class="pred-sim-row ${escapeHtml(ROW)}">
+            <button type="button" id="sim-on-${escapeHtml(t.id)}" data-on-kind="qty" data-task-id="${escapeHtml(t.id)}" tabindex="-1" class="pred-on-toggle shrink-0">진행</button>
             <span class="flex-1 min-w-0 sm:min-w-[5.5rem] truncate text-sm font-bold text-gray-700 dark:text-gray-200" title="${escapeHtml(t.label)}">${escapeHtml(t.label)}</span>
             <input id="sim-qty-${escapeHtml(t.id)}" type="number" min="0" placeholder="0" inputmode="numeric" class="${escapeHtml(NUM)}">
             <span class="w-4 text-[11px] text-gray-400 dark:text-gray-500">개</span>
@@ -2422,6 +2457,7 @@ const renderSimTaskInputs = () => {
 
     const timeRow = (t) => `
         <div id="sim-row-t-${escapeHtml(t.id)}" data-row-id="t-${escapeHtml(t.id)}" class="pred-sim-row ${escapeHtml(ROW)}">
+            <button type="button" id="sim-on-t-${escapeHtml(t.id)}" data-on-kind="time" data-task-id="${escapeHtml(t.id)}" tabindex="-1" class="pred-on-toggle shrink-0">진행</button>
             <span class="flex-1 min-w-0 sm:min-w-[5.5rem] truncate text-sm font-bold text-gray-700 dark:text-gray-200" title="${escapeHtml(t.label)} — 인원이 늘면 그만큼 시간이 더해집니다">${escapeHtml(t.label)}</span>
             <label class="shrink-0 text-[11px] text-gray-400 dark:text-gray-500 whitespace-nowrap"
                    title="이 업무를 하는 인원. 인원을 올리면 1인 시간만큼 총 시간이 자동으로 더해집니다(1명 340분 → 2명 680분). 0명으로 두면 그날은 하지 않는 업무로 보고 시간도 0이 됩니다.">동시
@@ -2491,6 +2527,7 @@ const renderSimTaskInputs = () => {
     host.className = 'grid grid-cols-1 min-[1800px]:grid-cols-2 gap-3 items-start';
     host.innerHTML = qtyBlocks + timeBlock + refBlock;
     paintSimRefRows();
+    paintAllOnToggles();
     return true;
 };
 
@@ -2528,6 +2565,7 @@ const setTimeInputs = (t, { minutes, workers }) => {
     if (mEl) mEl.value = (minutes == null || minutes === 0) ? '' : Math.round(minutes);
     const wEl = document.getElementById(`sim-workers-${t.id}`);
     if (wEl) wEl.value = Math.max(0, Math.round(Number(workers) || 0));
+    paintOnToggle('time', t.id);
 };
 
 const markTimeSourceBadge = (t, source, detail = '') => {
@@ -2779,7 +2817,7 @@ const autoFillSimInputs = (dateStr, opts = {}) => {
     //    재채움까지 네 경로가 여기서 한 번에 막힌다.
     //    ⚠️ 그래서 이 함수 안에서는 setQty/setTimeInputs 같은 '코드가 값을 넣는' 경로만
     //       써야 한다(그 함수들은 input 이벤트를 발생시키지 않아 dirty 를 오염시키지 않는다).
-    if (!preserveDirty) { simDirtyQty = new Set(); simDirtyTime = new Set(); simDirtyAdmin = false; }
+    if (!preserveDirty) { simDirtyQty = new Set(); simDirtyTime = new Set(); simDirtyAdmin = false; forgetOnTogglePrev(); }
     applyEmptyRowFolding();
 };
 
@@ -4669,6 +4707,68 @@ const setupSimulationListeners = () => {
         if (b && b.dataset.fview) setForecastView(b.dataset.fview);
     });
 
+    // ✅ [진행]/[안함] — 손으로 0 을 넣지 않아도 되게(2026-11-26 사용자 요청).
+    //    값을 넣고 input 이벤트를 일으켜, 손으로 고친 것과 똑같이 '고친 칸'·연동 업무·요약이 따라온다.
+    //    안함 → 0(시간형은 0분·0명). 진행 → 안함 직전 값 › 지금 자동값 › 평균(수량 지난 7회, 시간 1인 기준 × 1명).
+    //    그래도 값이 없으면 칸에 커서를 둔다(직접 입력).
+    document.getElementById('sim-task-list')?.addEventListener('click', (e) => {
+        const btn = e.target?.closest?.('.pred-on-toggle');
+        if (!btn) return;
+        const id = btn.dataset.taskId, kind = btn.dataset.onKind;
+        const dateStr = document.getElementById('sim-target-date')?.value;
+        if (kind === 'qty') {
+            const el = document.getElementById(`sim-qty-${id}`);
+            const t = SIM_TASKS.find(x => x.id === id);
+            if (!el || !t) return;
+            const r = dateStr ? autoValueFor(dateStr, t, 이력()) : null;   // '하는 날' 값(dayValue)·자동값
+            if (isRowOn('qty', id)) {
+                btn.dataset.prev = String(Number(el.value) || 0);
+                el.value = 0;
+            } else {
+                let v = Number(btn.dataset.prev) || 0;
+                if (!(v > 0)) v = Number(r?.dayValue) || 0;
+                if (!(v > 0)) v = Number(r?.value) || 0;
+                if (!(v > 0)) v = Math.round(Number(computeLast7Avg(이력(), t.key)) || 0);
+                if (!(v > 0)) { el.focus(); el.select?.(); return; }
+                el.value = v;
+            }
+            el.dispatchEvent(new Event('input', { bubbles: true }));
+            if (r) paintDayApply(t, r.dayValue);   // 같은 값이 들어갔으면 '하는 날' 버튼은 숨는다
+            paintOnToggle('qty', id);
+            applyEmptyRowFolding();
+            return;
+        }
+        if (kind === 'time') {
+            const t = SIM_TIME_TASKS.find(x => x.id === id);
+            const mEl = document.getElementById(`sim-time-${id}`);
+            const wEl = document.getElementById(`sim-workers-${id}`);
+            if (!t || !mEl || !wEl) return;
+            if (isRowOn('time', id)) {
+                btn.dataset.prevMin = String(Number(mEl.value) || 0);
+                btn.dataset.prevWorkers = String(Number(wEl.value) || 0);
+                mEl.value = '';
+                wEl.value = 0;
+            } else {
+                let m = Number(btn.dataset.prevMin) || 0;
+                let w = Number(btn.dataset.prevWorkers) || 0;
+                if (!(m > 0 && w > 0)) {
+                    const unit = Number(timeTaskUnit.get(t.key)) || 0;
+                    if (unit > 0) { m = unit; w = 1; }
+                    else if (dateStr) {
+                        const v = autoTimeValueFor(dateStr, t, 이력());
+                        m = Math.round(Number(v.minutes) || 0); w = Math.max(1, Math.round(Number(v.workers) || 0));
+                    }
+                }
+                if (!(m > 0)) { wEl.value = Math.max(1, w); mEl.focus(); mEl.select?.(); paintOnToggle('time', id); return; }
+                mEl.value = m;
+                wEl.value = Math.max(1, w);
+            }
+            mEl.dispatchEvent(new Event('input', { bubbles: true }));   // 시간 칸 처리가 '고친 칸'·1인 기준을 맞춘다
+            paintOnToggle('time', id);
+            applyEmptyRowFolding();
+        }
+    });
+
     // '하는 날 N' 을 누르면 그 값을 작업량 칸에 넣는다.
     // input 이벤트를 직접 일으켜, 상단 요약·연동 업무도 함께 다시 계산되게 한다.
     document.getElementById('sim-task-list')?.addEventListener('click', (e) => {
@@ -4797,6 +4897,7 @@ const setupSimulationListeners = () => {
             // '전날 준비' 업무는 그날 물량이 아니라 다음 근무일 물량을 보므로, 이 입력과 무관하다
             if (isNextDayDep(t.key)) return;
             if (getPlannedTime(dateStr, t.key)) return;      // 저장해 둔 값은 건드리지 않는다
+            if (simDirtyTime.has(t.key)) return;             // 사람이 고친 칸([안함] 포함)도 — 덮으면 되살아난 값이 수기값으로 저장된다
             const v = autoTimeValueFor(dateStr, t, 이력(), lookup);
             setTimeInputs(t, v);
             timeTaskUnit.set(t.key, Math.max(0, Math.round(Number(v.unitMinutes ?? v.minutes) || 0)));
@@ -4859,6 +4960,11 @@ const setupSimulationListeners = () => {
         }
     });
 
+    // [진행]/[안함] 단추 모양 — 손으로 고친 칸과 연동으로 다시 잡힌 칸 모두(위 처리들 다음에 등록)
+    document.getElementById('sim-task-list')?.addEventListener('input', (e) => {
+        if (/^sim-(qty|time|workers)-/.test(e.target?.id || '')) paintAllOnToggles();
+    });
+
     // 👤 관리자 개별업무 인원 — 바꾸면 정직원 가용 칸을 **바뀐 만큼만** 고친다(사람이 고쳐 둔 정직원 수를 덮지 않게).
     //    빼 둔 인원은 칸의 data-applied 에 둔다(autoFillSimInputs 가 채울 때 같이 갱신). 출근 인원보다 많이 빼지 않는다.
     document.getElementById('sim-task-list')?.addEventListener('input', (e) => {
@@ -4894,6 +5000,7 @@ const setupSimulationListeners = () => {
         // 접기 판정 재료도 버린다. 안 버리면 비워진 화면을 초기화 **전** 값으로 판정해,
         // 접힘 버튼 title 이 화면에 없는 숫자를 보여 준다.
         simRowMeta.clear();
+        forgetOnTogglePrev();
         SIM_TASKS.forEach(t => setQty(t.id, ''));
         SIM_TIME_TASKS.forEach(t => setTimeInputs(t, { minutes: 0, workers: 0 }));
         ['sim-staff-fulltime','sim-staff-parttimer','sim-exclude-min'].forEach(id => {
