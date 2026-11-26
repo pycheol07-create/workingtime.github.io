@@ -3,6 +3,7 @@
 //   · 값 = 화면에 보이는 글자 기준. 숫자는 쉼표 없는 정수 글자, 모르는 값은 '(모름)'.
 //   · 입고확인(conf) = '일치' / '불일치' / '(모름)' — 예전 화면([Ver 8.90] 색으로 거르기)과 같이, 칸이 빨간지(입고확인 ≠ 도착)로.
 //   · 플래그(flags) = 여러 값 — 고른 플래그 중 하나라도 있으면 통과, 플래그 없는 행은 '(없음)'.
+//   · 박스(box) = 여러 값(플래그처럼) — 행의 boxList(js/lib/pack-boxes.js boxesFor 의 list), 없으면 '(없음)'. 목록은 번호 순(A2 < A10).
 //   · 저장 모양: null = 전체, [] = 아무것도, { ex: [값…] } = 그 값만 뺀다(2026-11-26 리뷰 — '고른 값만' 으로 두면
 //     실시간으로 새로 생긴 값(새 차이·새 코드)의 행이 조용히 숨는다). 목록 창(js/table-filter.js)은 '체크한 값 배열' 을 주고받으므로
 //     toStored·toChecked 로 바꾼다. 옛 배열 모양(그 값만)도 그대로 읽는다.
@@ -28,6 +29,7 @@ export function filterValueOf(r, key, flagLabel = (f) => f) {
         case 'loc': return r.locInfo ? String(r.loc == null ? '' : r.loc) : '미지정';
         case 'conf': return confMatchText(r);
         case 'flags': { const fs = Array.isArray(r.flags) ? r.flags.map(flagLabel) : []; return fs.length ? fs : [NO_FLAG]; }
+        case 'box': return Array.isArray(r.boxList) && r.boxList.length ? r.boxList.map(String) : [NO_FLAG];
         default: return numText(r[key]);
     }
 }
@@ -83,6 +85,7 @@ export function optionsFor(rows, key, filters, flagLabel) {
     const head = [...set].filter(v => !tail.includes(v));
     if (key === 'conf') head.sort((a, b) => (a === MISMATCH ? -1 : b === MISMATCH ? 1 : 0));   // 불일치 먼저
     else if (head.every(v => /^-?\d+$/.test(v))) head.sort((a, b) => Number(a) - Number(b));
+    else if (key === 'box') head.sort((a, b) => a.localeCompare(b, 'ko', { numeric: true }));   // 박스 번호 순(A2 < A10, -1: 3 < -2: 1)
     else head.sort((a, b) => a.localeCompare(b, 'ko'));
     return [...head, ...tail.filter(v => set.has(v))];
 }

@@ -8,7 +8,7 @@ import { getLeaveDisplayLabel } from './ui-main-utils.js?v=a649174fd12c-06309b7b
 import { myWorkState, recentTasksFor } from './lib/my-work.js?v=470ecb003aaf-1a1aebb7';
 import { isLeaveActiveAt, isLeavePendingAt } from './lib/leave-timing.js?v=56494f977986-82fd27e6';
 import { isRefillTask, refillAllowed, refillProgressText, refillProgressTone, syncRefillDash } from './refill-dash.js?v=3021b4cb88b2-60f2d3b8';
-import { isLocRecTask, locRecAllowed, syncLocRecDash } from './locrec-dash.js?v=31cdb0f0e97e-852ed13e';
+import { isLocRecTask, locRecAllowed, syncLocRecDash } from './locrec-dash.js?v=b034eb53143e-852ed13e';
 import { TASK, tName, isT } from './task-names.js?v=33eb5ccd69bc-26ab8ff7';
 
 // ===== 업무현황 카드 커버플로우(coverflow) 컨트롤러 =====

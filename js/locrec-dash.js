@@ -22,7 +22,7 @@ let loading = null;
 async function load() {
     if (mods) return mods;
     if (!loading) {
-        loading = Promise.all([import('./locrec-store.js?v=538c8a8e17f8-bd971fd0'), import('./locrec-table.js?v=bd36739a2ad5-ae68a389')]).then(([s, t]) => {
+        loading = Promise.all([import('./locrec-store.js?v=c47757e4b639-bd971fd0'), import('./locrec-table.js?v=07748d580b31-ae68a389')]).then(([s, t]) => {
             const store = s.getLocRecStore({
                 db: State.db, auth: State.auth,
                 getMemberName: () => memberNameFor(State.appConfig && State.appConfig.memberEmails,
@@ -31,7 +31,7 @@ async function load() {
             const table = t.mountLocRecTable({ store });
             table.onClose(() => {                   // 닫으면 구독 해제 + 처리량 카드 완료 건수를 다시 읽게
                 store.stop();
-                import('./locrec-done.js?v=5168917abff7-37785663').then(d => d.invalidateLocRecDone()).catch(() => {});
+                import('./locrec-done.js?v=31433d535b69-37785663').then(d => d.invalidateLocRecDone()).catch(() => {});
             });
             mods = { store, table };
             return mods;

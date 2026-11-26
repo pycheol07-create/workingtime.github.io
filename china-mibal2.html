@@ -141,6 +141,7 @@
         .list-table th.new-col { background: var(--c-accent-row); }
         .list-table td.name-cell { text-align: left; max-width: 240px; overflow: hidden; text-overflow: ellipsis; }
         .list-table td.opt-cell { text-align: left; max-width: 160px; overflow: hidden; text-overflow: ellipsis; }
+        .list-table td.box-cell { text-align: left; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .list-table td.code-cell { font-weight: 600; color: var(--c-accent-deep); }
         .list-table td.new-mibal { font-weight: 700; color: var(--c-accent-deep); background: var(--c-accent-row); }
         .list-table tbody tr.data-row { cursor: pointer; }
@@ -154,7 +155,7 @@
         .list-table.cols-fixed { table-layout: fixed; min-width: 0 !important; }
         .list-table.cols-fixed th { box-sizing: border-box; }   /* 잰 너비(테두리·여백 포함)를 그대로 width 로 쓴다 */
         .list-table.cols-fixed th, .list-table.cols-fixed tr:not(.detail-row) > td { overflow: hidden; text-overflow: ellipsis; }
-        .list-table.cols-fixed td.name-cell, .list-table.cols-fixed td.opt-cell { max-width: none; }
+        .list-table.cols-fixed td.name-cell, .list-table.cols-fixed td.opt-cell, .list-table.cols-fixed td.box-cell { max-width: none; }
         body.col-resizing, body.col-resizing * { cursor: col-resize !important; user-select: none !important; }
         .list-table td .cap-kind { font-size: 10.5px; color: var(--c-text-3); margin-left: 3px; }
         .list-table tbody tr.diff-some td.diff-cell { background: var(--c-warn-bg); color: var(--c-warn-text); font-weight: 600; }
@@ -217,6 +218,30 @@
         .loc-table tr.loc-warn td { background: var(--c-warn-bg); }   /* 기존재고 — 파일에 없던 상품 */
         .loc-new { display: inline-block; padding: 0 6px; border-radius: var(--r-pill); background: var(--c-ok-soft); color: var(--c-ok-text); font-weight: 600; }
         .loc-container { overflow: auto; background: var(--c-surface); margin: 0 0 14px 0; border-radius: var(--r-card); border: 1px solid var(--c-line); max-height: 68vh; -webkit-overflow-scrolling: touch; }
+        /* [박스 확인] 창(js/mibal2-boxcheck.js) */
+        .bc-form { display: flex; gap: 8px; margin: 10px 0; }
+        .bc-form input { flex: 1; min-width: 0; font-size: 18px; padding: 10px 12px; border: 2px solid var(--c-line); border-radius: var(--r-sm); }
+        .bc-form input:focus { outline: none; border-color: var(--c-primary, #3B6FD8); }
+        .bc-result { max-height: 48vh; overflow: auto; }
+        .bc-banner { border-radius: var(--r-sm); padding: 14px 16px; margin-bottom: 10px; }
+        .bc-banner.bc-yes { background: var(--c-risk-soft); color: var(--c-risk-text); }
+        .bc-banner.bc-no { background: var(--c-ok-soft); color: var(--c-ok-text); }
+        .bc-banner.bc-ask { background: var(--c-track, #EEF0F4); color: var(--c-text); }
+        .bc-box { font-size: 15px; font-weight: 600; }
+        .bc-say { font-size: 22px; font-weight: 800; margin-top: 2px; }
+        .bc-sub { font-size: 12.5px; margin-top: 4px; opacity: .85; }
+        .bc-warn { font-size: 12.5px; margin-top: 6px; font-weight: 700; color: var(--c-warn-text); }
+        .bc-choices { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+        .bc-pack { font-weight: 700; font-size: 13px; margin: 10px 0 4px; }
+        .bc-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+        .bc-table th, .bc-table td { border-bottom: 1px solid var(--c-line-soft); padding: 5px 6px; text-align: left; white-space: nowrap; }
+        .bc-table td:last-child, .bc-table th:last-child { text-align: right; }
+        .bc-table .bc-name { max-width: 260px; overflow: hidden; text-overflow: ellipsis; }
+        .bc-table tr.bc-hit td { background: var(--c-risk-row); font-weight: 600; }
+        .bc-hist { margin: 4px 0 12px; padding-left: 0; list-style: none; font-size: 12.5px; max-height: 120px; overflow: auto; }
+        .bc-hist li { padding: 2px 0; }
+        .bc-hist li.bc-h-yes b { color: var(--c-risk-text); }
+        .bc-hist li.bc-h-no b { color: var(--c-ok-text); }
         .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(35,39,46,0.45); z-index: 10000; justify-content: center; align-items: center; }
         .modal-content { background: var(--c-surface); color: var(--c-text); padding: 25px; border-radius: var(--r-card); width: 450px; box-shadow: var(--sh-pop); }
         .modal-content h3 { font-size: 17px; font-weight: 600; color: var(--c-text); }
@@ -378,6 +403,7 @@
             <input type="checkbox" id="chk-diff-only" style="width:16px; height:16px;"> 차이 있는 행만 보기
         </label>
         <span class="table-bar-right live-only">
+            <button type="button" id="btn-box-check" class="d-btn d-btn-sm" title="박스 라벨을 찍거나 박스 번호를 넣으면 그 박스에 미발 상품이 들었는지 보여 줍니다(고른 출고일의 패킹)">박스 확인</button>
             <button id="btn-excel" class="d-btn d-btn-sm" title="지금 보이는 행(검색·필터·정렬 반영)을 엑셀로 받습니다">엑셀</button>
             <button type="button" id="btn-cols-set" class="d-btn d-btn-sm" aria-label="열 설정" title="열 설정 — 표에 보일 열을 고릅니다(이 PC 에만 기억). 숨긴 칸도 행을 누르면 나오는 계산 근거와 엑셀에 있습니다&#10;· 행을 누르면 계산 근거(전체 칸)가 펼쳐집니다 · 열 제목을 누르면 정렬">⚙ 열</button>
         </span>
@@ -419,6 +445,7 @@
                     <th class="sortable" data-sort="code">코드</th>
                     <th class="sortable" data-sort="name" style="min-width:140px;">상품명</th>
                     <th class="sortable" data-sort="option" style="min-width:90px;">옵션</th>
+                    <th class="sortable" data-sort="box" title="박스 = 고른 출고일 패킹 파일(detail 'Box No.')에서 이 상품이 든 박스 번호. 패킹이 둘 이상이면 패킹 꼬리번호(-1·-2)를 앞에 붙임. 빈칸 = 패킹봇 기록 없음 · 오더리스트 출고일을 나중에 바꾼 패킹도 빈칸(패킹봇이 보낸 출고일 기준) · 수정본 박스를 못 읽은 패킹도 빈칸(칸에 '읽기 실패' 표시)">박스</th>
                     <th class="sortable" data-sort="loc">피킹로케이션</th>
                     <th class="sortable" data-sort="cap" title="적재량 = 대표 피킹자리(첫 자리 하나)의 적재량. 작은 글자 = 출처(개별 수정값 · 구역 설정 · ★기본 · 구역 기본 · 없음)">적재량(출처)</th>
                     <th class="sortable" data-sort="arr" title="도착 A = 선택한 출고일의 이번 입고 도착수량">도착</th>
@@ -444,7 +471,7 @@
                 </tr>
             </thead>
             <tbody id="table-body">
-                <tr><td colspan="26" class="t-3" style="text-align:center; padding:50px;">불러오는 중…</td></tr>
+                <tr><td colspan="27" class="t-3" style="text-align:center; padding:50px;">불러오는 중…</td></tr>
             </tbody>
         </table>
     </div>
@@ -509,6 +536,23 @@
             </div>
             <div style="margin-top:16px; text-align:right; border-top:1px solid var(--c-line-soft); padding-top:12px;">
                 <button type="button" id="btn-floor2-close" class="d-btn">닫기</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- [박스 확인] — 박스 라벨을 찍으면 그 박스에 미발 상품이 있는지(js/mibal2-boxcheck.js, 읽기만) -->
+    <div id="boxchk-modal" class="modal-overlay">
+        <div class="modal-content" style="width:680px; max-width:96vw;">
+            <h3 style="margin-top:0;">박스 확인 <span class="t-3" style="font-size:12px; font-weight:500;">— <span id="boxchk-dates"></span> · <span id="boxchk-src"></span></span></h3>
+            <form id="boxchk-form" class="bc-form" autocomplete="off">
+                <input id="boxchk-input" type="text" inputmode="text" placeholder="박스 라벨을 찍거나 번호(예: A5, 12)를 넣고 Enter" aria-label="박스 라벨 또는 박스 번호">
+                <button type="submit" class="d-btn d-btn-primary">확인</button>
+            </form>
+            <div id="boxchk-result" class="bc-result"><div class="t-3" style="padding:18px 4px;">스캐너로 박스 라벨을 찍으면 바로 결과가 나옵니다. 계속 찍어도 됩니다.</div></div>
+            <div class="t-3" style="font-size:12px; margin-top:10px;">찍은 기록(이 창에만, 저장 안 함)</div>
+            <ol id="boxchk-hist" class="bc-hist"></ol>
+            <div style="text-align:right; border-top:1px solid var(--c-line-soft); padding-top:12px;">
+                <button type="button" id="btn-boxchk-close" class="d-btn">닫기</button>
             </div>
         </div>
     </div>
@@ -604,7 +648,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" integrity="sha384-vtjasyidUo0kW94K5MXDXntzOJpQgBKXmE7e2Ga4LG0skTTLeBi97eFAXsqewJjw" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
     <!-- 로그인 게이트는 기존 china-stock-goods.html 과 같은 파일·같은 주소 -->
     <script type="module" src="js/china-stock-gate.js?v=8ec605909d69-d8aba0f9"></script>
-    <script type="module" src="js/china-mibal2.js?v=f428caef453f-4fe0dc7a"></script>
+    <script type="module" src="js/china-mibal2.js?v=8ee76f7e1866-6dc2131a"></script>
     <script type="module" src="js/page-gate.js?v=91ff5d6d21f9-d1e977d0" data-perm-page="china.mibal2"></script>
     <script type="module" src="js/app-shell.js?v=0ad2923a7c3b-bf6553e1"></script>
 </body>

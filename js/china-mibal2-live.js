@@ -24,11 +24,11 @@ import { scanApplyPlan, versionDataOf, archiveRecordOf, shrinkArchive, archiveAo
     fileRowsOf, inboundFileAoa, mibalFileAoa, floor2FileAoa, readAllPages } from './lib/mibal2-live.js?v=7ccac6277373-d7d6b954';
 import { buildDiffRecord, shouldAutoSave, mergeRev, shrinkIfLarge, diffSummaryText, overlapping, queryRange } from './lib/inbound-diff.js?v=6028b21f8c15-bb911da2';
 import { inboundMapOf, floor2MapOf } from './lib/scan-link.js?v=143bf19ba572-01119c1f';
-import { liveHiddenCss } from './lib/mibal2-cols.js?v=2d1ecafc6ec8-d3d436cc';
+import { liveHiddenCss } from './lib/mibal2-cols.js?v=c2b97a01e071-6499ab79';
 import { inboundSig } from './lib/inbound-fix.js?v=7894fc22c949-9113d082';
 import { buildScanLogDocs, expandScanLogDocs, checkScanLogParts, docIdOf, scanLogInputOf, scanLogListHtml, scanLogExcelRows,
     SCANLOG_JOBS_COLL, SCANLOG_MAX_PARTS } from './lib/mibal2-scanlog.js?v=afd9130d6f71-ce95b891';
-import { setupLiveLoc } from './china-mibal2-live-loc.js?v=7d9e55ded80d-50b3c820';
+import { setupLiveLoc } from './china-mibal2-live-loc.js?v=c5f7d213294a-50b3c820';
 import { setupLiveAdmin, readSheetRowsAOA, packMap, unpackMap } from './china-mibal2-live-admin.js?v=c327007483bd-b09af5b0';
 import { shipMismatchOf, mismatchLine, mismatchBlockText } from './lib/ship-mismatch.js?v=18b1bfe6bfc0-42172506';
 import { writeXls, xlsBytes } from './lib/xls-limits.js?v=64b8f5a113a9-e512cb8a';

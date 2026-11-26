@@ -37,7 +37,7 @@ import { sortMark } from './lib/china-stock-view.js?v=0adf1f9e36d2-b5ed5c66';
 import {
     listShipDates, buildLocIndex, computeRows, summarize, FLAG_INFO, excelAoaOf,
     graceDaysFrom, legacyDatesFrom, selectedDatesFrom, oldMapFromScan
-} from './lib/mibal2-rows.js?v=221b7a831bbe-37c39e3c';
+} from './lib/mibal2-rows.js?v=7e329105283b-5a50671e';
 import { setShellContext } from './app-shell-bridge.js?v=b9a7199f3e1d-c80c27e9';
 import { memberNameFor } from './app-shell-data.js?v=e42c6a10ca7a-9319c795';
 import { mountBusyBanner } from './busy-banner.js?v=a03ed2865bd9-b37af02e';
@@ -52,10 +52,12 @@ import { mibal2Access, MIBAL2_DENIED_MSG } from './lib/mibal2-access.js?v=6f7eed
 import { subscribeInbound, setupScanTools } from './china-mibal2-scan.js?v=128c6e55a1b5-895aaef7';
 import { setupLocMode } from './china-mibal2-loc.js?v=9381534f7c40-d01edb35';
 import { isMibal2Live } from './lib/mibal2-mode.js?v=1dd1153363a5-6723d239';
-import { liveDatesFrom } from './lib/mibal2-rows.js?v=221b7a831bbe-37c39e3c';
+import { liveDatesFrom } from './lib/mibal2-rows.js?v=7e329105283b-5a50671e';
 import { stableSig, ARCHIVE_COLL } from './lib/mibal2-live.js?v=7ccac6277373-d7d6b954';
 import { bestShipOf, mismatchLine, codeListText } from './lib/ship-mismatch.js?v=18b1bfe6bfc0-42172506';   // 출고일 불일치(2026-11-10)
-import { rowPasses, optionsFor, activeFilterCount, toStored, toChecked } from './lib/mibal2-filter.js?v=9b5b61ab1369-bfc811d5';   // 열 필터(2026-11-26)
+import { rowPasses, optionsFor, activeFilterCount, toStored, toChecked } from './lib/mibal2-filter.js?v=5afbd872551e-6927d56c';   // 열 필터(2026-11-26)
+import { parsePackBoxes, packsOn, boxesFor, boxSortVal, cmpBoxSort, failedPacks } from './lib/pack-boxes.js?v=5b353d3e150d-dbf2c3b2';
+import { setupBoxCheck } from './mibal2-boxcheck.js?v=49cc70319c8c-c0f947bf';   // [박스 확인] 창 — 박스 라벨을 찍으면 미발 상품이 들었는지(2026-11-26)   // 박스 열(2026-11-26 — 패킹봇 box_sync 가 쓴 integrations/packBoxes)
 import { openFloatingFilter, closeFloatingFilter } from './table-filter.js?v=fd197c3531ef-b92b1b78';
 import { writeXls } from './lib/xls-limits.js?v=64b8f5a113a9-e512cb8a';
 import { readHash, writeHash, onHashNav } from './hash-state.js?v=41d515385973-40fe10fb';   // live 때만 씀(빠른 이동 #tab=mibal|location)
@@ -63,7 +65,7 @@ import { refreshDoneAuto, claimOk, claimMine, autoStopText, serverBatchOpen, AUT
 // 마감된 작업 보기(2026-11-12) — 마감한 출고일을 다시 고르면 입고확인 = 보관함 기록
 import { closedQueryDates, closedCacheKey, closedViewOf, closedNoteLines } from './lib/mibal2-closed-view.js?v=99af493d6d0f-f6895793';
 import { COLS_PICK_KEY, LEGACY_COLS_KEY, DEFAULT_ON, REQUIRED, pickableCols, normalizeOn, colsFromStorage, serializeCols, toggleCol,
-    hiddenCss, colsMode, visibleCount } from './lib/mibal2-cols.js?v=2d1ecafc6ec8-d3d436cc';
+    hiddenCss, colsMode, visibleCount } from './lib/mibal2-cols.js?v=c2b97a01e071-6499ab79';
 
 const { db, auth } = initializeFirebase();
 const LIVE = isMibal2Live();   // 단독 운영인가(지금은 false — 에뮬레이터 시험 주소 ?emu=1&live=1 에서만 true)
@@ -74,6 +76,7 @@ const LATEST_PATH = BASE + '/integrations/mibal2Latest';
 const SETTINGS_PATH = BASE + '/mibal2/settings';
 const REQUEST_PATH = BASE + '/mibal2/refreshRequest';
 const LEASE_PATH = BASE + '/integrations/ezadminLease';   // 이지어드민 잠금(계약 A) — 미발수집·채우기가 쓰고 여기는 읽기만
+const PACK_BOXES_PATH = BASE + '/integrations/packBoxes';  // 상품별 박스 번호(패킹봇 box_sync.py) — 화면 열 때 한 번만 읽는다(구독 안 함)
 const CHINA_COLLECTION = 'ChinaStockGoods';
 
 const DIFF_BIG = 5;                     // |3층−기존| 이 이 값 이상이면 빨강 강조 (사용자 결정 2026-10-07)
@@ -129,6 +132,8 @@ let locIndex = {};             // code → {id, count, etcOnly}
 let oldSnap = null;            // { kind:'version'|'live', atMs, trigger, note, map, noUpload }
 let settings = null;           // mibal2/settings
 let selectedDates = [];
+let packBoxesFailed = false;   // [박스 확인] 창이 '읽는 중'과 '읽기 실패'를 가른다
+let packBoxes = null;          // parsePackBoxes(integrations/packBoxes) — 못 읽었으면 null(박스 칸 빈칸)
 let dateSource = 'legacy';     // 'legacy' | 'own'
 let ctx = null;                // 지금 보기의 근거 표시용 정보(detail·안내줄)
 let viewMode = 'live';         // 'live'(부족수량 오늘) | 'loc'(위치지정 시험)
@@ -327,6 +332,7 @@ function liveCtx() {
 function sortKeyVal(r, key) {
     if (key === 'name') return (r.name + ' ' + r.option).toLowerCase();
     if (key === 'option') return String(r.option || '').toLowerCase();
+    if (key === 'box') return boxSortVal(r.boxList);   // 첫 박스 [꼬리번호, 앞글자, 번호](없으면 아래로) — 비교는 cmpBoxSort
     if (key === 'code' || key === 'loc') return String(r[key] || '');
     if (key === 'conf') { const n = parseInt(r.conf); return isNaN(n) ? null : n; }   // 빈칸·수동 글자 → 모름(아래로)
     return r[key];
@@ -360,6 +366,7 @@ function applyFilters() {
         const na = va === null || va === undefined, nb = vb === null || vb === undefined;
         if (na || nb) return na === nb ? a.code.localeCompare(b.code) : (na ? 1 : -1);   // 모르는 값은 늘 아래로
         if (typeof va === 'string') return va.localeCompare(vb) * m || a.code.localeCompare(b.code);
+        if (Array.isArray(va)) return cmpBoxSort(va, vb) * m || a.code.localeCompare(b.code);   // 박스 열
         return (va - vb) * m || a.code.localeCompare(b.code);
     });
     renderTable();
@@ -388,7 +395,7 @@ function applyFilters() {
 //   목록 값은 다른 열 필터를 통과한 행에서(엑셀처럼). 필터가 걸린 머리글은 글자색(th.col-filtered). 표 위 '열 필터 N개 [모두 풀기]'.
 const mainHeadCells = () => { const t = $('table-body') && $('table-body').closest('table'); return t ? [...t.querySelectorAll('thead th')] : []; };
 function filterKeyOfTh(th, i, all) { return th.dataset.sort || (i === all.length - 1 ? 'flags' : ''); }
-const ASC_FIRST = ['code', 'name', 'option', 'loc'];   // 글자 열 — 오름차순을 먼저 보인다
+const ASC_FIRST = ['code', 'name', 'option', 'box', 'loc'];   // 글자 열 — 오름차순을 먼저 보인다
 function openHeadMenu(th, key) {
     const label = (th.firstChild && th.firstChild.textContent ? th.firstChild.textContent : th.textContent).trim() || key;
     const options = optionsFor(allRows, key, colFilters, flagLabel);
@@ -548,6 +555,7 @@ function renderTable() {
             <td class="code-cell">${esc(r.code)}</td>
             <td class="name-cell" title="${esc(r.name)}">${esc(r.name)}</td>
             <td class="opt-cell" title="${esc(r.option || '')}">${esc(r.option || '')}</td>
+            <td class="box-cell" title="${esc(r.boxText || r.boxFail || '')}">${esc(r.boxText || '')}</td>
             <td>${r.locInfo ? esc(r.loc) : '<span class="t-risk">미지정</span>'}</td>
             ${r.cap === null ? `<td>${numOr(null)}</td>` : `<td class="cap-cell" title="${esc(r.capSrc)}">${esc(num(r.cap))}<span class="cap-kind">${esc(r.capKind)}</span></td>`}
             <td><b>${esc(num(r.arr))}</b></td>
@@ -874,12 +882,34 @@ function ensureInbound() {
 }
 
 /** 지금 보기 기준으로 다시 계산·그리기 */
+/** 행마다 박스 칸(boxText·boxList) — 고른 출고일의 패킹에서. packBoxes 를 못 읽었으면 빈칸.
+ *  박스를 못 읽은 수정본 패킹(err)이 있으면 빈칸의 title 에만 '읽기 실패'(boxFail) */
+function attachBoxes(rows) {
+    const on = packsOn(selectedDates, packBoxes);
+    const fail = failedPacks(on);
+    const failText = fail.length ? `읽기 실패 — 패킹 ${fail.join(', ')} 의 박스 번호를 못 읽음(수정본)` : '';
+    (rows || []).forEach(r => { const x = boxesFor(r.code, selectedDates, packBoxes, on); r.boxText = x.text; r.boxList = x.list; r.boxFail = x.text ? '' : failText; });
+}
+/** 박스 번호 문서 한 번 읽기 — 못 읽으면 조용히 빈칸(콘솔에만). 읽으면 표를 다시 그린다 */
+async function loadPackBoxes() {
+    try {
+        const snap = await getDoc(doc(db, PACK_BOXES_PATH));
+        packBoxes = parsePackBoxes(snap.exists() ? snap.data() : null);
+    } catch (e) {
+        console.warn('[mibal2] 박스 번호(packBoxes) 읽기 실패 — 박스 칸 빈칸:', (e && e.code) || e);
+        packBoxesFailed = true;
+        return;
+    }
+    if (allRows.length) { attachBoxes(allRows); applyFilters(); }
+}
+
 function recomputeAndRender() {
     ctx = liveCtx();
     syncClosedView();
     // 마감된 작업 — 입고확인은 보관함 기록(읽는 중이면 빈 값). 입고이력(새 작업 스캔)은 섞지 않는다
     allRows = (closedView && (closedView.loading || closedView.view)) ? withScanLink(computeRows(liveBundle()), closedView.loading ? {} : closedView.view.map)
         : withScanLink(computeRows(liveBundle()));   // 못 읽음(error)은 입고이력 값으로 보이되 쓰기는 막는다
+    attachBoxes(allRows);
     computeMismatch();
     renderMismatch();
     renderClosedNote();
@@ -1245,7 +1275,7 @@ function loadCols() {
     let raw = null, legacy = null;
     try { raw = localStorage.getItem(COLS_PICK_KEY); legacy = localStorage.getItem(LEGACY_COLS_KEY); } catch (e) { /* 못 읽으면 기본값 */ }
     const r = colsFromStorage(raw, legacy);
-    setCols(r.on, r.migrated);   // 예전 간단히/전체만 있으면 한 번 옮겨 저장
+    setCols(r.on, r.migrated);   // 예전 간단히/전체만 있거나 새 기본 열(박스 등)을 켰으면 한 번 저장(seen 을 남김)
 }
 /** [칸 설정] 창 — 체크 목록(꼭 보일 열은 끌 수 없음)·[기본값으로]·[모두]. 닫으면(닫기·바깥) 바로 반영 */
 function setupColsPick() {
@@ -1512,7 +1542,7 @@ const sharedSigOf = (snaps) => stableSig(snaps.map(x => (x.exists() ? x.data() :
 async function loadLiveTools() {
     if (!LIVE) return null;
     try {
-        const mod = await import('./china-mibal2-live.js?v=621f98558cef-59008fea');
+        const mod = await import('./china-mibal2-live.js?v=389275e9987a-59008fea');
         return mod.startLive({
             db, showToast, setLoading, errText,
             isAdmin: () => accessIsAdmin,
@@ -1658,6 +1688,14 @@ async function startAfterAccess() {
     try { const p = JSON.parse(sessionStorage.getItem(PENDING_KEY) || 'null'); if (p && p.atMs) pending = p; } catch (e) {}
     renderRefreshUI();
     // 단독 운영(live)에서는 기존 계산기 미발수량(비교값)을 읽지 않는다 — oldSnap 이 null 이면 '신규에만' 플래그·버전기록 경고도 나오지 않는다
+    loadPackBoxes();   // 기다리지 않는다 — 박스 칸은 읽히면 채운다
+    setupBoxCheck({
+        getRows: () => allRows,
+        getPacksOn: () => (packBoxes ? packsOn(selectedDates, packBoxes) : null),
+        getDatesText: () => selectedDates.join(', '),
+        // 표(부족수량 행)를 아직 못 만들었으면 미발을 판정하지 않는다 — 빈 표로 '미발 없음'을 보이면 안 된다
+        getState: () => (!latest || !selectedDates.length ? 'rows' : (packBoxes ? 'ok' : (packBoxesFailed ? 'fail' : 'boxes'))),
+    });
     const results = await Promise.allSettled([loadConfig(), loadEditedCells(), loadLocations(), LIVE ? null : loadOldSnapshot().then(s => { oldSnap = s; }), loadSettings()]);
     const names = ['CONFIG', 'EDITED_CELLS', 'Locations', '기존 계산기 미발수량', 'settings'];
     const fails = results.map((r, i) => r.status === 'rejected' ? `${names[i]}(${(r.reason && r.reason.code) || r.reason})` : '').filter(Boolean);
