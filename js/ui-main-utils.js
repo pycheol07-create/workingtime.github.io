@@ -1,6 +1,6 @@
 // === js/ui-main-utils.js ===
 import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
-import { calculateWorkingDays } from './utils.js?v=08864ef2738a-17d787ec';
+import { calculateWorkingDays } from './utils.js?v=a8117fdf6a07-c756d71e';
 
 export const getLeaveDisplayLabel = (member, leaveEntry) => {
     if (leaveEntry.type !== '연차') return leaveEntry.type;

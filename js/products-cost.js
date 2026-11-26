@@ -9,12 +9,12 @@ import {
     doc, getDoc, getDocs, collection, query, where, orderBy, limit
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { S, countRead, fmtDateTime, tsMs } from './products-store.js?v=12e37e026ce6-ee5ce71b';
-import { esc, toast } from './products.js?v=29597c9abba1-749f10a1';
+import { esc, toast } from './products.js?v=d1546d41d745-749f10a1';
 import { costBucketIds, costBucketId } from './lib/product-bucket.js?v=842897a6efab-a72f5a26';
 import { parseCostJson, diffCostObj, emptyCost, FIELD_LABEL, MEMO_MAX, isSupCode } from './lib/product-excel-rows.js?v=acc096d72726-b7ba4cab';
 import { normalizePrice, round2, fmt2 } from './lib/product-price.js?v=960affe3b8e6-35ad98ac';
 import { writeBucket, addSupplier, updateSupplier } from './products-write.js?v=c12131c8d88b-699dc490';
-import { friendlyFirebaseError } from './utils.js?v=08864ef2738a-17d787ec';   // 원시 오류 코드 대신 할 일 한 줄
+import { friendlyFirebaseError } from './utils.js?v=a8117fdf6a07-c756d71e';   // 원시 오류 코드 대신 할 일 한 줄
 import { stripCheckMemo } from './lib/product-ezadmin.js?v=a5188298c0df-4f64b2cb';
 
 export const C = { costs: null, ledger: null };

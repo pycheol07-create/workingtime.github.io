@@ -12,7 +12,7 @@
 //   권한은 데이터관리 화면 그대로(규칙: artifacts/{colId} 직원 쓰기). 순수 규칙은 js/lib/total-insp.js.
 // ⚠️ history.html 에 붙는다 — role="dialog"·data-act·end-shift-* 를 쓰지 않는다. 고객 이름·연락처·주문번호를 적을 칸을 만들지 않는다(사유는 안내 표시).
 import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
-import { getTodayDateString, escapeHtml } from './utils.js?v=08864ef2738a-17d787ec';
+import { getTodayDateString, escapeHtml } from './utils.js?v=a8117fdf6a07-c756d71e';
 import {
     doc, getDoc, collection, query, where, getDocs, runTransaction, serverTimestamp, limit as fsLimit
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";

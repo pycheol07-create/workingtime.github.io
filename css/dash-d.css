@@ -339,3 +339,6 @@ html.dark #personnel-hover-tooltip { background: #2A3038; box-shadow: 0 0 0 1px 
   #dash-root { position: fixed; inset: 0; height: auto !important; max-width: 100vw; }
   #dash-root #app-content { overscroll-behavior: contain; overflow-x: hidden; -webkit-overflow-scrolling: touch; }
 }
+
+/* 오래 켜진 업무 경고(js/long-run-warn.js) — hidden 속성이 .flex 에 밀려 휴대폰 맨 위에 빈 틈이 생기지 않게(2026-11-26) */
+#long-run-warn[hidden] { display: none !important; }

@@ -1,7 +1,7 @@
 import { initializeFirebase, loadAppConfig } from './config.js?v=242bb63abbe9-dd1665a9';
 import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, writeBatch, getDocs, query, where, documentId, deleteField, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { escapeHtml as escAttr } from './utils.js?v=08864ef2738a-17d787ec';
+import { escapeHtml as escAttr } from './utils.js?v=a8117fdf6a07-c756d71e';
 import { cleanRaw, isCostCol, isDroppedHeader, supplierCodeOf } from './lib/sensitive-cols.js?v=e134acbb436b-50d4f3cd';
 import { multiLocGroups, reserveLocIds, normLocId } from './lib/multi-loc.js?v=eaa90e2a913d-3eb38b15';
 import { codeOfRowB, pickRowB, checkUploadB, checkPermanent, newLocIds } from './lib/upload-check.js?v=818a8ddddd83-a4fba7cb';
@@ -11,11 +11,11 @@ import { memberNameFor } from './app-shell-data.js?v=e42c6a10ca7a-9319c795';
 import { menuConfigOf } from './lib/perm.js?v=c1e53d91da8e-49afeea3';
 import { readHash, writeHash, onHashNav } from './hash-state.js?v=41d515385973-40fe10fb';
 import { initPageNav } from './page-nav.js?v=2d9f4a86d931-b8f40ef7';
-import { initRefillCard } from './refill-card.js?v=27717444a21d-fbc0ffd6';
-import { initLocRecCard } from './locrec-card.js?v=2c1568362b7f-8da41d23';
+import { initRefillCard } from './refill-card.js?v=b512cde12996-fbc0ffd6';
+import { initLocRecCard } from './locrec-card.js?v=d75ce726f049-8da41d23';
 import { getLocRecStore, peekLocRecStore } from './locrec-store.js?v=0f6edac0e2be-1a43b116';   // 오늘 변경 추천 예정 자리·최근 [처리함] 이동(엑셀 경고)
-import { initRebuildBar } from './rebuild-bar.js?v=e49a38559e74-07a1bb60';
-import { mountRouteSlot } from './locrec-route-card.js?v=c8a15c8d2885-3f4fe9bc';
+import { initRebuildBar } from './rebuild-bar.js?v=9305ba731dd0-07a1bb60';
+import { mountRouteSlot } from './locrec-route-card.js?v=8ada066ef2d9-3f4fe9bc';
 import { whenPerm, onPerm, canFeature } from './feature-gate.js?v=7eaa46dbb8e9-a5458f75';   // 권한 개편 5단계 — 카드는 권한이 확인된 뒤에만 시작
 import { mountBusyBanner, createUploadStatus } from './busy-banner.js?v=4fb4e0ed4621-8677e3fb';
 import { uploadBlockText } from './lib/busy-view.js?v=659be9925d1c-88862baa';

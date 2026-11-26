@@ -1,8 +1,8 @@
 // === js/ui-main-analysis.js ===
-import { formatDuration, calcElapsedMinutes, getCurrentTime, formatTimeTo24H, escapeHtml } from './utils.js?v=08864ef2738a-17d787ec';
+import { formatDuration, calcElapsedMinutes, getCurrentTime, formatTimeTo24H, escapeHtml } from './utils.js?v=a8117fdf6a07-c756d71e';
 import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
 import { systemIdOfName } from './lib/task-ids.js?v=9c41e71742ef-83b1f46d';
-import { getLeaveDisplayLabel } from './ui-main-utils.js?v=f01843278f2c-06309b7b';
+import { getLeaveDisplayLabel } from './ui-main-utils.js?v=41043730f16d-06309b7b';
 import { isLeaveActiveAt } from './lib/leave-timing.js?v=56494f977986-82fd27e6';
 
 export const renderTaskAnalysis = (appState, appConfig) => {

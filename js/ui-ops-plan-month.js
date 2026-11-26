@@ -5,14 +5,14 @@
 
 import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
 import { aliasHistoryView } from './lib/task-alias-view.js?v=2e131477eb8e-af660ceb';
-import { buildOpsModel } from './lib/ops-view-model.js?v=7bcb37a823fa-08a53556';
-import { baselineSpeeds, normalizedUtilization, RECENT_SPEED_DAYS } from './lib/ops-metrics.js?v=b7744497fb54-58d6bcbb';
+import { buildOpsModel } from './lib/ops-view-model.js?v=9c297d6d13ca-08a53556';
+import { baselineSpeeds, normalizedUtilization, RECENT_SPEED_DAYS } from './lib/ops-metrics.js?v=9a8bba742607-58d6bcbb';
 import { taskNameOf, TASK } from './lib/task-ids.js?v=9c41e71742ef-83b1f46d';
-import { buildMonthPlan, ownerDropsOf, nextMonthRange } from './lib/plan-month.js?v=8cc9112e66cc-05f9bdbe';
-import { planSettingsOf, addDaysStr, OVERTIME_LAW_NOTE } from './lib/plan-week.js?v=277eaadcce87-f2dd7a70';
-import { predictFutureTrends } from './analysis-logic.js?v=a420168bf9d1-0bfe0ae3';
-import { availableStaffOf } from './ui-history-prediction.js?v=1908e7802e0a-6da24bce';
-import { esc, n0, n1, pct0, fmtDay, card, kpi } from './ui-ops-plan-parts.js?v=61768dcd3b0a-895d8afe';
+import { buildMonthPlan, ownerDropsOf, nextMonthRange } from './lib/plan-month.js?v=2be81b1614db-05f9bdbe';
+import { planSettingsOf, addDaysStr, OVERTIME_LAW_NOTE } from './lib/plan-week.js?v=b2bddf63090f-f2dd7a70';
+import { predictFutureTrends } from './analysis-logic.js?v=9231a7c15e17-0bfe0ae3';
+import { availableStaffOf } from './ui-history-prediction.js?v=fc7e05c08193-6da24bce';
+import { esc, n0, n1, pct0, fmtDay, card, kpi } from './ui-ops-plan-parts.js?v=1d203766674c-895d8afe';
 
 /** 월간 계획 입력 모으기 → buildMonthPlan. models = { recentModel, prevModel, baseModel } (주간 쪽과 같이 씀), confirmedErrs = 지난 확정본 대비 오차(plan-compare monthErrsOf) */
 export function computeMonthPlan(today, models, cfgPlan = null, confirmedErrs = []) {

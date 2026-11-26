@@ -1,6 +1,6 @@
 // === ui-history-trends.js (트렌드 분석 차트 렌더링 담당) ===
 
-import { isWeekday, formatDuration, getRegularMembersForCount, buildMemberHourlyWageMap } from './utils.js?v=08864ef2738a-17d787ec';
+import { isWeekday, formatDuration, getRegularMembersForCount, buildMemberHourlyWageMap } from './utils.js?v=a8117fdf6a07-c756d71e';
 
 // ✅ [신규] app.js 대신 state.js에서 직접 appConfig를 가져옵니다.
 import { appConfig } from './state.js?v=c7f5fc984ef9-a2ce38c0';

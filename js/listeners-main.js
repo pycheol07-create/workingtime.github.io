@@ -3,14 +3,15 @@
 
 import * as DOM from './dom-elements.js?v=2b9f19ecbde2-82fbef91';
 import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
+import { openEditRecordModal } from './edit-record-open.js?v=1e02b5a65d31-e8d69915';
 
 // app.js에서는 'render'만, app-data.js에서는 'updateDailyData'를 가져옵니다.
-import { render } from './app.js?v=cd9a8c47f22b-e991f878';
-import { updateDailyData } from './app-data.js?v=0f49f1823690-c4996a74';
+import { render } from './app.js?v=c578dfe32729-2ba8f711';
+import { updateDailyData } from './app-data.js?v=cf9ca9e80c34-c4996a74';
 
-import { calcElapsedMinutes, showToast, showConfirm, getTodayDateString, getCurrentTime, formatTimeTo24H, escapeHtml } from './utils.js?v=08864ef2738a-17d787ec';
+import { calcElapsedMinutes, showToast, showConfirm, getTodayDateString, getCurrentTime, formatTimeTo24H, escapeHtml } from './utils.js?v=a8117fdf6a07-c756d71e';
 import { AUTO_END_TIME } from './lib/record-close.js?v=c8683e426085-11b6fe97';
-import { applyDueLeaves } from './leave-auto-apply.js?v=435d5ff41577-afa2df94';
+import { applyDueLeaves } from './leave-auto-apply.js?v=78fef3a9becd-afa2df94';
 import {
     renderPersonalAnalysis,
     renderQuantityModalInputs,
@@ -18,16 +19,16 @@ import {
     applyLocRecPrefill,
     renderManualAddModalDatalists,
     renderLeaveTypeModalOptions 
-} from './ui.js?v=1908e7802e0a-a84d3554';
+} from './ui.js?v=fc7e05c08193-a84d3554';
 import {
     processClockIn, processClockOut, cancelClockOut
-} from './app-logic.js?v=de6cc3e0e186-5cd27cd7';
-import { saveProgress, saveDayDataToHistory, previewDayClose, getPlannedQuantitiesForDate, isDayClosedOnServer } from './history-data-manager.js?v=1908e7802e0a-3ebc7e25';
+} from './app-logic.js?v=b649d02aadf2-5cd27cd7';
+import { saveProgress, saveDayDataToHistory, previewDayClose, getPlannedQuantitiesForDate, isDayClosedOnServer } from './history-data-manager.js?v=fc7e05c08193-3ebc7e25';
 import { changedQuantities, changedZeroList } from './lib/history-merge.js?v=f882da56f066-3d3139d2';
 import { plannedPrefill, doneTasksOf } from './lib/planned-prefill.js?v=585777796ac6-3504c033';
 import { aliasNameMap, aliasTaskName } from './lib/task-alias-view.js?v=2e131477eb8e-af660ceb';
-import { checkMissingQuantities } from './analysis-logic.js?v=a420168bf9d1-0bfe0ae3';
-import { isLocRecTask } from './locrec-dash.js?v=6511a119a83c-852ed13e';
+import { checkMissingQuantities } from './analysis-logic.js?v=9231a7c15e17-0bfe0ae3';
+import { isLocRecTask } from './locrec-dash.js?v=43a03f5620e6-852ed13e';
 import { locRecDoneToday, refreshLocRecDone, invalidateLocRecDone } from './locrec-done.js?v=5168917abff7-37785663';
 
 import { 
@@ -149,28 +150,7 @@ export function setupMainScreenListeners() {
             }
             const editBtn = e.target.closest('button[data-action="edit"]');
             if (editBtn) {
-                State.context.recordToEditId = editBtn.dataset.recordId;
-                const record = (State.appState.workRecords || []).find(r => String(r.id) === String(State.context.recordToEditId));
-                if (record) {
-                    document.getElementById('edit-member-name').value = record.member;
-                    document.getElementById('edit-start-time').value = record.startTime || '';
-                    document.getElementById('edit-end-time').value = record.endTime || '';
-
-                    const taskSelect = document.getElementById('edit-task-type');
-                    taskSelect.innerHTML = '';
-
-                    const allTasks = (State.appConfig.taskGroups || []).flatMap(group => group.tasks);
-
-                    allTasks.forEach(task => {
-                        const option = document.createElement('option');
-                        option.value = task;
-                        option.textContent = task;
-                        if (task === record.task) option.selected = true;
-                        taskSelect.appendChild(option);
-                    });
-
-                    if (DOM.editRecordModal) DOM.editRecordModal.classList.remove('hidden');
-                }
+                openEditRecordModal(editBtn.dataset.recordId);   // 오래 켜진 업무 경고도 같은 창(js/edit-record-open.js)
                 return;
             }
         });

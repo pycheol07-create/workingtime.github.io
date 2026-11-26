@@ -7,8 +7,8 @@
 //   판정은 js/lib/leave-timing.js(dueLeaveCuts) — 한 번 끊고 나면 다시 돌려도 대상이 없다.
 
 import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
-import { getCurrentTime } from './utils.js?v=08864ef2738a-17d787ec';
-import { isClosingInProgress } from './history-data-manager.js?v=1908e7802e0a-3ebc7e25';
+import { getCurrentTime } from './utils.js?v=a8117fdf6a07-c756d71e';
+import { isClosingInProgress } from './history-data-manager.js?v=fc7e05c08193-3ebc7e25';
 import { dueLeaveCuts, activeLeaveKey } from './lib/leave-timing.js?v=56494f977986-82fd27e6';
 
 // 돌고 있는 적용(Promise). 이미 돌고 있으면 새로 시작하지 않고 그것을 돌려준다 —
@@ -30,7 +30,7 @@ async function runDueLeaves(now) {
     if (isClosingInProgress()) return res;   // 마감 중에는 마감이 기록을 끝낸다
     const cuts = dueLeaveCuts(State.appState.dailyOnLeaveMembers, State.appState.workRecords, now);
     if (!cuts.length) return res;
-    const { forceEndMemberWork } = await import('./app-sync.js?v=1908e7802e0a-68f6c921');
+    const { forceEndMemberWork } = await import('./app-sync.js?v=fc7e05c08193-68f6c921');
     for (const { member, cutTime } of cuts) {
         try {
             const r = await forceEndMemberWork(member, cutTime, { onlyStartedBefore: true });

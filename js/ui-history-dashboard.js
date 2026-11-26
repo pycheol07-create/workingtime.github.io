@@ -1,13 +1,13 @@
 // === js/ui-history-dashboard.js ===
 import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
-import { analyzeUnitCost } from './ui-history-reports-logic.js?v=b337be75ca1d-28b3f058';
-import { buildMemberHourlyWageMap, escapeHtml } from './utils.js?v=08864ef2738a-17d787ec';
+import { analyzeUnitCost } from './ui-history-reports-logic.js?v=1edb59f69d04-28b3f058';
+import { buildMemberHourlyWageMap, escapeHtml } from './utils.js?v=a8117fdf6a07-c756d71e';
 import { revenueTotalOf, orderCountTotalOf } from './revenue-channels.js?v=553320652df2-c473a26d';
 import { D, alpha } from './d-chart.js?v=e918595219dd-dfe55644';
 import { aliasHistoryView } from './lib/task-alias-view.js?v=2e131477eb8e-af660ceb';
 import { TASK, tName, isTLike } from './task-names.js?v=33eb5ccd69bc-26ab8ff7';
-import { attendedMembers } from './attendance-stats.js?v=5470492ee5b6-15815b0d';
-import { wageMapOf, partSummary as opsPartSummary, unitCost as opsUnitCost, rollingBaselineOf } from './lib/ops-metrics.js?v=b7744497fb54-58d6bcbb';
+import { attendedMembers } from './attendance-stats.js?v=e9d2fe316c81-15815b0d';
+import { wageMapOf, partSummary as opsPartSummary, unitCost as opsUnitCost, rollingBaselineOf } from './lib/ops-metrics.js?v=9a8bba742607-58d6bcbb';
 
 let dashboardChartInstance = null;
 
@@ -275,7 +275,7 @@ export function renderDashboardTab(filteredData, appConfig) {
     // 📍 마일스톤 위젯 (lazy import, 비동기 — 실패해도 메인 렌더에는 영향 없음)
     const milestoneWidget = document.getElementById('dashboard-milestones-widget');
     if (milestoneWidget) {
-        import('./ui-history-milestones.js?v=e5d939c6c4fc-f2d37faf').then(mod => {
+        import('./ui-history-milestones.js?v=7d15e6f41072-f2d37faf').then(mod => {
             mod.renderMilestonesInsightWidget(milestoneWidget);
         }).catch(e => console.warn('milestones widget load failed:', e));
     }

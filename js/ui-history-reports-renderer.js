@@ -1,11 +1,11 @@
 // === js/ui-history-reports-renderer.js ===
 
-import { formatDuration, escapeHtml } from './utils.js?v=08864ef2738a-17d787ec';
-import { getDiffHtmlForMetric, createTableRow, PRODUCTIVITY_METRIC_DESCRIPTIONS, generateProductivityDiagnosis } from './ui-history-reports-logic.js?v=b337be75ca1d-28b3f058';
+import { formatDuration, escapeHtml } from './utils.js?v=a8117fdf6a07-c756d71e';
+import { getDiffHtmlForMetric, createTableRow, PRODUCTIVITY_METRIC_DESCRIPTIONS, generateProductivityDiagnosis } from './ui-history-reports-logic.js?v=1edb59f69d04-28b3f058';
 import { context, LEAVE_TYPES } from './state.js?v=c7f5fc984ef9-a2ce38c0';
 import { TASK, tName, isT } from './task-names.js?v=33eb5ccd69bc-26ab8ff7';
 import { matchesFilter, hasFilter, filterCount, multiFilterBody } from './table-filter.js?v=fd197c3531ef-b92b1b78';
-import { DOMESTIC_ITEMS_PER_ORDER, OVERLOAD_UTIL, overloadUtilOf } from './lib/ops-metrics.js?v=b7744497fb54-58d6bcbb';
+import { DOMESTIC_ITEMS_PER_ORDER, OVERLOAD_UTIL, overloadUtilOf } from './lib/ops-metrics.js?v=9a8bba742607-58d6bcbb';
 
 // 근태 요약 표의 열 순서. LEAVE_TYPES에 있는데 여기 없는 종류는 뒤에 자동으로 붙는다
 // → 근태 종류가 추가돼도 표에서 누락되지 않는다.

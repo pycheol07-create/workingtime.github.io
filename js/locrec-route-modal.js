@@ -5,7 +5,7 @@
 // 자료는 카드와 같은 store(js/locrec-store.js)의 latest 하나 — 새로 구독하지 않는다. 구역·동·숫자만 나온다(상품 정보 없음).
 // 창은 처음 열 때 body 에 만든다. 오버레이 자식 1개 · 첫 자식 .modal-header 라 공통 끌기(js/modal-drag.js)가 붙고,
 //   닫기 버튼 [data-esc-close] 라 Esc 는 js/modal-esc.js 가 처리한다.
-import { escapeHtml } from './utils.js?v=08864ef2738a-17d787ec';
+import { escapeHtml } from './utils.js?v=a8117fdf6a07-c756d71e';
 import { routeDetailHead, routeHeatDetail, HEAT_HELP, routeCardHelp, frontHelp, frontAreaText, PREV_MODE_DIFF_HELP } from './lib/locrec-view.js?v=e93900011313-fdf32cdb';
 import { trendSeries, trendPoints, trendSvg, trendRows } from './lib/locrec-trend.js?v=cc8001ccf07a-a6e6ea0d';
 import { todayKey } from './locrec-store.js?v=0f6edac0e2be-1a43b116';

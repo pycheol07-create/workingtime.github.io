@@ -9,7 +9,7 @@
 // ※ 순수 모듈(DOM·Firebase 없음). 테스트: tests/plan-year.test.js
 
 import { taskDays, uphOf, MIN_COMPARE_DAYS, addDays } from './task-owner.js?v=82e303e4c972-e73c99c8';
-import { periodMetrics } from './ops-metrics.js?v=b7744497fb54-58d6bcbb';
+import { periodMetrics } from './ops-metrics.js?v=9a8bba742607-58d6bcbb';
 
 export const ROADMAP_LEVELS = Object.freeze({ perQuarter: 3, window: 14, minDays: MIN_COMPARE_DAYS, topTasks: 3 });
 /** 회복 비율 — 손실 시간 중 과제로 줄일 수 있다고 보는 몫(어림, 템플릿 고정) */

@@ -6,7 +6,7 @@
 //    처리량은 업무를 '끝낼 때' 한 번에 들어오므로(app-logic.js), 진행 중인 업무의 물량은 알 수 없다.
 //    낮에는 시간만 보고, 물량 비교는 마감 후 '정확도' 화면에서 한다.
 
-import { calcElapsedMinutes } from './utils.js?v=08864ef2738a-17d787ec';
+import { calcElapsedMinutes } from './utils.js?v=a8117fdf6a07-c756d71e';
 import { addWorkMinutes, LUNCH_START_MIN, LUNCH_END_MIN } from './lib/calc.js?v=c29c2f406e7f-0cf37820';
 
 /** 'HH:MM' → 자정부터의 분. 형식이 아니면 null */

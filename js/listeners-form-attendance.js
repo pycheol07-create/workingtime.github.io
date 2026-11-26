@@ -5,11 +5,11 @@ import * as DOM from './dom-elements.js?v=2b9f19ecbde2-82fbef91';
 import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
 import { isPersistentLeaveType, OTHER_LEAVE_TYPE, leaveTypeLabel } from './state.js?v=c7f5fc984ef9-a2ce38c0';
 import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=152edbc1d09a-ab7817f6';
-import { showToast, getTodayDateString, toDateString, getCurrentTime, calculateWorkingDays, isWeekday } from './utils.js?v=08864ef2738a-17d787ec';
-import { saveStateToFirestore } from './app-data.js?v=0f49f1823690-c4996a74';
+import { showToast, getTodayDateString, toDateString, getCurrentTime, calculateWorkingDays, isWeekday } from './utils.js?v=a8117fdf6a07-c756d71e';
+import { saveStateToFirestore } from './app-data.js?v=cf9ca9e80c34-c4996a74';
 import { updateLeaveSchedule } from './config.js?v=242bb63abbe9-dd1665a9';
 import { removeByIds, removeRecord } from './lib/leave-ops.js?v=00d03912bc0d-1176096f';
-import { renderLeaveTypeModalOptions } from './ui-modals.js?v=16fcc6a153da-e0eb0faf';
+import { renderLeaveTypeModalOptions } from './ui-modals.js?v=cad7eda2026b-e0eb0faf';
 import { findDailyLeaveDup } from './lib/attendance-guard.js?v=2a8059f9ce4c-c8aba679';
 import { normalizeClock } from './lib/clock-in-out.js?v=2b0fa162a240-d1eeb61e';
 import { doc, setDoc, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
@@ -362,7 +362,7 @@ ${startTime} 이후에 시작한 업무는 그대로 두고, 그 전부터 진�
                     // 지난 시각으로 끊을 때는 그 시각 이후에 시작한 기록을 건드리지 않는다(onlyStartedBefore).
                     if ((type === '외출' || type === '조퇴') && !isScheduled) {
                         try {
-                            const { forceEndMemberWork } = await import('./app-sync.js?v=1908e7802e0a-68f6c921');
+                            const { forceEndMemberWork } = await import('./app-sync.js?v=fc7e05c08193-68f6c921');
                             const r = await forceEndMemberWork(memberName, newDailyEntry.startTime, { onlyStartedBefore: true });
                             if (r.ended > 0) {
                                 console.warn(`[외출/조퇴 자동 종료] ${memberName}: ${r.ended}건`, r.summaries);

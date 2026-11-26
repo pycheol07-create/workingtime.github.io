@@ -6,14 +6,14 @@
 // ⚠️ role=dialog·data-act 금지(업무마감봇 선택자) — 겹침 창은 section.
 
 import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
-import { getRegularMembersForCount, showToast } from './utils.js?v=08864ef2738a-17d787ec';
+import { getRegularMembersForCount, showToast } from './utils.js?v=a8117fdf6a07-c756d71e';
 import { aliasHistoryView } from './lib/task-alias-view.js?v=2e131477eb8e-af660ceb';
-import { buildOpsModel } from './lib/ops-view-model.js?v=7bcb37a823fa-08a53556';
-import { periodDaysOf } from './lib/ops-metrics.js?v=b7744497fb54-58d6bcbb';
-import { addDaysStr, planSettingsOf } from './lib/plan-week.js?v=277eaadcce87-f2dd7a70';
-import { buildBudget, buildYearBudget, costSettingsOf, costBaseOf, suggestRegularBase, salaryBasisLabor, partTimerCostOf, SALARY_HOURS } from './lib/plan-budget.js?v=eeb61fbf186c-3bc5a6ac';
-import { saveCostAndSettings } from './ops-plan-store.js?v=d98ba39291e8-e2b4aa69';
-import { esc, n0, n1, card, kpi, fmtDay, ok } from './ui-ops-plan-parts.js?v=61768dcd3b0a-895d8afe';
+import { buildOpsModel } from './lib/ops-view-model.js?v=9c297d6d13ca-08a53556';
+import { periodDaysOf } from './lib/ops-metrics.js?v=9a8bba742607-58d6bcbb';
+import { addDaysStr, planSettingsOf } from './lib/plan-week.js?v=b2bddf63090f-f2dd7a70';
+import { buildBudget, buildYearBudget, costSettingsOf, costBaseOf, suggestRegularBase, salaryBasisLabor, partTimerCostOf, SALARY_HOURS } from './lib/plan-budget.js?v=18183333eb1f-3bc5a6ac';
+import { saveCostAndSettings } from './ops-plan-store.js?v=278526eb1868-e2b4aa69';
+import { esc, n0, n1, card, kpi, fmtDay, ok } from './ui-ops-plan-parts.js?v=1d203766674c-895d8afe';
 import { higherOpenThan } from './modal-above.js?v=d7d701b363ef-215d273f';
 
 const $ = (id) => document.getElementById(id);

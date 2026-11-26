@@ -9,7 +9,7 @@ import { doc, getDocFromServer } from "https://www.gstatic.com/firebasejs/10.12.
 import { menuConfigOf } from './lib/perm.js?v=c1e53d91da8e-49afeea3';
 import { verifyPermSave, autoAssignedCount, renameEmails } from './lib/perm-model.js?v=84f63a17f29d-4f0ab0b3';
 import { getPermModel } from './admin-perm.js?v=d8c85b575368-c709b9a4';
-import { showConfirm } from './utils.js?v=08864ef2738a-17d787ec';
+import { showConfirm } from './utils.js?v=a8117fdf6a07-c756d71e';
 import { ensureTaskIds, newTaskId, isSystemTaskId, SYSTEM_TASKS, taskIdOf } from './lib/task-ids.js?v=9c41e71742ef-83b1f46d';
 import { planTaskWidget, widgetTaskChoices, duplicateTasks, migrateDashboardTaskItems, taskWidgetId } from './lib/task-config-sync.js?v=970a6d3589ff-85dd0720';
 

@@ -5,9 +5,9 @@
 //   스타일은 location.html <style> · index 는 css/refill-modal.css(#refill-modal 범위로 같은 모양).
 // ⚠️ role="dialog" · data-act 를 붙이지 않는다 — 업무마감봇이 div[role=dialog] 마지막 것 · [data-act] 로 자기 확인창을 읽는다.
 // 오버레이 자식 1개 · 첫 자식 .modal-header 라 공통 끌기(js/modal-drag.js)가 붙는다.
-import { escapeHtml } from './utils.js?v=08864ef2738a-17d787ec';
+import { escapeHtml } from './utils.js?v=a8117fdf6a07-c756d71e';
 import { dayLabel, fmtHM, progress, fmtCount, fixedNote } from './lib/refill-view.js?v=3416a867c2d7-24e9bb3d';
-import { NO_NAME, SHEETS, todayKey } from './refill-store.js?v=b20dec854ce0-6f1cc574';
+import { NO_NAME, SHEETS, todayKey } from './refill-store.js?v=a01de4ff8b83-6f1cc574';
 import { higherOpenThan } from './modal-above.js?v=d7d701b363ef-215d273f';
 
 const TEMPLATE = `

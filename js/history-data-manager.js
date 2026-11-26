@@ -1,13 +1,13 @@
 // === js/history-data-manager.js ===
 import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
-import { getTodayDateString, toDateString, getCurrentTime, calcElapsedMinutes, showToast, friendlyFirebaseError } from './utils.js?v=08864ef2738a-17d787ec';
+import { getTodayDateString, toDateString, getCurrentTime, calcElapsedMinutes, showToast, friendlyFirebaseError } from './utils.js?v=a8117fdf6a07-c756d71e';
 import { clampOpenRecords } from './lib/record-close.js?v=c8683e426085-11b6fe97';
 import { decideHistoryMerge, historyHasContent } from './lib/history-merge.js?v=f882da56f066-3d3139d2';
 import { validateClockInOut, normalizeClock } from './lib/clock-in-out.js?v=2b0fa162a240-d1eeb61e';
 import {
     checkStartAfterClockIn, recordsBeforeClockIn, isTardyClockIn, tardyThreshold, removeTardyOf, makeEditStamp
 } from './lib/attendance-guard.js?v=2a8059f9ce4c-c8aba679';
-import { validMemberNames, systemAccountSet } from './attendance-stats.js?v=5470492ee5b6-15815b0d';
+import { validMemberNames, systemAccountSet } from './attendance-stats.js?v=e9d2fe316c81-15815b0d';
 import { can } from './lib/perm.js?v=c1e53d91da8e-49afeea3';
 import { addRecord, updateRecord, removeRecord } from './lib/history-record-ops.js?v=245faca66ae0-da67cec6';
 import { mergeAttendanceServerFirst } from './lib/attendance-merge.js?v=bbd046e11da5-356da462';
@@ -16,7 +16,7 @@ import { normalizeAdminWorkers, DEFAULT_ADMIN_WORKERS } from './lib/forecast-exc
 import { buildPlannedDoc } from './lib/planned-fields.js?v=d045515d71d6-6077efa3';
 import { sameTaskKeys, aliasTaskName } from './lib/task-alias-view.js?v=2e131477eb8e-af660ceb';
 // 진행 중 기록을 끝내거나 지울 때 멤버 잠금(activeLocks)도 같이 푼다
-import { writeRecordsReleasingLocks, markLocalWorkEnded } from './app-sync.js?v=1908e7802e0a-68f6c921';
+import { writeRecordsReleasingLocks, markLocalWorkEnded } from './app-sync.js?v=fc7e05c08193-68f6c921';
 import {
     doc, setDoc, getDoc, getDocFromServer, collection, getDocs, getDocsFromServer,
     deleteDoc, deleteField,

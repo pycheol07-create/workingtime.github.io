@@ -107,7 +107,7 @@ import {
     renderDashboardLayout,
     updateSummary,
     applyDynamicSidebar // ✨ 신규 임포트
-} from './ui-main.js?v=1908e7802e0a-d7b62405';
+} from './ui-main.js?v=fc7e05c08193-d7b62405';
 
 export {
     renderTaskAnalysis,
@@ -131,7 +131,7 @@ import {
     renderReportWeekly,
     renderReportMonthly,
     renderReportYearly
-} from './ui-history.js?v=1908e7802e0a-b575143a';
+} from './ui-history.js?v=fc7e05c08193-b575143a';
 
 export {
     renderWeeklyHistory,
@@ -155,7 +155,7 @@ import {
     renderTeamSelectionModalContent,
     renderLeaveTypeModalOptions,
     renderManualAddModalDatalists
-} from './ui-modals.js?v=16fcc6a153da-e0eb0faf';
+} from './ui-modals.js?v=cad7eda2026b-e0eb0faf';
 
 export {
     renderQuantityModalInputs,

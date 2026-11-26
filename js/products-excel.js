@@ -11,10 +11,10 @@
 //   새 공급처는 반영 직전 확인 후 대장에 이름 빈칸으로 등록(ensureSuppliers). 설계: 이지어드민상품엑셀_설계.md
 // ⚠️ 원가 값을 console 에 찍지 말 것 — 시간·행 수만.
 import { S, applyLocalProduct } from './products-store.js?v=12e37e026ce6-ee5ce71b';
-import { C, ledgerCodes, loadLedger } from './products-cost.js?v=29597c9abba1-b46a7823';
-import { esc, toast, route, renderBasis } from './products.js?v=29597c9abba1-749f10a1';
-import { costChangeText } from './products-cost.js?v=29597c9abba1-b46a7823';
-import { catalogChangeText } from './products-detail.js?v=29597c9abba1-f7f87f87';
+import { C, ledgerCodes, loadLedger } from './products-cost.js?v=d1546d41d745-b46a7823';
+import { esc, toast, route, renderBasis } from './products.js?v=d1546d41d745-749f10a1';
+import { costChangeText } from './products-cost.js?v=d1546d41d745-b46a7823';
+import { catalogChangeText } from './products-detail.js?v=d1546d41d745-f7f87f87';
 import { writeBucket, writeCatalogSummary, ensureSuppliers } from './products-write.js?v=c12131c8d88b-699dc490';
 import { catalogBucketId, costBucketId, CATALOG_BUCKETS } from './lib/product-bucket.js?v=842897a6efab-a72f5a26';
 import {
@@ -23,7 +23,7 @@ import {
     sheetToAoa, goneSelected
 } from './lib/product-excel-rows.js?v=acc096d72726-b7ba4cab';
 import { EZ_COST_COLS, detectEzadmin, ezCatalogGroups, diffEzCost } from './lib/product-ezadmin.js?v=a5188298c0df-4f64b2cb';
-import { friendlyFirebaseError } from './utils.js?v=08864ef2738a-17d787ec';   // 원시 오류 코드 대신 할 일 한 줄
+import { friendlyFirebaseError } from './utils.js?v=a8117fdf6a07-c756d71e';   // 원시 오류 코드 대신 할 일 한 줄
 import { REASON_LABEL } from './lib/product-price-text.js?v=2ff38b54a885-9cac83e4';
 
 const XLSX_URL = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';

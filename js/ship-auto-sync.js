@@ -9,7 +9,7 @@
 // 이름·값만 읽는다. 구독은 한 번, 로그아웃 때 unsubscribeShipAuto 로 푼다(js/app.js).
 import { doc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
-import { getTodayDateString } from './utils.js?v=08864ef2738a-17d787ec';
+import { getTodayDateString } from './utils.js?v=a8117fdf6a07-c756d71e';
 import { canonicalTaskName } from './lib/task-ids.js?v=9c41e71742ef-83b1f46d';
 
 const AUTO_UNTIL_MIN = 17 * 60 + 40;   // 처리량자동입력 저녁 창 끝(설정.json windows.저녁) — 이 뒤엔 칸 값을 실적으로 본다

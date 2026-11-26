@@ -3,15 +3,15 @@
 
 import * as DOM from './dom-elements.js?v=2b9f19ecbde2-82fbef91';
 import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
-import { showToast, showConfirm, getTodayDateString, calcElapsedMinutes } from './utils.js?v=08864ef2738a-17d787ec';
+import { showToast, showConfirm, getTodayDateString, calcElapsedMinutes } from './utils.js?v=a8117fdf6a07-c756d71e';
 import {
     updateHistoryWorkRecord,
     deleteHistoryWorkRecord,
     addHistoryWorkRecord
-} from './history-data-manager.js?v=1908e7802e0a-3ebc7e25';
-import { renderHistoryDetail } from './app-history-logic.js?v=6d110fe525fa-ef63fd43';
-import { renderHistoryRecordsTable, openHistoryRecordManager, countDirtyRecordRows, isRecordRowDirty } from './history-record-table.js?v=3666748fa43c-0a2c5a8f';
-import { generateId } from './app-data.js?v=0f49f1823690-c4996a74';
+} from './history-data-manager.js?v=fc7e05c08193-3ebc7e25';
+import { renderHistoryDetail } from './app-history-logic.js?v=dbbb557bc1f0-ef63fd43';
+import { renderHistoryRecordsTable, openHistoryRecordManager, countDirtyRecordRows, isRecordRowDirty } from './history-record-table.js?v=51a4a5e0dc12-0a2c5a8f';
+import { generateId } from './app-data.js?v=cf9ca9e80c34-c4996a74';
 import { checkStartAfterClockIn, clampStartToClockIn } from './lib/attendance-guard.js?v=2a8059f9ce4c-c8aba679';
 import { setPauseMinutes } from './lib/pause-edit.js?v=92411e3106e1-3c05ca8b';
 
@@ -232,7 +232,14 @@ export function setupHistoryRecordListeners() {
             if (deleteBtn) {
                 const dateKey = deleteBtn.dataset.dateKey;
                 const recordId = deleteBtn.dataset.recordId;
-                if (confirm('정말로 이 기록을 삭제하시겠습니까?' + dirtyNote(countDirtyRecordRows(dateKey)))) {
+                const day = (State.allHistoryData || []).find(d => d.id === dateKey);
+                const rec = ((day && day.workRecords) || []).find(r => String(r.id) === String(recordId));
+                const what = rec
+                    ? `${rec.member || '(이름 없음)'} · ${rec.task || '(업무 없음)'}\n${dateKey} ${rec.startTime || '?'} ~ ${rec.endTime || '진행 중'}`
+                    : `${dateKey} 기록 1건`;
+                const ok = await showConfirm(`${what}\n\n지운 기록은 되돌릴 수 없습니다.${dirtyNote(countDirtyRecordRows(dateKey))}`,
+                    { title: '이 업무 기록을 지울까요?', okText: '지우기', danger: true });
+                if (ok) {
                     try {
                         await deleteHistoryWorkRecord(dateKey, recordId);
                         showToast('기록이 삭제되었습니다.');

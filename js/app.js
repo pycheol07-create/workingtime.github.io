@@ -4,25 +4,26 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { waitForPendingWrites } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { initializeFirebase, loadAppConfig, loadLeaveSchedule, loadPrivateConfig, applyPrivateConfig } from './config.js?v=242bb63abbe9-dd1665a9';
-import { displayCurrentDate, showToast } from './utils.js?v=08864ef2738a-17d787ec';
-import { renderDashboardLayout, renderRealtimeStatus, renderCompletedWorkLog, updateSummary, renderTaskAnalysis, renderTaskSelectionModal, applyDynamicSidebar } from './ui.js?v=1908e7802e0a-a84d3554';
-import { initializeAppListeners } from './app-listeners.js?v=cd9a8c47f22b-60136d0c';
+import { displayCurrentDate, showToast } from './utils.js?v=a8117fdf6a07-c756d71e';
+import { renderDashboardLayout, renderRealtimeStatus, renderCompletedWorkLog, updateSummary, renderTaskAnalysis, renderTaskSelectionModal, applyDynamicSidebar } from './ui.js?v=fc7e05c08193-a84d3554';
+import { initializeAppListeners } from './app-listeners.js?v=c578dfe32729-60136d0c';
 import * as DOM from './dom-elements.js?v=2b9f19ecbde2-82fbef91';
 import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
-import { autoPauseForLunch, autoResumeFromLunch } from './app-logic.js?v=de6cc3e0e186-5cd27cd7';
-import { subscribeNotices, unsubscribeNotices } from './notice-logic.js?v=69ff2a239076-840ae8ee';
+import { renderLongRunWarning } from './long-run-warn.js?v=dd08e0cd399c-1d9ce55a';
+import { autoPauseForLunch, autoResumeFromLunch } from './app-logic.js?v=b649d02aadf2-5cd27cd7';
+import { subscribeNotices, unsubscribeNotices } from './notice-logic.js?v=855dbde34b2d-840ae8ee';
 
 // ✅ 분리된 모듈 가져오기
-import { updateElapsedTimes, autoSaveProgress, markDataAsDirty } from './app-lifecycle.js?v=cd9a8c47f22b-be3588c4';
-import { setupNotificationListeners } from './app-notifications.js?v=dcc4d3779cd7-bf8fe902';
-import { setupFirebaseListeners, stopFirebaseListeners, whenTodayLoaded } from './app-sync.js?v=1908e7802e0a-68f6c921';
-import { healYesterdayOnStartup } from './history-data-manager.js?v=1908e7802e0a-3ebc7e25';
-import { initWorkCalendarWidget } from './widget-calendar.js?v=5231969f5f95-f232fdef';
+import { updateElapsedTimes, autoSaveProgress, markDataAsDirty } from './app-lifecycle.js?v=c578dfe32729-be3588c4';
+import { setupNotificationListeners } from './app-notifications.js?v=b4151fcf8356-bf8fe902';
+import { setupFirebaseListeners, stopFirebaseListeners, whenTodayLoaded } from './app-sync.js?v=fc7e05c08193-68f6c921';
+import { healYesterdayOnStartup } from './history-data-manager.js?v=fc7e05c08193-3ebc7e25';
+import { initWorkCalendarWidget } from './widget-calendar.js?v=3d4162d7d3f2-f232fdef';
 import { subscribeLeaveSchedule, unsubscribeLeaveSchedule } from './leave-schedule-sync.js?v=152edbc1d09a-ab7817f6';
 import { subscribeEzadmin, unsubscribeEzadmin } from './ezadmin-sync.js?v=31eccc182e0d-764bb82a';
-import { unsubscribeShipAuto } from './ship-auto-sync.js?v=847805ca4b35-fe881227';
-import { subscribeIncomingSchedule, unsubscribeIncomingSchedule } from './widget-incoming-schedule.js?v=79bcf1047d68-237bc1dd';
-import { startSuppliesAlert, stopSuppliesAlert } from './supplies-alert-dash.js?v=e6e30ae01167-5f181fad';
+import { unsubscribeShipAuto } from './ship-auto-sync.js?v=485f09b6666b-fe881227';
+import { subscribeIncomingSchedule, unsubscribeIncomingSchedule } from './widget-incoming-schedule.js?v=2416e849ddea-237bc1dd';
+import { startSuppliesAlert, stopSuppliesAlert } from './supplies-alert-dash.js?v=5b2834ace064-5f181fad';
 import { setShellContext, clearShellMenuCache, onBeforeLeaveSave } from './app-shell-bridge.js?v=b9a7199f3e1d-c80c27e9';
 import { parseOpenHash } from './app-shell-data.js?v=e42c6a10ca7a-9319c795';
 import { resolve as resolvePerm, can, menuConfigOf } from './lib/perm.js?v=c1e53d91da8e-49afeea3';
@@ -41,6 +42,7 @@ export const render = () => {
     } catch (e) {
         console.error('Render error:', e);
     }
+    try { renderLongRunWarning(); } catch (e) { console.error('오래 켜진 업무 경고 그리기 실패:', e); }   // 대시보드에만 자리(#long-run-warn)가 있다
 };
 
 async function startAppAfterLogin(user) {

@@ -4,9 +4,9 @@
 //   지금 페이스로 언제 끝나는지를 대시보드에서 바로 보이게 하고, 누르면 자세히 볼 수 있게 한다.
 
 import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
-import { formatHM } from './utils.js?v=08864ef2738a-17d787ec';
-import { getTodayProgressSummary, ensureTodayForecastSnapshot, ensureMibalHistory, ensureCorrectCtx } from './ui-history-prediction.js?v=1908e7802e0a-6da24bce';
-import { fetchDashboardHistoryData, fetchPlannedData } from './history-data-manager.js?v=1908e7802e0a-3ebc7e25';
+import { formatHM } from './utils.js?v=a8117fdf6a07-c756d71e';
+import { getTodayProgressSummary, ensureTodayForecastSnapshot, ensureMibalHistory, ensureCorrectCtx } from './ui-history-prediction.js?v=fc7e05c08193-6da24bce';
+import { fetchDashboardHistoryData, fetchPlannedData } from './history-data-manager.js?v=fc7e05c08193-3ebc7e25';
 import { goTo } from './app-shell-bridge.js?v=b9a7199f3e1d-c80c27e9';
 
 const EL = 'today-progress-strip';

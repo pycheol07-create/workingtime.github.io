@@ -1,6 +1,6 @@
 // === js/history-excel-reports.js ===
-import { formatDuration, formatTimeTo24H, showToast } from './utils.js?v=08864ef2738a-17d787ec';
-import { fitToColumn } from './history-excel-utils.js?v=056272f4a3a4-e14ce92c';
+import { formatDuration, formatTimeTo24H, showToast } from './utils.js?v=a8117fdf6a07-c756d71e';
+import { fitToColumn } from './history-excel-utils.js?v=faaad0dafe6f-e14ce92c';
 import { csvSafeSheet } from './lib/csv-safe.js?v=52895af199a4-46ded86e';
 
 export const downloadReportExcel = (reportData, format = 'xlsx') => {

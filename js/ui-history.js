@@ -7,7 +7,7 @@ import {
     renderReportWeekly,
     renderReportMonthly,
     renderReportYearly
-} from './ui-history-reports.js?v=65d7187c2412-9b003c86';
+} from './ui-history-reports.js?v=6bb3452fe67d-9b003c86';
 
 // 2. 근태 이력 관련 함수 (일별/주별/월별 근태)
 import {
@@ -15,30 +15,30 @@ import {
     renderAttendanceWeeklyHistory,
     renderAttendanceMonthlyHistory,
     renderAttendanceYearlyHistory
-} from './ui-history-attendance.js?v=e806711a856e-d18bba49';
+} from './ui-history-attendance.js?v=26d7f58fd97a-d18bba49';
 
 // 3. 트렌드 분석 관련 함수 (차트)
 import {
     renderTrendAnalysisCharts
-} from './ui-history-trends.js?v=60234815c97c-aa026d69';
+} from './ui-history-trends.js?v=6485fe2dda74-aa026d69';
 
 // 4. 업무 이력 요약 관련 함수 (주별/월별 요약)
 import {
     renderWeeklyHistory,
     renderMonthlyHistory,
     renderYearlyHistory
-} from './ui-history-summary.js?v=f982bca6acc0-bc6a36d0';
+} from './ui-history-summary.js?v=5f2ac927a662-bc6a36d0';
 
 // 5. 개인 리포트 관련 함수
 import {
     renderPersonalReport
-} from './ui-history-personal.js?v=4b5e73e14342-12ff2951';
+} from './ui-history-personal.js?v=afa3b84bc7ca-12ff2951';
 
 // 6. 경영 지표 관련 함수
 import {
     renderManagementDaily,
     renderManagementSummary
-} from './ui-history-management.js?v=649c88a366ac-688719b9';
+} from './ui-history-management.js?v=70b48aba1b88-688719b9';
 
 // 7. 검수 이력 관련 함수
 import {
@@ -46,12 +46,12 @@ import {
     renderInspectionLogTable,
     renderInspectionLayout,
     renderInspectionListMode
-} from './ui-history-inspection.js?v=ce9085d815c9-92ecfe05';
+} from './ui-history-inspection.js?v=061e4945a524-92ecfe05';
 
 // ✅ [신규] 8. 실적 예측 관련 함수
 import {
     renderPredictionTab
-} from './ui-history-prediction.js?v=1908e7802e0a-6da24bce';
+} from './ui-history-prediction.js?v=fc7e05c08193-6da24bce';
 
 
 // --- 모든 함수를 ui.js 및 리스너가 사용할 수 있도록 다시 내보내기 ---

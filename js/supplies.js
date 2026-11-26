@@ -15,7 +15,7 @@
 import { initializeFirebase } from './config.js?v=242bb63abbe9-dd1665a9';
 import { setShellContext, goHome } from './app-shell-bridge.js?v=b9a7199f3e1d-c80c27e9';
 import { memberNameFor } from './app-shell-data.js?v=e42c6a10ca7a-9319c795';
-import { escapeHtml as esc } from './utils.js?v=08864ef2738a-17d787ec';
+import { escapeHtml as esc } from './utils.js?v=a8117fdf6a07-c756d71e';
 import { kstDateTime } from './lib/kst-time.js?v=1f1e277244a9-6fe98384';
 import { checkStockAdjust } from './lib/supplies-stock-check.js?v=bece1017afad-45058477';
 import {

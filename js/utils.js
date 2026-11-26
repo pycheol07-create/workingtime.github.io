@@ -82,18 +82,88 @@ export const buildMemberHourlyWageMap = (memberWages = {}) => {
     return out;
 };
 
-export const showToast = (message, isError = false) => {
+// 알림 띠(2026-11-26 앱 점검): 오류는 3초 만에 사라지지 않고 ✕ 를 누를 때까지(또는 20초) 남는다 — 무엇이 잘못됐는지 읽을 틈.
+//   같은 글·같은 종류(오류/보통)가 이미 떠 있으면 새로 쌓지 않고 그 띠를 다시 보여 준다(반복 실패가 화면을 덮지 않게). 한꺼번에 최대 4개
+//   (넘치면 오류가 아닌 띠부터 뺀다). opts.action = { label, onClick } 이면 단추를 붙이고(예: 되돌리기) 10초 남긴다(합치지 않음).
+//   opts.ms 로 남는 시간을 바꾼다. isError 자리에 false/true 를 넘기던 옛 호출은 그대로 동작한다.
+// ⚠️ 업무마감봇(앱\업무마감봇\실행기.py)은 마감을 누른 뒤 '#toast-container .toast' 중 class 에 'bg-red-' 가 있는 띠를
+//   '앱이 거부함' 으로 읽는다(띄운 시각은 안 봄). 예전 오류 띠는 3초면 사라졌으므로, 오류 띠는 처음 3초만 bg-red-500 클래스를
+//   달고 그 뒤에는 같은 색을 인라인으로 칠해 남긴다 — 봇에게는 예전과 똑같이 보인다. 닫기(✕)는 글자 없는 그림(봇이 읽는 글에 안 섞이게).
+const TOAST_MAX = 4;
+const TOAST_FRESH_MS = 3000;
+const TOAST_RED = '#ef4444';
+function markToastFresh(t) {
+    if (t.dataset.err !== '1') return;
+    clearTimeout(Number(t.dataset.freshTimer));
+    t.style.background = '';
+    t.classList.add('bg-red-500');
+    t.dataset.freshTimer = String(setTimeout(() => {
+        if (!t.isConnected) return;
+        t.style.background = TOAST_RED;
+        t.classList.remove('bg-red-500');
+    }, TOAST_FRESH_MS));
+}
+export const showToast = (message, isError = false, opts = {}) => {
     const container = document.getElementById('toast-container');
-    if (!container) return; 
+    if (!container) return;
+    if (!container.hasAttribute('aria-live')) { container.setAttribute('aria-live', 'polite'); container.setAttribute('role', 'status'); }
+    const text = String(message == null ? '' : message);
+    const action = opts && opts.action && typeof opts.action.onClick === 'function' ? opts.action : null;
+    const ms = Number(opts && opts.ms) || (isError ? 20000 : action ? 10000 : 3000);
+    const err = isError ? '1' : '0';
+    const close = (t) => {
+        if (!t.isConnected || t.dataset.closing) return;
+        t.dataset.closing = '1';
+        t.classList.remove('show');
+        t.addEventListener('transitionend', () => t.remove(), { once: true });
+        setTimeout(() => t.remove(), 600);   // transition 이 없으면(스타일 못 받음) 그래도 지운다
+    };
+    if (!action) {
+        const same = [...container.children].find(t => t.dataset.msg === text && t.dataset.err === err && t.dataset.act !== '1' && !t.dataset.closing);
+        if (same) {
+            container.prepend(same);
+            markToastFresh(same);
+            clearTimeout(Number(same.dataset.timer));
+            same.dataset.timer = String(setTimeout(() => close(same), ms));
+            return;
+        }
+    }
+    while (container.children.length >= TOAST_MAX) {
+        const kids = [...container.children];
+        (kids.reverse().find(t => t.dataset.err !== '1') || container.lastElementChild).remove();
+    }
     const toast = document.createElement('div');
     toast.className = `toast p-3 rounded-lg shadow-xl text-white ${isError ? 'bg-red-500' : 'bg-green-500'}`;
-    toast.textContent = message;
+    toast.dataset.msg = text;
+    toast.dataset.err = err;
+    if (action) toast.dataset.act = '1';
+    if (isError) toast.setAttribute('role', 'alert');
+    toast.style.display = 'flex'; toast.style.alignItems = 'center'; toast.style.gap = '10px';
+    const span = document.createElement('span');
+    span.style.flex = '1'; span.style.minWidth = '0';
+    span.textContent = text;
+    toast.appendChild(span);
+    if (action) {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.textContent = String(action.label || '되돌리기');
+        b.style.cssText = 'flex:none;padding:3px 10px;border-radius:999px;border:1px solid rgba(255,255,255,.8);background:transparent;color:#fff;font-weight:700;font-size:12px;cursor:pointer;';
+        b.addEventListener('click', () => { close(toast); try { action.onClick(); } catch (e) { console.error(e); } });
+        toast.appendChild(b);
+    }
+    if (isError || action) {
+        const x = document.createElement('button');
+        x.type = 'button';
+        x.setAttribute('aria-label', '닫기');
+        x.style.cssText = 'flex:none;display:flex;padding:2px;border:0;background:transparent;color:#fff;cursor:pointer;opacity:.85;';
+        x.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+        x.addEventListener('click', () => close(toast));
+        toast.appendChild(x);
+    }
     container.prepend(toast);
+    markToastFresh(toast);
     requestAnimationFrame(() => toast.classList.add('show'));
-    setTimeout(() => {
-        toast.classList.remove('show');
-        toast.addEventListener('transitionend', () => toast.remove(), { once: true });
-    }, 3000);
+    toast.dataset.timer = String(setTimeout(() => close(toast), ms));
 };
 
 // 네이티브 confirm 대체 — 스타일된 모달, Promise<boolean> 반환.

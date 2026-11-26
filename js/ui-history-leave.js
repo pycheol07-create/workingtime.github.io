@@ -1,10 +1,10 @@
 // === js/ui-history-leave.js ===
 import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
-import { showToast, isMemberActiveOn, friendlyFirebaseError, escapeHtml } from './utils.js?v=08864ef2738a-17d787ec';
+import { showToast, isMemberActiveOn, friendlyFirebaseError, escapeHtml } from './utils.js?v=a8117fdf6a07-c756d71e';
 import { doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // ✅ 엑셀 변환 함수 불러오기
-import { downloadLeaveLedgerExcel } from './history-excel.js?v=9205764535c3-084171ab';
+import { downloadLeaveLedgerExcel } from './history-excel.js?v=412c43ac2ab2-084171ab';
 import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=152edbc1d09a-ab7817f6';
 import { updateLeaveSchedule } from './config.js?v=242bb63abbe9-dd1665a9';
 

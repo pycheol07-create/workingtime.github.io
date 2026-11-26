@@ -19,9 +19,9 @@
 //   유형·사유는 창이 열린 동안 그대로 둔다. 보통 [추가](여러 옵션 고르기)는 예전처럼 넣고 닫은 뒤 첫 줄을 연다.
 // 옵션 칩(2026-11-17): 색상별 묶음 + 사이즈 순서(lib groupOptions), 옵션이 MANY_OPTIONS 개 넘으면 거르기 칸·묶음별 [전체], 사라진 옵션은 접어 둔다.
 import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
-import { showToast, getTodayDateString, escapeHtml } from './utils.js?v=08864ef2738a-17d787ec';
-import { renderTodoList, selectTodoItem } from './inspection-logic.js?v=871aeb7a8a82-e1d61ac2';
-import { toggleScanner, startInlineScanner } from './inspection-media.js?v=871aeb7a8a82-cad5241c';
+import { showToast, getTodayDateString, escapeHtml } from './utils.js?v=a8117fdf6a07-c756d71e';
+import { renderTodoList, selectTodoItem } from './inspection-logic.js?v=30b1a904a623-e1d61ac2';
+import { toggleScanner, startInlineScanner } from './inspection-media.js?v=30b1a904a623-cad5241c';
 import { S as PS, loadCatalog, loadLoc, locOf } from './products-store.js?v=12e37e026ce6-ee5ce71b';
 import { thicknessFromHistoryDoc } from './lib/insp-packs.js?v=e3fa3546a650-16eb76b5';
 import {

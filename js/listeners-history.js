@@ -1,26 +1,26 @@
 // === js/listeners-history.js ===
 import * as DOM from './dom-elements.js?v=2b9f19ecbde2-82fbef91';
 import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
-import { showToast, getTodayDateString, toDateString } from './utils.js?v=08864ef2738a-17d787ec';
+import { showToast, getTodayDateString, toDateString } from './utils.js?v=a8117fdf6a07-c756d71e';
 
-import { setupHistoryDownloadListeners, openDownloadFormatModal } from './listeners-history-download.js?v=7603212643ee-22e2520d';
-import { setupHistoryRecordListeners } from './listeners-history-records.js?v=06db1330e396-b2605a01';
-import { setupHistoryAttendanceListeners } from './listeners-history-attendance.js?v=cb8adec4e46e-c214419d';
-import { setupHistoryInspectionListeners } from './listeners-history-inspection.js?v=cc0c98031beb-9d5277c6';
+import { setupHistoryDownloadListeners, openDownloadFormatModal } from './listeners-history-download.js?v=5c7c6a0d548a-22e2520d';
+import { setupHistoryRecordListeners } from './listeners-history-records.js?v=e64f5ab8a959-090ce8ec';
+import { setupHistoryAttendanceListeners } from './listeners-history-attendance.js?v=9dad1ec50358-c214419d';
+import { setupHistoryInspectionListeners } from './listeners-history-inspection.js?v=2491ddc045a2-9d5277c6';
 
-import { loadAndRenderHistoryList, renderHistoryDetail, switchHistoryView, openHistoryQuantityModal, augmentHistoryWithPersistentLeave } from './app-history-logic.js?v=6d110fe525fa-ef63fd43';
-import { renderAttendanceDailyHistory, renderAttendanceWeeklyHistory, renderAttendanceMonthlyHistory, renderAttendanceYearlyHistory, renderReportDaily, renderReportWeekly, renderReportMonthly, renderReportYearly, renderPersonalReport, renderManagementDaily, renderManagementSummary, renderWeeklyHistory, renderMonthlyHistory, renderYearlyHistory, renderPredictionTab } from './ui-history.js?v=1908e7802e0a-b575143a';
-import { syncTodayToHistory, saveManagementData, backfillFxRates, peekDailyData, recoverDailyDataToHistory, fetchAllHistoryData } from './history-data-manager.js?v=1908e7802e0a-3ebc7e25';
+import { loadAndRenderHistoryList, renderHistoryDetail, switchHistoryView, openHistoryQuantityModal, augmentHistoryWithPersistentLeave } from './app-history-logic.js?v=dbbb557bc1f0-ef63fd43';
+import { renderAttendanceDailyHistory, renderAttendanceWeeklyHistory, renderAttendanceMonthlyHistory, renderAttendanceYearlyHistory, renderReportDaily, renderReportWeekly, renderReportMonthly, renderReportYearly, renderPersonalReport, renderManagementDaily, renderManagementSummary, renderWeeklyHistory, renderMonthlyHistory, renderYearlyHistory, renderPredictionTab } from './ui-history.js?v=fc7e05c08193-b575143a';
+import { syncTodayToHistory, saveManagementData, backfillFxRates, peekDailyData, recoverDailyDataToHistory, fetchAllHistoryData } from './history-data-manager.js?v=fc7e05c08193-3ebc7e25';
 import { REVENUE_CHANNELS, CHANNEL_METRICS } from './revenue-channels.js?v=553320652df2-c473a26d';
 import { doc, getDoc, updateDoc, deleteField } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-import { setupHistoryTabsListeners, getFilteredHistoryData, getPeriodFilteredData, renderAnalyticsTab } from './listeners-history-tabs.js?v=6d110fe525fa-8058cdde';
+import { setupHistoryTabsListeners, getFilteredHistoryData, getPeriodFilteredData, renderAnalyticsTab } from './listeners-history-tabs.js?v=dbbb557bc1f0-8058cdde';
 import { saveView } from './view-state.js?v=c2e4bf06fdce-0da8b754';
 import { goTo, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=b9a7199f3e1d-c80c27e9';
 import { initHistoryFlyout } from './history-flyout.js?v=1c0ac82e9fd0-b770b3a1';
-import { isManagementDirty, confirmDiscardManagementEdits } from './ui-history-management.js?v=649c88a366ac-688719b9';
-import { isLeaveDirty } from './ui-history-leave.js?v=5556a0910914-199421cb';
-import { isSimDirty } from './ui-history-prediction.js?v=1908e7802e0a-6da24bce';
+import { isManagementDirty, confirmDiscardManagementEdits } from './ui-history-management.js?v=70b48aba1b88-688719b9';
+import { isLeaveDirty } from './ui-history-leave.js?v=da08508c6d40-199421cb';
+import { isSimDirty } from './ui-history-prediction.js?v=fc7e05c08193-6da24bce';
 import { placeOpenDropdown } from './table-filter.js?v=fd197c3531ef-b92b1b78';
 import { deletionSummary, deletionDetail } from './lib/history-delete-text.js?v=45db1f2f0f26-10f77366';
 
