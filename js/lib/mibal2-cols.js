@@ -14,7 +14,7 @@ export const LEGACY_COLS_KEY = 'mibal2.cols';
 export const COLS = ['no', 'code', 'name', 'option', 'box', 'loc', 'cap', 'arr', 'conf', 'inDiff', 'stock', 'bstock', 'pstock', 'recv', 'inv', 'out',
     'short', 'mibal', 'unres', 'room', 'third', 'pick', 'resv', 'refill', 'old', 'diff', 'flags'];
 // 예전 '간단히'(No·코드·상품명·피킹로케이션·적재량·도착·입고확인·차이(도착−입고)·총재고·미발수량·남는 부족수량·피킹 적재·비축 적재·플래그)
-//   + 옵션(2026-11-23) + 박스(2026-11-26 사용자 결정: 기본으로 켬 — 패킹 파일 detail 'Box No.', js/lib/pack-boxes.js)
+//   + 옵션(2026-11-23) + 박스(2026-11-26 사용자 결정: 기본으로 켬 — 패킹 파일 SHEET1 E열 BOX(옵션별, 11-27), js/lib/pack-boxes.js)
 export const DEFAULT_ON = ['no', 'code', 'name', 'option', 'box', 'loc', 'cap', 'arr', 'conf', 'inDiff', 'stock', 'mibal', 'unres', 'pick', 'resv', 'flags'];
 // seen 이 없는 옛 저장값(v:1)이 알던 열 — 박스 열(2026-11-26) 앞의 COLS
 export const SEEN_BEFORE_BOX = COLS.filter(k => k !== 'box');

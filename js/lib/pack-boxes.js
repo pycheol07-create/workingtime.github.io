@@ -1,6 +1,6 @@
 // === js/lib/pack-boxes.js — 부족수량관리(신규) 표 '박스' 열(2026-11-26 사용자 요청: 상품이 몇 번 박스에 들었는지) ===
 // 순수 함수만(시험 tests/pack-boxes.test.js). 화면 연결은 js/china-mibal2.js(열 때 한 번 읽기, 구독 안 함).
-//   · 원본 = Firestore integrations/packBoxes — 패킹봇 box_sync.py 가 전송 뒤 패킹 파일 detail 'Box No.' 열에서 만든다.
+//   · 원본 = Firestore integrations/packBoxes — 패킹봇 box_sync.py 가 전송 뒤 패킹 파일 SHEET1 E열(BOX — 옵션별, 2026-11-27)에서 만든다.
 //     모양 { v:1, updatedAt, packs: { '<시트 표기 패킹No>': { sd:'YYYY-MM-DD', at, n, miss, b:{ 코드:'3, 5~7' }[, err:1] } } }
 //     err:1 = 수정본 파일의 박스를 못 읽음(b 빈 칸) — 옛 박스를 보이지 않고 칸 title 에 '읽기 실패' 만(failedPacks).
 //   · sd = 패킹봇이 보낸 출고일(오더리스트에 쓴 값). 오더리스트 출고일을 나중에 바꾼 패킹은 고른 출고일과 안 맞아 빈칸으로 보인다.

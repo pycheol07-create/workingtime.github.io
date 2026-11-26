@@ -56,8 +56,8 @@ import { liveDatesFrom } from './lib/mibal2-rows.js?v=7e329105283b-5a50671e';
 import { stableSig, ARCHIVE_COLL } from './lib/mibal2-live.js?v=7ccac6277373-d7d6b954';
 import { bestShipOf, mismatchLine, codeListText } from './lib/ship-mismatch.js?v=18b1bfe6bfc0-42172506';   // 출고일 불일치(2026-11-10)
 import { rowPasses, optionsFor, activeFilterCount, toStored, toChecked } from './lib/mibal2-filter.js?v=5afbd872551e-6927d56c';   // 열 필터(2026-11-26)
-import { parsePackBoxes, packsOn, boxesFor, boxSortVal, cmpBoxSort, failedPacks } from './lib/pack-boxes.js?v=5b353d3e150d-dbf2c3b2';
-import { setupBoxCheck } from './mibal2-boxcheck.js?v=49cc70319c8c-c0f947bf';   // [박스 확인] 창 — 박스 라벨을 찍으면 미발 상품이 들었는지(2026-11-26)   // 박스 열(2026-11-26 — 패킹봇 box_sync 가 쓴 integrations/packBoxes)
+import { parsePackBoxes, packsOn, boxesFor, boxSortVal, cmpBoxSort, failedPacks } from './lib/pack-boxes.js?v=ff567fa413e9-8c6a9912';
+import { setupBoxCheck } from './mibal2-boxcheck.js?v=77f657eb3859-c0f947bf';   // [박스 확인] 창 — 박스 라벨을 찍으면 미발 상품이 들었는지(2026-11-26)   // 박스 열(2026-11-26 — 패킹봇 box_sync 가 쓴 integrations/packBoxes)
 import { openFloatingFilter, closeFloatingFilter } from './table-filter.js?v=fd197c3531ef-b92b1b78';
 import { writeXls } from './lib/xls-limits.js?v=64b8f5a113a9-e512cb8a';
 import { readHash, writeHash, onHashNav } from './hash-state.js?v=41d515385973-40fe10fb';   // live 때만 씀(빠른 이동 #tab=mibal|location)
@@ -65,7 +65,7 @@ import { refreshDoneAuto, claimOk, claimMine, autoStopText, serverBatchOpen, AUT
 // 마감된 작업 보기(2026-11-12) — 마감한 출고일을 다시 고르면 입고확인 = 보관함 기록
 import { closedQueryDates, closedCacheKey, closedViewOf, closedNoteLines } from './lib/mibal2-closed-view.js?v=99af493d6d0f-f6895793';
 import { COLS_PICK_KEY, LEGACY_COLS_KEY, DEFAULT_ON, REQUIRED, pickableCols, normalizeOn, colsFromStorage, serializeCols, toggleCol,
-    hiddenCss, colsMode, visibleCount } from './lib/mibal2-cols.js?v=c2b97a01e071-6499ab79';
+    hiddenCss, colsMode, visibleCount } from './lib/mibal2-cols.js?v=f661594ce339-1b3c5307';
 
 const { db, auth } = initializeFirebase();
 const LIVE = isMibal2Live();   // 단독 운영인가(지금은 false — 에뮬레이터 시험 주소 ?emu=1&live=1 에서만 true)
@@ -1542,7 +1542,7 @@ const sharedSigOf = (snaps) => stableSig(snaps.map(x => (x.exists() ? x.data() :
 async function loadLiveTools() {
     if (!LIVE) return null;
     try {
-        const mod = await import('./china-mibal2-live.js?v=389275e9987a-59008fea');
+        const mod = await import('./china-mibal2-live.js?v=b8d21d3f4fff-59008fea');
         return mod.startLive({
             db, showToast, setLoading, errText,
             isAdmin: () => accessIsAdmin,

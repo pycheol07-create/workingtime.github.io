@@ -7,7 +7,7 @@
 // china-mibal2.js 는 setupBoxCheck({ getRows, getPacksOn, getDatesText, getState }) 한 번만 부른다.
 //   getState = 'rows'(표를 아직 못 만듦 — 판정 안 함) · 'boxes'(박스 자료 읽는 중) · 'fail'(박스 자료 읽기 실패) · 'ok'
 //   표에 없는 상품이 든 박스는 '미발 없음'(초록)으로 보이지 않는다(회색 '확인 못 함').
-import { boxIndex, findBox, boxReport } from './lib/box-check.js?v=77d9395a8d04-51027250';
+import { boxIndex, findBox, boxReport } from './lib/box-check.js?v=00bb3907d1b4-51027250';
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));

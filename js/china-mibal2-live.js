@@ -24,7 +24,7 @@ import { scanApplyPlan, versionDataOf, archiveRecordOf, shrinkArchive, archiveAo
     fileRowsOf, inboundFileAoa, mibalFileAoa, floor2FileAoa, readAllPages } from './lib/mibal2-live.js?v=7ccac6277373-d7d6b954';
 import { buildDiffRecord, shouldAutoSave, mergeRev, shrinkIfLarge, diffSummaryText, overlapping, queryRange } from './lib/inbound-diff.js?v=6028b21f8c15-bb911da2';
 import { inboundMapOf, floor2MapOf } from './lib/scan-link.js?v=143bf19ba572-01119c1f';
-import { liveHiddenCss } from './lib/mibal2-cols.js?v=c2b97a01e071-6499ab79';
+import { liveHiddenCss } from './lib/mibal2-cols.js?v=f661594ce339-1b3c5307';
 import { inboundSig } from './lib/inbound-fix.js?v=7894fc22c949-9113d082';
 import { buildScanLogDocs, expandScanLogDocs, checkScanLogParts, docIdOf, scanLogInputOf, scanLogListHtml, scanLogExcelRows,
     SCANLOG_JOBS_COLL, SCANLOG_MAX_PARTS } from './lib/mibal2-scanlog.js?v=afd9130d6f71-ce95b891';
