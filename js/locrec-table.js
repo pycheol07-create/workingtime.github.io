@@ -17,11 +17,11 @@
 // 칸수 무관 허용(2026-11-13): 상품 줄마다 [칸수 무관 허용]/[끄기](지금 자리에 칸수가 있는 줄·이미 허용한 상품) — store.setSizeFree.
 //   허용한 상품은 줄에 '칸수 무관' 배지. 도구 줄 '칸수 무관 N건 보기'를 켜면 허용 목록 전체(오늘 표에 없는 상품 포함)가 표 끝에 나와 끌 수 있다.
 //   날짜·새 판 대기와 상관없이 누를 수 있다(추천 표시가 아니라 다음 계산 설정이라서).
-import { escapeHtml } from './utils.js?v=a8117fdf6a07-c756d71e';
+import { escapeHtml, showConfirm } from './utils.js?v=b14a118c2b0c-7bf0fcab';
 import { fmtHM, tabCounts, tabCarried, TABS, TAB_LABEL, fmtNum, canMark, tabMeta, dayLabel, rowLines, dayMessage, fmtGain, ROUTE_OUT_LABEL, ROUTE_OUT_HELP, locLabel, bulkDoneKeys, bulkUndoKeys, CARRIED_LABEL, qtyCellOf, PENDING_TEXT,
     shownTabs, fmtDaily1, BACK_TAB_HELP, BACK_GAIN_LABEL, BACK_SCORE_HELP, backReasonTitle, BLOCKED_LABEL, SKIP_HELP, holdRows, HOLD_ROW_LABEL, HOLD_UNDO_TEXT,
     SIZE_FREE_LABEL, SIZE_FREE_HELP, sizeFreeShown, fmtMDHM } from './lib/locrec-view.js?v=e93900011313-fdf32cdb';
-import { NO_NAME, todayKey } from './locrec-store.js?v=0f6edac0e2be-1a43b116';
+import { NO_NAME, todayKey } from './locrec-store.js?v=0b7dc2ac35fc-8cb15bb8';
 import { higherOpenThan } from './modal-above.js?v=d7d701b363ef-215d273f';
 import { undoConfirmText } from './lib/locrec-apply.js?v=7cca5e5163c6-5def8df3';
 import { SORT_COLS, sortRows, nextSort, isLowStockRow, lineTotal } from './lib/locrec-sort.js?v=9ce27569c8c4-a7d96312';
@@ -383,7 +383,7 @@ export function mountLocRecTable({ store, sizeOf }) {
     /** 창이 닫힐 때 부를 함수(대시보드: 구독 끄기). 돌려준 함수로 해제 */
     function onClose(fn) { closeFns.add(fn); return () => closeFns.delete(fn); }
 
-    modal.addEventListener('click', (ev) => {
+    modal.addEventListener('click', async (ev) => {
         if (ev.target === modal || ev.target.closest('[data-locrec-close]')) { close(); return; }
         // 상품코드 — 로케이션관리(window.locSearchCode 있음)에서는 창을 닫고 데이터 리스트를 그 코드로 검색,
         //   대시보드(index)에서는 링크 그대로 location.html?q=코드 로 이동
@@ -419,9 +419,10 @@ export function mountLocRecTable({ store, sizeOf }) {
         }
         else if (act === 'undoAll') {
             const keys = bulkUndoKeys(store.visibleRows(tab), todayKey());
-            if (keys.length && confirm(`${TAB_LABEL[tab]} 탭에서 '처리함'으로 표시한 ${keys.length}건을 모두 되돌릴까요?
+            if (keys.length && await showConfirm(`${TAB_LABEL[tab]} 탭에서 '처리함'으로 표시한 ${keys.length}건을 모두 되돌릴까요?
 데이터 리스트 자리도 옮기기 전으로 되돌립니다(한 건씩 차례로).
-반영 뒤 데이터 리스트가 바뀐 건은 자리는 두고 표시만 지울지 끝에 한 번 묻습니다.`)) store.undoMany(keys);
+반영 뒤 데이터 리스트가 바뀐 건은 자리는 두고 표시만 지울지 끝에 한 번 묻습니다.`,
+                { title: '모두 되돌릴까요?', okText: '되돌리기', danger: true })) store.undoMany(keys);
         }
         else if (act === 'done') {
             const r = store.get().day && TABS.flatMap(t => (store.get().day.parsed[t] || [])).find(x => x.recKey === key);

@@ -10,9 +10,9 @@
 
 import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
 import { leaveTypeLabel, OTHER_LEAVE_TYPE, PERSISTENT_LEAVE_TYPES, LEGACY_LEAVE_TYPES, TIME_BASED_LEAVE_TYPES } from './state.js?v=c7f5fc984ef9-a2ce38c0';
-import { showToast, getTodayDateString, getCurrentTime, getRegularMembersForCount, getActiveTeamMembers, escapeHtml as esc, getHolidayName } from './utils.js?v=a8117fdf6a07-c756d71e';
+import { showToast, getTodayDateString, getCurrentTime, getRegularMembersForCount, getActiveTeamMembers, escapeHtml as esc, getHolidayName, showConfirm } from './utils.js?v=b14a118c2b0c-7bf0fcab';
 import { dailyLeaveRanges, pastRangeForMonth } from './lib/cal-daily-leave.js?v=d35c121d8fb8-5385a276';
-import { getIncomingDetailsByDateFromCache } from './widget-incoming-schedule.js?v=2416e849ddea-237bc1dd';
+import { getIncomingDetailsByDateFromCache } from './widget-incoming-schedule.js?v=4cffb65f59ad-237bc1dd';
 import { notifyLeaveScheduleChanged, onLeaveScheduleChanged } from './leave-schedule-sync.js?v=152edbc1d09a-ab7817f6';
 import { updateLeaveSchedule } from './config.js?v=242bb63abbe9-dd1665a9';
 import { upsertById, removeByIds } from './lib/leave-ops.js?v=00d03912bc0d-1176096f';
@@ -1177,7 +1177,7 @@ function bind() {
     // 지웠으면 true(취소·실패면 false) — 보기 팝업은 지운 뒤에만 닫는다
     const deleteItem = async (kind, id) => {
         if (kind === 'event') {
-            if (!confirm('이 일정을 삭제할까요?')) return false;
+            if (!(await showConfirm('', { title: '이 일정을 삭제할까요?', okText: '삭제하기', danger: true }))) return false;
             try {
                 await removeEvent(id);
                 renderCalendar();
@@ -1186,7 +1186,7 @@ function bind() {
             } catch (err) { showToast('삭제 실패: ' + (err.message || err), true); return false; }
         }
         if (kind === 'leave') {
-            if (!confirm('이 근태 예정을 삭제할까요?')) return false;
+            if (!(await showConfirm('', { title: '이 근태 예정을 삭제할까요?', okText: '삭제하기', danger: true }))) return false;
             try {
                 await removeLeaveEntry(id);
                 renderCalendar();

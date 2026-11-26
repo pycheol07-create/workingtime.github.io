@@ -25,8 +25,8 @@
 //
 // DOM·State 를 쓰지 않는다(appConfig·이력은 인자로) — node 시험(tests/ops-metrics.test.js)과 비교 도구(tools/ops-metrics-compare.mjs)가 그대로 부른다.
 
-import { buildMemberHourlyWageMap, getWeekOfYear, toDateString } from '../utils.js?v=a8117fdf6a07-c756d71e';
-import { attendedMembers, presenceStats, isAttendanceEstimated, systemAccountSet, validMemberNames } from '../attendance-stats.js?v=e9d2fe316c81-15815b0d';
+import { buildMemberHourlyWageMap, getWeekOfYear, toDateString } from '../utils.js?v=b14a118c2b0c-7bf0fcab';
+import { attendedMembers, presenceStats, isAttendanceEstimated, systemAccountSet, validMemberNames } from '../attendance-stats.js?v=efe8bde439ca-15815b0d';
 import { dailyTaskStats, taskSpeedPerMinute, RECENT_SPEED, recentTaskSpeeds } from '../task-throughput.js?v=6c5add29d96b-0d55f842';
 import { revenueTotalOf, orderCountTotalOf } from '../revenue-channels.js?v=553320652df2-c473a26d';
 import { TASK, isTask } from './task-ids.js?v=9c41e71742ef-83b1f46d';

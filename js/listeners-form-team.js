@@ -3,11 +3,11 @@
 
 import * as DOM from './dom-elements.js?v=2b9f19ecbde2-82fbef91';
 import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
-import { showToast, getCurrentTime, getTodayDateString } from './utils.js?v=a8117fdf6a07-c756d71e';
-import { generateId, debouncedSaveState, updateDailyData } from './app-data.js?v=cf9ca9e80c34-c4996a74';
-import { markDataAsDirty } from './app-lifecycle.js?v=c578dfe32729-be3588c4';
-import { renderTeamSelectionModalContent } from './ui-modals.js?v=cad7eda2026b-e0eb0faf';
-import { startWorkGroup, addMembersToWorkGroup, processClockIn } from './app-logic.js?v=b649d02aadf2-5cd27cd7';
+import { showToast, getCurrentTime, getTodayDateString, showConfirm } from './utils.js?v=b14a118c2b0c-7bf0fcab';
+import { generateId, debouncedSaveState, updateDailyData } from './app-data.js?v=30feb9804a43-c4996a74';
+import { markDataAsDirty } from './app-lifecycle.js?v=0fbb86f343be-be3588c4';
+import { renderTeamSelectionModalContent } from './ui-modals.js?v=fff86ad4402d-e0eb0faf';
+import { startWorkGroup, addMembersToWorkGroup, processClockIn } from './app-logic.js?v=ad4b97375558-5cd27cd7';
 import { collection, query, where, getDocs, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // 헬퍼 변수 (ui-modals.js renderTeamSelectionModalContent 의 selectedClasses 와 같아야 한다)
@@ -170,7 +170,7 @@ export function setupFormTeamListeners() {
                 const partTimer = (State.appState.partTimers || []).find(p => p.id === partTimerId);
 
                 if (partTimer) {
-                    if(!confirm(`'${partTimer.name}' 님을 삭제하시겠습니까?`)) return;
+                    if (!(await showConfirm(`'${partTimer.name}' 님을 삭제하시겠습니까?`, { title: '알바를 삭제할까요?', okText: '삭제하기', danger: true }))) return;
 
                     State.appState.partTimers = State.appState.partTimers.filter(p => p.id !== partTimerId);
 

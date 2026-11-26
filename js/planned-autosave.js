@@ -12,8 +12,8 @@
 // ② 실시간 구독 — 데이터관리 화면에 있는 동안만. 다른 화면의 10분 캐시(fetchPlannedData)는 그대로다.
 
 import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
-import { getTodayDateString, getCurrentTime, showToast } from './utils.js?v=a8117fdf6a07-c756d71e';
-import { putPlannedLocal } from './history-data-manager.js?v=fc7e05c08193-3ebc7e25';
+import { getTodayDateString, getCurrentTime, showToast } from './utils.js?v=b14a118c2b0c-7bf0fcab';
+import { putPlannedLocal } from './history-data-manager.js?v=27e6e35d51a5-6e3a2ca6';
 import { plannedFieldOp, plannedMergePayload, applyPlannedOps, normPlanned } from './lib/planned-fields.js?v=d045515d71d6-6077efa3';
 import { onBeforeLeaveSave } from './app-shell-bridge.js?v=b9a7199f3e1d-c80c27e9';
 import {

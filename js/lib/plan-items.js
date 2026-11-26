@@ -6,7 +6,7 @@
 //   상태: todo(할 일) → doing(진행) → done(끝) · hold(보류) · drop(그만 — 지우는 대신). done 이면 진행 100, todo 로 되돌리면 0 아래로 내리지 않음.
 // ※ 순수 모듈(DOM·Firebase 없음). 테스트: tests/plan-items.test.js
 
-import { isMemberActiveOn } from '../utils.js?v=a8117fdf6a07-c756d71e';
+import { isMemberActiveOn } from '../utils.js?v=b14a118c2b0c-7bf0fcab';
 
 export const ITEM_KINDS = Object.freeze(['objective', 'initiative', 'milestone', 'data', 'auto']);
 export const ITEM_STATUS = Object.freeze(['todo', 'doing', 'done', 'hold', 'drop']);

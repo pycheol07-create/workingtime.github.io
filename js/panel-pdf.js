@@ -1,4 +1,4 @@
-import { escapeHtml } from './utils.js?v=a8117fdf6a07-c756d71e';
+import { escapeHtml } from './utils.js?v=b14a118c2b0c-7bf0fcab';
 import { ensureHtml2pdf } from './lib/lazy-html2pdf.js?v=8e7180a5a596-4b2424ee';
 // === js/panel-pdf.js ===
 // 📄 화면의 패널 하나를 '보이는 그대로' PDF 로 받는다(A4 가로) — 운영 리포트 탭의 [PDF 받기] (2026-11-10).

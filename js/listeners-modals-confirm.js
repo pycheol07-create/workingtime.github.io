@@ -5,16 +5,16 @@ import * as DOM from './dom-elements.js?v=2b9f19ecbde2-82fbef91';
 import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
 import { isPersistentLeaveType } from './state.js?v=c7f5fc984ef9-a2ce38c0';
 import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=152edbc1d09a-ab7817f6';
-import { showToast, getTodayDateString, getCurrentTime, showConfirm } from './utils.js?v=a8117fdf6a07-c756d71e';
-import { finalizeStopGroup, stopWorkIndividual, stopWorkByTask } from './app-logic.js?v=b649d02aadf2-5cd27cd7';
+import { showToast, getTodayDateString, getCurrentTime, showConfirm } from './utils.js?v=b14a118c2b0c-7bf0fcab';
+import { finalizeStopGroup, stopWorkIndividual, stopWorkByTask } from './app-logic.js?v=ad4b97375558-5cd27cd7';
 import { updateLeaveSchedule } from './config.js?v=242bb63abbe9-dd1665a9';
 import { removeWhere, removeRecord } from './lib/leave-ops.js?v=00d03912bc0d-1176096f';
 import { isLeaveActiveAt } from './lib/leave-timing.js?v=56494f977986-82fd27e6';
-import { switchHistoryView } from './app-history-logic.js?v=dbbb557bc1f0-ef63fd43';
-import { saveDayDataToHistory, clearLocalCache } from './history-data-manager.js?v=fc7e05c08193-3ebc7e25';
-import { waitQuantitySave } from './listeners-form-quantity.js?v=6a3e42d51548-306c88e3';
-import { saveStateToFirestore } from './app-data.js?v=cf9ca9e80c34-c4996a74';
-import { writeRecordsReleasingLocks, markLocalWorkEnded } from './app-sync.js?v=fc7e05c08193-68f6c921';
+import { switchHistoryView } from './app-history-logic.js?v=a1e0a6b2bf6c-ef63fd43';
+import { saveDayDataToHistory, clearLocalCache } from './history-data-manager.js?v=27e6e35d51a5-6e3a2ca6';
+import { waitQuantitySave } from './listeners-form-quantity.js?v=1035aac40dc4-306c88e3';
+import { saveStateToFirestore } from './app-data.js?v=30feb9804a43-c4996a74';
+import { writeRecordsReleasingLocks, markLocalWorkEnded } from './app-sync.js?v=27e6e35d51a5-ca1bb1f2';
 
 import {
     doc, deleteDoc, writeBatch, collection, updateDoc, getDoc, getDocs, setDoc, query
@@ -360,7 +360,7 @@ export function setupConfirmationModalListeners() {
                             r.startTime < dailyEntry.startTime
                         );
                         if (stale.length > 0) {
-                            const { forceEndMemberWork } = await import('./app-sync.js?v=fc7e05c08193-68f6c921');
+                            const { forceEndMemberWork } = await import('./app-sync.js?v=27e6e35d51a5-ca1bb1f2');
                             const r = await forceEndMemberWork(memberName, dailyEntry.startTime, { onlyStartedBefore: true });
                             if (r.ended > 0) {
                                 console.warn(`[외출 복귀 보호막] ${memberName}: 외출 전부터 진행 중이던 ${r.ended}건을 ${dailyEntry.startTime}로 정리`, r.summaries);

@@ -28,6 +28,7 @@
 import { doc, getDoc, setDoc, updateDoc, deleteField, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=b9a7199f3e1d-c80c27e9';
 import { canFeature, currentPerm } from './feature-gate.js?v=7eaa46dbb8e9-a5458f75';
+import { showConfirm } from './utils.js?v=b14a118c2b0c-7bf0fcab';
 import { KEYS, LIMITS, FIELD_TEXT, normalize, sameValues, serverRows, sourceText, guideLines } from './lib/locrec-settings.js?v=69b4df4ce6e8-6be192b7';
 import { autoSort, CARD_LAYOUT, SPLIT_EX_RE } from './lib/loc-cards.js?v=436e88b31445-bac5ec02';
 import {
@@ -626,9 +627,10 @@ window.resetLocCardOrder = async function () {
         상태('lrs-status', '설정을 불러오지 못해 되돌릴 수 없습니다 — 새로고침해 보세요.', 'error');
         return;
     }
-    if (!confirm('동선 기준을 옛 방식(구역 순위·동 순서)으로 되돌릴까요?\n'
+    if (!(await showConfirm('동선 기준을 옛 방식(구역 순위·동 순서)으로 되돌릴까요?\n'
         + '카드 순서를 지우고, 카드 방식으로 바꾸기 전의 구역 순위·동 순서(위치 순서·제외는 지금 값)로 다음 추천부터 계산합니다.'
-        + (추천바뀜 ? '\n저장하지 않은 변경(추천 양 포함)은 버립니다.' : ''))) return;
+        + (추천바뀜 ? '\n저장하지 않은 변경(추천 양 포함)은 버립니다.' : ''),
+        { title: '옛 방식으로 되돌릴까요?', okText: '되돌리기', danger: true }))) return;
     const back = $('lrs-card-legacy-btn');
     if (back) back.disabled = true;
     상태('lrs-status', '되돌리는 중…');

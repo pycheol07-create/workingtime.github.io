@@ -1,12 +1,12 @@
 // === js/inspection-editor.js ===
 import * as DOM from './dom-elements.js?v=2b9f19ecbde2-82fbef91';
 import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
-import { showToast, getCurrentTime, getTodayDateString } from './utils.js?v=a8117fdf6a07-c756d71e';
+import { showToast, getCurrentTime, getTodayDateString, showConfirm } from './utils.js?v=b14a118c2b0c-7bf0fcab';
 import { doc, getDoc, setDoc, updateDoc, deleteDoc, arrayUnion, serverTimestamp, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { renderInspectionHistoryTable, renderInspectionLogTable, renderExpandedInspectionLog } from './ui-history-inspection.js?v=061e4945a524-92ecfe05';
-import { getUniqueInboundCount } from './inspection-logic.js?v=30b1a904a623-e1d61ac2';
-import { LABELS as CHECK_LABELS, hasBrushed } from './lib/insp-flow.js?v=38fc69533ba8-43ce67d4';
-import { manualImageBase64, clearManualImageState, uploadInspectionPhoto, dataUrlToBlob } from './inspection-media.js?v=30b1a904a623-cad5241c';
+import { renderInspectionHistoryTable, renderInspectionLogTable, renderExpandedInspectionLog } from './ui-history-inspection.js?v=5d9cbf843649-92ecfe05';
+import { getUniqueInboundCount } from './inspection-logic.js?v=4e432a2b872c-e4d6f36f';
+import { LABELS as CHECK_LABELS, hasBrushed } from './lib/insp-flow.js?v=f24bcc7ccc64-43ce67d4';
+import { manualImageBase64, clearManualImageState, uploadInspectionPhoto, dataUrlToBlob } from './inspection-media.js?v=4e432a2b872c-cad5241c';
 
 export let currentProductLogs = [];
 // 수동 사전등록 사진을 올린 결과 — 저장이 실패해 다시 누를 때 같은 사진을 또 올리지 않게
@@ -213,7 +213,7 @@ export const deleteInspectionLog = async () => {
     const index = idxEl ? parseInt(idxEl.value, 10) : NaN;
 
     if (!productName || isNaN(index)) return;
-    if (!confirm("정말 이 상세 기록을 삭제하시겠습니까?")) return;
+    if (!(await showConfirm('', { title: '이 상세 기록을 삭제할까요?', okText: '삭제하기', danger: true }))) return;
 
     currentProductLogs.splice(index, 1);
 
@@ -259,7 +259,8 @@ export const deleteInspectionLog = async () => {
 
 export const deleteProductHistory = async (productName) => {
     if (!productName) return false;
-    if (!confirm(`정말 '${productName}' 상품의 모든 검수 이력을 삭제하시겠습니까?\n(이 작업은 복구할 수 없습니다)`)) return false;
+    if (!(await showConfirm(`정말 '${productName}' 상품의 모든 검수 이력을 삭제하시겠습니까?\n(이 작업은 복구할 수 없습니다)`,
+        { title: '모든 검수 이력을 삭제할까요?', okText: '삭제하기', danger: true }))) return false;
 
     try {
         const safeProductName = productName.replace(/\//g, '-');

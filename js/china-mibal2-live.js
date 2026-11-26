@@ -28,13 +28,14 @@ import { liveHiddenCss } from './lib/mibal2-cols.js?v=2d1ecafc6ec8-d3d436cc';
 import { inboundSig } from './lib/inbound-fix.js?v=7894fc22c949-9113d082';
 import { buildScanLogDocs, expandScanLogDocs, checkScanLogParts, docIdOf, scanLogInputOf, scanLogListHtml, scanLogExcelRows,
     SCANLOG_JOBS_COLL, SCANLOG_MAX_PARTS } from './lib/mibal2-scanlog.js?v=afd9130d6f71-ce95b891';
-import { setupLiveLoc } from './china-mibal2-live-loc.js?v=74a5ceee51c1-7fe8213a';
-import { setupLiveAdmin, readSheetRowsAOA, packMap, unpackMap } from './china-mibal2-live-admin.js?v=e3abc8aa71fa-5f1efc15';
+import { setupLiveLoc } from './china-mibal2-live-loc.js?v=1c04bded397a-1baa5912';
+import { setupLiveAdmin, readSheetRowsAOA, packMap, unpackMap } from './china-mibal2-live-admin.js?v=f86563a8eb18-7200c875';
 import { shipMismatchOf, mismatchLine, mismatchBlockText } from './lib/ship-mismatch.js?v=18b1bfe6bfc0-42172506';
 import { writeXls, xlsBytes } from './lib/xls-limits.js?v=64b8f5a113a9-e512cb8a';
 import { autoStopReason, autoStopText, serverBatchOpen, AUTO_TOAST_MS } from './lib/mibal2-auto-apply.js?v=594903dc6df2-338fd92d';
 import { setupScanBar } from './china-mibal2-bar.js?v=16b1b714af25-86575c47';
 import { mdhmPad } from './lib/mibal2-closed-view.js?v=99af493d6d0f-f6895793';
+import { showConfirm } from './utils.js?v=b14a118c2b0c-7bf0fcab';
 
 // 마감된 작업(보관함)을 보는 동안 끄는 버튼 — 고른 출고일 기준으로 쓰는 것만(js/lib/mibal2-closed-view.js). 되돌리기·바코드·위치·관리는 그대로
 const CLOSED_BTN_IDS = ['btn-scan-off-sync', 'btn-scan-off-reset', 'btn-scan-off-diffrec'];
@@ -420,8 +421,9 @@ export function startLive(ctx) {
         if (!v || !v.data) { alert('되돌릴 기록이 없습니다(오늘 [스캐너에 반영] 전 백업이 없음).'); return; }
         const ih = await readInbound();
         if (!recentScanOk(ih.lastMs, '되돌리는')) return;
-        if (!confirm(`마지막 [스캐너에 반영] 직전(${mdhm(v.atMs)})으로 스캐너 자료를 되돌릴까요?\n\n상품 ${n(v.count)}개 · 미발 합 ${n(v.totalMibal)}\n`
-            + '그 뒤 스캐너 입고로 줄어든 숫자도 그때 값으로 돌아갑니다. 지금 자료는 자동 백업합니다.')) return;
+        if (!(await showConfirm(`마지막 [스캐너에 반영] 직전(${mdhm(v.atMs)})으로 스캐너 자료를 되돌릴까요?\n\n상품 ${n(v.count)}개 · 미발 합 ${n(v.totalMibal)}\n`
+            + '그 뒤 스캐너 입고로 줄어든 숫자도 그때 값으로 돌아갑니다. 지금 자료는 자동 백업합니다.',
+            { title: '스캐너 자료를 되돌릴까요?', okText: '되돌리기', danger: true }))) return;
         setLoading(true, '되돌리는 중...');
         const cur = await readScanDb();
         await saveVersion(cur, 'pre-rollback', '되돌리기 직전 자동 백업');

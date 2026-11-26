@@ -39,7 +39,7 @@ import { initializeFirebase } from './config.js?v=242bb63abbe9-dd1665a9';
 import { emulatorEnabled, connectStorageEmulatorIfEnabled } from './firebase-emulator.js?v=071adc2867a0-c60c17d2';
 import { setShellContext, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=b9a7199f3e1d-c80c27e9';
 import { memberNameFor } from './app-shell-data.js?v=e42c6a10ca7a-9319c795';
-import { friendlyFirebaseError } from './utils.js?v=a8117fdf6a07-c756d71e';
+import { friendlyFirebaseError, showConfirm } from './utils.js?v=b14a118c2b0c-7bf0fcab';
 import { resolve, can } from './lib/perm.js?v=c1e53d91da8e-49afeea3';
 import { readBook, headerColumns } from './lib/ship-read.js?v=04fbd537e5b5-8c5bf86d';
 import { zikjinStep1, zikjinStep2, readZikjinMaster, extractZikjinMaster, indexZikjinMaster, MASTER_SHEET } from './lib/ship-zikjin.js?v=04e0b5ccc89f-79e18ba5';
@@ -852,8 +852,9 @@ function renderMasterVersions() {
 /** 관리자 [앱 저장본 비우기] — 판 전부와 조각을 지운다(다음에 원본이 있는 자리에서 만들면 첫 판으로 다시 올라감) */
 async function resetMasterApp() {
     if (!S.isAdmin || locked() || !S.zga.meta) return;
-    if (!confirm('앱 저장본(남은 판 전부)을 비울까요?\n\n비운 뒤에는 원본 파일이 없는 자리에서 시즌·공장상품명이 빈칸으로 만들어집니다.\n'
-        + '원본이 있는 PC 에서 직진 2단계를 한 번 만들면 다시 올라갑니다.')) return;
+    if (!(await showConfirm('앱 저장본(남은 판 전부)을 비울까요?\n\n비운 뒤에는 원본 파일이 없는 자리에서 시즌·공장상품명이 빈칸으로 만들어집니다.\n'
+        + '원본이 있는 PC 에서 직진 2단계를 한 번 만들면 다시 올라갑니다.',
+        { title: '앱 저장본을 비울까요?', okText: '비우기', danger: true }))) return;
     try {
         const r = await resetMaster(S.db);
         if (S.store) { try { await S.store.del(KEY_MASTER_APP); } catch (_) { /* 보관본은 다음에 */ } }
@@ -870,7 +871,8 @@ async function rollbackMasterTo(id) {
     if (!S.canShip || locked() || !S.zga.meta) return;
     const v = S.zga.meta.vers.find(x => x.id === id);
     if (!v) return;
-    if (!confirm(`앱 저장본을 원본 ${kstShort(v.srcMs)} 저장 판(상품 ${fmt(v.rows)}줄)으로 되돌릴까요?\n\n모든 자리가 이 판으로 시즌·공장상품명을 채웁니다. 더 새 원본이 올라오면 그 판을 씁니다.`)) return;
+    if (!(await showConfirm(`앱 저장본을 원본 ${kstShort(v.srcMs)} 저장 판(상품 ${fmt(v.rows)}줄)으로 되돌릴까요?\n\n모든 자리가 이 판으로 시즌·공장상품명을 채웁니다. 더 새 원본이 올라오면 그 판을 씁니다.`,
+        { title: '이 판으로 되돌릴까요?', okText: '되돌리기', danger: true }))) return;
     try {
         await rollbackMaster(S.db, id, { name: S.memberName || '', email: (S.user && S.user.email) || '' });
         toast('되돌렸습니다 — 다음 만들기부터 이 판을 씁니다');
@@ -2067,7 +2069,8 @@ function bindBatches() {
             return;
         }
         const what =`${hhmm(t.at) || '오늘'} 에 보낸 묶음(품목 ${fmt(t.k)} · 수량 ${fmt(t.q)}${t.n !== null && t.n !== undefined ? ` · ${fmt(t.n)}봉` : ''})`;
-        if (!confirm(`${what}을 오늘 실적에서 뺄까요?\n로케이션 관리·봉 수에서 이 묶음 몫만 빠집니다(다른 묶음은 그대로). 만든 파일은 지우지 않습니다.`)) return;
+        if (!(await showConfirm(`${what}을 오늘 실적에서 뺄까요?\n로케이션 관리·봉 수에서 이 묶음 몫만 빠집니다(다른 묶음은 그대로). 만든 파일은 지우지 않습니다.`,
+            { title: '이 묶음을 실적에서 뺄까요?', okText: '빼기', danger: true }))) return;
         newLogGroup({ kind: 'other', title: '묶음 빼기' });
         setBusy(true, '묶음 빼는 중…');
         try {

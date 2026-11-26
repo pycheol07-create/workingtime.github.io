@@ -342,3 +342,25 @@ html.dark #personnel-hover-tooltip { background: #2A3038; box-shadow: 0 0 0 1px 
 
 /* 오래 켜진 업무 경고(js/long-run-warn.js) — hidden 속성이 .flex 에 밀려 휴대폰 맨 위에 빈 틈이 생기지 않게(2026-11-26) */
 #long-run-warn[hidden] { display: none !important; }
+
+/* ── 현장 TV 보기(index.html?tv=1 — js/tv-mode.js, 2026-11-26) ──────────────────────────
+   '오늘 진행' 띠(#today-progress-strip)와 '오늘 업무 처리량' 카드만 남기고(data-tv="main"), 메뉴·머리말·내 업무·
+   인원 현황(이름)·알림 카드·분석은 숨긴다. 글씨는 zoom 으로 키운다(멀리서 보이게). 평소에는 #tv-head 만 숨김. */
+#tv-head { display: none; }
+.tv-mode #tv-head { display: flex; font-size: 22px; margin-bottom: 8px; }
+.tv-mode #tv-clock { font-size: 40px; }
+.tv-mode #dash-root > aside,
+.tv-mode #dash-root header,
+.tv-mode #app-content > :not([data-tv]),
+.tv-mode [data-tv="keep"] > :not([data-tv]) { display: none !important; }
+.tv-mode [data-tv="keep"] { display: flex !important; flex-direction: column; gap: 20px; margin-top: 20px !important; }
+.tv-mode [data-tv="main"]:not(.hidden) { display: flex !important; width: 100% !important; max-width: none !important; margin: 0 !important; }
+.tv-mode #today-progress-strip[data-tv="main"]:not(.hidden) { display: block !important; }
+.tv-mode #summary-workload { display: flex !important; max-height: none; overflow: visible; }
+.tv-mode #app-content { zoom: 1.45; padding: 20px 28px; }
+.tv-mode #toggle-workload svg { display: none; }
+/* 좁은 화면(768px 미만) 머리말·펼침 메뉴도 숨김 — 출근·마감·로그아웃이 TV 에서 눌리지 않게 */
+.tv-mode #dash-root main > .d-topbar, .tv-mode #nav-content { display: none !important; }
+/* TV 화면은 보기만 — 누르면 데이터 관리·입력 창으로 넘어가 가림이 풀린다. 'TV 보기 끄기' 만 살린다 */
+.tv-mode #app-content { pointer-events: none; }
+.tv-mode #tv-head a { pointer-events: auto; }

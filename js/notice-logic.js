@@ -1,11 +1,11 @@
 // === js/notice-logic.js ===
 import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
-import { showToast, getActiveTeamMembers } from './utils.js?v=a8117fdf6a07-c756d71e';
+import { showToast, getActiveTeamMembers, showConfirm } from './utils.js?v=b14a118c2b0c-7bf0fcab';
 import { doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { initializeFirebase } from './config.js?v=242bb63abbe9-dd1665a9';
 
 // 🔥 [신규] 멘션 발송을 위해 알림 함수 가져오기
-import { sendNotification } from './app-notifications.js?v=b4151fcf8356-bf8fe902';
+import { sendNotification } from './app-notifications.js?v=5ab4b1ad1e64-af702167';
 
 const createId = () => Date.now().toString(36) + Math.random().toString(36).substr(2);
 
@@ -189,7 +189,7 @@ export const toggleNotice = async (id) => {
 };
 
 export const deleteNotice = async (id) => {
-    if (!confirm("이 중요 알림을 삭제하시겠습니까?")) return;
+    if (!(await showConfirm('', { title: '이 중요 알림을 삭제할까요?', okText: '삭제하기', danger: true }))) return;
     State.appState.importantNotices = State.appState.importantNotices.filter(n => n.id !== id);
     await saveNotices();
 };

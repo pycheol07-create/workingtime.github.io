@@ -1,13 +1,13 @@
 // === js/app-lifecycle.js ===
 import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
-import { getCurrentTime, displayCurrentDate, getTodayDateString, isWeekday, calcElapsedMinutes, formatDuration, showToast } from './utils.js?v=a8117fdf6a07-c756d71e';
-import { saveProgress, isDayClosedOnServer, clearLocalCache, isClosingInProgress } from './history-data-manager.js?v=fc7e05c08193-3ebc7e25';
-import { saveStateToFirestore } from './app-data.js?v=cf9ca9e80c34-c4996a74';
+import { getCurrentTime, displayCurrentDate, getTodayDateString, isWeekday, calcElapsedMinutes, formatDuration, showToast } from './utils.js?v=b14a118c2b0c-7bf0fcab';
+import { saveProgress, isDayClosedOnServer, clearLocalCache, isClosingInProgress } from './history-data-manager.js?v=27e6e35d51a5-6e3a2ca6';
+import { saveStateToFirestore } from './app-data.js?v=30feb9804a43-c4996a74';
 import { collection, doc, writeBatch, getDoc, setDoc, waitForPendingWrites } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { getSubscribedDate } from './app-sync.js?v=fc7e05c08193-68f6c921';
+import { getSubscribedDate } from './app-sync.js?v=27e6e35d51a5-ca1bb1f2';
 import { findOpenModal } from './lib/noti-popup.js?v=a01e8d07acd1-85d726e6';
 import { emulatorEnabled } from './firebase-emulator.js?v=071adc2867a0-c60c17d2';
-import { applyDueLeaves, activeLeaveSignature } from './leave-auto-apply.js?v=78fef3a9becd-afa2df94';
+import { applyDueLeaves, activeLeaveSignature } from './leave-auto-apply.js?v=892b4dd1f47a-afa2df94';
 
 // ⏰ 예약 근태 — 마지막으로 본 분(HH:MM)과 그때 근태 중이던 사람 집합
 let lastLeaveMinute = null;
@@ -406,7 +406,7 @@ export const updateElapsedTimes = async () => {
         applyDueLeaves(now).catch(e => console.warn('[예약 근태] 적용 실패:', e));
         const sig = activeLeaveSignature(now);
         if (lastLeaveSig !== null && sig !== lastLeaveSig) {
-            import('./app.js?v=c578dfe32729-2ba8f711').then(m => m.render()).catch(e => console.warn('[예약 근태] 다시 그리기 실패:', e));
+            import('./app.js?v=0fbb86f343be-2ba8f711').then(m => m.render()).catch(e => console.warn('[예약 근태] 다시 그리기 실패:', e));
         }
         lastLeaveSig = sig;
     }

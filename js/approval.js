@@ -31,6 +31,7 @@ import { getStorage, ref as sRef, uploadBytes, getBlob, deleteObject } from "htt
 import { emulatorEnabled, connectStorageEmulatorIfEnabled } from './firebase-emulator.js?v=071adc2867a0-c60c17d2';
 import { setShellContext, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=b9a7199f3e1d-c80c27e9';
 import { memberNameFor } from './app-shell-data.js?v=e42c6a10ca7a-9319c795';
+import { showConfirm } from './utils.js?v=b14a118c2b0c-7bf0fcab';   // utils.js 는 import 가 없어 앱 전체를 끌어오지 않는다
 import { DEFAULT_FORMS, STATUS, FIELD_TYPES, BOX_ROLES, MAX_FIELDS, MAX_BOXES, COMMENT_MAX, mergeForms, normalizeForm, validateForm,
     validateValues, cleanValues, actionsFor, buildCreate, buildSave, buildSubmit, buildWithdraw, buildDecision,
     tardyPrefill, printFitLevel, rangeFields, rangeTimeField, fieldText, END_SUFFIX, RANGE_KIND, stampTime, sortDocs, docTitle, newFormId, lower, approverCandidates, whyNot,
@@ -828,7 +829,8 @@ async function addAfterFiles(d, files) {
         if (ck.ok) good.push(f); else bad.push(`${f.name}: ${ck.reason}`);
     });
     if (!good.length) { toast(bad[0], 5000); return; }
-    if (!confirm(`승인된 기안서에 아래 파일을 추가할까요?\n\n${good.map(f => f.name).join('\n')}\n\n올리면 지울 수 없고 작성자·결재자·관리자에게 보입니다.${bad.length ? `\n\n올리지 않는 파일:\n${bad.join('\n')}` : ''}`)) return;
+    if (!(await showConfirm(`승인된 기안서에 아래 파일을 추가할까요?\n\n${good.map(f => f.name).join('\n')}\n\n올리면 지울 수 없고 작성자·결재자·관리자에게 보입니다.${bad.length ? `\n\n올리지 않는 파일:\n${bad.join('\n')}` : ''}`,
+        { title: '파일을 추가할까요?', okText: '추가하기', danger: true }))) return;
     const ref = doc(S.db, DOCS, d.id);
     let done = 0;
     setLoading(true, '파일 올리는 중…');
@@ -1190,7 +1192,7 @@ async function renderEditor(main, { id, formId }) {
     };
     const removeFile = async (path) => {
         const a = ((d && d.attachments) || []).find(x => x.path === path);
-        if (!a || !confirm(`'${a.name}' 첨부를 지울까요?`)) return;
+        if (!a || !(await showConfirm(`'${a.name}' 첨부를 지울까요?`, { title: '첨부를 지울까요?', okText: '지우기', danger: true }))) return;
         setLoading(true, '지우는 중…');
         try {
             await writeAtts(list => list.filter(x => x.path !== path));

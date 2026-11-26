@@ -1,6 +1,6 @@
 // === js/admin-logic.js ===
 import { cleanPosition } from './lib/member-title.js?v=9a5f2a824905-0bafbd16';
-import { getAllDashboardDefinitions, readMenuItem } from './admin-ui.js?v=fe5c00f7ddcf-6be52dcb';
+import { getAllDashboardDefinitions, readMenuItem } from './admin-ui.js?v=ba87e4e22664-6be52dcb';
 import { withBuiltinMenus } from './menu-catalog.js?v=8219e3fbbda6-bda14b1d';
 import { buildResignedEmails } from './lib/resigned-emails.js?v=8d914278963b-7abcef2d';
 import { resolve as resolvePerm, menuNamesFor } from './lib/perm.js?v=c1e53d91da8e-49afeea3';

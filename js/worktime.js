@@ -15,7 +15,7 @@
 import { initializeFirebase } from './config.js?v=242bb63abbe9-dd1665a9';
 import { setShellContext, goHome, onBeforeLeaveSave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=b9a7199f3e1d-c80c27e9';
 import { memberNameFor } from './app-shell-data.js?v=e42c6a10ca7a-9319c795';
-import { escapeHtml as esc } from './utils.js?v=a8117fdf6a07-c756d71e';
+import { escapeHtml as esc, showConfirm } from './utils.js?v=b14a118c2b0c-7bf0fcab';
 import { doc, getDoc, setDoc, collection, getDocs, query, orderBy, startAt, endAt, documentId }
     from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
@@ -734,7 +734,8 @@ $('btn-delete-person').addEventListener('click', async () => {
     const warn = days > 0
         ? `\n\n이번 달에 ${days}일(${hoursText(workedMin)}) 기록이 있습니다.`
         : '';
-    if (!confirm(`'${p.name}' 을(를) 명부에서 지울까요?${warn}\n\n지난달 기록은 그대로 남지만 화면에서 볼 수 없게 됩니다.\n숨기기만 하려면 '사용 중' 을 끄세요.`)) return;
+    if (!(await showConfirm(`'${p.name}' 을(를) 명부에서 지울까요?${warn}\n\n지난달 기록은 그대로 남지만 화면에서 볼 수 없게 됩니다.\n숨기기만 하려면 '사용 중' 을 끄세요.`,
+        { title: '명부에서 지울까요?', okText: '지우기', danger: true }))) return;
 
     people = people.filter(x => x.id !== p.id);
     try {

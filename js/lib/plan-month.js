@@ -11,11 +11,11 @@
 //   금액·직원 이름 없음(담당 변경도 업무 이름·날짜·% 만).
 // ※ 순수 모듈(DOM·Firebase 없음). 테스트: tests/plan-month.test.js
 
-import { addDaysStr, dowOf, offDayOf, fillMix, planSettingsOf } from './plan-week.js?v=b2bddf63090f-f2dd7a70';
+import { addDaysStr, dowOf, offDayOf, fillMix, planSettingsOf } from './plan-week.js?v=f90a9596e539-f2dd7a70';
 import { leaveThresholdOf } from './plan-risks.js?v=c330f0b3df47-c72104cd';
 import { dailyTaskStats } from '../task-throughput.js?v=6c5add29d96b-0d55f842';
 import { taskListOf, ownerByPeriod, detectOwnerChanges, compareAround, pctChange } from './task-owner.js?v=82e303e4c972-e73c99c8';
-import { monthConfidence } from './plan-confidence.js?v=64da86ff8818-e15ea39f';
+import { monthConfidence } from './plan-confidence.js?v=aee9296728fd-e15ea39f';
 
 export const MONTH_LEVELS = Object.freeze({
     weeks: 8, seasonMinDays: 15, seasonMin: 0.7, seasonMax: 1.4, trendMin: 0.7, trendMax: 1.3,

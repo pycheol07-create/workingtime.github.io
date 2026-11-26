@@ -3,12 +3,12 @@
 //  - renderPredictionTab: 실적 예측 탭 (차트/KPI)
 //  - renderForecastTab: 업무 예상 탭 (시뮬레이션·요약 카드)
 
-import { predictFutureTrends } from './analysis-logic.js?v=9231a7c15e17-0bfe0ae3';
+import { predictFutureTrends } from './analysis-logic.js?v=a8ea0264d46f-0bfe0ae3';
 import { doc, getDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { mibalByArrival, makeArrivalLookup, makeArrivalsLookup } from './lib/mibal-forecast.js?v=60b17128e7b7-2e3b80a2';
 import { parseInspPacks, sampleCardsByArrival } from './lib/insp-packs.js?v=e3fa3546a650-16eb76b5';
 import { inspListCountFor } from './lib/insp-day.js?v=d859a7e39527-456c14c8';
-import { getSubscribedDate } from './app-sync.js?v=fc7e05c08193-68f6c921';
+import { getSubscribedDate } from './app-sync.js?v=27e6e35d51a5-ca1bb1f2';
 import { runDay } from './lib/refill-view.js?v=3416a867c2d7-24e9bb3d';
 import { parseRecDay, pickRecDay, recCount, applyLocRecCount, dayKey as recDayKey } from './lib/locrec-view.js?v=e93900011313-fdf32cdb';
 import { LOCREC_TASK } from './lib/feature-catalog.js?v=b88b1c1e60c1-81ffd467';
@@ -25,22 +25,22 @@ import { precursorOffGate, noneNextStats, noneNextObs, precursorStateOfDay as pr
 import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=553320652df2-c473a26d';
 import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
 import { saveView } from './view-state.js?v=c2e4bf06fdce-0da8b754';
-import { getTodayDateString, getRegularMembersForCount, showToast, showConfirm, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=a8117fdf6a07-c756d71e';
-import { groupIncomingRowsByArrival } from './widget-incoming-schedule.js?v=2416e849ddea-237bc1dd';
+import { getTodayDateString, getRegularMembersForCount, showToast, showConfirm, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=b14a118c2b0c-7bf0fcab';
+import { groupIncomingRowsByArrival } from './widget-incoming-schedule.js?v=4cffb65f59ad-237bc1dd';
 import { getIncomingQtyByDateFromCache, getIncomingDetailsByDateFromCache,
-         isIncomingCacheFreshToday } from './widget-incoming-schedule.js?v=2416e849ddea-237bc1dd';
+         isIncomingCacheFreshToday } from './widget-incoming-schedule.js?v=4cffb65f59ad-237bc1dd';
 import { getPlannedQuantitiesForDate, getPlannedTimeTasksForDate, getPlannedExcludeMinutesForDate, getPlannedAdminWorkersForDate,
          fetchPlannedData, savePlannedQuantities,
          saveForecastSnapshot, saveForecastSnapshotIfAbsent, deleteForecastSnapshot, fetchForecastSnapshots,
-         getForecastSnapshotForDate, historyLoadFailed, hasHistoryLoaded, fetchAllHistoryData } from './history-data-manager.js?v=fc7e05c08193-3ebc7e25';
+         getForecastSnapshotForDate, historyLoadFailed, hasHistoryLoaded, fetchAllHistoryData } from './history-data-manager.js?v=27e6e35d51a5-6e3a2ca6';
 import { decomposeAccuracy, summarizeAccuracyRows, aggregateByTask, excludeTasksForAccuracy } from './forecast-accuracy.js?v=14735a690ed1-00c766d3';
 import { computeDayProgress, buildProgressRows, projectFinish, spentMinutesOf,
-         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=53281bcfc6a8-40fe586a';
+         nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=1f5572453152-40fe586a';
 import { LUNCH_END_MIN } from './lib/calc.js?v=c29c2f406e7f-0cf37820';
 import { applyAdminWorkers, normalizeAdminWorkers, ADMIN_TASK_ID, DEFAULT_ADMIN_WORKERS,
          buildExcludedProgressRows, excludedActualByTask } from './lib/forecast-exclude.js?v=16797e217c0c-3d086ab1';
 import { taskUph, recentDays, RECENT_SPEED, recentTaskSpeeds } from './task-throughput.js?v=6c5add29d96b-0d55f842';
-import { normalizedUtilization } from './lib/ops-metrics.js?v=9a8bba742607-58d6bcbb';
+import { normalizedUtilization } from './lib/ops-metrics.js?v=4607b43e8a55-58d6bcbb';
 import { foldReasonFor, FOLD_REASON_TEXT, shouldSaveQty, shouldSaveTime,
          normalizeTimeEntry } from './lib/sim-fold.js?v=47dacd3eb964-9cb392d3';
 import { learnCarryPerOffDay, backlogFactor, carryReason, carrySourceNote,
@@ -4733,7 +4733,8 @@ const setupSimulationListeners = () => {
         if (!e.target?.closest?.('#sim-snapshot-cancel')) return;
         const dateStr = document.getElementById('sim-target-date')?.value;
         if (!dateStr) return;
-        if (!confirm(`${dateStr} 계획 확정을 취소할까요?\n\n작업량 저장값과 계산은 그대로이고, 정확도 비교에서만 빠집니다.`)) return;
+        if (!(await showConfirm(`${dateStr} 계획 확정을 취소할까요?\n\n작업량 저장값과 계산은 그대로이고, 정확도 비교에서만 빠집니다.`,
+            { title: '계획 확정을 취소할까요?', okText: '확정 취소하기', cancelText: '그대로 두기', danger: true }))) return;
         await deleteForecastSnapshot(dateStr);
         forgetTodayStatus();
         accuracySnapshots = null;
@@ -4758,7 +4759,8 @@ const setupSimulationListeners = () => {
         const drop = e.target?.closest?.('.accuracy-drop');
         if (drop && drop.dataset.date) {
             const d = drop.dataset.date;
-            if (!confirm(`${d}의 확정 계획을 지울까요?\n\n그날은 정확도 비교에서 빠집니다. 업무 기록과 실적은 그대로입니다.`)) return;
+            if (!(await showConfirm(`${d}의 확정 계획을 지울까요?\n\n그날은 정확도 비교에서 빠집니다. 업무 기록과 실적은 그대로입니다.`,
+                { title: '확정 계획을 지울까요?', okText: '지우기', danger: true }))) return;
             if (await deleteForecastSnapshot(d)) {
                 forgetTodayStatus();
                 if (accuracySnapshots) delete accuracySnapshots[d];

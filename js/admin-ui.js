@@ -4,7 +4,7 @@
 import { cleanPosition, POSITIONS } from './lib/member-title.js?v=9a5f2a824905-0bafbd16';
 import { withBuiltinMenus, MENU_TARGETS, isActionMenuName, BUILTIN_MENU_ITEMS, HIDDEN_MENU_PAGES } from './menu-catalog.js?v=8219e3fbbda6-bda14b1d';
 import { menuLabel } from './app-shell-data.js?v=e42c6a10ca7a-9319c795';   // 보이는 이름만 바꾼 메뉴(예: 내 연차관리 → 내 연차·근태관리)
-import { renderPermissionPanel } from './admin-perm.js?v=d8c85b575368-c709b9a4';
+import { renderPermissionPanel } from './admin-perm.js?v=4a1e4ae05a24-80655428';
 import { taskIdOf, isSystemTaskId } from './lib/task-ids.js?v=9c41e71742ef-83b1f46d';
 import { duplicateTasks, taskWidgetDefs, taskIdOfWidget, taskWidgetId } from './lib/task-config-sync.js?v=970a6d3589ff-85dd0720';
 

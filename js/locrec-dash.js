@@ -7,7 +7,7 @@
 // ⚠️ Firebase 를 새로 만들지 않는다 — index 의 State.db · State.auth 를 넘긴다. 표시에 남는 이름은 memberNameFor(직원 이름)만.
 // ⚠️ 창에는 role="dialog" · data-act 를 쓰지 않는다(업무마감봇 화면 보호 — js/locrec-table.js).
 import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
-import { showToast } from './utils.js?v=a8117fdf6a07-c756d71e';
+import { showToast } from './utils.js?v=b14a118c2b0c-7bf0fcab';
 import { can } from './lib/perm.js?v=c1e53d91da8e-49afeea3';
 import { LOCREC_TASK } from './lib/feature-catalog.js?v=b88b1c1e60c1-81ffd467';
 import { isT } from './task-names.js?v=33eb5ccd69bc-26ab8ff7';
@@ -22,7 +22,7 @@ let loading = null;
 async function load() {
     if (mods) return mods;
     if (!loading) {
-        loading = Promise.all([import('./locrec-store.js?v=0f6edac0e2be-1a43b116'), import('./locrec-table.js?v=7f44c7e38b81-483d065e')]).then(([s, t]) => {
+        loading = Promise.all([import('./locrec-store.js?v=0b7dc2ac35fc-8cb15bb8'), import('./locrec-table.js?v=ed58549672bf-be58abb2')]).then(([s, t]) => {
             const store = s.getLocRecStore({
                 db: State.db, auth: State.auth,
                 getMemberName: () => memberNameFor(State.appConfig && State.appConfig.memberEmails,

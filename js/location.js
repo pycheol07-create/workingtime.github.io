@@ -1,7 +1,7 @@
 import { initializeFirebase, loadAppConfig } from './config.js?v=242bb63abbe9-dd1665a9';
 import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, writeBatch, getDocs, query, where, documentId, deleteField, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { escapeHtml as escAttr } from './utils.js?v=a8117fdf6a07-c756d71e';
+import { escapeHtml as escAttr, showConfirm } from './utils.js?v=b14a118c2b0c-7bf0fcab';
 import { cleanRaw, isCostCol, isDroppedHeader, supplierCodeOf } from './lib/sensitive-cols.js?v=e134acbb436b-50d4f3cd';
 import { multiLocGroups, reserveLocIds, normLocId } from './lib/multi-loc.js?v=eaa90e2a913d-3eb38b15';
 import { codeOfRowB, pickRowB, checkUploadB, checkPermanent, newLocIds } from './lib/upload-check.js?v=818a8ddddd83-a4fba7cb';
@@ -11,11 +11,11 @@ import { memberNameFor } from './app-shell-data.js?v=e42c6a10ca7a-9319c795';
 import { menuConfigOf } from './lib/perm.js?v=c1e53d91da8e-49afeea3';
 import { readHash, writeHash, onHashNav } from './hash-state.js?v=41d515385973-40fe10fb';
 import { initPageNav } from './page-nav.js?v=2d9f4a86d931-b8f40ef7';
-import { initRefillCard } from './refill-card.js?v=b512cde12996-fbc0ffd6';
-import { initLocRecCard } from './locrec-card.js?v=d75ce726f049-8da41d23';
-import { getLocRecStore, peekLocRecStore } from './locrec-store.js?v=0f6edac0e2be-1a43b116';   // 오늘 변경 추천 예정 자리·최근 [처리함] 이동(엑셀 경고)
-import { initRebuildBar } from './rebuild-bar.js?v=9305ba731dd0-07a1bb60';
-import { mountRouteSlot } from './locrec-route-card.js?v=8ada066ef2d9-3f4fe9bc';
+import { initRefillCard } from './refill-card.js?v=397df2d049fc-fbc0ffd6';
+import { initLocRecCard } from './locrec-card.js?v=6d717084d331-8da41d23';
+import { getLocRecStore, peekLocRecStore } from './locrec-store.js?v=0b7dc2ac35fc-8cb15bb8';   // 오늘 변경 추천 예정 자리·최근 [처리함] 이동(엑셀 경고)
+import { initRebuildBar } from './rebuild-bar.js?v=1dc37e43d5a2-07a1bb60';
+import { mountRouteSlot } from './locrec-route-card.js?v=5643943914a9-3f4fe9bc';
 import { whenPerm, onPerm, canFeature } from './feature-gate.js?v=7eaa46dbb8e9-a5458f75';   // 권한 개편 5단계 — 카드는 권한이 확인된 뒤에만 시작
 import { mountBusyBanner, createUploadStatus } from './busy-banner.js?v=4fb4e0ed4621-8677e3fb';
 import { uploadBlockText } from './lib/busy-view.js?v=659be9925d1c-88862baa';
@@ -23,7 +23,7 @@ import { uploadStockView, ezStockView, stockSrcOf, countAuto, autoBadge } from '
 import { INCOMING_WAIT_MAX_MS, SHEET_REQ_DAILY_MAX, incomingReadAt, requestServerMs, judgeIncomingSnap, createRunGuard, guardedRun, once, waitTimeoutText } from './lib/incoming-wait.js?v=47c3cd807778-95e00b98';
 import { angleSizeOf, SERVER_DEFAULTS, makeRankers, isEtcLocObj } from './lib/loc-recommend.js?v=f407d005b8a8-df186d4d';
 import { comboOf, isExcludedSlot, slotDigits, parseCards } from './lib/loc-cards.js?v=436e88b31445-bac5ec02';   // 자리 → 'A-1' 조합(카드 이름·제외 조합 같은 규칙)
-import { initLocSetPanel } from './locset-panel.js?v=2741688ddd93-cbea5a2b';   // 환경설정 '추천·채우기' 탭(변경 추천 설정·채우기 설정)
+import { initLocSetPanel } from './locset-panel.js?v=0126144be34d-3938a79c';   // 환경설정 '추천·채우기' 탭(변경 추천 설정·채우기 설정)
 // 변경 추천 [처리함]이 옮긴 자리의 하루 표시(locRecMove)·오늘 재고 올리기 전 충돌 경고 — 계획·판정은 js/lib/locrec-apply.js
 import { zoneDocIdOf, moveBadge, uploadMoveConflicts, uploadConflictText, isDesignatedEmpty } from './lib/locrec-apply.js?v=7cca5e5163c6-5def8df3';
 import { dayKey as kstDayKey } from './lib/refill-view.js?v=3416a867c2d7-24e9bb3d';
@@ -3526,7 +3526,8 @@ window.handleRowClick = async function(event, locId) {
         if (loc.preAssigned) { 
             // 공백 무시 비교 — 예전에 탭이 붙은 채 저장된 선지정도 같은 상품으로 본다(2026-10-22)
             if (String(loc.preAssignedCode || '').replace(/\s+/g, '') === String(window.selectedPreAssignItem.code || '').replace(/\s+/g, '')) {
-                if (confirm(`이미 '${loc.preAssignedCode}' 상품으로 선지정된 자리입니다.\n지정을 해제(취소)하시겠습니까?`)) {
+                if (await showConfirm(`이미 '${loc.preAssignedCode}' 상품으로 선지정된 자리입니다.\n지정을 해제(취소)하시겠습니까?`,
+                    { title: '선지정을 해제할까요?', okText: '해제하기', danger: true })) {
                     try {
                         await setDoc(doc(db, LOC_COLLECTION, zoneDocId), {
                             [locId]: { preAssigned: false, preAssignedCode: '', preAssignedName: '', preAssignedQty: '', preAssignedAt: 0, codeTag: '', codeTagAt: 0, code: '', name: '', option: '', stock: '0', ezAt: deleteField(), updatedAt: new Date() }
@@ -3541,7 +3542,8 @@ window.handleRowClick = async function(event, locId) {
                     return;
                 } else return;
             }
-            if (!confirm(`이미 다른 상품(${loc.preAssignedCode})이 선지정된 자리입니다.\n기존 선지정을 무시하고 덮어쓰시겠습니까?`)) return; 
+            if (!(await showConfirm(`이미 다른 상품(${loc.preAssignedCode})이 선지정된 자리입니다.\n기존 선지정을 무시하고 덮어쓰시겠습니까?`,
+                { title: '선지정을 덮어쓸까요?', okText: '덮어쓰기', danger: true }))) return; 
         } else {
             if (hasContent) { alert("이미 물건이 들어있는 자리입니다. 텅 빈 빈칸을 선택해주세요."); return; }
         }
@@ -4001,7 +4003,8 @@ if (fileInputA) {
                 const _lrs = peekLocRecStore();
                 const _mvConf = uploadMoveConflicts(result.rows, originalData, kstDayKey(Date.now()), _lrs ? _lrs.recentMoves() : []);
                 if (_mvConf.length && !confirm(uploadConflictText(_mvConf))) return;
-                if (!confirm(`오늘 재고 파일 「${file.name}」 ${result.rows.length.toLocaleString()}줄로 기존 로케이션 재고를 덮어씁니다.\n(파일에 없는 자리의 재고는 비워집니다 · 선지정된 자리는 보호됩니다)\n\n계속할까요?`)) return;
+                if (!(await showConfirm(`오늘 재고 파일 「${file.name}」 ${result.rows.length.toLocaleString()}줄로 기존 로케이션 재고를 덮어씁니다.\n(파일에 없는 자리의 재고는 비워집니다 · 선지정된 자리는 보호됩니다)\n\n계속할까요?`,
+                    { title: '로케이션 재고를 덮어쓸까요?', okText: '덮어쓰기', danger: true }))) return;
                 window.showLoading('일일 재고/상품 데이터를 최신화 중입니다...');
                 // 다른 사람 화면에 '오늘 재고 올리는 중' 띠 — 끝나면 done/failed. 기록 실패는 업로드를 막지 않는다
                 // 시작 기록은 트랜잭션 — 두 사람이 확인창을 동시에 눌러도 한쪽만 통과한다(남은 쪽은 여기서 막힘)
@@ -4035,7 +4038,8 @@ if (fileInputPerm) {
                 const chk = checkPermanent(result.rows);
                 if (!chk.ok) { _showUploadDiagnosisAlert('no-required-header', 'permanent'); return; }
                 const newCnt = newLocIds(result.rows, originalData.map(d => d.id)).length;
-                if (!confirm(`도면 파일 「${file.name}」 ${chk.valid.toLocaleString()}줄로 동/위치/칸수를 덮어씁니다 · 없던 로케이션 ${newCnt.toLocaleString()}개가 새로 생깁니다.\n\n계속할까요?`)) return;
+                if (!(await showConfirm(`도면 파일 「${file.name}」 ${chk.valid.toLocaleString()}줄로 동/위치/칸수를 덮어씁니다 · 없던 로케이션 ${newCnt.toLocaleString()}개가 새로 생깁니다.\n\n계속할까요?`,
+                    { title: '도면 데이터를 덮어쓸까요?', okText: '덮어쓰기', danger: true }))) return;
                 window.showLoading('도면(동/위치) 영구 데이터를 덮어쓰기 세팅 중입니다...');
                 const _bg = await window.__locBusy.begin('permanent');
                 if (_bg.busy) { window.hideLoading(); alert(uploadBlockText(_bg.busy)); return; }
@@ -4470,12 +4474,14 @@ window.openOrderAnalysisReport = async function() {
 
 // 누적 데이터 전체 초기화
 window.resetOrderAnalysis = async function() {
-    if (!confirm('함께 팔리는 상품 조합·통계·처리한 주문 기록이 모두 지워집니다. 되돌릴 수 없습니다. 계속할까요?')) return;
+    if (!(await showConfirm('함께 팔리는 상품 조합·통계·처리한 주문 기록이 모두 지워집니다. 되돌릴 수 없습니다. 계속할까요?',
+        { title: '누적 데이터를 초기화할까요?', okText: '계속', danger: true }))) return;
     // 지워질 건수 — 이미 불러 둔 요약(_cachedOrderMeta)에 있을 때만 붙인다(여기서 새로 읽지 않음)
     const _rm = window._cachedOrderMeta || {};
     const _rmCnt = (label, n, unit) => (Number(n) > 0 ? ` ${label} ${Number(n).toLocaleString()}${unit}` : '');
     const _rmDetail = [_rmCnt('짝', _rm.totalPairs, '개'), _rmCnt('상품', _rm.totalCodes, '개'), _rmCnt('처리한 주문', _rm.totalProcessedOrders, '건')].filter(Boolean).join(',');
-    if (!confirm(`주문 짝 통계·주문 통계·처리한 주문 기록이 모두 삭제됩니다.${_rmDetail ? `\n(현재 기록:${_rmDetail})` : ''}\n정말 계속하시겠습니까?`)) return;
+    if (!(await showConfirm(`주문 짝 통계·주문 통계·처리한 주문 기록이 모두 삭제됩니다.${_rmDetail ? `\n(현재 기록:${_rmDetail})` : ''}\n정말 계속하시겠습니까?`,
+        { title: '정말 모두 삭제할까요?', okText: '모두 삭제', danger: true }))) return;
     window.showLoading('누적 데이터 삭제 중...');
     try {
         const colls = [ORDER_PAIRS_COLL, ORDER_STATS_COLL, PROCESSED_ORDERS_COLL];
@@ -5480,7 +5486,8 @@ window.deleteSelectedLocations = async () => {
     if (checkedIds.length === 0) return alert("삭제할 대상을 선택하세요.");
     if (window.__locBusy && !(await window.__locBusy.confirmIfUploading('일괄 수정'))) return;   // 업로드 중 확인
     const _preview = checkedIds.slice(0, 5).join(', ') + (checkedIds.length > 5 ? ` 외 ${checkedIds.length - 5}개` : '');
-    if (!confirm(`선택한 로케이션 ${checkedIds.length}개를 삭제합니다. 되돌릴 수 없습니다.\n대상: ${_preview}\n(그 자리의 재고·선지정 정보도 함께 지워집니다)\n\n삭제할까요?`)) return;
+    if (!(await showConfirm(`선택한 로케이션 ${checkedIds.length}개를 삭제합니다. 되돌릴 수 없습니다.\n대상: ${_preview}\n(그 자리의 재고·선지정 정보도 함께 지워집니다)\n\n삭제할까요?`,
+        { title: '로케이션을 삭제할까요?', okText: '삭제하기', danger: true }))) return;
     try {
         let batch = writeBatch(db); let batchCount = 0;
         for (let i = 0; i < checkedIds.length; i++) {

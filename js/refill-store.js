@@ -6,7 +6,7 @@
 // ⚠️ 체크·요청에 남기는 이름은 getMemberName()(= memberNameFor, 직원 이름)만. 없으면 '이름 없음' — 이메일은 쓰지 않는다.
 // 💰 그날 지시서 문서(refillDay_*)에는 엑셀(base64)이 들어 있다 — 날짜나 rev 가 바뀔 때만 getDoc 1회. 매번 구독하지 않는다.
 import { doc, getDoc, onSnapshot, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { getHolidayName } from './utils.js?v=a8117fdf6a07-c756d71e';
+import { getHolidayName } from './utils.js?v=b14a118c2b0c-7bf0fcab';
 import { tsMs, dayKey, lastDays, parseDay, progress, runDay, reqUi, b64ToBytes, fileNameOf } from './lib/refill-view.js?v=3416a867c2d7-24e9bb3d';
 import { laterMs } from './lib/rebuild-view.js?v=c6f3c13017e8-4d8ef11f';
 

@@ -10,6 +10,7 @@
 // 불러오기에 실패한 목록은 저장하지 않는다(빈 목록으로 덮어 스캐너 매핑이 지워지는 것을 막음 — 기존과 같다).
 import { doc, getDoc, setDoc, updateDoc, deleteField, FieldPath } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { zoneKey, capacityFor, emptyFillOf } from './lib/mibal2-calc.js?v=2d0e36a43bd4-e8c582c0';
+import { showConfirm } from './utils.js?v=b14a118c2b0c-7bf0fcab';
 
 const CHINA = 'ChinaStockGoods';
 const ADMIN_ONLY = '관리자만 바꿀 수 있습니다';
@@ -162,7 +163,7 @@ export function setupLiveAdmin(ctx) {
             writeXls([['상품코드', '위치'], ...entries], '위치매핑.xls');
         });
         $('lv-locmap-clear').addEventListener('click', async () => {
-            if (!Object.keys(locMap).length || !confirm('위치매핑을 전부 삭제할까요? (되돌릴 수 없습니다)')) return;
+            if (!Object.keys(locMap).length || !(await showConfirm('되돌릴 수 없습니다.', { title: '위치매핑을 전부 삭제할까요?', okText: '전부 삭제', danger: true }))) return;
             locMap = {};
             try { await saveLocMap(); } catch (err) { alert('저장 실패: ' + err.message); await loadLocMap(); renderLocMap(); return; }
             renderLocMap(); showToast('🗑️ 전체 삭제됨');
@@ -179,7 +180,7 @@ export function setupLiveAdmin(ctx) {
             writeXls([['바코드', '상품코드', '사유'], ...entries.map(([b, v]) => [b, baCode(v), baMemo(v)])], '오류바코드매칭.xls');
         });
         $('lv-ba-clear').addEventListener('click', async () => {
-            if (!Object.keys(alias).length || !confirm('오류바코드매칭을 전부 삭제할까요? (되돌릴 수 없습니다)')) return;
+            if (!Object.keys(alias).length || !(await showConfirm('되돌릴 수 없습니다.', { title: '오류바코드매칭을 전부 삭제할까요?', okText: '전부 삭제', danger: true }))) return;
             alias = {};
             try { await saveAlias(); } catch (err) { alert('저장 실패: ' + err.message); await loadAlias(); renderAlias(); return; }
             renderAlias(); showToast('🗑️ 전체 삭제됨');
@@ -320,7 +321,7 @@ export function setupLiveAdmin(ctx) {
             <td style="padding:6px; white-space:nowrap;"><button type="button" class="d-btn d-btn-sm lv-lm-edit" data-c="${esc(c)}">수정</button> <button type="button" class="d-btn d-btn-sm lv-lm-del" data-c="${esc(c)}">삭제</button></td></tr>`).join('')
             : '<tr><td colspan="3" class="t-3" style="padding:18px;">등록된 위치매핑이 없습니다. 엑셀 올리기 또는 위에서 직접 추가하세요.</td></tr>';
         tb.querySelectorAll('.lv-lm-del').forEach(x => x.addEventListener('click', async () => {
-            if (!confirm(`[${x.dataset.c}] 매핑을 삭제할까요?`)) return;
+            if (!(await showConfirm(`[${x.dataset.c}] 매핑을 삭제할까요?`, { title: '매핑을 삭제할까요?', okText: '삭제하기', danger: true }))) return;
             delete locMap[x.dataset.c];
             try { await saveLocMap(); } catch (err) { alert('저장 실패: ' + err.message); await loadLocMap(); renderLocMap(); return; }
             renderLocMap(); showToast('🗑️ 삭제됨 — 스캐너 즉시 반영');
@@ -394,7 +395,7 @@ export function setupLiveAdmin(ctx) {
             <td style="padding:6px; white-space:nowrap;"><button type="button" class="d-btn d-btn-sm lv-ba-edit" data-b="${esc(b)}">수정</button> <button type="button" class="d-btn d-btn-sm lv-ba-del" data-b="${esc(b)}">삭제</button></td></tr>`).join('')
             : '<tr><td colspan="4" class="t-3" style="padding:18px;">등록된 매칭이 없습니다. 엑셀 올리기 또는 위에서 직접 추가하세요.</td></tr>';
         tb.querySelectorAll('.lv-ba-del').forEach(x => x.addEventListener('click', async () => {
-            if (!confirm(`[${x.dataset.b}] 매칭을 삭제할까요?`)) return;
+            if (!(await showConfirm(`[${x.dataset.b}] 매칭을 삭제할까요?`, { title: '매칭을 삭제할까요?', okText: '삭제하기', danger: true }))) return;
             delete alias[x.dataset.b];
             try { await saveAlias(); } catch (err) { alert('저장 실패: ' + err.message); await loadAlias(); renderAlias(); return; }
             renderAlias();

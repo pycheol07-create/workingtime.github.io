@@ -1,6 +1,6 @@
 // === js/widget-incoming-schedule.js ===
 import { doc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { escapeHtml } from './utils.js?v=a8117fdf6a07-c756d71e';
+import { escapeHtml } from './utils.js?v=b14a118c2b0c-7bf0fcab';
 import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
 // 🚚 메인 대시보드 "주요 일정 및 알림" 위젯의 입고 예정 섹션.
 //

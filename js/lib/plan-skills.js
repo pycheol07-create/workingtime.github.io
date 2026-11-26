@@ -15,7 +15,7 @@
 // ※ 순수 모듈(DOM·Firebase 없음). 테스트: tests/plan-skills.test.js
 
 import { taskDays, taskListOf, uphOf, qtyDaysOf, SOLO_SHARE, MIN_SOLO_DAYS, addDays } from './task-owner.js?v=82e303e4c972-e73c99c8';
-import { isMemberActiveOn } from '../utils.js?v=a8117fdf6a07-c756d71e';
+import { isMemberActiveOn } from '../utils.js?v=b14a118c2b0c-7bf0fcab';
 
 export const SKILL_LEVELS = Object.freeze({ ableHours: 8, ableDays: 3, skilledUphRatio: 0.9, windowDays: 90, recentWeeks: 8 });
 export const LEVEL_RANK = Object.freeze({ skilled: 3, able: 2, exp: 1, none: 0 });

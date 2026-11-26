@@ -2,7 +2,7 @@
 // 📍 운영 마일스톤 관리: 변경사항 기록 + before/after KPI 자동 비교
 
 import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
-import { showToast, getTodayDateString, escapeHtml, friendlyFirebaseError } from './utils.js?v=a8117fdf6a07-c756d71e';
+import { showToast, getTodayDateString, escapeHtml, friendlyFirebaseError, showConfirm } from './utils.js?v=b14a118c2b0c-7bf0fcab';
 import { aliasHistoryView } from './lib/task-alias-view.js?v=2e131477eb8e-af660ceb';
 import { TASK, tName } from './task-names.js?v=33eb5ccd69bc-26ab8ff7';
 import { milestoneTaskFilter, milestoneTaskMatch, milestoneView } from './lib/milestone-tasks.js?v=f6cd161422ca-434e8f58';
@@ -312,7 +312,7 @@ async function saveMilestone() {
 }
 
 async function deleteMilestone(id) {
-    if (!confirm('이 마일스톤을 삭제하시겠습니까?')) return;
+    if (!(await showConfirm('', { title: '이 마일스톤을 삭제할까요?', okText: '삭제하기', danger: true }))) return;
     try {
         await deleteDoc(doc(colRef(), id));
         showToast('삭제되었습니다.');

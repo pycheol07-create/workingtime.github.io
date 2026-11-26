@@ -1,10 +1,10 @@
 // === js/ui-history-leave.js ===
 import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
-import { showToast, isMemberActiveOn, friendlyFirebaseError, escapeHtml } from './utils.js?v=a8117fdf6a07-c756d71e';
+import { showToast, isMemberActiveOn, friendlyFirebaseError, escapeHtml, showConfirm } from './utils.js?v=b14a118c2b0c-7bf0fcab';
 import { doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // ✅ 엑셀 변환 함수 불러오기
-import { downloadLeaveLedgerExcel } from './history-excel.js?v=412c43ac2ab2-084171ab';
+import { downloadLeaveLedgerExcel } from './history-excel.js?v=80cd904f3fd2-084171ab';
 import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=152edbc1d09a-ab7817f6';
 import { updateLeaveSchedule } from './config.js?v=242bb63abbe9-dd1665a9';
 
@@ -410,7 +410,7 @@ async function openLeaveManager(member) {
     renderList();
 
     // 이벤트 위임으로 수정/삭제 처리
-    document.getElementById('lm-list-container').addEventListener('click', (e) => {
+    document.getElementById('lm-list-container').addEventListener('click', async (e) => {
         const btn = e.target;
         const action = btn.dataset.action;
         const id = btn.dataset.id;
@@ -432,7 +432,7 @@ async function openLeaveManager(member) {
         } else if(action === 'delete') {
             const l = memberLeaves.find(x => x.id === id);
             if(!l) return;
-            if(confirm(`이 연차 내역을 삭제할까요?\n\n${member} · ${l.type} · ${leaveDateLabel(l)}`)) {
+            if (await showConfirm(`${member} · ${l.type} · ${leaveDateLabel(l)}`, { title: '이 연차 내역을 삭제할까요?', okText: '삭제하기', danger: true })) {
                 // 화면 목록은 저장이 성공한 뒤에 바꾼다(실패하면 화면과 서버가 달라지지 않게)
                 saveChanges(memberLeaves.filter(x => x.id !== id));
             }

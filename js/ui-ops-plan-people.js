@@ -9,12 +9,12 @@
 import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
 import { aliasHistoryView } from './lib/task-alias-view.js?v=2e131477eb8e-af660ceb';
 import { taskNameOf, TASK } from './lib/task-ids.js?v=9c41e71742ef-83b1f46d';
-import { skillMatrix, levelCounts, busFactor, trainCandidates, redactForOutput, LEVEL_LABEL, LEVEL_RANK, PEOPLE_NOTE } from './lib/plan-skills.js?v=a669d61c152c-166a535f';
-import { draftAssignment, sumAssignCounts } from './lib/plan-assign.js?v=2a4b5e80e278-a51dcf00';
-import { staffNamesOf } from './ui-history-prediction.js?v=fc7e05c08193-6da24bce';
-import { buildOwnerAdvice, adviceForOutput } from './lib/plan-owner-advice.js?v=fb79c9ea6f71-7e84deed';
-import { nextWeekRange, offDayOf } from './lib/plan-week.js?v=b2bddf63090f-f2dd7a70';
-import { esc, n1, fmtDay, card } from './ui-ops-plan-parts.js?v=1d203766674c-895d8afe';
+import { skillMatrix, levelCounts, busFactor, trainCandidates, redactForOutput, LEVEL_LABEL, LEVEL_RANK, PEOPLE_NOTE } from './lib/plan-skills.js?v=469f2ecc6f64-166a535f';
+import { draftAssignment, sumAssignCounts } from './lib/plan-assign.js?v=e37d1b8006dc-a51dcf00';
+import { staffNamesOf } from './ui-history-prediction.js?v=27e6e35d51a5-d20e01d1';
+import { buildOwnerAdvice, adviceForOutput } from './lib/plan-owner-advice.js?v=00ed7b89b14e-7e84deed';
+import { nextWeekRange, offDayOf } from './lib/plan-week.js?v=f90a9596e539-f2dd7a70';
+import { esc, n1, fmtDay, card } from './ui-ops-plan-parts.js?v=65a5f815db05-895d8afe';
 
 // 숙련도 매트릭스 캐시 — 이력 길이·설정·오늘이 같으면 다시 계산하지 않는다
 let mCache = null;

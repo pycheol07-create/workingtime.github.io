@@ -4,21 +4,21 @@ import {
     generateId,
     saveStateToFirestore,
     debouncedSaveState
-} from './app-data.js?v=cf9ca9e80c34-c4996a74';
+} from './app-data.js?v=30feb9804a43-c4996a74';
 
 import {
     appState, db, auth
 } from './state.js?v=c7f5fc984ef9-a2ce38c0';
 
-import { calcElapsedMinutes, getCurrentTime, showToast, getTodayDateString } from './utils.js?v=a8117fdf6a07-c756d71e';
+import { calcElapsedMinutes, getCurrentTime, showToast, getTodayDateString } from './utils.js?v=b14a118c2b0c-7bf0fcab';
 import { doc, collection, setDoc, updateDoc, writeBatch, query, where, getDocs, getDocsFromServer, limit, increment, deleteDoc, deleteField, runTransaction, FieldPath } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // ✨ 점심시간 자동화 후 이력(History)에도 즉시 반영하기 위해 추가
-import { syncTodayToHistory } from './history-data-manager.js?v=fc7e05c08193-3ebc7e25';
+import { syncTodayToHistory } from './history-data-manager.js?v=27e6e35d51a5-6e3a2ca6';
 // 지각 기준·당일 근태 중복 판정 — 출근시각 수정(history-data-manager)·근태 저장과 같은 규칙
 import { tardyThreshold, isTardyClockIn, findDailyLeaveDup, checkClockInCancel, removeAutoTardyOf } from './lib/attendance-guard.js?v=2a8059f9ce4c-c8aba679';
 // 업무를 끝낸 뒤 남은 잠금(activeLocks)을 바로 확인하게 알린다 — 다른 탭은 10분 안전망만 돈다
-import { markLocalWorkEnded } from './app-sync.js?v=fc7e05c08193-68f6c921';
+import { markLocalWorkEnded } from './app-sync.js?v=27e6e35d51a5-ca1bb1f2';
 
 
 const getWorkRecordsCollectionRef = () => {

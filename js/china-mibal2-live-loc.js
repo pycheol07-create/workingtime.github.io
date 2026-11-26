@@ -13,7 +13,8 @@ import { doc, getDoc, getDocs, setDoc, collection, query, where, documentId } fr
 import { buildLocIndex } from './lib/mibal2-rows.js?v=221b7a831bbe-37c39e3c';
 import { locSourceOf, locFreshMsOf, locStaleReason } from './lib/mibal2-live.js?v=7ccac6277373-d7d6b954';
 import { locPartsArr, mergeCsvLocs } from './lib/loc-mode.js?v=cbf323cf3e0b-33e59b85';
-import { readSheetRowsAOA } from './china-mibal2-live-admin.js?v=e3abc8aa71fa-5f1efc15';
+import { readSheetRowsAOA } from './china-mibal2-live-admin.js?v=f86563a8eb18-7200c875';
+import { showConfirm } from './utils.js?v=b14a118c2b0c-7bf0fcab';
 
 const CHINA = 'ChinaStockGoods';
 const NUM_LOC_SHARDS = 8;
@@ -112,7 +113,8 @@ export function setupLiveLoc(ctx) {
     async function resetAll() {
         let cnt = '?';
         try { cnt = Object.keys(assignMapOf(await readShards())).length.toLocaleString(); } catch (e) { /* 세지 못해도 묻는다 */ }
-        if (!confirm(`위치 데이터를 초기화할까요? 되돌릴 수 없습니다.\n\n지워지는 것: 당일·기존재고 위치 지정 ${cnt}개 상품(전체)\n유지되는 것: 부족수량·스캐너 자료`)) return;
+        if (!(await showConfirm(`되돌릴 수 없습니다.\n\n지워지는 것: 당일·기존재고 위치 지정 ${cnt}개 상품(전체)\n유지되는 것: 부족수량·스캐너 자료`,
+            { title: '위치 데이터를 초기화할까요?', okText: '초기화', danger: true }))) return;
         setLoading(true, '위치 데이터 초기화 중...');
         try {
             for (let i = 0; i < NUM_LOC_SHARDS; i++) await setDoc(doc(db, CHINA, 'LOC_SHARD_' + i), { map: {}, updatedAt: new Date() });
@@ -129,7 +131,8 @@ export function setupLiveLoc(ctx) {
         setLoading(false);
         const cnt = Object.values(assign).filter(v => (v.sub || '') === 'existing').length;
         if (!cnt) { alert('초기화할 기존재고 내역이 없습니다.'); return; }
-        if (!confirm(`기존재고 위치 이동 내역 ${cnt}건을 삭제할까요?\n(당일입고 위치확인은 유지됩니다. 되돌릴 수 없습니다.)`)) return;
+        if (!(await showConfirm(`기존재고 위치 이동 내역 ${cnt}건을 삭제할까요?\n(당일입고 위치확인은 유지됩니다. 되돌릴 수 없습니다.)`,
+            { title: '기존재고 내역을 삭제할까요?', okText: '삭제하기', danger: true }))) return;
         setLoading(true, '기존재고 내역 삭제 중...');
         try {
             const byShard = {};

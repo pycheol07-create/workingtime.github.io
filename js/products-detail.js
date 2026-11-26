@@ -7,14 +7,14 @@
 // 기본정보 편집: 관리자만(D5). 같은 트랜잭션 헬퍼(버킷 + META rev + 이력, ver 비교).
 import { doc, getDoc, getDocs, collection, query, where, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { S, countRead, locOf, fmtDateTime, tsMs, applyLocalProduct, putLocalNote, noteHistory } from './products-store.js?v=12e37e026ce6-ee5ce71b';
-import { esc, toast, setHead, isLocOld } from './products.js?v=d1546d41d745-749f10a1';
-import { statusPill } from './products-list.js?v=d1546d41d745-b6d23b13';
-import { renderCostCard, renderCostHistory } from './products-cost.js?v=d1546d41d745-b46a7823';
+import { esc, toast, setHead, isLocOld } from './products.js?v=cd0dc23603d4-749f10a1';
+import { statusPill } from './products-list.js?v=cd0dc23603d4-b6d23b13';
+import { renderCostCard, renderCostHistory } from './products-cost.js?v=cd0dc23603d4-b46a7823';
 import { writeBucket, saveNote, NoteConflict } from './products-write.js?v=c12131c8d88b-699dc490';
 import { catalogBucketId, CATALOG_BUCKETS } from './lib/product-bucket.js?v=842897a6efab-a72f5a26';
 import { diffProduct, FIELD_LABEL, NAME_MAX, TEXT_MAX } from './lib/product-excel-rows.js?v=acc096d72726-b7ba4cab';
 import { parseNum } from './lib/product-price.js?v=960affe3b8e6-35ad98ac';
-import { friendlyFirebaseError } from './utils.js?v=a8117fdf6a07-c756d71e';   // 원시 오류 코드 대신 할 일 한 줄
+import { friendlyFirebaseError, showConfirm } from './utils.js?v=b14a118c2b0c-7bf0fcab';   // 원시 오류 코드 대신 할 일 한 줄
 import { sidebarLinkTarget } from './app-shell-data.js?v=e42c6a10ca7a-9319c795';   // 열기 방식(같은 탭/이름 붙은 창)은 한 곳에서
 
 const LOCATION_URL = 'location.html';
@@ -192,7 +192,8 @@ function renderMemo(el, pid) {
         } catch (e) {
             if (e instanceof NoteConflict) {
                 const c = e.cur;
-                const ok = confirm(`다른 사람이 먼저 고쳤습니다${c ? ` (${fmtDateTime(c.at)} · ${c.by})` : ''}.\n\n지금 내용:\n검수: ${c ? c.inspect : ''}\n포장: ${c ? c.pack : ''}\n\n[확인] 내 내용으로 덮어쓰기 (앞 내용은 직전 기록에 남음)\n[취소] 최신 내용 보기`);
+                const ok = await showConfirm(`다른 사람이 먼저 고쳤습니다${c ? ` (${fmtDateTime(c.at)} · ${c.by})` : ''}.\n\n지금 내용:\n검수: ${c ? c.inspect : ''}\n포장: ${c ? c.pack : ''}\n\n[내 내용으로 덮어쓰기] 앞 내용은 직전 기록에 남음\n[최신 내용 보기] 최신 내용을 불러옴`,
+                    { title: '내 내용으로 덮어쓸까요?', okText: '내 내용으로 덮어쓰기', cancelText: '최신 내용 보기(내 입력은 사라짐)', backdrop: false });   // 예전 confirm 처럼 Enter = 덮어쓰기, 바깥 클릭으로 내 입력이 사라지지 않게
                 try {
                     if (ok) { await saveNote(S.db, pid, vals, c ? c.at : 0, S.email); await done(); }
                     else { await putLocalNote(pid, c ? { ...c, h: (S.notes.get(pid) || {}).h || [] } : { inspect: '', pack: '', at: 0, by: '', h: [] }); renderMemo(el, pid); }

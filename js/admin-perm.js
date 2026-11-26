@@ -14,6 +14,7 @@ import {
 } from './lib/perm-model.js?v=84f63a17f29d-4f0ab0b3';
 import { withBuiltinMenus, SHELL_EXCLUDED_ACTIONS } from './menu-catalog.js?v=8219e3fbbda6-bda14b1d';
 import { isAdminOnlyNow, DATA_ADMIN_ONLY_NOTE, lastDayKeys, sumHits, HIT_COLLECTION } from './lib/perm-gate.js?v=e8be6a31f3ef-c9741504';
+import { showConfirm } from './utils.js?v=b14a118c2b0c-7bf0fcab';
 
 let model = null;
 let config = null;
@@ -307,7 +308,7 @@ const DANGER_MSG = '되돌리기 어려운 기능입니다(덮어쓰기·삭제�
 const warnAdminOnlyNow = (id, on) => { if (on && isAdminOnlyNow(id)) alert(DATA_ADMIN_ONLY_NOTE); };
 const confirmDanger = (id, on) => !on || !FEATURE_BY_ID[id] || FEATURE_BY_ID[id].danger < 2 || confirm(DANGER_MSG);
 
-function onClick(e) {
+async function onClick(e) {
     const t = e.target.closest('[data-pm-act]');
     if (!t || !model) return;
     const act = t.dataset.pmAct;
@@ -319,7 +320,7 @@ function onClick(e) {
     if (act === 'role-add') { addRole(model, '새 역할'); draw(); return; }
     if (act === 'role-dup') { addRole(model, null, t.dataset.role); draw(); return; }
     if (act === 'role-del') {
-        if (!confirm('이 역할을 지울까요?')) return;
+        if (!(await showConfirm('', { title: '이 역할을 지울까요?', okText: '지우기', danger: true }))) return;
         if (!deleteRole(model, t.dataset.role)) alert('쓰는 사람이 있거나 새 직원 기본 역할이라 지울 수 없습니다.');
         draw();
     }

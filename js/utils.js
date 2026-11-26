@@ -168,8 +168,10 @@ export const showToast = (message, isError = false, opts = {}) => {
 
 // 네이티브 confirm 대체 — 스타일된 모달, Promise<boolean> 반환.
 // 자체 DOM을 생성하므로 어느 페이지에서나 동작(별도 마크업/컨테이너 불필요).
+// opts.backdrop === false 면 바깥 클릭으로 닫히지 않는다(두 단추가 모두 '실행' 이라 바깥 클릭=취소가 위험한 창 — 예: 메모 충돌).
+// Esc·Enter 는 문서 capture 단계에서 먼저 받아 아래 창의 키 처리로 넘기지 않는다(2026-11-26 — 확인창만 닫히고 아래 창은 그대로).
 export const showConfirm = (message, opts = {}) => {
-    const { title = '확인', okText = '확인', cancelText = '취소', danger = false } = opts;
+    const { title = '확인', okText = '확인', cancelText = '취소', danger = false, backdrop = true } = opts;
     const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
     return new Promise((resolve) => {
         const ov = document.createElement('div');
@@ -187,16 +189,20 @@ export const showConfirm = (message, opts = {}) => {
                 <button data-act="ok" style="padding:8px 16px;border-radius:999px;${okStyle}font-weight:700;font-size:13px;cursor:pointer;">${esc(okText)}</button>
               </div>
             </div>`;
-        const done = (val) => { ov.remove(); document.removeEventListener('keydown', onKey); resolve(val); };
+        const done = (val) => { ov.remove(); document.removeEventListener('keydown', onKey, true); resolve(val); };
         // 위험(danger) 확인창은 Enter 로 실행되지 않는다 — 포커스도 [취소] 에 둔다(UX 개선 6번).
         // (포커스된 버튼에서 Enter 를 누르면 그 버튼의 클릭이 나므로 [취소] 위 Enter 는 취소다)
-        const onKey = (e) => { if (e.key === 'Escape') done(false); else if (e.key === 'Enter' && !danger) done(true); };
+        const onKey = (e) => {
+            if (e.key === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); done(false); }
+            // Enter = 확인 — 단, 초점이 [취소] 단추에 있으면 그 단추대로(취소)
+            else if (e.key === 'Enter' && !danger) { const onCancel = e.target && e.target.closest && e.target.closest('[data-act="cancel"]'); e.preventDefault(); e.stopImmediatePropagation(); done(!onCancel); }
+        };
         ov.addEventListener('click', (e) => {
-            if (e.target === ov) return done(false); // 바깥 클릭=취소
+            if (e.target === ov) { if (backdrop) done(false); return; } // 바깥 클릭=취소(backdrop:false 면 무시)
             const b = e.target.closest('[data-act]');
             if (b) done(b.dataset.act === 'ok');
         });
-        document.addEventListener('keydown', onKey);
+        document.addEventListener('keydown', onKey, true);
         document.body.appendChild(ov);
         const firstFocus = ov.querySelector(danger ? '[data-act="cancel"]' : '[data-act="ok"]');
         if (firstFocus) firstFocus.focus();

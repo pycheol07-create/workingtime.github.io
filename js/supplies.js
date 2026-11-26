@@ -15,7 +15,7 @@
 import { initializeFirebase } from './config.js?v=242bb63abbe9-dd1665a9';
 import { setShellContext, goHome } from './app-shell-bridge.js?v=b9a7199f3e1d-c80c27e9';
 import { memberNameFor } from './app-shell-data.js?v=e42c6a10ca7a-9319c795';
-import { escapeHtml as esc } from './utils.js?v=a8117fdf6a07-c756d71e';
+import { escapeHtml as esc, showConfirm } from './utils.js?v=b14a118c2b0c-7bf0fcab';
 import { kstDateTime } from './lib/kst-time.js?v=1f1e277244a9-6fe98384';
 import { checkStockAdjust } from './lib/supplies-stock-check.js?v=bece1017afad-45058477';
 import {
@@ -868,7 +868,7 @@ async function saveItem() {
 async function deleteItem() {
     const it = items.find(x => x.id === editingId);
     if (!it) return;
-    if (!confirm(`'${it.name}' 비품을 삭제할까요?\n재고 변동 이력도 함께 사라집니다.`)) return;
+    if (!(await showConfirm(`'${it.name}' 비품을 삭제할까요?\n재고 변동 이력도 함께 사라집니다.`, { title: '비품을 삭제할까요?', okText: '삭제하기', danger: true }))) return;
     const prevItems = items;   // 저장 실패(충돌 아님) 시 되돌린다
     items = items.filter(x => x.id !== editingId);
     try {
@@ -1280,7 +1280,7 @@ async function forecastReceive() {
 async function forecastCancel() {
     const t = orderTarget();
     if (!t || !t.order) return;
-    if (!confirm('발주를 취소할까요? 다음 날 아침부터 발주 알림이 다시 켜집니다.')) return;
+    if (!(await showConfirm('다음 날 아침부터 발주 알림이 다시 켜집니다.', { title: '발주를 취소할까요?', okText: '발주 취소하기', cancelText: '그대로 두기', danger: true }))) return;
     await runForecastAction(() => writeOrder(t.it.id, ['ordered'],
         (cur) => ({ ...cur, status: 'cancelled', cancelledAt: new Date().toISOString(), cancelledBy: currentUser })));
 }

@@ -8,8 +8,8 @@ import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/
 import { doc, getDocFromServer } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { menuConfigOf } from './lib/perm.js?v=c1e53d91da8e-49afeea3';
 import { verifyPermSave, autoAssignedCount, renameEmails } from './lib/perm-model.js?v=84f63a17f29d-4f0ab0b3';
-import { getPermModel } from './admin-perm.js?v=d8c85b575368-c709b9a4';
-import { showConfirm } from './utils.js?v=a8117fdf6a07-c756d71e';
+import { getPermModel } from './admin-perm.js?v=4a1e4ae05a24-80655428';
+import { showConfirm } from './utils.js?v=b14a118c2b0c-7bf0fcab';
 import { ensureTaskIds, newTaskId, isSystemTaskId, SYSTEM_TASKS, taskIdOf } from './lib/task-ids.js?v=9c41e71742ef-83b1f46d';
 import { planTaskWidget, widgetTaskChoices, duplicateTasks, migrateDashboardTaskItems, taskWidgetId } from './lib/task-config-sync.js?v=970a6d3589ff-85dd0720';
 
@@ -33,13 +33,13 @@ import {
     findDeadMenuItems,
     countNamelessMenuRows,
     MOVE_BTNS
-} from './admin-ui.js?v=fe5c00f7ddcf-6be52dcb';
+} from './admin-ui.js?v=ba87e4e22664-6be52dcb';
 
 import {
     collectConfigFromDOM,
     validateConfig,
     detectEmailRenames
-} from './admin-logic.js?v=5b8fac102920-c20881d5';
+} from './admin-logic.js?v=d9e3542fda2f-c20881d5';
 
 let db, auth;
 let appConfig = {};

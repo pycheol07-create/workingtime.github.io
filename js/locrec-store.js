@@ -28,6 +28,7 @@
 // 칸수 무관 허용(2026-11-13): locRecWork/sizeAllow 를 구독하고 표 [칸수 무관 허용]이 setSizeFree 로 쓴다(코드·시각·이름만, 문서 모양은 locrec-view.js).
 //   서버는 다음 판부터 그 상품을 칸 바꾸기((4)↔(2)칸, 2026-11-19)로 추천하고, 대신 자리(findAlt)도 같은 목록을 쓴다. 다시 만들기 요청은 보내지 않는다(사용자 결정).
 import { doc, onSnapshot, setDoc, getDoc, serverTimestamp, deleteField, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { showConfirm } from './utils.js?v=b14a118c2b0c-7bf0fcab';
 import {
     dayKey, parseRecDay, rowState, dayOptions, defaultDay, canMark, excelRows, EXCEL_COLS, SHEET_NAME, fileNameOf,
     stripRows, fileNameAll, recReqUi, tsMs, TABS, dayVer, movedToday, PENDING_TEXT, plannedSlots, HOLD_UNDO_TEXT,
@@ -611,7 +612,8 @@ function createLocRecStore({ db, auth, getMemberName, sizeOf, altCtx, notify, li
             take(await pass(again, txUndo));
         }
         if (stopText) { alert(stopText); return; }
-        if (fails.length && confirm(`${ok}건 되돌렸습니다.\n${fails.length}건은 데이터 리스트가 이미 바뀌었거나 반영한 날이 지나 자리는 되돌리지 않습니다.\n그 ${fails.length}건은 처리함 표시만 지울까요?`)) {
+        if (fails.length && await showConfirm(`${ok}건 되돌렸습니다.\n${fails.length}건은 데이터 리스트가 이미 바뀌었거나 반영한 날이 지나 자리는 되돌리지 않습니다.\n그 ${fails.length}건은 처리함 표시만 지울까요?`,
+            { title: '처리함 표시만 지울까요?', okText: '표시 지우기', danger: true })) {
             await pass(fails, (k) => clearMark(k, { quiet: true }));
             if (stopText) alert(stopText);
             return;
