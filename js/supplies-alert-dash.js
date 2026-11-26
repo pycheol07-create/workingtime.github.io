@@ -12,8 +12,8 @@ import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
 import { can } from './lib/perm.js?v=c1e53d91da8e-49afeea3';
 import { escapeHtml } from './utils.js?v=65bb3512764f-e315797c';
 import { sidebarLinkTarget } from './app-shell-data.js?v=e42c6a10ca7a-9319c795';
-import { mdw } from './lib/supplies-forecast-view.js?v=9ab586768d3d-a3e50681';
-import { reorderAlerts, alertDayLabel, alertSummaryText } from './lib/supplies-reorder-alert.js?v=fdc54f2a38e2-052b7457';
+import { mdw } from './lib/supplies-forecast-view.js?v=9e441a60a562-e866071c';
+import { reorderAlerts, alertDayLabel, alertSummaryText, pickForecast } from './lib/supplies-reorder-alert.js?v=3c60cd7eea97-685ff571';
 
 const BASE = ['artifacts', 'team-work-logger-v2'];
 const SOURCES = {
@@ -36,14 +36,7 @@ export const suppliesAlertAllowed = () => can(State.appState.perm, 'supplies.vie
 const pickItems = (d) => (Array.isArray(d && d.items) ? d.items : [])
     .filter(it => it && it.id)
     .map(it => ({ id: it.id, name: it.name || '', ezCode: it.ezCode || '' }));
-const pickForecast = (d) => {
-    const out = {};
-    const src = (d && typeof d.items === 'object' && d.items) || {};
-    for (const [id, fc] of Object.entries(src)) {
-        if (fc && typeof fc === 'object') out[id] = { status: fc.status, level: fc.level, today: fc.today || (d && d.today) || '', reorderDate: fc.reorderDate || null };
-    }
-    return { items: out };
-};
+// 예측 문서는 js/lib/supplies-reorder-alert.js pickForecast(맨 위 source 'ledger' 도 남긴다 — 앱 기준이면 코드 없는 비품도 알림)
 const pickOrders = (d) => {
     const out = {};
     const src = (d && typeof d.orders === 'object' && d.orders) || {};

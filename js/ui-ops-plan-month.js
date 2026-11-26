@@ -11,7 +11,7 @@ import { taskNameOf, TASK } from './lib/task-ids.js?v=9c41e71742ef-83b1f46d';
 import { buildMonthPlan, ownerDropsOf, nextMonthRange } from './lib/plan-month.js?v=a7f68b4d24c8-05f9bdbe';
 import { planSettingsOf, addDaysStr, OVERTIME_LAW_NOTE } from './lib/plan-week.js?v=8acad403f736-f2dd7a70';
 import { predictFutureTrends } from './analysis-logic.js?v=ad17bad984b3-0bfe0ae3';
-import { availableStaffOf } from './ui-history-prediction.js?v=74ba6fa0d815-8e6157b0';
+import { availableStaffOf } from './ui-history-prediction.js?v=c14bbdfac4ca-8e6157b0';
 import { esc, n0, n1, pct0, fmtDay, card, kpi } from './ui-ops-plan-parts.js?v=4172e29df300-895d8afe';
 
 /** 월간 계획 입력 모으기 → buildMonthPlan. models = { recentModel, prevModel, baseModel } (주간 쪽과 같이 씀), confirmedErrs = 지난 확정본 대비 오차(plan-compare monthErrsOf) */

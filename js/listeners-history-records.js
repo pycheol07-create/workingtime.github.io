@@ -8,8 +8,8 @@ import {
     updateHistoryWorkRecord,
     deleteHistoryWorkRecord,
     addHistoryWorkRecord
-} from './history-data-manager.js?v=74ba6fa0d815-a9403e97';
-import { renderHistoryDetail } from './app-history-logic.js?v=f36d76cc737f-ef63fd43';
+} from './history-data-manager.js?v=c14bbdfac4ca-a9403e97';
+import { renderHistoryDetail } from './app-history-logic.js?v=5a9286ee2587-ef63fd43';
 import { renderHistoryRecordsTable, openHistoryRecordManager, countDirtyRecordRows, isRecordRowDirty } from './history-record-table.js?v=dbe7a456aaf0-0a2c5a8f';
 import { generateId } from './app-data.js?v=9a8d4e266c76-c4996a74';
 import { checkStartAfterClockIn, clampStartToClockIn } from './lib/attendance-guard.js?v=2a8059f9ce4c-c8aba679';

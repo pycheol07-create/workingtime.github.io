@@ -62,6 +62,11 @@ const STALE_MS = 2 * 24 * 60 * 60 * 1000;
 
 const num = (v) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
 const hasCode = (item) => String(item?.ezCode ?? '').trim() !== '';
+// 앱 기준(원장) 예측 — 서버(발주알림.py)가 켜짐일 때 코드 없는 비품도 예측하고 예측 문서에 source 'ledger' 를 붙인다(2026-11-26).
+//   opts.ledger(화면이 켜짐이거나 문서 source 가 ledger) 또는 fc.source === 'ledger' 면 코드 유무로 '-'(nocode) 처리하지 않는다.
+const ledgerFc = (fc, opts) => !!(opts && opts.ledger) || (fc && fc.source === 'ledger');
+/** 예측 문서 → effectiveStatus·alertReasons 의 opts(문서 source 가 'ledger' 면 { ledger:true }) */
+export const forecastOpts = (forecastDoc, live = false) => ({ ledger: !!live || !!(forecastDoc && forecastDoc.source === 'ledger') });
 
 /** 'YYYY-MM-DD' → UTC Date(시간대와 무관하게 날짜만). 아니면 null. */
 function parseYmd(s) {
@@ -90,15 +95,16 @@ export function parseQty(v) {
 }
 
 /** 화면 상태 키. 사람이 누른 발주(orders)가 서버 status 보다 앞선다 — 서버는 다음 날 아침에야 반영하므로.
- *  - ezCode 없음 → 'nocode'
+ *  - ezCode 없음 → 'nocode' (앱 기준 예측 opts.ledger·fc.source 'ledger' 면 코드를 보지 않는다 — 예측이 없으면 'pending')
  *  - orders 가 ordered → 'ordered'
  *  - 예측 문서에 이 비품이 없음 → 'pending'
  *  - 서버는 ordered 인데 그 뒤 사람이 취소·입고 확인 → 서버 계산 level(그대로 쓰면 '발주함'이 남는다)
  *  - 오늘 사람이 [입고 확인] → 'received' */
-export function effectiveStatus(item, fc, order) {
-    if (!hasCode(item) && !(order && order.status === 'ordered')) return 'nocode';
+export function effectiveStatus(item, fc, order, opts = {}) {
+    const coded = hasCode(item) || ledgerFc(fc, opts);
+    if (!coded && !(order && order.status === 'ordered')) return 'nocode';
     if (order && order.status === 'ordered') return 'ordered';
-    if (!fc || !STATUS_INFO[fc.status]) return hasCode(item) ? 'pending' : 'nocode';
+    if (!fc || !STATUS_INFO[fc.status]) return coded ? 'pending' : 'nocode';
     if (order && order.status === 'received' && String(order.receivedDate || '') >= String(fc.today || '9999')) return 'received';
     if (fc.status === 'ordered') return STATUS_INFO[fc.level] && fc.level !== 'ordered' ? fc.level : 'ok';
     return fc.status;
@@ -272,11 +278,11 @@ function alertText(kind, a, fc, order, u) {
  *  - due(입고 예정일) : 지금 발주함이고 예정일이 됐을 때만, late 가 같이 있으면 late 만
  *  - ordersKnown false(발주 상태를 못 읽음)면 order·watch·late 는 뺀다(이미 발주한 비품을 잘못 알리지 않게).
  *  - 기한(until)이 today 보다 앞이면 뺀다 — 서버가 며칠 멈춰 지난 사유가 남아 있을 때(옛 fc.spike 는 기한이 없어 그대로). */
-export function alertReasons(item, fc, order, ordersKnown, today = kstToday()) {
+export function alertReasons(item, fc, order, ordersKnown, today = kstToday(), opts = {}) {
     if (!fc) return [];
     const src = fc.recentAlerts ?? (fc.spike ? { spike: { ...fc.spike, at: fc.today } } : {});
     if (!src || typeof src !== 'object') return [];
-    const now = effectiveStatus(item, fc, order);
+    const now = effectiveStatus(item, fc, order, opts);
     const u = (item && item.unit) || '개';
     const out = [];
     for (const [kind, info] of ALERT_KINDS) {

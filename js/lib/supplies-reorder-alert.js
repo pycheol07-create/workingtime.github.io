@@ -7,22 +7,34 @@
 // 표시하는 것은 비품 이름과 남은 날뿐이다(단가·업체는 넣지 않는다).
 // 순수 모듈 — 테스트: tests/supplies-reorder-alert.test.js
 
-import { effectiveStatus, reorderDaysLeft, kstToday } from './supplies-forecast-view.js?v=9ab586768d3d-a3e50681';
+import { effectiveStatus, reorderDaysLeft, kstToday, forecastOpts } from './supplies-forecast-view.js?v=9e441a60a562-e866071c';
 
 export const ALERT_WITHIN_DAYS = 5;
 const SKIP = new Set(['ordered', 'received', 'nocode', 'pending']);
+
+/** 대시보드가 구독한 예측 문서 → 판정에 필요한 칸만(js/supplies-alert-dash.js).
+ *  맨 위 source 는 'ledger'(앱 기준 예측, 발주알림.py)일 때만 남긴다 — 버리면 코드 없는 비품이 nocode 로 빠진다(forecastOpts). */
+export function pickForecast(d) {
+    const out = {};
+    const src = (d && typeof d.items === 'object' && d.items) || {};
+    for (const [id, fc] of Object.entries(src)) {
+        if (fc && typeof fc === 'object') out[id] = { status: fc.status, level: fc.level, today: fc.today || (d && d.today) || '', reorderDate: fc.reorderDate || null };
+    }
+    return d && d.source === 'ledger' ? { items: out, source: 'ledger' } : { items: out };
+}
 
 /** 발주 알림 대상 [{ id, name, reorderDate, days }] — 남은 날 적은 순, 같으면 이름순.
  *  items = persistent_data/supplies 의 items, forecastDoc = integrations/suppliesForecast, ordersDoc = persistent_data/suppliesOrders */
 export function reorderAlerts(items, forecastDoc, ordersDoc, today = kstToday(), within = ALERT_WITHIN_DAYS) {
     const fcs = (forecastDoc && typeof forecastDoc.items === 'object' && forecastDoc.items) || {};
     const orders = (ordersDoc && typeof ordersDoc.orders === 'object' && ordersDoc.orders) || {};
+    const opts = forecastOpts(forecastDoc);   // 앱 기준 예측(source 'ledger')이면 코드 없는 비품도 본다
     const out = [];
     for (const it of (Array.isArray(items) ? items : [])) {
         if (!it || !it.id) continue;
         const fc = fcs[it.id] || null;
         const order = orders[it.id] || null;
-        if (SKIP.has(effectiveStatus(it, fc, order))) continue;
+        if (SKIP.has(effectiveStatus(it, fc, order, opts))) continue;
         const days = reorderDaysLeft(fc, today);
         if (days == null || days > within) continue;
         out.push({ id: it.id, name: String(it.name || '').trim() || '(이름 없음)', reorderDate: fc.reorderDate, days });

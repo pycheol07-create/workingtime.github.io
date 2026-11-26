@@ -4,23 +4,23 @@ import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
 import { showToast, getTodayDateString, toDateString } from './utils.js?v=65bb3512764f-e315797c';
 
 import { setupHistoryDownloadListeners, openDownloadFormatModal } from './listeners-history-download.js?v=09ca98b61c96-22e2520d';
-import { setupHistoryRecordListeners } from './listeners-history-records.js?v=5cf362b55a29-1e7b78f7';
-import { setupHistoryAttendanceListeners } from './listeners-history-attendance.js?v=7917fbf6c9ed-c214419d';
-import { setupHistoryInspectionListeners } from './listeners-history-inspection.js?v=e29fe520c2c6-9d5277c6';
+import { setupHistoryRecordListeners } from './listeners-history-records.js?v=efd4a182656c-1e7b78f7';
+import { setupHistoryAttendanceListeners } from './listeners-history-attendance.js?v=607e473128a9-c214419d';
+import { setupHistoryInspectionListeners } from './listeners-history-inspection.js?v=9e7211cf8613-9d5277c6';
 
-import { loadAndRenderHistoryList, renderHistoryDetail, switchHistoryView, openHistoryQuantityModal, augmentHistoryWithPersistentLeave } from './app-history-logic.js?v=f36d76cc737f-ef63fd43';
-import { renderAttendanceDailyHistory, renderAttendanceWeeklyHistory, renderAttendanceMonthlyHistory, renderAttendanceYearlyHistory, renderReportDaily, renderReportWeekly, renderReportMonthly, renderReportYearly, renderPersonalReport, renderManagementDaily, renderManagementSummary, renderWeeklyHistory, renderMonthlyHistory, renderYearlyHistory, renderPredictionTab } from './ui-history.js?v=74ba6fa0d815-b575143a';
-import { syncTodayToHistory, saveManagementData, backfillFxRates, peekDailyData, recoverDailyDataToHistory, fetchAllHistoryData } from './history-data-manager.js?v=74ba6fa0d815-a9403e97';
+import { loadAndRenderHistoryList, renderHistoryDetail, switchHistoryView, openHistoryQuantityModal, augmentHistoryWithPersistentLeave } from './app-history-logic.js?v=5a9286ee2587-ef63fd43';
+import { renderAttendanceDailyHistory, renderAttendanceWeeklyHistory, renderAttendanceMonthlyHistory, renderAttendanceYearlyHistory, renderReportDaily, renderReportWeekly, renderReportMonthly, renderReportYearly, renderPersonalReport, renderManagementDaily, renderManagementSummary, renderWeeklyHistory, renderMonthlyHistory, renderYearlyHistory, renderPredictionTab } from './ui-history.js?v=c14bbdfac4ca-b575143a';
+import { syncTodayToHistory, saveManagementData, backfillFxRates, peekDailyData, recoverDailyDataToHistory, fetchAllHistoryData } from './history-data-manager.js?v=c14bbdfac4ca-a9403e97';
 import { REVENUE_CHANNELS, CHANNEL_METRICS } from './revenue-channels.js?v=553320652df2-c473a26d';
 import { doc, getDoc, updateDoc, deleteField } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-import { setupHistoryTabsListeners, getFilteredHistoryData, getPeriodFilteredData, renderAnalyticsTab } from './listeners-history-tabs.js?v=f36d76cc737f-8058cdde';
+import { setupHistoryTabsListeners, getFilteredHistoryData, getPeriodFilteredData, renderAnalyticsTab } from './listeners-history-tabs.js?v=5a9286ee2587-8058cdde';
 import { saveView } from './view-state.js?v=c2e4bf06fdce-0da8b754';
 import { goTo, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=b9a7199f3e1d-c80c27e9';
 import { initHistoryFlyout } from './history-flyout.js?v=1c0ac82e9fd0-b770b3a1';
 import { isManagementDirty, confirmDiscardManagementEdits } from './ui-history-management.js?v=f7cf514cd049-688719b9';
 import { isLeaveDirty } from './ui-history-leave.js?v=b516e4cfbcee-4c985a8b';
-import { isSimDirty } from './ui-history-prediction.js?v=74ba6fa0d815-8e6157b0';
+import { isSimDirty } from './ui-history-prediction.js?v=c14bbdfac4ca-8e6157b0';
 import { placeOpenDropdown } from './table-filter.js?v=fd197c3531ef-b92b1b78';
 import { deletionSummary, deletionDetail } from './lib/history-delete-text.js?v=45db1f2f0f26-10f77366';
 

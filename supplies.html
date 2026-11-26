@@ -96,7 +96,19 @@
         <!-- min-w-0 이 없으면 표의 가로 스크롤 영역이 줄어들지 못해 화면 밖으로 삐져나간다. -->
         <div class="flex-1 min-w-0 w-full space-y-5">
 
-        <!-- 이지어드민 자동 반영(매일 19:30 앱\비품재고연동\연동.py) 결과 한 줄 — 문서에 ezSyncedAt 이 있을 때만 js/supplies.js 가 켠다 -->
+        <!-- 재고 기준 전환(2026-11-26 2단계) — 켠 뒤에도 이지어드민 연동이 돈 흔적(관리자만) · 기준 표시와 전환·끄기 단추(관리자만). js/supplies.js renderLedgerBar -->
+        <div id="ledger-mode-notice" role="status" class="hidden text-xs font-bold text-amber-800 bg-amber-50 border border-amber-300 rounded-xl px-4 py-2"></div>
+        <div id="ledger-ez-warn" role="alert" class="hidden text-xs font-bold text-red-700 bg-red-50 border border-red-300 rounded-xl px-4 py-2"></div>
+        <div id="ledger-admin" class="hidden text-xs text-slate-600 bg-white border border-slate-200 rounded-xl px-4 py-2">
+            <div class="flex flex-wrap items-center gap-2">
+                <span id="ledger-mode-text" class="font-bold"></span>
+                <span class="ml-auto"></span>
+                <button type="button" id="btn-ledger-cutover" class="hidden font-bold px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white">앱 기준으로 전환</button>
+                <button type="button" id="btn-ledger-off" class="hidden font-bold px-3 py-1.5 rounded-lg bg-white border border-red-300 text-red-600 hover:bg-red-50">이지어드민 기준으로 되돌리기(비상)</button>
+            </div>
+        </div>
+
+        <!-- 이지어드민 자동 반영(매일 19:30 앱\비품재고연동\연동.py) 결과 한 줄 — 문서에 ezSyncedAt 이 있을 때만 js/supplies.js 가 켠다(앱 기준이면 숨김) -->
         <div id="ez-sync-note" class="hidden text-xs text-slate-600 bg-white border border-slate-200 rounded-xl px-4 py-2"></div>
 
         <!-- 최근 알림 안내(어느 비품을 왜 봐야 하나) — 사유가 있을 때만 js/supplies.js renderAlertNotice 가 켠다. 앱 알림을 누르면 여기로 온다(#alerts) -->
@@ -171,7 +183,7 @@
                 </div>
 
                 <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    <div>
+                    <div id="f-stock-wrap">
                         <label class="lbl">현재고 *</label>
                         <input id="f-stock" type="number" min="0" class="inp num" placeholder="0">
                     </div>
@@ -200,7 +212,7 @@
                             <label class="lbl">사이즈 / 규격</label>
                             <input id="f-size" class="inp" placeholder="예: 25 x 35cm, 두께 0.06mm">
                         </div>
-                        <div>
+                        <div id="f-ez-code-wrap">
                             <label class="lbl">이지어드민 품목코드</label>
                             <input id="f-ez-code" class="inp" placeholder="예: A0012 (여러 개면 쉼표로 구분)">
                             <p class="text-[11px] text-slate-400 mt-1 leading-relaxed">
@@ -242,11 +254,44 @@
                     </div>
                 </div>
 
+                <!-- 입출고 단위·바코드(2026-11-26 2단계) — 검사는 js/lib/supplies-units.js validateUnits -->
+                <div class="border-t border-slate-100 pt-4">
+                    <div class="text-xs font-bold text-slate-500 mb-3">입출고 단위 · 바코드</div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div>
+                            <label class="lbl" for="f-barcode-input">바코드 (5개까지)</label>
+                            <div class="flex gap-1">
+                                <input id="f-barcode-input" class="inp" placeholder="찍거나 입력 후 Enter" autocomplete="off">
+                                <button type="button" id="btn-barcode-add" class="shrink-0 px-3 text-xs font-bold rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700">추가</button>
+                            </div>
+                            <div id="f-barcodes" class="flex flex-wrap gap-1 mt-1.5"></div>
+                            <p class="text-[11px] text-slate-400 mt-1 leading-relaxed">바코드가 없는 비품은 목록 검색으로 찾습니다. 목록 검색칸에 바코드를 찍고 Enter 를 누르면 그 비품이 열립니다.</p>
+                        </div>
+                        <div>
+                            <div class="lbl">묶음 단위 (4개까지 · 기본 단위 <span id="f-unit-base-label">개</span> 몇 개인지)</div>
+                            <div id="f-units" class="space-y-1">
+                                <div class="flex items-center gap-1"><input id="f-unit-name-0" class="inp" style="width:45%" placeholder="예: 박스" maxlength="10" aria-label="단위 이름 1"><span class="text-slate-400 text-xs">=</span><input id="f-unit-qty-0" type="number" min="1" step="1" class="inp num" placeholder="수량" aria-label="단위 수량 1"><span class="f-unit-base text-[11px] text-slate-400 shrink-0 w-6">개</span></div>
+                                <div class="flex items-center gap-1"><input id="f-unit-name-1" class="inp" style="width:45%" placeholder="예: 묶음" maxlength="10" aria-label="단위 이름 2"><span class="text-slate-400 text-xs">=</span><input id="f-unit-qty-1" type="number" min="1" step="1" class="inp num" placeholder="수량" aria-label="단위 수량 2"><span class="f-unit-base text-[11px] text-slate-400 shrink-0 w-6">개</span></div>
+                                <div class="flex items-center gap-1"><input id="f-unit-name-2" class="inp" style="width:45%" maxlength="10" aria-label="단위 이름 3"><span class="text-slate-400 text-xs">=</span><input id="f-unit-qty-2" type="number" min="1" step="1" class="inp num" placeholder="수량" aria-label="단위 수량 3"><span class="f-unit-base text-[11px] text-slate-400 shrink-0 w-6">개</span></div>
+                                <div class="flex items-center gap-1"><input id="f-unit-name-3" class="inp" style="width:45%" maxlength="10" aria-label="단위 이름 4"><span class="text-slate-400 text-xs">=</span><input id="f-unit-qty-3" type="number" min="1" step="1" class="inp num" placeholder="수량" aria-label="단위 수량 4"><span class="f-unit-base text-[11px] text-slate-400 shrink-0 w-6">개</span></div>
+                            </div>
+                            <label class="flex items-center gap-2 text-xs font-bold text-slate-600 mt-2">
+                                <input type="checkbox" id="f-no-single-out"> 사용(출고) 때 낱개 단추 숨기기
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex flex-wrap gap-x-5 gap-y-2">
                 <label class="flex items-center gap-2 text-sm font-bold text-slate-600">
                     <input type="checkbox" id="f-main"> 주요 비품으로 상단에 고정
                 </label>
+                <label class="flex items-center gap-2 text-sm font-bold text-slate-600">
+                    <input type="checkbox" id="f-favorite"> 자주 쓰는 비품
+                </label>
+                </div>
 
-                <p id="item-modal-error" class="hidden text-xs text-red-600 font-bold"></p>
+                <p id="item-modal-error" class="hidden text-xs text-red-600 font-bold whitespace-pre-line"></p>
             </div>
             <div class="mt-auto px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-between items-center">
                 <button type="button" id="btn-delete-item" class="hidden px-3 py-2 text-xs rounded-lg bg-red-50 hover:bg-red-100 text-red-600 font-bold">삭제</button>
@@ -282,11 +327,13 @@
                             <label class="flex items-center justify-center gap-1 p-2 border border-slate-300 rounded-lg cursor-pointer bg-white"><input type="radio" name="stock-op" value="out"> 사용(−)</label>
                             <label class="flex items-center justify-center gap-1 p-2 border border-slate-300 rounded-lg cursor-pointer bg-white"><input type="radio" name="stock-op" value="set"> 실사(=)</label>
                         </div>
+                        <!-- 앱 기준(켜짐)일 때만 — 단위 단추(js/lib/supplies-units.js unitButtons). 수량 칸은 고른 단위 몇 개인지 -->
+                        <div id="stock-units" class="hidden flex-wrap gap-1" role="group" aria-label="단위"></div>
                         <div>
-                            <label class="lbl" for="stock-qty">수량</label>
+                            <label class="lbl" for="stock-qty" id="stock-qty-label">수량</label>
                             <input id="stock-qty" type="number" min="0" class="inp num" placeholder="0">
                         </div>
-                        <div>
+                        <div id="stock-memo-wrap">
                             <label class="lbl" for="stock-memo">메모 (선택)</label>
                             <input id="stock-memo" class="inp" placeholder="예: ○○포장 입고분">
                         </div>
@@ -307,13 +354,43 @@
                 <div class="p-5 flex flex-col gap-2 md:absolute md:inset-0">
                     <div class="text-xs font-bold text-slate-600">재고 변동 이력</div>
                     <div id="stock-log" class="flex-1 min-h-0 max-h-72 md:max-h-none overflow-y-auto space-y-1 bg-white border border-slate-200 rounded-xl p-2"></div>
+                    <!-- 앱 기준(켜짐)일 때만 — 최근 1개월보다 오래된 기록 더 읽기 -->
+                    <button type="button" id="btn-stock-log-more" class="hidden w-full text-[11px] font-bold px-3 py-1.5 rounded-lg bg-white border border-slate-300 text-slate-600 hover:bg-slate-100">더 보기</button>
                 </div>
             </aside>
             </div>
         </div>
     </div>
 
-    <script type="module" src="js/supplies.js?v=98128bc99079-101eaecd"></script>
+    <!-- 앱 기준으로 전환(관리자) — 비품마다 센 수량을 넣어 시작 재고(실사)를 저장하고 스위치를 켠다. js/supplies.js openCutover·runCutover -->
+    <div id="cutover-modal" class="hidden fixed inset-0 bg-black/50 items-start justify-center z-50 p-4 overflow-y-auto">
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-2xl my-auto overflow-hidden">
+            <div class="px-6 py-4 border-b border-slate-200 flex justify-between items-center">
+                <h2 class="text-base font-bold">앱 기준으로 전환 — 시작 재고</h2>
+                <button type="button" data-close aria-label="닫기" class="text-slate-400 hover:text-slate-700 text-xl leading-none">&times;</button>
+            </div>
+            <div class="p-6 space-y-3">
+                <p class="text-xs text-slate-600 leading-relaxed">
+                    비품마다 <b>지금 실제로 센 수량</b>(기본 단위)을 넣고 [시작 재고 저장]을 누르세요. 다 저장되면 이 화면의 재고는 앱 입출고 기록으로 계산됩니다.<br>
+                    빈칸은 건너뜁니다(앱 재고가 없으면 0 에서 시작). 중간에 끊겨도 다시 누르면 남은 것만 저장합니다.
+                </p>
+                <div class="overflow-auto max-h-[55vh] border border-slate-200 rounded-xl">
+                    <table class="sup-table">
+                        <thead><tr><th>품명</th><th class="num">지금 값(참고)</th><th class="num">앱 값(참고)</th><th class="num">센 수량</th></tr></thead>
+                        <tbody id="cutover-body"></tbody>
+                    </table>
+                </div>
+                <p id="cutover-status" class="hidden text-xs font-bold text-slate-600 whitespace-pre-line"></p>
+                <p id="cutover-error" class="hidden text-xs text-red-600 font-bold whitespace-pre-line"></p>
+            </div>
+            <div class="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-2">
+                <button type="button" data-close class="px-4 py-2 text-sm rounded-lg bg-white border border-slate-300 hover:bg-slate-100">취소</button>
+                <button type="button" id="btn-cutover-save" class="px-4 py-2 text-sm rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold">시작 재고 저장</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="js/supplies.js?v=d574121a4973-4ae5277c"></script>
     <script type="module" src="js/page-gate.js?v=91ff5d6d21f9-d1e977d0" data-perm-page="supplies.view"></script>
     <script type="module" src="js/app-shell.js?v=0ad2923a7c3b-bf6553e1"></script>
     <script src="js/connection-banner.js?v=fb04e0b435ed-f6d55014"></script>

@@ -11,6 +11,13 @@
 //    supplies 문서와 따로라 persist() 의 updatedAt 충돌 판정과 상관없다.
 //  - 비품 항목 새 칸: forecastDriver(관리자만 화면에서 고름). 권장 발주량의 최소주문·묶음은 기존 MOQ 칸 문장에서 읽는다(서버 예측규칙.MOQ해석)
 //  표시 규칙은 js/lib/supplies-forecast-view.js(테스트: tests/supplies-forecast-view.test.js).
+//
+// 앱 기준 전환(2026-11-26 2단계, 1단계 원장 = js/supplies-ledger-store.js):
+//  - 스위치 persistent_data/suppliesSettings.ledgerLive(관리자만 씀). 켜짐이면 재고는 suppliesStock(원장) 하나 —
+//    화면의 모든 재고 숫자는 curStock()(js/lib/supplies-mode.js stockOf)로만 읽는다. items[].stock·logs 는 읽은 값 그대로 다시 쓴다(persist).
+//  - 켜짐 재고 패널: 입고·사용·실사 → 원장(commitLines·commitCount), 단위 단추로 기본 단위 환산(js/lib/supplies-units.js), 이력은 원장 + [되돌리기].
+//    이지어드민 코드 칸·현재고조회 파일·연동 안내·메모 칸은 숨긴다. 이력의 사람 이름은 byEmail → mainConfig.memberEmails(by 칸은 안 씀).
+//  - 비품 상세의 새 칸: barcodes·units·noSingleOut·favorite(꺼짐이어도 저장).
 
 import { initializeFirebase } from './config.js?v=242bb63abbe9-dd1665a9';
 import { setShellContext, goHome } from './app-shell-bridge.js?v=b9a7199f3e1d-c80c27e9';
@@ -18,18 +25,23 @@ import { memberNameFor } from './app-shell-data.js?v=e42c6a10ca7a-9319c795';
 import { escapeHtml as esc, showConfirm, showAlert } from './utils.js?v=65bb3512764f-e315797c';
 import { kstDateTime } from './lib/kst-time.js?v=1f1e277244a9-6fe98384';
 import { checkStockAdjust } from './lib/supplies-stock-check.js?v=bece1017afad-45058477';
+import { normalizeItemUnits, validateUnits, unitButtons, checkBaseQty, findByBarcode, MAX_BARCODES, MAX_UNITS, MAX_UNIT_QTY } from './lib/supplies-units.js?v=38146ad5b84d-33598b26';
+import { isLive, atMs, stockOf, isLowBy, ezLeftover, resumeBatchId, ledgerWho, cutoverStale, cutoverStartBlock, liveOnBlock } from './lib/supplies-mode.js?v=5f016d6adc90-90c9a625';
+import { ledgerErrorText, ITEM_ID_RE } from './lib/supplies-ledger.js?v=1d95dd023593-77eaa88c';
+import { newBatchId, loadStock, loadStockOf, loadLedger, commitLines, commitCount, commitRevert } from './supplies-ledger-store.js?v=f3ed79d90f82-e24fd78d';
 import {
     effectiveStatus, statusBadge, depleteText, depleteSortValue, reorderText, reorderSortValue, reorderDaysLeft, recommendText, isStale, parseQty, mdw, basisText,
     leadTimeText, expectedDateFor, orderSummaryText, appOnlyWarning, packsProgressText, safetySuggestion, alertReasons, sortAlertRows,
-    alertsEmptyText, ALERT_ORDERS_UNKNOWN, NOCODE_HINT, DRIVER_OPTIONS, TONE_CLASS
-} from './lib/supplies-forecast-view.js?v=9ab586768d3d-a3e50681';
-import { doc, getDoc, runTransaction, arrayUnion, FieldPath } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+    alertsEmptyText, ALERT_ORDERS_UNKNOWN, NOCODE_HINT, DRIVER_OPTIONS, TONE_CLASS, forecastOpts
+} from './lib/supplies-forecast-view.js?v=9e441a60a562-e866071c';
+import { doc, getDoc, setDoc, onSnapshot, runTransaction, arrayUnion, FieldPath, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 const { db, auth } = initializeFirebase();
 const DOC_REF = doc(db, 'artifacts', 'team-work-logger-v2', 'persistent_data', 'supplies');
 const FORECAST_REF = doc(db, 'artifacts', 'team-work-logger-v2', 'integrations', 'suppliesForecast');   // 읽기만
 const ORDERS_REF = doc(db, 'artifacts', 'team-work-logger-v2', 'persistent_data', 'suppliesOrders');
+const SETTINGS_REF = doc(db, 'artifacts', 'team-work-logger-v2', 'persistent_data', 'suppliesSettings');   // 재고 기준 스위치(관리자만 씀)
 
 // 처음 열었을 때 자동으로 만들어 두는 기본 비품
 const SEED_ITEMS = [
@@ -50,6 +62,20 @@ let ordersOk = false;       // 발주 상태를 읽었나 — 못 읽었으면 [
 let forecastOk = false;     // 이번 불러오기에서 예측을 읽었나 — #alerts 0건 안내('최신 알림을 확인하지 못했습니다')에 쓴다
 let firstLoadDone = false;  // 로그인 뒤 첫 불러오기가 끝났나 — #alerts 를 그 전에 처리하지 않게
 let isAdmin = false;        // 기준 물량 선택 표시용(화면 수준 — 규칙으로는 막지 않는다)
+// 재고 기준(2026-11-26 2단계)
+let suppliesSettings = null; // persistent_data/suppliesSettings(없으면 null = 꺼짐)
+let settingsOk = null;       // 스위치를 읽었나(null = 아직) — 못 읽었으면(false) 재고 반영을 막는다(어느 쪽에 써야 할지 모름)
+let ledgerLive = false;      // 켜짐 = 재고는 원장(suppliesStock)
+let ledgerStock = {};        // { itemId: qty } (켜짐일 때 loadStock)
+let ledgerStockOk = false;   // 켜짐인데 원장 재고를 못 읽었으면 재고 반영을 막는다
+let ledgerEntries = [];      // 최근 기록(새 것부터) — 상세 창 이력은 여기서 이 비품만
+let ledgerCursor = null;     // [더 보기] 이어 받기(loadLedger .cursor)
+let ledgerMore = false;      // 더 받을 것이 있을 수 있나
+let memberEmails = null;     // mainConfig.memberEmails — 원장 기록의 byEmail → 이름
+let pendingStock = null;     // { key, batchId } — 저장이 실패(연결 끊김 등)한 입출고를 같은 값으로 다시 누르면 같은 batchId(중복 저장 막기)
+let stockUnitQty = 1;        // 재고 패널에서 고른 단위(기본 단위 몇 개)
+let formBarcodes = [];       // 상세 폼 바코드 칩
+let myName = '';             // 내 이름(mainConfig.memberEmails) — 원장 기록 by 칸(표시용, 화면 이름은 byEmail 로 다시 찾는다)
 
 const $ = (id) => document.getElementById(id);
 const num = (v) => Number(v) || 0;
@@ -57,8 +83,10 @@ const fmt = (v) => num(v).toLocaleString();
 const uid = () => 'sup-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 const todayStr = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 
-const isLow = (it) => num(it.safetyStock) > 0 && num(it.stock) <= num(it.safetyStock);
-const stockValueOf = (it) => num(it.stock) * num(it.unitPrice);
+// 재고는 여기서만 읽는다 — 켜짐이면 원장, 꺼짐이면 items[].stock(js/lib/supplies-mode.js)
+const curStock = (it) => stockOf(it, ledgerLive, ledgerStock);
+const isLow = (it) => isLowBy(it, curStock(it));
+const stockValueOf = (it) => curStock(it) * num(it.unitPrice);
 
 /** 문자열 안의 네 자리 이상 숫자에 천 단위 쉼표를 넣는다.
  *  MOQ는 '1박스 = 10000장'처럼 자유 입력이라, 숫자 부분만 골라 찍는다.
@@ -83,8 +111,10 @@ const fcOf = (it) => {
     return fc && !fc.today && forecastDoc.today ? { ...fc, today: forecastDoc.today } : fc;
 };
 const orderOf = (it) => (ordersDoc && ordersDoc.orders ? ordersDoc.orders[it.id] : null) || null;
-const statusOf = (it) => effectiveStatus(it, fcOf(it), orderOf(it));
-const reasonsOf = (it) => alertReasons(it, fcOf(it), orderOf(it), ordersOk);
+// 앱 기준(켜짐)이거나 예측 문서가 원장 기준(source 'ledger')이면 이지어드민 코드 없는 비품도 예측 상태를 그대로 보인다
+const fcOpts = () => forecastOpts(forecastDoc, ledgerLive);
+const statusOf = (it) => effectiveStatus(it, fcOf(it), orderOf(it), fcOpts());
+const reasonsOf = (it) => alertReasons(it, fcOf(it), orderOf(it), ordersOk, undefined, fcOpts());
 const reasonBadge = (r, extra = '') => `<span class="text-[11px] font-bold px-1.5 py-0.5 rounded-full ${esc(TONE_CLASS[r.tone] || '')} ${esc(extra)}" title="${esc(r.text)}">${esc(r.label)}</span>`;
 function statusBadgeHtml(it) {
     const k = statusOf(it);
@@ -107,8 +137,8 @@ const COLS = [
       get: it => it.name || '',
       cell: it => `${it.isMain ? '<span class="text-amber-500 mr-1">★</span>' : ''}${esc(it.name)}${reasonsOf(it).map(r => ` ${reasonBadge(r)}`).join('')}<span class="sr-only"> — 상세·재고 열기</span>` },
     { key: 'stock', label: '현재고', type: 'num', td: 'num font-bold',
-      get: it => num(it.stock),
-      cell: it => `<span class="${isLow(it) ? 'text-red-600' : ''}">${esc(fmt(it.stock))}</span>`
+      get: it => curStock(it),
+      cell: it => `<span class="${isLow(it) ? 'text-red-600' : ''}">${esc(fmt(curStock(it)))}</span>`
                 + ` <span class="text-[11px] font-normal text-slate-400">${esc(it.unit || '개')}</span>` },
     // 사용량 예측(매일 08:30) — 상태·소진 예상·권장 발주량
     { key: 'fcStatus', label: '상태', type: 'text', td: 'mid',
@@ -166,6 +196,8 @@ const COLS = [
       cell: it => it.memo ? `<span title="${esc(it.memo)}">${esc(it.memo)}</span>` : '-' }
 ];
 const colOf = (key) => COLS.find(c => c.key === key);
+// 지금 보이는 열 — 앱 기준(켜짐)이면 이지어드민코드 열을 뺀다(헤더·본문·필터가 같은 목록을 쓴다)
+const activeCols = () => (ledgerLive ? COLS.filter(c => c.key !== 'ezCode') : COLS);
 const NUM_COLS = new Set(COLS.filter(c => c.type === 'num').map(c => c.key));
 
 // 헤더에서 고른 정렬·필터 상태
@@ -179,7 +211,7 @@ const hasColFilter = (key) =>
     (textFilters[key] && textFilters[key].size > 0) ||
     (numFilters[key] && (numFilters[key].min !== '' || numFilters[key].max !== ''));
 const anyFilterActive = () =>
-    COLS.some(c => hasColFilter(c.key)) || !!sortState.key ||
+    activeCols().some(c => hasColFilter(c.key)) || !!sortState.key ||
     !!$('filter-category').value || !!$('filter-search').value.trim() || $('filter-low').checked
     || $('filter-order').checked;
 
@@ -189,12 +221,19 @@ function pushShellMemberName(user) {
     getDoc(doc(db, 'artifacts', 'team-work-logger-v2', 'config', 'mainConfig')).then((snap) => {
         const memberName = memberNameFor(snap.exists() ? snap.data().memberEmails : null, user.email);
         if (memberName && auth.currentUser && auth.currentUser.uid === user.uid) setShellContext({ signedIn: true, uid: user.uid, memberName });
+        // 원장 이력의 사람 이름(byEmail → 이름)·원장 기록의 by 칸(표시용)에 쓴다 — 메모리에만
+        if (auth.currentUser && auth.currentUser.uid === user.uid) {
+            memberEmails = (snap.exists() && snap.data().memberEmails) || null;
+            myName = memberName || '';
+            if (stockTargetId && ledgerLive) renderStockPanel();
+        }
         // 같은 문서의 memberRoles 로 관리자 여부(기준 물량 선택 표시용). 이메일은 비교에만 쓴다.
         const roles = (snap.exists() && snap.data().memberRoles) || {};
         const admin = roles[String(user.email || '').toLowerCase()] === 'admin';
         if (admin !== isAdmin && auth.currentUser && auth.currentUser.uid === user.uid) {
             isAdmin = admin;
             if (stockTargetId) renderForecastBox();
+            renderLedgerBar();
         }
     }).catch((e) => console.warn('[supplies] 알림용 설정 읽기 실패:', e && e.code));
 }
@@ -215,6 +254,7 @@ onAuthStateChanged(auth, async (user) => {
     renderAll();
     firstLoadDone = true;
     handleAlertsHash();
+    watchSettings();   // 재고 기준 스위치 구독(열어 둔 탭이 옛 방식으로 쓰지 않게)
 });
 
 // 앱 알림을 누르면 supplies.html#alerts 로 온다 — 한 번만 처리하고 해시를 지운다(지워야 다음 알림으로 또 hashchange 가 난다).
@@ -256,6 +296,7 @@ class SuppliesConflict extends Error {}
 
 async function load() {
     forecastOk = false;   // 이번에 예측을 읽어야 true(loadForecast)
+    await loadLedgerMode();
     try {
         const snap = await getDoc(DOC_REF);
         const d = snap.exists() ? snap.data() : {};
@@ -280,6 +321,29 @@ async function load() {
     }
 }
 
+// 재고 기준 스위치 + (켜짐이면) 원장 재고·최근 1개월 기록.
+// 스위치를 못 읽으면 settingsOk=false — 재고 반영을 막는다(꺼짐으로 짐작해 items[].stock 에 쓰면 원장과 어긋난다).
+async function loadLedgerMode() {
+    try {
+        const s = await getDoc(SETTINGS_REF);
+        suppliesSettings = s.exists() ? s.data() : null;
+        settingsOk = true;
+    } catch (e) {
+        console.warn('[supplies] 재고 기준 설정 읽기 실패:', e && e.code);
+        settingsOk = false;
+    }
+    ledgerLive = settingsOk && isLive(suppliesSettings);
+    ledgerStockOk = false;
+    if (!ledgerLive) { ledgerStock = {}; ledgerEntries = []; ledgerCursor = null; ledgerMore = false; return; }
+    const [st, lg] = await Promise.allSettled([loadStock(db), loadLedger(db, { days: 30 })]);
+    if (st.status === 'fulfilled') { ledgerStock = st.value; ledgerStockOk = true; }
+    else { ledgerStock = {}; console.warn('[supplies] 원장 재고 읽기 실패:', st.reason && st.reason.code); }
+    if (lg.status === 'fulfilled') {
+        ledgerEntries = lg.value; ledgerCursor = lg.value.cursor; ledgerMore = true;   // 1개월보다 오래된 것이 있을 수 있다 — [더 보기]
+    } else { ledgerEntries = []; ledgerCursor = null; ledgerMore = false; console.warn('[supplies] 원장 기록 읽기 실패:', lg.reason && lg.reason.code); }
+    if (!ledgerStockOk) showAlert('앱 재고를 불러오지 못했습니다 — 화면의 재고 숫자가 0 으로 보일 수 있습니다.\n[새로고침] 후 다시 해 주세요.', { title: '불러오기 실패', isError: true });
+}
+
 // 사용량 예측·발주 상태 — 실패해도 화면은 그대로 쓴다(예측 칸만 '예측 전'으로 보인다)
 async function loadForecast() {
     const [f, o] = await Promise.allSettled([getDoc(FORECAST_REF), getDoc(ORDERS_REF)]);
@@ -301,6 +365,7 @@ async function loadForecast() {
 // opts.conflictMsg — 충돌 안내문(없으면 기본 문구)
 async function persist(opts = {}) {
     const updatedAt = new Date().toISOString();
+    let written = null;
     try {
         await runTransaction(db, async (tx) => {
             const snap = await tx.get(DOC_REF);
@@ -308,11 +373,32 @@ async function persist(opts = {}) {
             if ((d.updatedAt ?? null) !== loadedStamp.updatedAt) {
                 throw new SuppliesConflict('changed');
             }
+            // 재고 기준 스위치가 이 탭이 불러온 값 그대로인가 — 다르면(열어 둔 사이 전환·끄기) 저장하지 않는다
+            const ss = await tx.get(SETTINGS_REF);
+            if (settingsOk !== true || isLive(ss.exists() ? ss.data() : null) !== ledgerLive) throw new SuppliesConflict('mode');
             ezSync = { at: d.ezSyncedAt ?? null, summary: d.ezSyncSummary ?? null };
+            // 앱 기준(켜짐) — items[].stock·logs 는 이 화면이 바꾸지 않는다: 서버에서 읽은 값 그대로(새 비품은 0·빈 이력)
+            //   원장 재고가 items 쪽으로 새면 끌 때(비상) 엉뚱한 숫자가 보인다.
+            let out = items;
+            written = null;
+            if (ledgerLive) {
+                const prev = new Map((Array.isArray(d.items) ? d.items : []).map(x => [x && x.id, x]));
+                out = items.map(it => {
+                    const p = prev.get(it.id);
+                    return { ...it, stock: p ? (p.stock ?? 0) : 0, logs: p && Array.isArray(p.logs) ? p.logs : [] };
+                });
+            }
             // merge — items 는 배열이라 통째로 바뀌지만, ezSyncedAt·ezSyncSummary 같은 다른 필드는 남는다
-            tx.set(DOC_REF, { items, updatedAt, updatedBy: currentUser }, { merge: true });
+            tx.set(DOC_REF, { items: out, updatedAt, updatedBy: currentUser }, { merge: true });
+            if (out !== items) written = out;
         });
     } catch (e) {
+        if (e instanceof SuppliesConflict && e.message === 'mode') {
+            showAlert('재고 기준(이지어드민 ↔ 앱)이 바뀌었습니다 — 최신으로 다시 불러옵니다.\n방금 저장하려던 것은 저장되지 않았습니다. 다시 열어 해 주세요.', { title: '재고 기준이 바뀜', isError: true });
+            await reloadForModeChange();
+            e.handled = true;
+            throw e;
+        }
         if (e instanceof SuppliesConflict) {
             // 이 화면에서 바꾼 것은 버리고 서버 최신으로 다시 그린다(keepModal 이 아니면 열린 창은 닫는다)
             showAlert(opts.conflictMsg || ('다른 곳에서 비품이 바뀌었습니다 — 최신 내용으로 다시 불러옵니다.\n'
@@ -324,12 +410,18 @@ async function persist(opts = {}) {
         }
         throw e;
     }
+    if (written) {
+        // 같은 비품 객체 자리에 서버 값(stock·logs)만 맞춘다 — 부른 쪽이 가진 객체(next 등)를 그대로 쓰게
+        const byId = new Map(written.map(x => [x.id, x]));
+        items.forEach(it => { const w = byId.get(it.id); if (w) { it.stock = w.stock; it.logs = w.logs; } });
+    }
     loadedStamp = { updatedAt, ezSyncedAt: ezSync.at };
     renderEzSync();
 }
 
 // ───────── 렌더 ─────────
 function renderAll() {
+    renderLedgerBar();
     renderEzSync();
     renderAlertNotice();
     renderMainItems();
@@ -343,7 +435,8 @@ function renderEzSync() {
     const el = $('ez-sync-note');
     if (!el) return;
     const d = ezSync.at ? new Date(ezSync.at) : null;
-    if (!d || isNaN(d.getTime())) { el.classList.add('hidden'); el.textContent = ''; return; }
+    // 앱 기준(켜짐)이면 이지어드민 자동 반영은 재고에 쓰이지 않는다 — 한 줄을 숨긴다(켠 뒤 연동 흔적은 renderLedgerBar 빨간 띠)
+    if (ledgerLive || !d || isNaN(d.getTime())) { el.classList.add('hidden'); el.textContent = ''; return; }
     const p2 = (n) => String(n).padStart(2, '0');
     const s = ezSync.summary || {};
     const parts = [];
@@ -353,6 +446,29 @@ function renderEzSync() {
     el.textContent = `이지어드민 자동 반영: ${d.getMonth() + 1}/${d.getDate()} ${p2(d.getHours())}:${p2(d.getMinutes())}`
         + (parts.length ? ` (${parts.join('·')})` : '');
     el.classList.remove('hidden');
+}
+
+// 재고 기준 띠 — 관리자: 지금 기준 + [앱 기준으로 전환]/[되돌리기(비상)], 켠 뒤 연동이 돈 흔적이면 빨간 띠.
+// 스위치를 못 읽으면 모두에게 경고(재고 반영도 막힌다).
+function renderLedgerBar() {
+    const warn = $('ledger-ez-warn'), bar = $('ledger-admin');
+    if (!warn || !bar) return;
+    let w = '';
+    if (settingsOk === false) w = '재고 기준 설정을 불러오지 못해 재고 반영을 막았습니다 — [새로고침] 후 다시 해 주세요.';
+    else if (isAdmin && ezLeftover(suppliesSettings, ezSync.at, Date.now())) {
+        w = '켠 뒤에도 이지어드민 연동이 돌았습니다 — 비품 문서의 재고(items)가 이지어드민 값으로 바뀌었을 수 있습니다. 앱 재고(원장)는 그대로입니다. 연동 프로그램이 멈췄는지 확인해 주세요.';
+    }
+    warn.textContent = w;
+    warn.classList.toggle('hidden', !w);
+    const show = isAdmin && settingsOk === true;
+    bar.classList.toggle('hidden', !show);
+    if (!show) return;
+    const at = suppliesSettings && atMs(suppliesSettings.liveAt);
+    $('ledger-mode-text').textContent = ledgerLive
+        ? `재고 기준: 앱(입출고 기록)${Number.isFinite(at) ? ` · ${kstDateTime(new Date(at).toISOString())} 부터` : ''}`
+        : '재고 기준: 이지어드민 자동 반영(매일 19:30)';
+    $('btn-ledger-cutover').classList.toggle('hidden', ledgerLive);
+    $('btn-ledger-off').classList.toggle('hidden', !ledgerLive);
 }
 
 // 최근 알림 안내 — 어느 비품을 왜 봐야 하는지 한 줄씩. 사유는 서버 recentAlerts + 지금 발주 상태(js/lib/supplies-forecast-view.js alertReasons).
@@ -403,7 +519,7 @@ function renderMainItems() {
             </div>
             <div class="text-[13px] font-extrabold text-slate-800 truncate" title="${esc(it.name)}">${esc(it.name)}</div>
             <div class="mt-1.5 flex items-end gap-1">
-                <span class="text-2xl font-black leading-none ${low ? 'text-red-600' : 'text-slate-800'}">${esc(fmt(it.stock))}</span>
+                <span class="text-2xl font-black leading-none ${low ? 'text-red-600' : 'text-slate-800'}">${esc(fmt(curStock(it)))}</span>
                 <span class="text-[11px] font-bold text-slate-400">${esc(it.unit || '개')}</span>
             </div>
             <div class="text-[10px] text-slate-500 mt-1 leading-tight">
@@ -476,11 +592,11 @@ function visibleItems() {
         if (lowOnly && !isLow(it)) return false;
         if (orderOnly && statusOf(it) !== 'order') return false;
         if (kw) {
-            const hay = `${it.name} ${it.category} ${it.vendor} ${it.size} ${it.memo} ${it.ezCode || ''}`.toLowerCase();
+            const hay = `${it.name} ${it.category} ${it.vendor} ${it.size} ${it.memo} ${it.ezCode || ''} ${normalizeItemUnits(it).barcodes.join(' ')}`.toLowerCase();
             if (!hay.includes(kw)) return false;
         }
         // 헤더에서 고른 컬럼별 필터 — 모두 만족해야 통과(AND)
-        for (const col of COLS) {
+        for (const col of activeCols()) {
             const picked = textFilters[col.key];
             if (picked && picked.size > 0 && !picked.has(String(col.get(it)))) return false;
             const range = numFilters[col.key];
@@ -516,7 +632,7 @@ function renderHead() {
     // 머리글 글자 + 정렬(↕)·필터(▼) 버튼이 한 줄에 들어갈 최소 폭.
     // 이보다 긴 값이 있으면 그 칸은 내용 폭에 맞춰 저절로 넓어진다.
     const headMinW = (label) => label.length * 13 + 46;
-    head.innerHTML = COLS.map(c => {
+    head.innerHTML = activeCols().map(c => {
         const on = sortState.key === c.key;
         const ic = on ? (sortState.dir === 'asc' ? '▲' : '▼') : '↕';
         return `<th class="${c.type === 'num' ? 'num' : ''}" style="min-width:${headMinW(c.label)}px">
@@ -548,7 +664,7 @@ function renderTable() {
         const warn = (isLow(it) && !['ordered', 'received'].includes(statusOf(it))) || statusOf(it) === 'order';
         return `
         <tr data-open="${esc(it.id)}" tabindex="0"${warn ? ' class="row-warn"' : ''}>
-            ${COLS.map(c => `<td class="${esc(c.td || '')}">${c.cell(it)}</td>`).join('')}
+            ${activeCols().map(c => `<td class="${esc(c.td || '')}">${c.cell(it)}</td>`).join('')}
         </tr>`;
     }).join('');
     syncSummaryFilters();
@@ -586,7 +702,7 @@ function openFilterPop(key, anchor) {
             <div class="text-right mt-2"><button type="button" class="flt-btn" data-clear>초기화</button></div>`;
     } else {
         // 값 목록은 '이 컬럼을 뺀 나머지 필터'를 통과한 항목에서 뽑는다(엑셀과 같은 방식).
-        const others = items.filter(it => COLS.every(c => {
+        const others = items.filter(it => activeCols().every(c => {
             if (c.key === key) return true;
             const picked = textFilters[c.key];
             if (picked && picked.size > 0 && !picked.has(String(c.get(it)))) return false;
@@ -745,11 +861,14 @@ function openItemModal(id = null) {
 
     $('f-name').value = it?.name || '';
     $('f-category').value = it?.category || '';
-    $('f-stock').value = it ? num(it.stock) : '';
-    // 이미 있는 비품의 현재고는 오른쪽 재고 패널(이력이 남는 곳)에서만 바꾼다
-    $('f-stock').readOnly = !!it;
-    $('f-stock').title = it ? '현재고는 재고 패널에서 바꿉니다' : '';
-    $('f-stock').classList.toggle('bg-slate-100', !!it);
+    $('f-stock').value = it ? curStock(it) : '';
+    // 이미 있는 비품의 현재고는 오른쪽 재고 패널(이력이 남는 곳)에서만 바꾼다.
+    // 앱 기준(켜짐)이면 새 비품도 0 에서 시작 — 추가한 뒤 재고 패널에서 입고·실사로 넣는다(원장 밖에서 재고를 만들지 않게)
+    const stockLocked = !!it || ledgerLive;
+    $('f-stock').readOnly = stockLocked;
+    $('f-stock').title = it ? '현재고는 재고 패널에서 바꿉니다' : (ledgerLive ? '추가한 뒤 재고 패널에서 입고·실사로 넣습니다' : '');
+    $('f-stock').classList.toggle('bg-slate-100', stockLocked);
+    if (!it && ledgerLive) $('f-stock').value = 0;
     $('f-unit').value = it?.unit || '';
     $('f-safety').value = it ? (num(it.safetyStock) || '') : '';
     $('f-price').value = it ? (num(it.unitPrice) || '') : '';
@@ -764,6 +883,21 @@ function openItemModal(id = null) {
     $('f-last-order').value = it?.lastOrderDate || '';
     $('f-memo').value = it?.memo || '';
     $('f-main').checked = !!it?.isMain;
+    // 입출고 단위·바코드(2단계)
+    const nu = normalizeItemUnits(it);
+    formBarcodes = [...nu.barcodes];
+    $('f-barcode-input').value = '';
+    renderBarcodeChips();
+    for (let i = 0; i < MAX_UNITS; i++) {
+        const u = nu.units[i];
+        $(`f-unit-name-${i}`).value = u ? u.name : '';
+        $(`f-unit-qty-${i}`).value = u && Number.isFinite(u.qty) ? u.qty : '';
+    }
+    $('f-no-single-out').checked = nu.noSingleOut;
+    $('f-favorite').checked = nu.favorite;
+    renderUnitBaseLabel();
+    // 앱 기준(켜짐)이면 이지어드민 코드 칸을 숨긴다(값은 그대로 두고 저장 때도 그대로 — 사용량 예측이 쓴다)
+    $('f-ez-code-wrap').classList.toggle('hidden', ledgerLive);
     takeItemSnapshot();
 
     openModal('item-modal');
@@ -773,13 +907,51 @@ function openItemModal(id = null) {
 
 // ───────── 상세 창 닫기 확인 — 저장하지 않은 수정이 있으면 묻는다 ─────────
 // 현재고(f-stock)는 뺀다 — 기존 비품은 읽기 전용이고, [재고 반영]이 값을 바꿔 넣는다.
+// 'f-barcodes' 는 입력칸이 아니라 바코드 칩 목록(formBarcodes) — itemFieldValue 가 글자로 바꿔 비교한다.
 const ITEM_FORM_IDS = ['f-name', 'f-category', 'f-unit', 'f-safety', 'f-price', 'f-size', 'f-vendor', 'f-vendor-contact',
-    'f-ez-code', 'f-order-unit', 'f-leadtime', 'f-leadtime-unit', 'f-last-order', 'f-memo', 'f-main'];
+    'f-ez-code', 'f-order-unit', 'f-leadtime', 'f-leadtime-unit', 'f-last-order', 'f-memo', 'f-main',
+    'f-barcodes', 'f-barcode-input', 'f-unit-name-0', 'f-unit-qty-0', 'f-unit-name-1', 'f-unit-qty-1', 'f-unit-name-2', 'f-unit-qty-2',
+    'f-unit-name-3', 'f-unit-qty-3', 'f-no-single-out', 'f-favorite'];
 let itemSnapshot = {};
 
 function itemFieldValue(id) {
+    if (id === 'f-barcodes') return formBarcodes.join('\n');
     const el = $(id);
     return el.type === 'checkbox' ? el.checked : el.value;
+}
+
+// ───────── 상세 폼: 바코드 칩·단위 표 ─────────
+function renderBarcodeChips() {
+    $('f-barcodes').innerHTML = formBarcodes.map((b, i) => `<span class="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">
+        ${esc(b)}<button type="button" data-barcode-del="${esc(i)}" aria-label="바코드 ${esc(b)} 빼기" class="text-slate-400 hover:text-red-600 leading-none">&times;</button></span>`).join('');
+}
+/** 입력칸의 바코드를 칩으로 — 겹침·글자 검사는 저장 때 validateUnits(여기서는 빈 칸·같은 칩만 거른다) */
+function addBarcodeFromInput() {
+    const v = $('f-barcode-input').value.trim();
+    if (!v) return;
+    if (!formBarcodes.some(b => b.toUpperCase() === v.toUpperCase())) {
+        if (formBarcodes.length >= MAX_BARCODES) return showError('item-modal-error', `바코드는 ${MAX_BARCODES}개까지 넣을 수 있습니다.`);
+        formBarcodes.push(v);
+    }
+    $('f-barcode-input').value = '';
+    showError('item-modal-error', '');
+    renderBarcodeChips();
+}
+function renderUnitBaseLabel() {
+    const b = $('f-unit').value.trim() || '개';
+    $('f-unit-base-label').textContent = b;
+    document.querySelectorAll('#f-units .f-unit-base').forEach(el => { el.textContent = b; });
+}
+/** 상세 폼의 단위 표 → [{ name, qty }] (이름·수량 둘 다 빈 줄은 뺀다, 수량 글자는 숫자로 — 검사는 validateUnits) */
+function formUnits() {
+    const out = [];
+    for (let i = 0; i < MAX_UNITS; i++) {
+        const name = $(`f-unit-name-${i}`).value.trim();
+        const q = $(`f-unit-qty-${i}`).value.trim();
+        if (!name && !q) continue;
+        out.push({ name, qty: q === '' ? NaN : Number(q) });
+    }
+    return out;
 }
 
 /** 지금 폼 값을 '저장된 상태'로 기억한다. ids 를 주면 그 칸만(다른 칸의 미저장 수정은 그대로 둔다). */
@@ -802,6 +974,14 @@ async function saveItem() {
     const dup = items.find(x => x.name === name && x.id !== editingId);
     if (dup) return showError('item-modal-error', '같은 품명의 비품이 이미 있습니다.');
 
+    // 입출고 단위·바코드 — 입력칸에 찍어 두고 [추가]를 안 누른 바코드도 넣는다
+    const pendingCode = $('f-barcode-input').value.trim();
+    const barcodes = [...formBarcodes];
+    if (pendingCode && !barcodes.some(b => b.toUpperCase() === pendingCode.toUpperCase())) barcodes.push(pendingCode);
+    const unitFields = { barcodes, units: formUnits(), noSingleOut: $('f-no-single-out').checked, favorite: $('f-favorite').checked };
+    const unitErrs = validateUnits({ id: editingId, name, unit: $('f-unit').value.trim() || '개', ...unitFields }, items);
+    if (unitErrs.length) return showError('item-modal-error', unitErrs.join('\n'));
+
     const data = {
         name,
         category: $('f-category').value.trim() || '미분류',
@@ -819,6 +999,7 @@ async function saveItem() {
         lastOrderDate: $('f-last-order').value,
         memo: $('f-memo').value.trim(),
         isMain: $('f-main').checked,
+        ...unitFields,
         updatedAt: new Date().toISOString(),
         updatedBy: currentUser
     };
@@ -845,12 +1026,14 @@ async function saveItem() {
             items[idx] = next;
             undo = () => { const i = items.indexOf(next); if (i >= 0) items[i] = prev; };
         } else {
+            if (ledgerLive) data.stock = 0;   // 앱 기준 — 재고는 추가한 뒤 재고 패널(원장)에서
             const added = { id: uid(), logs: [], ...data,
                 priceLogs: data.unitPrice > 0 ? [{ at: data.updatedAt, by: currentUser || '', from: 0, to: data.unitPrice }] : [] };
             items.push(added);
             undo = () => { items = items.filter(x => x !== added); };
         }
         await persist();
+        formBarcodes = barcodes; $('f-barcode-input').value = '';
         takeItemSnapshot();
         closeModal('item-modal');
         renderAll();
@@ -868,6 +1051,18 @@ async function saveItem() {
 async function deleteItem() {
     const it = items.find(x => x.id === editingId);
     if (!it) return;
+    // 스위치가 열어 둔 사이 바뀌었으면 다시 불러오고 멈춘다(낡은 탭이 원장 재고 검사를 건너뛰지 않게)
+    try { if (!(await modeStillSame())) return; }
+    catch (e) { return showError('item-modal-error', '재고 기준을 확인하지 못해 삭제를 멈췄습니다: ' + ((e && (e.code || e.message)) || e)); }
+    // 앱 기준(켜짐) — 원장에 재고가 남은 비품은 지우지 않는다(지우면 그 재고를 볼 곳이 없다). 지우기 직전 서버 값으로 본다.
+    if (ledgerLive) {
+        let left;
+        try { left = await loadStockOf(db, it.id); }
+        catch (e) { return showError('item-modal-error', '앱 재고를 확인하지 못해 삭제를 멈췄습니다: ' + ((e && (e.code || e.message)) || e)); }
+        if (left > 0) {
+            return showAlert(`'${it.name}' 은(는) 앱 재고가 ${fmt(left)}${it.unit || '개'} 남아 있어 삭제할 수 없습니다.\n재고 패널에서 실사(=)로 0 을 먼저 맞춘 뒤 삭제해 주세요.`, { title: '삭제할 수 없음', isError: true });
+        }
+    }
     if (!(await showConfirm(`'${it.name}' 비품을 삭제할까요?\n재고 변동 이력도 함께 사라집니다.`, { title: '비품을 삭제할까요?', okText: '삭제하기', danger: true }))) return;
     const prevItems = items;   // 저장 실패(충돌 아님) 시 되돌린다
     items = items.filter(x => x.id !== editingId);
@@ -951,10 +1146,10 @@ async function handleStockFile(file) {
         $('stock-memo').value = `현재고조회 업로드${latest.at ? ` · 기준 ${latest.at}` : ''}`;
         updateStockPreview();
 
-        const diff = latest.stock - num(it.stock);
+        const diff = latest.stock - curStock(it);
         const note = $('stock-import-note');
         note.textContent = `${file.name} — ${count}건 중 가장 최근 작업(${latest.at || '날짜 없음'}) 기준 재고 `
-            + `${fmt(latest.stock)}${it.unit || '개'}. 현재 ${fmt(it.stock)} → ${fmt(latest.stock)} `
+            + `${fmt(latest.stock)}${it.unit || '개'}. 현재 ${fmt(curStock(it))} → ${fmt(latest.stock)} `
             + `(${diff > 0 ? '+' : ''}${fmt(diff)}). 확인 후 [재고 반영]을 누르세요.`;
         note.classList.remove('hidden');
         $('btn-save-stock').focus();
@@ -993,12 +1188,59 @@ function currentStockOp() {
     return document.querySelector('input[name="stock-op"]:checked')?.value || 'in';
 }
 
+// 앱 기준(켜짐) 재고 패널의 방향 — 단위 단추(unitButtons)에 넘기는 값
+const unitDir = (op) => (op === 'out' ? 'out' : (op === 'set' ? 'count' : 'in'));
+const ledgerKindLabel = { in: '입고', out: '사용', count: '실사', revert: '되돌림' };
+
+/** 앱 기준(켜짐) 단위 단추 — 고른 단위가 이번 방향에 없으면 가장 작은 단위로 */
+function renderStockUnits() {
+    const box = $('stock-units');
+    const it = items.find(x => x.id === stockTargetId);
+    const show = ledgerLive && !!it;
+    box.classList.toggle('hidden', !show);
+    box.classList.toggle('flex', show);
+    if (!show) { box.innerHTML = ''; $('stock-qty-label').textContent = '수량'; return; }
+    const btns = unitButtons(it, unitDir(currentStockOp()));
+    if (!btns.some(u => u.qty === stockUnitQty)) stockUnitQty = btns[0].qty;
+    const base = it.unit || '개';
+    box.innerHTML = btns.map(u => {
+        const on = u.qty === stockUnitQty;
+        return `<button type="button" data-stock-unit="${esc(u.qty)}" aria-pressed="${on}"
+            class="text-xs font-bold px-2.5 py-1.5 rounded-lg border ${on ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-100'}">${esc(u.name)}${u.qty > 1 ? ` <span class="font-normal ${on ? 'text-indigo-100' : 'text-slate-400'}">(${esc(fmt(u.qty))}${esc(base)})</span>` : ''}</button>`;
+    }).join('');
+    const cur = btns.find(u => u.qty === stockUnitQty);
+    $('stock-qty-label').textContent = cur && cur.qty > 1 ? `수량 (${cur.name} 몇 개)` : '수량';
+}
+
+/** 앱 기준(켜짐) — 고른 단위 × 수량 칸 = { qty } 기본 단위 수량 · { error:'format'|'max' } · 빈칸이면 null */
+function stockBaseQty() {
+    const it = items.find(x => x.id === stockTargetId);
+    if (!it) return null;
+    const btns = unitButtons(it, unitDir(currentStockOp()));
+    const unit = btns.find(u => u.qty === stockUnitQty) || btns[0];
+    const raw = $('stock-qty').value.trim();
+    return raw === '' ? null : checkBaseQty(unit, raw);
+}
+const baseQtyErrorText = (r, it) => (r && r.error === 'max'
+    ? `한 번에 ${fmt(MAX_UNIT_QTY)}${(it && it.unit) || '개'}까지 넣을 수 있습니다.` : '수량을 0 이상 정수로 넣어 주세요.');
+
 function updateStockPreview() {
     const it = items.find(x => x.id === stockTargetId);
     if (!it) return;
-    const qty = num($('stock-qty').value);
     const op = currentStockOp();
-    const after = op === 'in' ? num(it.stock) + qty : (op === 'out' ? num(it.stock) - qty : qty);
+    const before = curStock(it);
+    if (ledgerLive) {
+        const r = stockBaseQty();
+        if (!r) { $('stock-preview').textContent = '-'; return; }
+        if (r.error) { $('stock-preview').textContent = baseQtyErrorText(r, it); return; }
+        const q = r.qty;
+        const after = op === 'in' ? before + q : (op === 'out' ? before - q : q);
+        const conv = stockUnitQty > 1 ? ` · ${fmt(q)}${it.unit || '개'}` : '';
+        $('stock-preview').textContent = `${fmt(Math.max(0, after))} ${it.unit || '개'}${after < 0 ? ' (재고 부족)' : ''}${conv}`;
+        return;
+    }
+    const qty = num($('stock-qty').value);
+    const after = op === 'in' ? before + qty : (op === 'out' ? before - qty : qty);
     $('stock-preview').textContent = `${fmt(Math.max(0, after))} ${it.unit || '개'}${after < 0 ? ' (재고 부족)' : ''}`;
 }
 
@@ -1007,29 +1249,37 @@ function resetStockInputs() {
     $('stock-qty').value = '';
     $('stock-memo').value = '';
     document.querySelector('input[name="stock-op"][value="in"]').checked = true;
+    stockUnitQty = 1;
     $('stock-import-note').classList.add('hidden');
     showError('stock-panel-error', '');
 }
 
-/** 현재고·부족 표시·이지어드민 연동 안내·미리보기·변동 이력을 저장된 값(items)으로 다시 그린다. */
+/** 현재고·부족 표시·이지어드민 연동 안내·미리보기·변동 이력을 저장된 값(items / 앱 기준이면 원장)으로 다시 그린다. */
 function renderStockPanel() {
     const it = items.find(x => x.id === stockTargetId);
     if (!it) return;
     const low = isLow(it);
 
-    $('stock-current').textContent = fmt(it.stock);
+    $('stock-current').textContent = fmt(curStock(it));
     $('stock-current').classList.toggle('text-red-600', low);
     $('stock-current').classList.toggle('text-slate-800', !low);
     $('stock-unit').textContent = it.unit || '개';
     $('stock-low-badge').classList.toggle('hidden', !low);
 
+    // 앱 기준(켜짐)이면 이지어드민 쪽 안내·현재고조회 파일·메모 칸을 숨긴다(메모는 원장에 칸이 없다)
     const ez = $('stock-ez-note');
-    ez.textContent = it.ezCode ? `이지어드민 연동 비품(${it.ezCode}) — 매일 19:30 이지어드민 재고로 자동 반영됩니다 · 매일 08:30 사용량 예측.` : '';
-    ez.classList.toggle('hidden', !it.ezCode);
+    const ezOn = !ledgerLive && !!it.ezCode;
+    ez.textContent = ezOn ? `이지어드민 연동 비품(${it.ezCode}) — 매일 19:30 이지어드민 재고로 자동 반영됩니다 · 매일 08:30 사용량 예측.` : '';
+    ez.classList.toggle('hidden', !ezOn);
+    $('btn-stock-excel').classList.toggle('hidden', ledgerLive);
+    $('stock-memo-wrap').classList.toggle('hidden', ledgerLive);
     renderForecastBox();
 
+    renderStockUnits();
     updateStockPreview();
 
+    if (ledgerLive) { renderLedgerLog(it); return; }
+    $('btn-stock-log-more').classList.add('hidden');
     const logs = Array.isArray(it.logs) ? it.logs : [];
     $('stock-log').innerHTML = logs.length === 0
         ? '<div class="text-[11px] text-slate-400 text-center py-2">재고 변동 이력이 없습니다.</div>'
@@ -1043,14 +1293,168 @@ function renderStockPanel() {
         }).join('');
 }
 
+/** 앱 기준(켜짐) 이력 — 원장에서 이 비품만(새 것부터). 되돌린 기록·되돌림 기록을 표시하고 나머지에 [되돌리기] */
+function renderLedgerLog(it) {
+    const mine = ledgerEntries.filter(e => e.itemId === it.id);
+    const reverted = new Set(ledgerEntries.filter(e => e.kind === 'revert' && e.ref).map(e => e.ref));
+    const timeOf = (e) => { const ms = atMs(e.at); return Number.isFinite(ms) ? kstDateTime(new Date(ms).toISOString()) : '방금'; };
+    $('stock-log').innerHTML = mine.length === 0
+        ? `<div class="text-[11px] text-slate-400 text-center py-2">${ledgerMore ? '최근 1개월 입출고 기록이 없습니다.' : '입출고 기록이 없습니다.'}</div>`
+        : mine.map(e => {
+            const tone = e.qty > 0 ? 'text-emerald-600' : (e.qty < 0 ? 'text-red-600' : 'text-slate-500');
+            const who = ledgerWho(e, memberEmails);
+            const done = reverted.has(e.id);
+            const tag = e.kind === 'revert'
+                ? ' <span class="text-[10px] font-bold px-1 rounded bg-slate-100 text-slate-500">되돌림 기록</span>'
+                : (done ? ' <span class="text-[10px] font-bold px-1 rounded bg-amber-50 text-amber-700">되돌린 기록</span>' : '');
+            const btn = e.kind !== 'revert' && !done
+                ? `<button type="button" data-revert="${esc(e.id)}" class="text-[10px] font-bold px-1.5 py-0.5 rounded border border-slate-300 text-slate-500 hover:bg-red-50 hover:text-red-600">되돌리기</button>` : '';
+            return `<div class="text-[11px] text-slate-500 py-0.5 border-b border-slate-100 last:border-b-0" data-ledger-row="${esc(e.id)}">
+                <div class="flex justify-between gap-2">
+                    <span class="min-w-0 break-words">${esc(timeOf(e))} ${esc(ledgerKindLabel[e.kind] || e.kind)}${tag}</span>
+                    <span class="${tone} font-bold shrink-0">${e.qty > 0 ? '+' : ''}${esc(fmt(e.qty))} → ${esc(fmt(e.after))}</span>
+                </div>
+                <div class="flex justify-between items-center gap-2"><span class="text-slate-400 min-w-0 truncate">${esc(who)}</span>${btn}</div>
+            </div>`;
+        }).join('');
+    $('btn-stock-log-more').classList.toggle('hidden', !ledgerMore);
+}
+
+/** 원장 저장 결과 → 화면 기억(재고·최근 기록)에 넣는다. 서버 at 은 다음 불러오기 때 — 그때까지 지금 시각 */
+function applyLedgerEntries(entries, me) {
+    const now = new Date();
+    for (const e of entries) {
+        ledgerStock[e.itemId] = e.after;
+        if (!ledgerEntries.some(x => x.id === e.id)) ledgerEntries.unshift({ ...e, byEmail: me.email, at: now });
+    }
+}
+
+/** 원장 다시 읽기(이 비품 재고 + 최근 1개월) — '이미 저장됨'·다른 사람이 먼저 바꿈 뒤에 */
+async function refreshLedgerFor(itemId) {
+    const [st, lg] = await Promise.allSettled([loadStockOf(db, itemId), loadLedger(db, { days: 30 })]);
+    if (st.status === 'fulfilled') ledgerStock[itemId] = st.value;
+    if (lg.status === 'fulfilled') { ledgerEntries = lg.value; ledgerCursor = lg.value.cursor; ledgerMore = true; }
+}
+
+const ledgerMe = () => ({ email: String(currentUser || '').toLowerCase(), name: myName || '' });
+const ledgerErr = (e, it) => {
+    if (e && e.reason === 'write') {
+        return e.code === 'permission-denied' ? '권한이 없어 저장하지 못했습니다(비품 관리 권한 확인).' : `저장하지 못했습니다(${e.code || '연결 확인'}) — 같은 값으로 다시 누르면 두 번 들어가지 않습니다.`;
+    }
+    return ledgerErrorText(e, () => (it ? it.name : '비품'));
+};
+
+/** 앱 기준(켜짐) [재고 반영] — 원장에 입고·출고(commitLines) 또는 실사(commitCount) */
+async function saveStockLedger(it) {
+    if (!ledgerStockOk) return showError('stock-panel-error', '앱 재고를 불러오지 못해 막았습니다 — [새로고침] 후 다시 해 주세요.');
+    const op = currentStockOp();
+    const r = stockBaseQty();
+    if (!r || r.error) return showError('stock-panel-error', r ? baseQtyErrorText(r, it) : '수량을 입력해주세요.');
+    const q = r.qty;
+    if (op !== 'set' && q <= 0) return showError('stock-panel-error', '수량을 입력해주세요.');
+    const before = curStock(it);
+    const after = op === 'in' ? before + q : (op === 'out' ? before - q : q);
+    if (after < 0) return showError('stock-panel-error', `재고가 모자랍니다(필요 ${fmt(q)} · 지금 ${fmt(before)}).`);
+    showError('stock-panel-error', '');
+    const chk = checkStockAdjust({ op, raw: String(q), before });
+    if (chk.error) return showError('stock-panel-error', chk.error);
+    if (chk.confirm && !(await showConfirm(chk.confirm))) return;
+
+    const key = `${it.id}|${op}|${q}`;
+    const batchId = pendingStock && pendingStock.key === key ? pendingStock.batchId : newBatchId();
+    pendingStock = { key, batchId };
+    const me = ledgerMe();
+    const btn = $('btn-save-stock');
+    btn.disabled = true;
+    try {
+        if (!(await modeStillSame())) return;
+        let fail = null, entries = [], already = false;
+        if (op === 'set') {
+            const r = await commitCount(db, it.id, q, me, batchId);
+            if (!r.ok) fail = r;
+            else if (r.already) already = true;
+            else if (r.entry) entries = [r.entry];
+        } else {
+            const r = await commitLines(db, [{ itemId: it.id, qty: q }], op, me, batchId);
+            const bad = r.parts.find(p => !p.ok);
+            if (bad) fail = (bad.errors && bad.errors[0]) || { reason: 'write' };
+            else { entries = r.parts.flatMap(p => p.entries || []); already = r.parts.some(p => p.already); }
+        }
+        if (fail) {
+            if (fail.reason !== 'write') pendingStock = null;   // 저장 안 됨이 확실 — 다음은 새 묶음
+            if (fail.reason === 'short' || fail.reason === 'changed') { await refreshLedgerFor(it.id); renderStockPanel(); renderAll(); }
+            return showError('stock-panel-error', ledgerErr(fail, it));
+        }
+        pendingStock = null;
+        if (already) await refreshLedgerFor(it.id);
+        else applyLedgerEntries(entries, me);
+        resetStockInputs();
+        renderStockPanel();
+        renderAll();
+        if (already) showError('stock-panel-error', '이미 저장된 입력이었습니다 — 두 번 들어가지 않았습니다.');
+    } catch (e) {
+        renderStockPanel();
+        showError('stock-panel-error', ledgerErr({ reason: 'write', code: e && e.code }, it));
+    } finally {
+        btn.disabled = false;
+    }
+}
+
+/** 앱 기준(켜짐) 이력의 [되돌리기] — 원 기록의 반대 기록(한 번만, 0 밑이면 거절) */
+async function revertLedgerEntry(id) {
+    const it = items.find(x => x.id === stockTargetId);
+    const e = ledgerEntries.find(x => x.id === id);
+    if (!it || !e || e.itemId !== it.id) return;
+    const unit = it.unit || '개';
+    const back = -e.qty;
+    if (!(await showConfirm(`${ledgerKindLabel[e.kind] || e.kind} ${e.qty > 0 ? '+' : ''}${fmt(e.qty)}${unit} 기록을 되돌립니다.\n재고가 ${fmt(Math.abs(back))}${unit} ${back > 0 ? '늘어납니다' : '줄어듭니다'}. 원래 기록은 남고 되돌림 기록이 하나 더 생깁니다.`,
+        { title: '기록을 되돌릴까요?', okText: '되돌리기', danger: true }))) return;
+    const me = ledgerMe();
+    showError('stock-panel-error', '');
+    try {
+        if (!(await modeStillSame())) return;
+        const r = await commitRevert(db, { id: e.id, itemId: e.itemId, kind: e.kind, qty: e.qty }, me);
+        if (!r.ok) {
+            if (r.reason === 'already') { await refreshLedgerFor(it.id); renderStockPanel(); renderAll(); return showError('stock-panel-error', '이미 되돌린 기록입니다.'); }
+            if (r.reason === 'short') { await refreshLedgerFor(it.id); renderStockPanel(); renderAll(); }
+            return showError('stock-panel-error', ledgerErr(r, it));
+        }
+        applyLedgerEntries([r.entry], me);
+        renderStockPanel();
+        renderAll();
+    } catch (err) {
+        showError('stock-panel-error', ledgerErr({ reason: 'write', code: err && err.code }, it));
+    }
+}
+
+/** 앱 기준(켜짐) 이력 [더 보기] — 지금 받은 것보다 오래된 기록 200건 더(비품 모두 섞여 온다 — 이 비품 것이 안 보이면 한 번 더) */
+async function loadMoreLedger() {
+    const btn = $('btn-stock-log-more');
+    btn.disabled = true;
+    try {
+        const more = await loadLedger(db, { days: null, max: 200, before: ledgerCursor });
+        const have = new Set(ledgerEntries.map(x => x.id));
+        more.forEach(x => { if (!have.has(x.id)) ledgerEntries.push(x); });
+        if (more.cursor) ledgerCursor = more.cursor;
+        ledgerMore = more.full;
+        renderStockPanel();
+    } catch (e) {
+        showError('stock-panel-error', '기록을 더 불러오지 못했습니다: ' + ((e && (e.code || e.message)) || e));
+    } finally {
+        btn.disabled = false;
+    }
+}
+
 async function saveStock() {
     const it = items.find(x => x.id === stockTargetId);
     if (!it) return;
+    if (!settingsOk) return showError('stock-panel-error', '재고 기준 설정을 불러오지 못해 막았습니다 — [새로고침] 후 다시 해 주세요.');
+    if (ledgerLive) return saveStockLedger(it);
 
     const raw = $('stock-qty').value;
     const qty = num(raw);
     const op = currentStockOp();
-    const before = num(it.stock);
+    const before = curStock(it);
     // 빈칸·숫자 아님은 실사도 막는다(예전엔 빈 실사가 재고 0 으로 저장됐다) — js/lib/supplies-stock-check.js
     const chk = checkStockAdjust({ op, raw, before });
     if (chk.error) return showError('stock-panel-error', chk.error);
@@ -1094,7 +1498,7 @@ async function saveStock() {
                 closeModal('item-modal');
                 return;
             }
-            $('f-stock').value = num(fresh.stock);
+            $('f-stock').value = curStock(fresh);
             renderStockPanel();
             showError('stock-panel-error', '다른 사람이 먼저 바꿔 재고를 다시 불러왔습니다. 재고 반영을 다시 해 주세요.');
         } else {
@@ -1125,7 +1529,7 @@ function renderForecastBox() {
         ${b.label !== '-' ? `<span class="text-[10px] font-bold px-1.5 py-0.5 rounded-full ${b.cls} shrink-0"${b.title ? ` title="${esc(b.title)}"` : ''}>${esc(b.label)}</span>` : ''}
     </div>`];
     const ordered = order && order.status === 'ordered';
-    if (!String(it.ezCode || '').trim() && !ordered) {
+    if (!String(it.ezCode || '').trim() && !ordered && !fcOpts().ledger) {
         box.innerHTML = parts.join('') + `<p class="text-[11px] text-slate-500 leading-snug">${esc(NOCODE_HINT)}</p>`;
         return;
     }
@@ -1311,7 +1715,7 @@ async function saveItemFields(patch) {
                 closeModal('item-modal');
                 return;
             }
-            $('f-stock').value = num(fresh.stock);
+            $('f-stock').value = curStock(fresh);
             renderStockPanel();
             showError('fc-error', '다른 사람이 먼저 바꿔 다시 불러왔습니다. 다시 해 주세요.');
         } else {
@@ -1336,6 +1740,282 @@ $('fc-box').addEventListener('change', (e) => {
 });
 $('fc-box').addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && e.target.id === 'fc-order-qty') { e.preventDefault(); forecastOrder(); }
+});
+
+// ───────── 재고 기준 스위치 지켜보기(2026-11-26 리뷰) ─────────
+// 열어 둔 탭이 전환·끄기 뒤에도 옛 방식으로 쓰지 않게:
+//   (a) 스위치 문서를 구독 — ledgerLive 가 이 탭이 아는 값과 달라지면 띠를 띄우고 다시 불러온다(열린 창은 닫는다)
+//   (b) persist 트랜잭션이 스위치를 같이 읽어 다르면 저장하지 않는다(SuppliesConflict 'mode')
+//   (c) 원장 쓰기(입출고·되돌리기)·삭제 직전에도 다시 읽어 본다 — 규칙에는 스위치 조건을 넣지 않는다(문서 확인 한도)
+let settingsUnsub = null;
+let selfSwitching = false;      // 이 탭이 스위치를 바꾸는 중(전환·끄기) — 구독이 '바뀌었습니다' 를 띄우지 않게
+let reloadingForMode = false;
+
+// 에뮬레이터 화면 시험용 — 이 탭만 구독을 끈다(열어 둔 낡은 탭 흉내, js/utils.js nativeDialogsForTest 와 같은 조건 + sessionStorage)
+const settingsWatchOffForTest = () => {
+    try {
+        const h = location.hostname;
+        return (h === 'localhost' || h === '127.0.0.1') && navigator.webdriver === true && sessionStorage.getItem('test.suppliesNoSettingsWatch') === '1';
+    } catch (_) { return false; }
+};
+
+function showModeNotice(text) {
+    const el = $('ledger-mode-notice');
+    if (!el) return;
+    el.textContent = text || '';
+    el.classList.toggle('hidden', !text);
+}
+
+/** 스위치가 바뀌었을 때 — 열린 창을 닫고 다시 불러온다(입력해 두고 저장 안 한 것은 버린다) */
+async function reloadForModeChange() {
+    if (reloadingForMode) return;
+    reloadingForMode = true;
+    showModeNotice('재고 기준이 바뀌었습니다 — 다시 불러옵니다.');
+    ['item-modal', 'cutover-modal'].forEach(id => { if (!$(id).classList.contains('hidden')) closeModal(id); });
+    try {
+        await load();
+        renderAll();
+    } finally {
+        reloadingForMode = false;
+    }
+    showModeNotice(`재고 기준이 바뀌어 다시 불러왔습니다 — 지금: ${ledgerLive ? '앱(입출고 기록)' : '이지어드민 자동 반영'}. 창에 입력해 두고 저장하지 않은 것은 저장되지 않았습니다.`);
+}
+
+function watchSettings() {
+    if (settingsUnsub || settingsWatchOffForTest()) return;
+    settingsUnsub = onSnapshot(SETTINGS_REF, (snap) => {
+        const d = snap.exists() ? snap.data() : null;
+        if (!firstLoadDone || selfSwitching || reloadingForMode) return;
+        if (settingsOk === true && isLive(d) === ledgerLive) { suppliesSettings = d; renderLedgerBar(); return; }
+        reloadForModeChange();
+    }, (e) => {
+        console.warn('[supplies] 재고 기준 구독 실패:', e && e.code);
+        settingsUnsub = null;   // 끝난 리스너 — 다음 [새로고침] 뒤 다시 건다
+    });
+}
+
+/** (c) 원장 쓰기·삭제 직전 — 스위치가 이 탭이 아는 값 그대로인가. 다르면 다시 불러오고 false(읽기 실패는 던진다) */
+async function modeStillSame() {
+    const s = await getDoc(SETTINGS_REF);
+    const d = s.exists() ? s.data() : null;
+    if (settingsOk === true && isLive(d) === ledgerLive) return true;
+    await reloadForModeChange();
+    return false;
+}
+
+// ───────── 앱 기준으로 전환·되돌리기(관리자) ─────────
+// 전환: ① 스위치 문서에 cutover.batchId 먼저 기록(트랜잭션 — 켜져 있거나 다른 관리자가 막 시작했으면 멈춤)
+//       ② 비품마다 실사(commitCount, 같은 batchId — 끊겨도 다시 누르면 남은 것만. CUTOVER_CHECK_EVERY 건마다 스위치 다시 봄)
+//       ③ 전부 성공하면 트랜잭션으로 ledgerLive:true·liveAt·liveBy(아직 꺼짐이고 cutover.batchId 가 내 묶음일 때만).
+//       빈칸은 건너뜀(앱 재고가 없으면 0 에서 시작).
+//   이어 하기: 끝나지 않은 전환이 있으면 같은 batchId. 시작한 지 6시간(CUTOVER_STALE_MS) 넘었으면 '새로 시작'을 묻는다.
+//   미리 채우기: 처음 켜는 전환을 이어 할 때만 앱 값(이번에 저장한 값)을 채운다. 다시 켤 때(liveAt 있음)는 칸을 비우고 옛 앱 값은 참고로만.
+// 쓰기 권한은 규칙이 본다(suppliesSettings = 관리자만). 화면의 isAdmin 은 단추 표시용.
+const CUTOVER_CHECK_EVERY = 5;
+let cutoverRunning = false;
+let cutoverPlan = null;          // { resume: 이어 할 batchId | null } — openCutover 가 정하고 runCutover 가 쓴다
+const kstOf = (v) => { const ms = atMs(v); return Number.isFinite(ms) ? kstDateTime(new Date(ms).toISOString()) : '시각 모름'; };
+
+async function openCutover() {
+    if (!isAdmin) return;
+    const bad = items.filter(it => !ITEM_ID_RE.test(String(it.id || '')));
+    if (bad.length) {
+        return showAlert(`비품 ${bad.length}건의 내부 번호 모양이 맞지 않아 전환할 수 없습니다(${bad.slice(0, 5).map(it => it.name).join(', ')}${bad.length > 5 ? ' …' : ''}).\n개발 담당에게 알려 주세요.`, { title: '전환할 수 없음', isError: true });
+    }
+    let have = {}, cur = null;
+    try {
+        const [h, s] = await Promise.all([loadStock(db), getDoc(SETTINGS_REF)]);
+        have = h; cur = s.exists() ? s.data() : null;
+    } catch (e) { return showAlert('앱 재고를 읽지 못했습니다: ' + ((e && (e.code || e.message)) || e), { title: '불러오기 실패', isError: true }); }
+    if (isLive(cur)) { await reloadForModeChange(); return; }
+    let resume = resumeBatchId(cur);
+    if (resume && cutoverStale(cur)) {
+        const fresh = await showConfirm(`끝나지 않은 전환이 있습니다 — ${kstOf(cur.cutover.startedAt)} 에 시작(6시간 넘음).\n그 사이 재고가 바뀌었을 수 있습니다. [새로 시작]을 누르면 지금 센 수량으로 처음부터 다시 넣습니다.`,
+            { title: '새로 시작할까요?', okText: '새로 시작', cancelText: '이어 하기' });
+        if (fresh) resume = null;
+    }
+    const reEnable = Number.isFinite(atMs(cur && cur.liveAt));
+    const prefill = !!resume && !reEnable;   // 처음 켜는 전환을 이어 할 때만 — 이번 묶음에서 저장한 값
+    cutoverPlan = { resume };
+    const list = [...items].sort((a, b) => String(a.category || '').localeCompare(String(b.category || ''), 'ko') || String(a.name).localeCompare(String(b.name), 'ko'));
+    $('cutover-body').innerHTML = list.map(it => {
+        const app = have[it.id];
+        return `<tr>
+            <td class="wrap">${esc(it.name)}</td>
+            <td class="num text-slate-500">${esc(fmt(it.stock))} <span class="text-[11px]">${esc(it.unit || '개')}</span></td>
+            <td class="num text-slate-500">${app != null ? esc(fmt(app)) : '-'}</td>
+            <td class="num"><input type="number" min="0" step="1" inputmode="numeric" class="inp num" style="width:110px;padding:5px 7px" data-cut-id="${esc(it.id)}" value="${prefill && app != null ? esc(String(app)) : ''}" aria-label="${esc(it.name)} 센 수량"></td>
+        </tr>`;
+    }).join('');
+    showError('cutover-error', '');
+    showError('cutover-status', resume
+        ? `이어 하기 — ${kstOf(cur.cutover.startedAt)} 에 시작한 전환입니다. 이미 저장한 비품은 두 번 들어가지 않습니다.`
+        : (reEnable ? '다시 켜기 — 앱 값은 지난번 값(참고)입니다. 지금 센 수량을 넣어 주세요.' : ''));
+    openModal('cutover-modal');
+}
+
+const CUTOVER_BLOCK_TEXT = {
+    live: '다른 관리자가 이미 앱 기준으로 켰습니다 — 다시 불러옵니다.',
+    busy: '다른 관리자가 방금 전환을 시작했습니다 — 창을 닫고 잠시 뒤 다시 열어 주세요.',
+    changed: '그 사이 다른 관리자가 전환을 새로 시작했습니다 — 창을 닫고 다시 열어 주세요.'
+};
+
+async function runCutover() {
+    if (cutoverRunning || !isAdmin) return;
+    const rows = [...document.querySelectorAll('#cutover-body input[data-cut-id]')];
+    const want = [], badRows = [], skippedNames = [];
+    for (const el of rows) {
+        const id = el.dataset.cutId, v = el.value.trim();
+        const it = items.find(x => x.id === id);
+        if (!it) continue;
+        if (v === '') { skippedNames.push(it.name); continue; }
+        if (!/^\d+$/.test(v) || Number(v) > 1000000) { badRows.push(it.name); continue; }
+        want.push({ it, n: Number(v) });
+    }
+    if (badRows.length) return showError('cutover-error', `수량을 0 이상 정수(1,000,000 까지)로 넣어 주세요: ${badRows.join(', ')}`);
+    showError('cutover-error', '');
+    const SHOW = 15;
+    const skipList = skippedNames.slice(0, SHOW).map(n => `· ${n}`).join('\n') + (skippedNames.length > SHOW ? `\n· 외 ${skippedNames.length - SHOW}건` : '');
+    const msg = `${want.length}건의 시작 재고를 저장하고 앱 기준으로 바꿉니다.`
+        + (skippedNames.length ? `\n빈칸 ${skippedNames.length}건은 건너뜁니다 — 앱 재고가 없는 비품은 0 에서 시작합니다.\n${skipList}` : '')
+        + '\n저장 뒤에는 이지어드민 자동 반영이 이 화면 재고에 쓰이지 않습니다.';
+    if (!(await showConfirm(msg, { title: '앱 기준으로 전환할까요?', okText: '저장하고 전환' }))) return;
+
+    cutoverRunning = true;
+    selfSwitching = true;
+    const btn = $('btn-cutover-save');
+    btn.disabled = true;
+    const me = ledgerMe();
+    const status = (t) => showError('cutover-status', t);
+    const stop = async (why) => {
+        showError('cutover-error', CUTOVER_BLOCK_TEXT[why] || '저장하지 못했습니다.');
+        if (why === 'live') { selfSwitching = false; await reloadForModeChange(); }
+    };
+    try {
+        const plan = cutoverPlan || { resume: null };
+        const batchId = plan.resume || newBatchId();
+        // ① 전환 시작 — 트랜잭션(켜져 있거나 남이 막 시작한 전환이 있으면 쓰지 않는다)
+        const block = await runTransaction(db, async (tx) => {
+            const s = await tx.get(SETTINGS_REF);
+            const b = cutoverStartBlock(s.exists() ? s.data() : null, plan.resume, Date.now());
+            if (b) return b;
+            if (!plan.resume) tx.set(SETTINGS_REF, { ledgerLive: false, cutover: { batchId, startedAt: serverTimestamp() }, updatedAt: serverTimestamp() }, { merge: true });
+            return null;
+        });
+        if (block) return await stop(block);
+        cutoverPlan = { resume: batchId };   // 이 창에서 다시 누르면 같은 묶음으로 이어 한다
+        // ② 비품마다 실사
+        const failed = [], differ = [];
+        let saved = 0, same = 0;
+        for (let i = 0; i < want.length; i++) {
+            if (i > 0 && i % CUTOVER_CHECK_EVERY === 0) {
+                const s = await getDoc(SETTINGS_REF);
+                const b = liveOnBlock(s.exists() ? s.data() : null, batchId);
+                if (b) return await stop(b);
+            }
+            const { it, n } = want[i];
+            status(`저장 중 ${i + 1}/${want.length}`);
+            try {
+                const r = await commitCount(db, it.id, n, me, batchId);
+                if (!r.ok) failed.push(`${it.name}(${ledgerErrorText(r)})`);
+                else if (r.already) {
+                    // 이번 전환에서 이미 저장했는데 값을 바꿔 다시 누름 — 저장된 값을 그대로 둔다(켠 뒤 실사로 맞춤)
+                    const now = await loadStockOf(db, it.id);
+                    if (now !== n) differ.push(`${it.name}(저장된 값 ${fmt(now)})`); else same++;
+                } else if (r.entry) saved++;
+                else same++;
+            } catch (e) {
+                failed.push(`${it.name}(${(e && e.code) || '연결 확인'})`);
+            }
+        }
+        if (failed.length) {
+            status(`저장 ${saved}건 · 그대로 ${same}건 · 못 함 ${failed.length}건`);
+            showError('cutover-error', `${failed.length}건을 저장하지 못해 아직 켜지 않았습니다 — [시작 재고 저장]을 다시 누르면 남은 것만 저장합니다.\n${failed.join('\n')}`);
+            return;
+        }
+        // ③ 켜기 — 트랜잭션(아직 꺼짐이고 내 묶음일 때만)
+        const onBlock = await runTransaction(db, async (tx) => {
+            const s = await tx.get(SETTINGS_REF);
+            const b = liveOnBlock(s.exists() ? s.data() : null, batchId);
+            if (b) return b;
+            tx.set(SETTINGS_REF, { ledgerLive: true, liveAt: serverTimestamp(), liveBy: me.email, updatedAt: serverTimestamp() }, { merge: true });
+            return null;
+        });
+        if (onBlock) return await stop(onBlock);
+        cutoverPlan = null;
+        closeModal('cutover-modal');
+        await load();
+        renderAll();
+        showModeNotice('');
+        showAlert(`앱 기준으로 켰습니다 — 저장 ${saved}건 · 같은 값 ${same}건 · 빈칸 ${skippedNames.length}건.`
+            + (differ.length ? `\n\n아래는 이번 전환에서 먼저 저장한 값이 남아 있습니다(바꾼 값은 안 들어감) — 재고 패널에서 실사로 맞춰 주세요.\n${differ.join('\n')}` : ''),
+            { title: '전환 완료' });
+    } catch (e) {
+        showError('cutover-error', '저장하지 못했습니다: ' + ((e && (e.code || e.message)) || e) + '\n다시 누르면 이어서 저장합니다.');
+    } finally {
+        cutoverRunning = false;
+        selfSwitching = false;
+        btn.disabled = false;
+    }
+}
+
+async function ledgerOff() {
+    if (!isAdmin || !ledgerLive) return;
+    if (!(await showConfirm('이지어드민 기준으로 되돌리면 이 화면 재고가 비품 문서 값(이지어드민 자동 반영)으로 돌아갑니다.\n앱에서 한 입출고는 그 값에 들어 있지 않습니다. 비상용입니다.\n앱 입출고 기록은 지워지지 않습니다.',
+        { title: '이지어드민 기준으로 되돌릴까요?', okText: '되돌리기', danger: true }))) return;
+    selfSwitching = true;
+    try {
+        try {
+            await setDoc(SETTINGS_REF, { ledgerLive: false, updatedAt: serverTimestamp() }, { merge: true });
+        } catch (e) {
+            return showAlert('바꾸지 못했습니다: ' + ((e && (e.code || e.message)) || e), { title: '저장 실패', isError: true });
+        }
+        if (!$('item-modal').classList.contains('hidden')) closeModal('item-modal');
+        await load();
+        renderAll();
+        showModeNotice('');
+    } finally {
+        selfSwitching = false;
+    }
+}
+
+$('btn-ledger-cutover').addEventListener('click', openCutover);
+$('btn-ledger-off').addEventListener('click', ledgerOff);
+$('btn-cutover-save').addEventListener('click', runCutover);
+
+// 재고 패널 — 단위 단추·이력 [되돌리기]·[더 보기]
+$('stock-units').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-stock-unit]');
+    if (!b) return;
+    stockUnitQty = Number(b.dataset.stockUnit) || 1;
+    renderStockUnits();
+    updateStockPreview();
+});
+$('stock-log').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-revert]');
+    if (b && !b.disabled) revertLedgerEntry(b.dataset.revert);
+});
+$('btn-stock-log-more').addEventListener('click', loadMoreLedger);
+
+// 상세 폼 — 바코드 칩·단위 표 기본 단위 글자
+$('btn-barcode-add').addEventListener('click', addBarcodeFromInput);
+$('f-barcode-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); addBarcodeFromInput(); } });
+$('f-barcodes').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-barcode-del]');
+    if (!b) return;
+    formBarcodes.splice(Number(b.dataset.barcodeDel), 1);
+    renderBarcodeChips();
+});
+$('f-unit').addEventListener('input', renderUnitBaseLabel);
+
+// 목록 검색칸에 바코드를 찍고 Enter — 그 비품 상세 창(바코드가 없는 비품은 그냥 검색)
+$('filter-search').addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter') return;
+    const it = findByBarcode(items, e.target.value);
+    if (!it) return;
+    e.preventDefault();
+    opener = null;
+    openItemModal(it.id);
 });
 
 // ───────── 모달 공통 ─────────
@@ -1382,7 +2062,7 @@ $('btn-reset-filters').addEventListener('click', resetAllFilters);
 $('f-order-unit').addEventListener('blur', (e) => { e.target.value = withThousands(e.target.value); });
 
 $('stock-qty').addEventListener('input', updateStockPreview);
-document.querySelectorAll('input[name="stock-op"]').forEach(r => r.addEventListener('change', updateStockPreview));
+document.querySelectorAll('input[name="stock-op"]').forEach(r => r.addEventListener('change', () => { renderStockUnits(); updateStockPreview(); }));
 
 // 요약 카드(재고 부족·발주 필요) — 목록 체크박스를 뒤집는다(눌림 표시는 renderTable 이 맞춘다)
 $('summary').addEventListener('click', (e) => {
