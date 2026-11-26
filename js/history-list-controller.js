@@ -6,16 +6,16 @@ import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
 import { showToast, getTodayDateString, getWeekOfYear, getAllTaskKeys, escapeHtml } from './utils.js?v=65bb3512764f-e315797c';
 import { augmentHistoryWithPersistentLeave } from './history-enricher.js?v=c341849aeebc-c768d8df';
 import { fetchAllHistoryData, refreshRecentHistory, syncTodayToHistory, getDailyDocRef, selfHealRecentHistory, historyLoadFailed,
-         fetchPlannedData, getPlannedQuantitiesForDate, getUpcomingPlannedDateStrings, clearLocalCache, isDayClosedOnServer } from './history-data-manager.js?v=26fc7632b99b-a9403e97';
+         fetchPlannedData, getPlannedQuantitiesForDate, getUpcomingPlannedDateStrings, clearLocalCache, isDayClosedOnServer } from './history-data-manager.js?v=8975ac4ffa03-a9403e97';
 import { checkMissingQuantities } from './analysis-logic.js?v=ad17bad984b3-0bfe0ae3';
 import { historyDotState } from './lib/history-dot.js?v=de7b25f4e5a2-7a530696';
-import { startPlannedAutosave, flushPlannedAutosave, startPlannedLive, stopPlannedLive } from './planned-autosave.js?v=29f2beee9eb0-4b829cba';
-import { renderQuantityModalInputs, applyPlannedPrefill } from './ui.js?v=26fc7632b99b-a84d3554';
+import { startPlannedAutosave, flushPlannedAutosave, startPlannedLive, stopPlannedLive } from './planned-autosave.js?v=991fac45e834-4b829cba';
+import { renderQuantityModalInputs, applyPlannedPrefill } from './ui.js?v=8975ac4ffa03-a84d3554';
 import { plannedPrefill, doneTasksOf } from './lib/planned-prefill.js?v=585777796ac6-3504c033';
 import { aliasNameMap, aliasTaskName } from './lib/task-alias-view.js?v=2e131477eb8e-af660ceb';
 import { changedQuantities, changedZeroList } from './lib/history-merge.js?v=f882da56f066-3d3139d2';
 import { getIncomingQtyByDateFromCache } from './widget-incoming-schedule.js?v=98c211d9a608-237bc1dd';
-import { getAutoQuantitiesForDate, getTransmitQuantitiesForDate, ensureMibalHistory } from './ui-history-prediction.js?v=26fc7632b99b-8e6157b0';
+import { getAutoQuantitiesForDate, getTransmitQuantitiesForDate, ensureMibalHistory } from './ui-history-prediction.js?v=8975ac4ffa03-099e2602';
 import { doc, setDoc, getDocFromServer } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 let isRenderingList = false;
@@ -56,7 +56,7 @@ export const retryHistoryLoad = async () => {
         if (historyLoadFailed()) return;   // 또 실패 — 오류 화면은 그대로
         clearPanelLoadErrors();
         const { sectionIdFor } = await import('./history-sections.js?v=2fc2330007e7-1af66818');
-        const { showSection } = await import('./listeners-history-tabs.js?v=553242e3bc8f-8058cdde');
+        const { showSection } = await import('./listeners-history-tabs.js?v=de29b890c8ad-8058cdde');
         await showSection(sectionIdFor(prevMain, prevSub) || 'insight');
     } catch (e) {
         console.error('이력 다시 시도 실패:', e);

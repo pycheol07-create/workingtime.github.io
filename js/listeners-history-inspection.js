@@ -10,7 +10,7 @@ import {
     renderInspectionHistoryTable, 
     renderInspectionLayout,
     renderInspectionListMode
-} from './ui-history.js?v=26fc7632b99b-b575143a'; 
+} from './ui-history.js?v=8975ac4ffa03-b575143a'; 
 import { clearInspResultCache, seedInspResultCache, fetchTotalInspLogs, totalInspLogsTruncated, TOTAL_LOG_LIMIT } from './ui-history-inspection.js?v=d90d33878f7c-92ecfe05';   // 정상여부 캐시 · 전량 기록
 import { mergeIntoProductHistory, nameKey, totalHistoryLogsOf, bulkSummary, bulkMessage } from './lib/total-insp.js?v=d83d978fa87f-5334595d';
 import { editTotalLog, deleteTotalLog, listDayLogs, listProductLogs, deleteTotalDay, deleteTotalProduct, askTotalLogEdit, fetchAccDocs, removeOrRevertOne, setAccStatus, deleteAccDocIfEmpty } from './total-insp-edit.js?v=00825b3b7e9c-892af557';
