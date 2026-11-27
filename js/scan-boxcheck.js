@@ -18,11 +18,15 @@
 //   · 공급처상품명으로 찾기(2026-11-27 사용자 요청): 입력칸·블루투스 스캐너·사진 글자에 'GGS…-…' 가 있으면 ProductSupName 을 거꾸로
 //     (이름 → 상품코드들) 보고 고른 패킹에서 그 상품들이 든 박스·미발을 보인다. 자료는 처음 필요할 때 supAll(loadAll) 한 번(이 화면 동안 기억).
 //     박스 번호 후보와 공급처상품명 후보가 같이 나오면 둘 다 단추로(자동 확정 없음). 판단은 js/lib/box-check.js supCandidates·supPlace.
+//   · 실제 라벨에는 바코드가 없다(2026-11-27 사용자 확인 — 포대 손글씨·작은 양식 종이 손글씨). 박스 모드에선 카메라 바코드 인식을 안 쓰고
+//     카메라 화면의 [📷 찍어서 읽기](#bx-shutter)로 지금 화면 한 장을 글자 인식한다(카메라가 꺼져 있으면 폰 카메라 촬영). 켤 때 인식 엔진을 미리 불러 둔다.
+//     한 장에서 박스 번호와 공급처상품명(또는 款号 → 공급처상품명)이 같이 읽히면 '그 박스에 그 품번 옵션이 실제로 든' 조합만 보인다(pairCandidates).
+//     못 읽으면 그 자리에서 입력 도구·자판을 펼친다.
 // scan.html 은 setupScanBoxCheck({ db, doc, getDoc, speak, camReady, grabPhoto, supLoad, supName, supAll }) 한 번 부르고, onScan 에서 isOn() 이면 check(raw) 로 넘긴다.
 import { parsePackBoxes } from './lib/pack-boxes.js?v=9e13a65b0cb3-3b57fd51';
 import { boxIndex, findBox, boxReport, packChoices, pickPack, scanDbRows, mapLimit,
-    supIndex, looksSup, supCandidates, codeBoxes, supPlace, withoutSup,
-    padLetters, padMatches, ocrCandidates, ocrScale, enhanceGray } from './lib/box-check.js?v=e799768f294c-2f9c244b';
+    supIndex, looksSup, supCandidates, codeBoxes, supPlace, withoutSup, pairCandidates, pairSplit,
+    padLetters, padMatches, ocrCandidates, ocrScale, enhanceGray } from './lib/box-check.js?v=9ea481795e93-c7b970d6';
 import { escapeHtml as esc } from './utils.js?v=65bb3512764f-e315797c';
 
 // 글자 인식(Tesseract.js 5.1.1) — vendor/tesseract/(npm 공식 tarball 그대로, sha256 은 vendor/tesseract/SHA256SUMS.txt).
@@ -147,7 +151,7 @@ export function setupScanBoxCheck(o) {
     const panel = $('bx-panel'), tab = $('tab-box'), sel = $('bx-pack'), src = $('bx-src'), form = $('bx-form'),
         input = $('bx-input'), out = $('bx-result'), hist = $('bx-hist'), reloadBtn = $('bx-reload'),
         pad = $('bx-pad'), padHint = $('bx-pad-hint'), padBtn = $('bx-pad-toggle'), photoBtn = $('bx-photo'), photoFile = $('bx-photo-file'),
-        entry = $('bx-entry'), entryBtn = $('bx-entry-toggle');
+        entry = $('bx-entry'), entryBtn = $('bx-entry-toggle'), shutter = $('bx-shutter');
     if (!panel || !tab || !sel || !src || !form || !input || !out || !hist) return null;
     if (panel.dataset.wired) return null;
     panel.dataset.wired = '1';
@@ -163,6 +167,7 @@ export function setupScanBoxCheck(o) {
     let idx = new Map();
     let cbox = new Map();     // 상품코드 → 이 패킹에서 든 박스들(공급처상품명으로 찾기)
     let supIdxP = null;       // Promise<supIndex | null> — 처음 필요할 때 한 번(실패·빈 자료면 다음에 다시)
+    let pairCtx = null;       // { name, seq } — 공급처상품명 결과를 보는 중에 박스 번호를 넣으면 그 박스 × 그 품번으로 본다
     let seq = 0;              // 늦게 끝난 앞 확인이 새 결과를 덮지 않게
     let last = { raw: '', at: 0 };
     let photoBusy = false;
@@ -256,9 +261,21 @@ export function setupScanBoxCheck(o) {
         submitInput();
     }
     function pickBox(b) {
+        if (pairCtx && pairCtx.seq === seq && idx.has(b)) { pickPair(b, pairCtx.name); return; }
         input.value = '';
         updateHint();
         check(b, { manual: true, pick: b }).finally(() => focusInput());
+    }
+    function pickPair(box, name) {
+        input.value = '';
+        updateHint();
+        check(`${box} ${name}`, { manual: true, pair: { box, name } }).finally(() => focusInput());
+    }
+    /** 못 읽었을 때 — 그 자리에서 입력 도구와 자판을 펼친다 */
+    function openPadHere() {
+        setEntryOpen(true);
+        setPadOpen(true);
+        focusInput();
     }
     function pickSup(name) {
         input.value = '';
@@ -335,6 +352,8 @@ export function setupScanBoxCheck(o) {
         if (on) {
             manual = false;   // 켤 때마다 스캐너 반영 작업 패킹으로 다시 고른다
             setEntryOpen(false);   // 켤 때마다 직접 입력 묶음은 접힘
+            // 글자 인식 엔진을 미리(백그라운드, 실패해도 조용히) — 첫 [찍어서 읽기]가 빠르게. 끄면 stopOcr 가 끝낸다
+            if (!ocrOverride && !tessReady && navigator.onLine !== false) getTessWorker().catch(() => { /* 누를 때 다시 */ });
             if (loadState !== 'loading') reload();   // 켤 때마다 새로 읽는다(문서 하나)
             focusInput();
         }
@@ -391,7 +410,8 @@ export function setupScanBoxCheck(o) {
             : rep.unknown > 0 ? `확인 못 함 ${num(rep.unknown)}종`
             : allNoDoc ? '스캐너 목록에 없음 — 반영 여부 확인' : '미발 없음';
         const sub = (sup ? `옵션 ${num(sup.place.codes.length)}개`
-                + (sup.place.inPack.length < sup.place.codes.length ? `(이 패킹 ${num(sup.place.inPack.length)}개)` : '') + ` · ${esc(curLabel())}`
+                + (sup.place.inBox ? `(이 박스 ${num(sup.place.inPack.length)}개)`
+                    : sup.place.inPack.length < sup.place.codes.length ? `(이 패킹 ${num(sup.place.inPack.length)}개)` : '') + ` · ${esc(curLabel())}`
             : `${esc(curLabel())} · 박스 안 ${num(rep.total)}종`)
             + (rep.unknown ? ` · 확인 못 함 ${num(rep.unknown)}종(${navigator.onLine === false ? '오프라인' : '읽기 실패'})` : '');
         const warn = weak ? `<div class="bx-warn">라벨 글자 '${esc(raw)}' 에서 ${esc(box)}번으로 읽었습니다 — 라벨의 박스 번호와 맞는지 확인하세요</div>` : '';
@@ -424,17 +444,67 @@ export function setupScanBoxCheck(o) {
     }
 
     /** 후보 단추 — boxes = [{ box, fixed }], sups = supCandidates 결과. 하나뿐이어도 사람이 눌러야 확인 */
-    function showChoices(say, sub, boxes, sups, histLabel) {
+    /** pairs = pairCandidates 결과(박스 × 품번 조합 단추, 맨 앞) · note = 아래 안내(없으면 기본) · warn = 노란 경고 줄 */
+    function showChoices(say, sub, boxes, sups, histLabel, pairs = [], note = '', warn = '') {
         const fixed = boxes.some(c => c.fixed) || sups.some(c => c.fixed);
         out.innerHTML = banner('bx-ask', `<div class="bx-say">${esc(say)}</div>`,
             `${sub}${fixed ? " · '보정' = 헷갈리는 글자를 바꿔 맞춘 것" : ''}`,
-            `<div class="bx-choices">${boxes.map(c => `<button type="button" class="bx-pick bx-pick-big" data-box="${esc(c.box)}">${esc(c.box)}번${c.fixed ? '<small> 보정</small>' : ''}</button>`).join('')}`
+            (warn ? `<div class="bx-warn">${esc(warn)}</div>` : '')
+            + `<div class="bx-choices">${pairs.map(c => `<button type="button" class="bx-pick bx-pick-sup" data-pbox="${esc(c.box)}" data-pname="${esc(c.name)}">${esc(c.box)}번 · ${esc(c.name)}<small> 옵션 ${num(c.codes.length)}개</small></button>`).join('')}`
+            + `${boxes.map(c => `<button type="button" class="bx-pick bx-pick-big" data-box="${esc(c.box)}">${esc(c.box)}번${c.fixed ? '<small> 보정</small>' : ''}</button>`).join('')}`
             + `${sups.map(c => `<button type="button" class="bx-pick bx-pick-sup" data-sup="${esc(c.name)}">${esc(c.name)}<small> 공급처상품명${c.fixed ? ' · 보정' : ''}</small></button>`).join('')}</div>`
-            + '<div class="bx-sub">없으면 다시 찍거나 자판으로 넣으세요</div>');
+            + `<div class="bx-sub">${esc(note || '없으면 다시 찍거나 자판으로 넣으세요')}</div>`);
+        out.querySelectorAll('[data-pbox]').forEach(b => b.addEventListener('click', () => pickPair(b.dataset.pbox, b.dataset.pname)));
         out.querySelectorAll('[data-box]').forEach(b => b.addEventListener('click', () => pickBox(b.dataset.box)));
         out.querySelectorAll('[data-sup]').forEach(b => b.addEventListener('click', () => pickSup(b.dataset.sup)));
         scrollResult();
-        addHist(histLabel, `후보 ${[...boxes.map(c => c.box), ...sups.map(c => c.name)].join(', ')}`, 'bx-h-ask');
+        addHist(histLabel, `후보 ${[...pairs.map(c => `${c.box}·${c.name}`), ...boxes.map(c => c.box), ...sups.map(c => c.name)].join(', ')}`, 'bx-h-ask');
+    }
+
+    /**
+     * 박스 하나 × 공급처상품명 하나 — 그 박스 안의 그 품번 옵션들의 미발·긴급을 크게, 그 박스의 다른 상품은 아래 작게.
+     * 그 박스에 그 품번이 없으면 경고 + 박스만·품번만 단추. photo = 사진에서 읽은 조합(라벨과 맞는지 확인 안내)
+     */
+    async function showPair(box, name, s, my, photo = false) {
+        const si = await getSupIdx();
+        if (my !== seq) return;
+        if (!si) { ask('공급처상품명 자료를 읽지 못했습니다', '박스 번호로 넣어 주세요.', s, '공급처상품명 못 읽음'); return; }
+        if (!idx.has(box)) { ask('이 패킹에 없는 박스 번호입니다', `${box} — 고른 패킹(${curLabel()})이 맞는지 확인하세요.`, s, '없는 박스'); return; }
+        const nameCodes = si.byName.get(name) || [];
+        const { main, others } = pairSplit(idx, box, nameCodes);
+        if (!main.length) {
+            showChoices(`${box}번 박스에는 ${name} 이(가) 없습니다`, `고른 패킹(${esc(curLabel())}) 기준`, [{ box, fixed: false }], [{ name, codes: nameCodes, fixed: false }], s, [],
+                '박스만 보거나 품번만 보려면 아래 단추를 누르세요', '라벨의 박스 번호·품번을 다시 확인하세요');
+            return;
+        }
+        out.innerHTML = banner('bx-ask', `<div class="bx-box">${esc(box)}번 박스 · ${esc(name)}</div><div class="bx-say">미발 확인 중…</div>`, '');
+        scrollResult();
+        const all = [...main, ...others];
+        const supP = supStart(all);
+        const results = await readCodes(all);
+        if (my !== seq) return;
+        const p = curPack();
+        const place = { codes: nameCodes, inPack: main, boxes: [box], byCode: Object.fromEntries(main.map(c => [c, [box]])), inBox: true };
+        showHit(box, [{ tag: '', key: p ? p.key : '', codes: main }], s, false, results.filter(r => r && main.includes(r.code)), { name, place });
+        const extra = [];
+        if (photo) extra.push(`<div class="bx-warn">사진에서 같이 읽은 박스 번호·품번입니다 — 라벨과 맞는지 확인하세요</div>`);
+        if (others.length) {
+            let urgent = null;
+            try { urgent = o.urgent ? o.urgent() : null; } catch (e) { urgent = null; }
+            const rep2 = boxReport([{ tag: '', key: '', codes: others }], scanDbRows(results.filter(r => r && others.includes(r.code))), urgent);
+            extra.push(`<div class="bx-other-title">이 박스의 다른 상품 ${num(others.length)}종${rep2.mibalCodes ? ` · 미발 ${num(rep2.mibalCodes)}종` : ''}</div>`
+                + '<ul class="bx-list bx-list-other">' + rep2.packs[0].items.map(x => `<li class="${x.mibal > 0 ? 'bx-hit' : ''}">`
+                    + `${x.urgent ? '<span class="bx-utag">긴급</span>' : ''}<span class="bx-code">${esc(x.code)}</span><span class="bx-name">${x.name ? esc(x.name) : ''}</span>`
+                    + (o.supLoad ? `<span class="bx-sup" data-code="${esc(x.code)}">${esc(supOf(x.code))}</span>` : '')
+                    + `<span class="bx-q${x.mibal > 0 ? ' bx-q-yes' : ''}">${!x.inTable ? '확인 못 함' : x.mibal > 0 ? `미발 ${esc(num(x.mibal))}` : x.noDoc ? '' : '0'}</span></li>`).join('') + '</ul>');
+        }
+        extra.push(`<div class="bx-choices bx-alt"><button type="button" class="bx-pick" data-box="${esc(box)}">${esc(box)}번 박스 전체</button>`
+            + `<button type="button" class="bx-pick bx-pick-sup" data-sup="${esc(name)}">${esc(name)} 전체</button></div>`);
+        out.insertAdjacentHTML('beforeend', extra.join(''));
+        out.querySelectorAll('.bx-alt [data-box]').forEach(b => b.addEventListener('click', () => { pairCtx = null; pickBox(b.dataset.box); }));
+        out.querySelectorAll('.bx-alt [data-sup]').forEach(b => b.addEventListener('click', () => pickSup(b.dataset.sup)));
+        fillSup(supP, my);
+        scrollResult();
     }
 
     /** 공급처상품명 하나 → 고른 패킹의 박스들 + 미발. my = 이 확인의 순번 */
@@ -455,6 +525,11 @@ export function setupScanBoxCheck(o) {
         if (my !== seq) return;
         const p = curPack();
         showHit('', [{ tag: '', key: p ? p.key : '', codes: place.inPack }], s, false, results, { name, place });
+        // 박스 번호도 넣으면(아래 단추·자판·스캐너) 그 박스 × 이 품번만 정확히 본다
+        out.insertAdjacentHTML('beforeend', `<div class="bx-sub bx-pair-note">박스 번호도 넣으면 그 박스만 정확히 봅니다</div>`
+            + `<div class="bx-choices bx-pair-chips">${place.boxes.map(b => `<button type="button" class="bx-pick" data-pbox="${esc(b)}">${esc(b)}번</button>`).join('')}</div>`);
+        out.querySelectorAll('.bx-pair-chips [data-pbox]').forEach(b => b.addEventListener('click', () => pickPair(b.dataset.pbox, name)));
+        pairCtx = { name, seq: my };
         fillSup(supP, my);
         scrollResult();
     }
@@ -501,16 +576,32 @@ export function setupScanBoxCheck(o) {
             });
             if (stale()) return;
             // 공급처상품명처럼 보이면 그 자료(처음 한 번)로 후보를 찾고, 박스 번호는 그 조각을 뺀 나머지에서
-            const si = looksSup(text) ? await getSupIdx() : null;
+            // 공급처상품명(GGS…)·款号(스타일번호) → 이름 후보(자료는 처음 한 번). 款号로 찾은 것은 이 패킹에 든 이름만
+            const si = o.supAll ? await getSupIdx() : null;
             if (stale()) return;
-            const sups = si ? supCandidates(text, si) : [];
+            const sups = si ? supCandidates(text, si, 4, { packCodes: new Set(cbox.keys()) }) : [];
             const cands = ocrCandidates(sups.length ? withoutSup(text, sups) : text, idx);   // 이름 후보가 없으면 원문 그대로(줄 정보 유지 — 리뷰)
             if (!cands.length && !sups.length) {
-                ask('읽지 못했습니다 — 자판으로 넣어 주세요', '라벨 번호가 크고 반듯하게 나오게 다시 찍거나, 아래 자판으로 번호를 넣으세요.', '사진', '못 읽음');
+                ask('읽지 못했습니다 — 자판으로 넣어 주세요', '손글씨는 잘 못 읽을 수 있습니다. 아래 자판으로 박스 번호를 넣거나, 번호가 크고 반듯하게 나오게 다시 찍으세요.', '사진', '못 읽음');
+                openPadHere();
                 return;
             }
-            showChoices(sups.length ? '라벨과 같은 것을 누르세요' : '라벨과 같은 번호를 누르세요',
-                `사진에서 읽은 것 중 ${esc(curLabel())} 에 있는 번호${sups.length ? '·자료에 있는 공급처상품명' : ''}만`, cands, sups, '사진');
+            if (cands.length && sups.length) {
+                // 한 장에서 둘 다 — 그 박스에 그 품번 옵션이 실제로 든 조합만
+                const pairs = pairCandidates(cands, sups, idx);
+                if (pairs.length === 1) { await showPair(pairs[0].box, pairs[0].name, '사진', my, true); return; }
+                if (pairs.length > 1) {
+                    showChoices('라벨과 같은 박스 번호 · 품번을 누르세요', `사진에서 읽은 것 중 ${esc(curLabel())} 에서 서로 맞는 조합만`, [], [], '사진', pairs.slice(0, 6));
+                    return;
+                }
+                showChoices(`${cands[0].box}번 박스에는 ${sups[0].name} 이(가) 없습니다`, `사진에서 읽은 박스 번호와 품번이 ${esc(curLabel())} 에서 서로 맞지 않습니다`,
+                    cands, sups, '사진', [], '박스만 보거나 품번만 보려면 아래 단추를 누르세요', '라벨의 박스 번호·품번을 다시 확인하세요');
+                return;
+            }
+            showChoices(sups.length ? '라벨과 같은 품번을 누르세요' : '라벨과 같은 번호를 누르세요',
+                `사진에서 읽은 것 중 ${esc(curLabel())} 에 있는 번호${sups.length ? '·자료에 있는 공급처상품명' : ''}만`, cands, sups, '사진', [],
+                sups.length ? '박스 번호는 못 읽었습니다 — 자판으로 박스 번호도 넣으면 그 박스만 정확히 봅니다' : '');
+            if (!cands.length) openPadHere();
         } catch (e) {
             console.warn('[scan-box] 사진 읽기 실패', (e && e.message) || '');
             if (!stale()) ask('읽지 못했습니다 — 자판으로 넣어 주세요',
@@ -549,6 +640,8 @@ export function setupScanBoxCheck(o) {
         const my = ++seq;
         try {
             if (notReady(s)) return;
+            if (!opt.pair) pairCtx = null;
+            if (opt.pair) { await showPair(opt.pair.box, opt.pair.name, s, my); return; }
             if (opt.sup) { await showSup(opt.sup, s, my); return; }
             // 공급처상품명처럼 보이면(GGS…-…) 자료를 불러와 후보를 찾고, 박스 번호는 그 조각을 뺀 나머지에서만
             let sups = [], supFail = false;
@@ -633,6 +726,8 @@ export function setupScanBoxCheck(o) {
         if (f) readPhoto(f);
     });
     if (entryBtn) entryBtn.addEventListener('click', () => { setEntryOpen(!entryOpen); focusInput(); });
+    // 카메라 화면의 [📷 찍어서 읽기] — [사진으로 읽기]와 같은 흐름(카메라가 켜져 있으면 지금 화면, 꺼져 있으면 폰 카메라)
+    if (shutter) shutter.addEventListener('click', (e) => { e.stopPropagation(); onPhotoBtn().finally(() => focusInput()); });
     setPadOpen(padOpen);
     setEntryOpen(false);
     renderPad();

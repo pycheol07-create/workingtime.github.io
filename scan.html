@@ -171,6 +171,12 @@
         #bx-hist li.bx-h-no { color: var(--c-ok-text); }
         #bx-hist .bx-t { color: var(--c-text-3); }
         /* (2026-11-27) 라벨에 바코드가 없다 — 번호 자판·사진 읽기 */
+        .bx-shutter { display: none; position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 9; padding: 16px 26px; border: 3px solid #fff; border-radius: var(--r-pill); background: #6B5B95; color: #fff; font-size: 20px; font-weight: 900; font-family: inherit; box-shadow: 0 4px 14px rgba(0,0,0,.35); cursor: pointer; white-space: nowrap; }
+        .bx-shutter:active { filter: brightness(1.15); }
+        body.box-mode .bx-shutter { display: block; }
+        body.box-mode .btn-capture { display: none !important; }   /* 박스 모드는 바코드 수동 촬영 대신 [찍어서 읽기] */
+        .bx-other-title { margin: 12px 2px 4px; font-size: 13px; font-weight: 800; color: var(--c-text-2); }
+        .bx-list.bx-list-other li { font-size: 13px; padding: 6px 10px; }
         .bx-entry-toggle { width: 100%; padding: 8px 10px; border: 1px dashed var(--c-line-strong); background: var(--c-surface); color: var(--c-text-2); border-radius: var(--r-sm); font-size: 14px; font-weight: 800; font-family: inherit; cursor: pointer; }
         .bx-entry-toggle[aria-expanded="true"] { margin-bottom: 6px; }
         .bx-entry.bx-collapsed > :not(#bx-form) { display: none !important; }
@@ -288,6 +294,8 @@
             <button id="btn-zoom-in" aria-label="확대"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="display:block; margin:4px;"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
         </div>
         <button class="btn-capture" id="btn-capture" title="수동 촬영 인식"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:middle;"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></button>
+        <!-- (2026-11-27) 박스 확인 모드 — 라벨에 바코드가 없어 카메라 화면 한 장을 글자 인식(js/scan-boxcheck.js) -->
+        <button type="button" class="bx-shutter" id="bx-shutter">📷 찍어서 읽기</button>
         <div class="queue" id="queue"></div>
     </div>
     <div id="file-reader" style="display:none;"></div>
@@ -353,13 +361,13 @@
         import { checkProductCode } from './js/lib/product-code.js?v=642c44c54b4c-8f8f0217';  // 위치지정 상품코드 'S+숫자6자리' 판정
         import { availWithMine, myHoldsOf, heldByOthers, planTake, allocOf, staleHoldIds, floor2Step, isSplitItem, newHoldId, pendingExpired, HOLD_PENDING_MAX_MS } from './js/lib/scan-hold.js?v=0d77161d3524-8061d769'; // [Ver 10.7] 미발 동시 스캔 방지
         import { LOC_SCAN_COLL, buildLocScanDocs } from './js/lib/loc-scan-log.js?v=696b0986b508-7cdc6b24'; // 위치지정 건별 기록(문서 모양)
-        import { connectEmulatorsIfEnabled } from './js/firebase-emulator.js?v=071adc2867a0-c60c17d2'; // 🧪 localhost + ?emu=1 일 때만 에뮬레이터(운영에서는 아무 일 안 함)
+        import { connectEmulatorsIfEnabled, emulatorEnabled } from './js/firebase-emulator.js?v=071adc2867a0-c60c17d2'; // 🧪 localhost + ?emu=1 일 때만 에뮬레이터(운영에서는 아무 일 안 함)
         import { escapeHtml } from './js/utils.js?v=65bb3512764f-e315797c';   // 대기열·배너에 상품명·바코드 등 넣을 때(2026-11-12 보안 점검)
-        import { setupScanBoxCheck } from './js/scan-boxcheck.js?v=fe007624ffb4-c76b3d63';   // (2026-11-27) 박스 확인 모드 — 읽기만
-        import { scanUrgentSet } from './js/lib/box-check.js?v=e799768f294c-2f9c244b';   // (2026-11-27) 부족수량관리 '긴급' — 켜져 있을 때만 코드 Set
+        import { setupScanBoxCheck } from './js/scan-boxcheck.js?v=f474825b4d17-40ba81c8';   // (2026-11-27) 박스 확인 모드 — 읽기만
+        import { scanUrgentSet } from './js/lib/box-check.js?v=9ea481795e93-c7b970d6';   // (2026-11-27) 부족수량관리 '긴급' — 켜져 있을 때만 코드 Set
         import { loadFor as loadSupNames, loadAll as loadAllSupNames, supNameOf } from './js/sup-names-store.js?v=de8b3ea4a05e-1f52465e';   // (2026-11-27) 공급처상품명 — 선택 창·박스 확인 줄에 표시만(못 읽으면 빈칸)
 
-        const SCAN_VERSION = '10.14'; // 웹 배포 버전과 함께 올림 (china-stock-version.json의 web)
+        const SCAN_VERSION = '10.15'; // 웹 배포 버전과 함께 올림 (china-stock-version.json의 web)
 
         // ---------------- 서버 선택 (URL 파라미터 → 저장값 → 기본 config) ----------------
         const params = new URLSearchParams(location.search);
@@ -589,7 +597,7 @@
                         // [Ver 3.5] 고해상도 요청 (작은 바코드 인식률 향상)
                         videoConstraints: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } }
                     },
-                    onScan, () => {});
+                    onCamScan, () => {});
                 scanning = true;
                 $('btn-start').style.display = 'none';
                 $('btn-capture').style.display = 'block'; // [Ver 3.9] 수동 촬영 버튼
@@ -702,6 +710,14 @@
             const al = $('ov-alert'); if (al && al.style.display !== 'none') { al.style.display = 'none'; alertForceAction = null; closed = true; }
             if (closed) resumeScan(); // 팝업만 닫고 스캔 재개 (첫 화면으로 안 나감)
         });
+
+        // (2026-11-27) 카메라 바코드 인식 결과 — 박스 확인 모드에선 쓰지 않는다(라벨에 바코드가 없다 — [📷 찍어서 읽기]로 글자 인식).
+        //   손스캐너·수동입력은 onScan 으로 바로 가므로 그대로 받는다
+        function onCamScan(text) {
+            if (boxChk && boxChk.isOn()) return;
+            return onScan(text);
+        }
+        if (emulatorEnabled()) window.__scanCamDecode = onCamScan;   // 🧪 에뮬레이터 시험에서만(운영 주소에선 만들지 않음)
 
         async function onScan(text) {
             if (processing) return;

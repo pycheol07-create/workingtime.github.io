@@ -261,12 +261,31 @@ export function ocrCandidates(text, idx, max = 8) {
             if (!cur || sc > cur.score || (sc === cur.score && ev > cur.ev)) best.set(b, { score: sc, ev, fixed: subs > 0 });
         });
     };
-    const lines = t.split(/[\r\n]+/);
+    // 라벨의 다른 숫자(2026-11-27 실제 라벨 — 포대 손글씨·작은 양식 종이): 오더번호 'YYMMDD-NN'(261030-04)·분수처럼 쓴 수량 '27 / 14'·
+    // 'VER 155' 의 번호·款号(스타일번호 'PTK109-1') — 박스 번호가 아니다. 이 패킹에 같은 번호의 박스가 있으면 후보로 남기되 맨 뒤로.
+    let u = t;
+    const weak = [];
+    u = u.replace(/(?<![0-9])\d{6}\s*[-~]\s*(\d{1,3})(?![0-9])/g, (m, nn) => { weak.push([nn, 2]); return ' '; });
+    u = u.replace(/(?<![0-9])(\d{1,4})\s*\/\s*(\d{1,4})(?![0-9])/g, (m, a, b) => { weak.push([a, 3], [b, 3]); return ' '; });
+    u = u.replace(/(?<![0-9A-Z])([A-Z]{2,4}\d{2,5})(?:-(\d{1,2}))?(?![0-9A-Z])/g, (m, st, nn) => {
+        if (/^(BOX|NO|CTN|CNO)/.test(st) || idx.has(normBox(st))) return m;   // 'BOX12'·이 패킹에 있는 'AB12' 는 그대로
+        if (nn) weak.push([nn, 2]);
+        return ' ';
+    });
+    const lines = u.split(/[\r\n]+/);
     const words = lines.flatMap(l => { const ws = l.split(/[^0-9A-Z~]+/).filter(Boolean); return ws.map(w => ({ w, alone: ws.length === 1 })); });
-    words.forEach((x, i) => { if (i > 0 && /^(BOX|NO|CTN|CARTON|C)$/.test(words[i - 1].w)) x.kw = true; });
-    const single = words.length === 1;
     words.forEach((x, i) => {
-        const base = 10 + (x.kw ? 2 : 0) + (single ? 2 : 0);
+        if (i > 0 && /^(BOX|NO|CTN|CARTON|C)$/.test(words[i - 1].w)) x.kw = true;
+        if (i > 0 && /^(VER|V)$/.test(words[i - 1].w)) x.ver = true;
+    });
+    const single = words.length === 1 && !weak.length;
+    ev = 0;
+    weak.forEach(([w, b]) => tryTok(w, b));
+    words.forEach((x, i) => {
+        if (/^(VER|V)$/.test(x.w)) return;
+        // 'A2' 처럼 영문+숫자 짧은 것 = 박스 번호일 가능성 큼 · 숫자만 3자리(ver·수량 등) = 약함 · 4자리 이상 = 더 약함 · VER 뒤 = 거의 아님
+        const shape = /^[A-Z]{1,2}\d{1,3}$/.test(x.w) ? 3 : /^\d{4,}$/.test(x.w) ? -6 : /^\d{3}$/.test(x.w) ? -4 : 0;
+        const base = x.ver ? 2 : 10 + (x.kw ? 2 : 0) + (single ? 2 : 0) + shape;
         ev = (x.kw ? 4 : 0) + (x.alone ? 2 : 0) + (single ? 1 : 0);
         if (x.w.includes('~')) {
             const sides = x.w.split('~').filter(Boolean);
@@ -332,13 +351,14 @@ const canonKey = (s) => String(s).toUpperCase().replace(/[^0-9A-Z]/g, '').replac
 
 /**
  * 코드 → 이름 Map → { byName: Map(이름 → [코드…] 정렬), byCanon: Map(열쇠 → [이름…]), size }
- * 이름이 'GGS1-A,GGS2-B' 처럼 여럿이면 하나씩 넣는다. 모양이 아닌 이름은 뺀다.
+ * 이름이 'GGS1-A,GGS2-B' 처럼 여럿이면 하나씩, 'GGS1-A 메모' 면 GGS 조각만 넣는다. GGS 조각이 없는 값은 뺀다.
  */
 export function supIndex(names) {
     const byName = new Map(), byCanon = new Map();
     if (names && typeof names.forEach === 'function') {
         names.forEach((nm, code) => {
-            String(nm || '').split(',').map(x => x.trim().toUpperCase()).filter(x => SUP_ONE.test(x)).forEach(x => {
+            // 값에 설명 글자가 붙을 수 있다(2026-11-27 GIP 값 전부 저장 — 'GGS1-A 메모') → 값 안의 GGS 조각만
+            (String(nm || '').normalize('NFKC').toUpperCase().match(SUP_FIND) || []).filter(x => SUP_ONE.test(x)).forEach(x => {
                 if (!byName.has(x)) byName.set(x, []);
                 if (!byName.get(x).includes(code)) byName.get(x).push(code);
             });
@@ -362,11 +382,13 @@ export function looksSup(text) {
 /**
  * 글자 → 공급처상품명 후보 [{ name, codes, score, fixed, raw }] (점수 높은 순, 최대 max개). 자료(supIdx)에 있는 이름만.
  *   raw = 글자에서 그 이름으로 본 조각(박스 번호 찾기에서 빼려고). 그대로 맞으면 fixed false, 오인식·하이픈 보정이면 true.
+ *   款号(스타일번호, 예 'PTK109-1')가 있으면 그 글자를 이름 뒤쪽에 품은 공급처상품명도(점수 낮게, opts.packCodes 가 있으면 이 패킹 것만).
  */
-export function supCandidates(text, sidx, max = 4) {
+export function supCandidates(text, sidx, max = 4, opts = {}) {
     const t = String(text == null ? '' : text).normalize('NFKC').toUpperCase();
     if (!t.trim() || !sidx || !sidx.size) return [];
     const best = new Map();
+    const packCodes = opts && opts.packCodes;   // 있으면 款号로 찾은 이름은 이 패킹에 든 것만
     const put = (name, score, fixed, raw) => {
         const cur = best.get(name);
         if (!cur || score > cur.score) best.set(name, { name, codes: sidx.byName.get(name), score, fixed, raw });
@@ -379,6 +401,21 @@ export function supCandidates(text, sidx, max = 4) {
         const c = canonKey(clean);
         for (let i = c.indexOf('665'); i >= 0; i = c.indexOf('665', i + 1)) {
             (sidx.byCanon.get(c.slice(i)) || []).forEach(nm => { if (!best.has(nm) || best.get(nm).score < 30) put(nm, i === 0 ? 20 : 18, true, tok); });
+        }
+    });
+    // ③ 款号(스타일번호 'PTK109-1'·'PT1077') — 그 글자를 품은 공급처상품명('GGS…-PTK109…'). 근거가 약해 점수 낮게(사람이 고른다)
+    (t.match(/(?<![0-9A-Z])[A-Z]{2,4}\d{2,5}(?:-\d{1,2})?(?![0-9A-Z])/g) || []).forEach(st => {
+        if (/^(GGS|BOX|NO|CTN|CNO|VER)/.test(st)) return;
+        const head = st.replace(/-\d{1,2}$/, '');
+        const ck = canonKey(head);
+        let n = 0;
+        for (const [nm, codes] of sidx.byName) {
+            const tail = nm.slice(nm.indexOf('-') + 1);
+            const exact = tail.includes(head);
+            if (!exact && !canonKey(tail).includes(ck)) continue;
+            if (packCodes && !codes.some(c => packCodes.has(c))) continue;
+            if (!best.has(nm)) put(nm, exact ? 12 : 10, !exact, st);
+            if (++n >= 6) break;
         }
     });
     return [...best.values()].sort((a, b) => (b.score - a.score) || (a.name < b.name ? -1 : a.name > b.name ? 1 : 0)).slice(0, max);
@@ -415,4 +452,36 @@ export function withoutSup(text, cands) {
     let t = String(text == null ? '' : text).normalize('NFKC').toUpperCase();
     (cands || []).forEach(c => { if (c && c.raw) t = t.split(c.raw).join(' '); });
     return t.replace(/[ 	]+/g, ' ').trim();   // 줄바꿈은 남긴다 — 사진 후보 점수가 '그 줄에 혼자'를 본다(리뷰)
+}
+
+// ── 한 장에서 박스 번호와 공급처상품명을 같이 읽었을 때(2026-11-27 사용자 요구) — 서로 맞춰 본다 ──
+
+/** 박스 번호 표 → 그 박스에 든 상품코드들(중복 없이) */
+export function boxCodes(idx, box) {
+    return [...new Set(((idx && idx.get(box)) || []).flatMap(p => p.codes || []))];
+}
+
+/**
+ * 박스 후보 × 공급처상품명 후보 → 지금 패킹에서 '그 박스에 그 이름의 옵션이 실제로 든' 조합만(교집합).
+ * boxCands = ocrCandidates 결과([{box, score}]), supCands = supCandidates 결과([{name, codes, score}]).
+ * @returns {{ box, name, codes:string[], score:number }[]}  codes = 그 박스 안의 그 이름 옵션. 점수(두 후보 합) 높은 순
+ */
+export function pairCandidates(boxCands, supCands, idx) {
+    const out = [];
+    (boxCands || []).forEach(b => {
+        const inBox = new Set(boxCodes(idx, b.box));
+        if (!inBox.size) return;
+        (supCands || []).forEach(s => {
+            const codes = (s.codes || []).filter(c => inBox.has(c)).sort();
+            if (codes.length) out.push({ box: b.box, name: s.name, codes, score: (b.score || 0) + (s.score || 0) });
+        });
+    });
+    return out.sort((a, b) => (b.score - a.score) || cmpBox(a.box, b.box) || (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+}
+
+/** 박스 하나 + 이름 하나 → { main: 그 박스 안의 그 이름 옵션, others: 그 박스의 다른 상품 } (정렬) */
+export function pairSplit(idx, box, nameCodes) {
+    const want = new Set(nameCodes || []);
+    const all = boxCodes(idx, box).sort();
+    return { main: all.filter(c => want.has(c)), others: all.filter(c => !want.has(c)) };
 }
