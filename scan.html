@@ -171,6 +171,11 @@
         #bx-hist li.bx-h-no { color: var(--c-ok-text); }
         #bx-hist .bx-t { color: var(--c-text-3); }
         /* (2026-11-27) 라벨에 바코드가 없다 — 번호 자판·사진 읽기 */
+        .bx-entry-toggle { width: 100%; padding: 8px 10px; border: 1px dashed var(--c-line-strong); background: var(--c-surface); color: var(--c-text-2); border-radius: var(--r-sm); font-size: 14px; font-weight: 800; font-family: inherit; cursor: pointer; }
+        .bx-entry-toggle[aria-expanded="true"] { margin-bottom: 6px; }
+        .bx-entry.bx-collapsed > :not(#bx-form) { display: none !important; }
+        /* 접힌 동안 입력칸은 숨기되 초점은 받게(display:none 이면 키보드식 스캐너 글자를 못 받는다) */
+        .bx-entry.bx-collapsed > #bx-form { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); opacity: 0; pointer-events: none; }
         .bx-tools { display: flex; gap: 6px; margin-top: 6px; }
         .bx-tools button { flex: 1; padding: 11px 8px; border: 1px solid var(--c-line-strong); background: var(--c-surface); color: var(--c-text); border-radius: var(--r-sm); font-size: 15px; font-weight: 800; font-family: inherit; cursor: pointer; }
         .bx-tools button#bx-photo { border-color: #6B5B95; color: #6B5B95; }
@@ -252,6 +257,9 @@
             <button type="button" id="bx-reload">다시 읽기</button>
         </div>
         <div class="bx-src" id="bx-src">박스 번호 자료를 읽는 중…</div>
+        <!-- (2026-11-27) 직접 입력·사진·자판은 기본으로 접는다. 접혀도 입력칸은 보이지 않게만 두어 키보드식 스캐너 글자를 계속 받는다 -->
+        <button type="button" class="bx-entry-toggle" id="bx-entry-toggle" aria-expanded="false" aria-controls="bx-entry">⌨ 직접 입력 · 사진 · 자판 ▾</button>
+        <div class="bx-entry bx-collapsed" id="bx-entry">
         <form class="bx-row" id="bx-form" autocomplete="off">
             <input id="bx-input" placeholder="박스 번호 (예: A5, 12)" autocapitalize="characters" autocomplete="off" enterkeyhint="done">
             <button type="submit" class="bx-go">확인</button>
@@ -264,6 +272,7 @@
         <input type="file" id="bx-photo-file" accept="image/*" capture="environment" hidden>
         <div id="bx-pad-hint"></div>
         <div id="bx-pad" hidden></div>
+        </div>
         <div id="bx-result"></div>
         <div class="bx-hist-title">최근 확인</div>
         <ul id="bx-hist"></ul>
@@ -346,11 +355,11 @@
         import { LOC_SCAN_COLL, buildLocScanDocs } from './js/lib/loc-scan-log.js?v=696b0986b508-7cdc6b24'; // 위치지정 건별 기록(문서 모양)
         import { connectEmulatorsIfEnabled } from './js/firebase-emulator.js?v=071adc2867a0-c60c17d2'; // 🧪 localhost + ?emu=1 일 때만 에뮬레이터(운영에서는 아무 일 안 함)
         import { escapeHtml } from './js/utils.js?v=65bb3512764f-e315797c';   // 대기열·배너에 상품명·바코드 등 넣을 때(2026-11-12 보안 점검)
-        import { setupScanBoxCheck } from './js/scan-boxcheck.js?v=96003f97ba8e-053bdf88';   // (2026-11-27) 박스 확인 모드 — 읽기만
+        import { setupScanBoxCheck } from './js/scan-boxcheck.js?v=fe007624ffb4-c76b3d63';   // (2026-11-27) 박스 확인 모드 — 읽기만
         import { scanUrgentSet } from './js/lib/box-check.js?v=e799768f294c-2f9c244b';   // (2026-11-27) 부족수량관리 '긴급' — 켜져 있을 때만 코드 Set
         import { loadFor as loadSupNames, loadAll as loadAllSupNames, supNameOf } from './js/sup-names-store.js?v=de8b3ea4a05e-1f52465e';   // (2026-11-27) 공급처상품명 — 선택 창·박스 확인 줄에 표시만(못 읽으면 빈칸)
 
-        const SCAN_VERSION = '10.13'; // 웹 배포 버전과 함께 올림 (china-stock-version.json의 web)
+        const SCAN_VERSION = '10.14'; // 웹 배포 버전과 함께 올림 (china-stock-version.json의 web)
 
         // ---------------- 서버 선택 (URL 파라미터 → 저장값 → 기본 config) ----------------
         const params = new URLSearchParams(location.search);

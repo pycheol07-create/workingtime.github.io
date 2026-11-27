@@ -146,7 +146,8 @@ export function setupScanBoxCheck(o) {
     const $ = (id) => document.getElementById(id);
     const panel = $('bx-panel'), tab = $('tab-box'), sel = $('bx-pack'), src = $('bx-src'), form = $('bx-form'),
         input = $('bx-input'), out = $('bx-result'), hist = $('bx-hist'), reloadBtn = $('bx-reload'),
-        pad = $('bx-pad'), padHint = $('bx-pad-hint'), padBtn = $('bx-pad-toggle'), photoBtn = $('bx-photo'), photoFile = $('bx-photo-file');
+        pad = $('bx-pad'), padHint = $('bx-pad-hint'), padBtn = $('bx-pad-toggle'), photoBtn = $('bx-photo'), photoFile = $('bx-photo-file'),
+        entry = $('bx-entry'), entryBtn = $('bx-entry-toggle');
     if (!panel || !tab || !sel || !src || !form || !input || !out || !hist) return null;
     if (panel.dataset.wired) return null;
     panel.dataset.wired = '1';
@@ -169,6 +170,8 @@ export function setupScanBoxCheck(o) {
     let touch = false;
     try { touch = window.matchMedia('(hover: none)').matches; } catch (e) { /* 모르면 PC 로 본다 */ }
     let padOpen = touch;      // 휴대폰은 번호 자판이 기본(PC 는 [번호 자판]으로 연다)
+    // 직접 입력·사진·자판 묶음 — 박스 모드를 켤 때마다 접힘(기억 안 함). 접혀도 입력칸은 초점을 받아 키보드식 스캐너 글자를 받는다(2026-11-27 사용자 요청)
+    let entryOpen = false;
 
     const choices = () => packChoices(parsed, workShips);
     const curPack = () => (parsed ? parsed.packs.find(p => p.key === packKey) || null : null);
@@ -186,8 +189,19 @@ export function setupScanBoxCheck(o) {
         padOpen = !!v;
         if (pad) pad.hidden = !padOpen;
         if (padBtn) { padBtn.textContent = padOpen ? '자판 닫기' : '번호 자판'; padBtn.setAttribute('aria-pressed', padOpen ? 'true' : 'false'); }
-        // 휴대폰에서 자판을 쓰는 동안은 입력칸을 눌러도 폰 키보드가 안 뜨게(inputmode none — 블루투스 스캐너 글자는 그대로 들어온다)
-        if (touch) input.setAttribute('inputmode', padOpen ? 'none' : 'text');
+        applyInputMode();
+    }
+    // 휴대폰에서 자판을 쓰는 동안·묶음이 접혀 있는 동안은 입력칸에 초점이 있어도 폰 키보드가 안 뜨게
+    // (inputmode none — 블루투스 스캐너 글자는 그대로 들어온다). 펼치고 자판을 닫았을 때만 폰 키보드
+    function applyInputMode() { if (touch) input.setAttribute('inputmode', (!entryOpen || padOpen) ? 'none' : 'text'); }
+    function setEntryOpen(v) {
+        entryOpen = !!v;
+        if (entry) entry.classList.toggle('bx-collapsed', !entryOpen);
+        if (entryBtn) {
+            entryBtn.setAttribute('aria-expanded', entryOpen ? 'true' : 'false');
+            entryBtn.textContent = entryOpen ? '⌨ 직접 입력 · 사진 · 자판 ▴ 접기' : '⌨ 직접 입력 · 사진 · 자판 ▾';
+        }
+        applyInputMode();
     }
     function renderPad() {
         if (!pad) return;
@@ -308,7 +322,7 @@ export function setupScanBoxCheck(o) {
     function focusInput() {
         // 터치 화면은 폰 키보드가 튀어나오므로 자판을 닫았을 때는 자동으로 커서를 두지 않는다.
         // 자판이 열려 있으면(inputmode none) 커서를 둬도 키보드가 안 뜨고, 블루투스 스캐너 글자가 이 칸으로 들어온다.
-        if (!touch || padOpen) { try { input.focus({ preventScroll: true }); } catch (e) { /* 무시 */ } }
+        if (!touch || padOpen || !entryOpen) { try { input.focus({ preventScroll: true }); } catch (e) { /* 무시 */ } }
     }
 
     function setOn(v) {
@@ -320,6 +334,7 @@ export function setupScanBoxCheck(o) {
         if (!on) { seq++; stopOcr(); }   // 읽던 사진은 버리고 글자 인식 worker 도 끝낸다(메모리)
         if (on) {
             manual = false;   // 켤 때마다 스캐너 반영 작업 패킹으로 다시 고른다
+            setEntryOpen(false);   // 켤 때마다 직접 입력 묶음은 접힘
             if (loadState !== 'loading') reload();   // 켤 때마다 새로 읽는다(문서 하나)
             focusInput();
         }
@@ -617,7 +632,9 @@ export function setupScanBoxCheck(o) {
         photoFile.value = '';
         if (f) readPhoto(f);
     });
+    if (entryBtn) entryBtn.addEventListener('click', () => { setEntryOpen(!entryOpen); focusInput(); });
     setPadOpen(padOpen);
+    setEntryOpen(false);
     renderPad();
     if (reloadBtn) reloadBtn.addEventListener('click', () => { reload(); focusInput(); });
     tab.addEventListener('click', () => setOn(!on));
