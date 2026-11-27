@@ -1308,14 +1308,19 @@ function renderStockPanel() {
     const logs = Array.isArray(it.logs) ? it.logs : [];
     $('stock-log').innerHTML = logs.length === 0
         ? '<div class="text-[11px] text-slate-400 text-center py-2">재고 변동 이력이 없습니다.</div>'
-        : logs.map(l => {
-            const label = l.op === 'in' ? '입고' : (l.op === 'out' ? '사용' : '실사');
-            const tone = l.delta > 0 ? 'text-emerald-600' : (l.delta < 0 ? 'text-red-600' : 'text-slate-500');
-            return `<div class="text-[11px] text-slate-500 flex justify-between gap-2 py-0.5 border-b border-slate-100 last:border-b-0">
+        : oldLogsHtml(logs);
+}
+
+/** 옛(이지어드민 기준) 재고 이력 줄 — item.logs. 앱 기준으로 바꾼 뒤에도 원장 이력 아래에 읽기 전용으로 보인다(2026-11-27 사용자 요청) */
+function oldLogsHtml(logs) {
+    return logs.map(l => {
+        const label = l.op === 'in' ? '입고' : (l.op === 'out' ? '사용' : '실사');
+        const tone = l.delta > 0 ? 'text-emerald-600' : (l.delta < 0 ? 'text-red-600' : 'text-slate-500');
+        return `<div class="text-[11px] text-slate-500 flex justify-between gap-2 py-0.5 border-b border-slate-100 last:border-b-0">
                 <span class="min-w-0 break-words">${esc(kstDateTime(l.at))} ${label}${l.memo ? ` · ${esc(l.memo)}` : ''}</span>
                 <span class="${tone} font-bold shrink-0">${l.delta > 0 ? '+' : ''}${esc(fmt(l.delta))} → ${esc(fmt(l.after))}</span>
             </div>`;
-        }).join('');
+    }).join('');
 }
 
 /** 앱 기준(켜짐) 이력 — 원장에서 이 비품만(새 것부터). 되돌린 기록·되돌림 기록을 표시하고 나머지에 [되돌리기] */
@@ -1342,6 +1347,13 @@ function renderLedgerLog(it) {
                 <div class="flex justify-between items-center gap-2"><span class="text-slate-400 min-w-0 truncate">${esc(who)}</span>${btn}</div>
             </div>`;
         }).join('');
+    // 앱 기준 전환 전 기록(이지어드민 기준 item.logs) — 지우지 않았으니 아래에 읽기 전용으로(되돌리기 없음)
+    const old = Array.isArray(it.logs) ? it.logs : [];
+    if (old.length) {
+        $('stock-log').insertAdjacentHTML('beforeend',
+            `<div class="text-[10px] font-bold text-slate-400 mt-2 pt-1 border-t border-slate-200">앱 기준 전환 전 기록(이지어드민 기준 · ${esc(fmt(old.length))}건, 보기만)</div>`
+            + oldLogsHtml(old));
+    }
     $('btn-stock-log-more').classList.toggle('hidden', !ledgerMore);
 }
 
