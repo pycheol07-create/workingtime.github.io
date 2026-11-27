@@ -17,8 +17,8 @@
 // ⚠️ role=dialog·data-act 금지(업무마감봇 선택자). 직원 이름·금액을 콘솔에 찍지 않는다.
 
 import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
-import { renderHistoryDateListByMode, updateGranularityButtons } from './app-history-logic.js?v=f38eed3b9288-ef63fd43';
-import { setTreeVisible, showPanelLoadError, clearPanelLoadError } from './history-list-controller.js?v=f38eed3b9288-bba56cb8';
+import { renderHistoryDateListByMode, updateGranularityButtons } from './app-history-logic.js?v=b5228026028d-ef63fd43';
+import { setTreeVisible, showPanelLoadError, clearPanelLoadError } from './history-list-controller.js?v=b5228026028d-bba56cb8';
 import { saveView } from './view-state.js?v=1eb0de390ca8-0da8b754';
 import { currentPerm, onPerm } from './feature-gate.js?v=7eaa46dbb8e9-a5458f75';
 import { can } from './lib/perm.js?v=c1e53d91da8e-49afeea3';
@@ -28,8 +28,8 @@ import {
 } from './lib/ops-report-route.js?v=4fa00ceeae4f-bf5c01ad';
 import {
     renderOpsTab, renderDetailTables, invalidateOpsModel, destroyOpsCharts, openTaskDetail, closeTaskDetail
-} from './ui-ops-view.js?v=ccfa874b5dab-6c18620a';
-import { renderOpsPlan, invalidateOpsPlan, leaveOpsPlan } from './ui-ops-plan.js?v=f1740ad53adc-58c185af';
+} from './ui-ops-view.js?v=8d7af7ca7732-6c18620a';
+import { renderOpsPlan, invalidateOpsPlan, leaveOpsPlan } from './ui-ops-plan.js?v=17d0e58368d1-58c185af';
 import { renderOpsSupplies, leaveOpsSupplies, isSuppliesLoading } from './ui-ops-supplies.js?v=2078bc44cb54-4fe53871';
 import { SUPPLIES_FEATURE } from './lib/ops-supplies.js?v=6885f1ad3c7b-92bc58ee';
 import { downloadPanelPdf, pdfFileName } from './panel-pdf.js?v=6a9ff1406b2a-ea9942f8';

@@ -6,12 +6,12 @@ import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
 import { openEditRecordModal } from './edit-record-open.js?v=1e02b5a65d31-e8d69915';
 
 // app.js에서는 'render'만, app-data.js에서는 'updateDailyData'를 가져옵니다.
-import { render } from './app.js?v=e098f8919441-2ba8f711';
+import { render } from './app.js?v=04a8802dd84f-2ba8f711';
 import { updateDailyData } from './app-data.js?v=9a8d4e266c76-c4996a74';
 
 import { calcElapsedMinutes, showToast, showConfirm, getTodayDateString, getCurrentTime, formatTimeTo24H, escapeHtml } from './utils.js?v=65bb3512764f-e315797c';
 import { AUTO_END_TIME } from './lib/record-close.js?v=c8683e426085-11b6fe97';
-import { applyDueLeaves } from './leave-auto-apply.js?v=4ffba845fbc3-afa2df94';
+import { applyDueLeaves } from './leave-auto-apply.js?v=ba125ec17aef-afa2df94';
 import {
     renderPersonalAnalysis,
     renderQuantityModalInputs,
@@ -19,11 +19,11 @@ import {
     applyLocRecPrefill,
     renderManualAddModalDatalists,
     renderLeaveTypeModalOptions 
-} from './ui.js?v=b9044d61e3b1-a84d3554';
+} from './ui.js?v=0e333fe7c86f-a84d3554';
 import {
     processClockIn, processClockOut, cancelClockOut
-} from './app-logic.js?v=6e7a871d70bf-5cd27cd7';
-import { saveProgress, saveDayDataToHistory, previewDayClose, getPlannedQuantitiesForDate, isDayClosedOnServer } from './history-data-manager.js?v=b9044d61e3b1-a9403e97';
+} from './app-logic.js?v=e5ab41b9f797-5cd27cd7';
+import { saveProgress, saveDayDataToHistory, previewDayClose, getPlannedQuantitiesForDate, isDayClosedOnServer } from './history-data-manager.js?v=0e333fe7c86f-a9403e97';
 import { changedQuantities, changedZeroList } from './lib/history-merge.js?v=f882da56f066-3d3139d2';
 import { plannedPrefill, doneTasksOf } from './lib/planned-prefill.js?v=585777796ac6-3504c033';
 import { aliasNameMap, aliasTaskName } from './lib/task-alias-view.js?v=2e131477eb8e-af660ceb';

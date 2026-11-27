@@ -8,7 +8,7 @@ import { doc, getDoc, collection, getDocs } from "https://www.gstatic.com/fireba
 import { mibalByArrival, makeArrivalLookup, makeArrivalsLookup } from './lib/mibal-forecast.js?v=60b17128e7b7-2e3b80a2';
 import { parseInspPacks, sampleCardsByArrival } from './lib/insp-packs.js?v=1b36ec3984ba-16eb76b5';
 import { inspListCountFor } from './lib/insp-day.js?v=df2594fe0811-d324b1d1';
-import { getSubscribedDate } from './app-sync.js?v=b9044d61e3b1-68f6c921';
+import { getSubscribedDate } from './app-sync.js?v=0e333fe7c86f-68f6c921';
 import { runDay } from './lib/refill-view.js?v=3416a867c2d7-24e9bb3d';
 import { parseRecDay, pickRecDay, recCount, applyLocRecCount, dayKey as recDayKey } from './lib/locrec-view.js?v=b56633c4d6cf-fdf32cdb';
 import { LOCREC_TASK } from './lib/feature-catalog.js?v=b88b1c1e60c1-81ffd467';
@@ -32,7 +32,7 @@ import { getIncomingQtyByDateFromCache, getIncomingDetailsByDateFromCache,
 import { getPlannedQuantitiesForDate, getPlannedTimeTasksForDate, getPlannedExcludeMinutesForDate, getPlannedAdminWorkersForDate,
          fetchPlannedData, savePlannedQuantities,
          saveForecastSnapshot, saveForecastSnapshotIfAbsent, deleteForecastSnapshot, fetchForecastSnapshots,
-         getForecastSnapshotForDate, historyLoadFailed, hasHistoryLoaded, fetchAllHistoryData } from './history-data-manager.js?v=b9044d61e3b1-a9403e97';
+         getForecastSnapshotForDate, historyLoadFailed, hasHistoryLoaded, fetchAllHistoryData } from './history-data-manager.js?v=0e333fe7c86f-a9403e97';
 import { decomposeAccuracy, summarizeAccuracyRows, aggregateByTask, excludeTasksForAccuracy } from './forecast-accuracy.js?v=14735a690ed1-00c766d3';
 import { computeDayProgress, buildProgressRows, projectFinish, spentMinutesOf,
          nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=dbbe835978a6-40fe586a';
@@ -1634,14 +1634,19 @@ const paintOnToggle = (kind, id) => {
     if (!btn) return;
     const on = isRowOn(kind, id);
     btn.dataset.on = on ? '1' : '0';
-    btn.textContent = on ? 'O' : 'X';            // 작은 O/X 토글(2026-11-27 사용자 요청 — 진행/안함 글자 대신)
+    // 작은 켜기/끄기 스위치(2026-11-27 사용자 요청 — O/X 대신 색 있는 토글). 켜짐 = 초록 + 동그라미 오른쪽, 꺼짐 = 회색 + 왼쪽
+    btn.innerHTML = '<span class="pred-on-knob" aria-hidden="true" style="display:block;width:10px;height:10px;border-radius:9999px;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.25);transition:transform .15s;transform:translateX(' + (on ? '10px' : '0') + ');"></span>';
+    btn.setAttribute('role', 'switch');
+    btn.setAttribute('aria-checked', on ? 'true' : 'false');
     btn.setAttribute('aria-pressed', on ? 'true' : 'false');
     btn.setAttribute('aria-label', on ? '진행' : '안함');
     btn.title = on ? '누르면 이 날은 안 하는 업무로 바꿉니다(0)' : '누르면 이 날 하는 업무로 바꿉니다(안함 직전 값 › 하는 날 값 › 자동값 › 평균)';
     btn.title = (on ? '진행 — ' : '안함 — ') + btn.title;
-    btn.className = `pred-on-toggle shrink-0 inline-flex items-center justify-center w-5 h-5 p-0 rounded-full border text-[10px] leading-none font-bold transition ${on
-        ? 'border-emerald-400 bg-emerald-500 text-white hover:bg-emerald-600 dark:border-emerald-500 dark:bg-emerald-600'
-        : 'border-gray-300 bg-white text-gray-400 hover:bg-gray-100 dark:border-gray-600 dark:bg-gray-700/60 dark:text-gray-400'}`;
+    btn.className = `pred-on-toggle shrink-0 inline-flex items-center p-[2px] rounded-full transition-colors ${on
+        ? 'bg-emerald-500 hover:bg-emerald-600 dark:bg-emerald-600'
+        : 'bg-gray-300 hover:bg-gray-400 dark:bg-gray-600'}`;
+    btn.style.width = '24px';
+    btn.style.height = '14px';
 };
 /** [안함] 직전 값 기억을 버린다 — 화면을 자동값으로 다시 채울 때(날짜 변경·초기화·저장·자동값) 옛 날짜 값이 되살아나지 않게 */
 const forgetOnTogglePrev = () => {
@@ -2517,7 +2522,7 @@ const renderSimTaskInputs = () => {
     // 업무명은 관리자 설정에서 오는 임의 문자열이다 — 따옴표 하나에 줄 전체가 깨진다
     const row = (t) => `
         <div id="sim-row-${escapeHtml(t.id)}" data-row-id="${escapeHtml(t.id)}" class="pred-sim-row ${escapeHtml(ROW)}">
-            <button type="button" id="sim-on-${escapeHtml(t.id)}" data-on-kind="qty" data-task-id="${escapeHtml(t.id)}" tabindex="-1" class="pred-on-toggle shrink-0 w-5 h-5 text-[10px]">O</button>
+            <button type="button" id="sim-on-${escapeHtml(t.id)}" data-on-kind="qty" data-task-id="${escapeHtml(t.id)}" tabindex="-1" class="pred-on-toggle shrink-0 inline-flex items-center p-[2px] rounded-full bg-emerald-500" style="width:24px;height:14px;"></button>
             <span class="flex-1 min-w-0 sm:min-w-[5.5rem] truncate text-sm font-bold text-gray-700 dark:text-gray-200" title="${escapeHtml(t.label)}">${escapeHtml(t.label)}</span>
             <input id="sim-qty-${escapeHtml(t.id)}" type="number" min="0" placeholder="0" inputmode="numeric" class="${escapeHtml(NUM)}">
             <span class="w-4 text-[11px] text-gray-400 dark:text-gray-500">개</span>
@@ -2530,7 +2535,7 @@ const renderSimTaskInputs = () => {
 
     const timeRow = (t) => `
         <div id="sim-row-t-${escapeHtml(t.id)}" data-row-id="t-${escapeHtml(t.id)}" class="pred-sim-row ${escapeHtml(ROW)}">
-            <button type="button" id="sim-on-t-${escapeHtml(t.id)}" data-on-kind="time" data-task-id="${escapeHtml(t.id)}" tabindex="-1" class="pred-on-toggle shrink-0 w-5 h-5 text-[10px]">O</button>
+            <button type="button" id="sim-on-t-${escapeHtml(t.id)}" data-on-kind="time" data-task-id="${escapeHtml(t.id)}" tabindex="-1" class="pred-on-toggle shrink-0 inline-flex items-center p-[2px] rounded-full bg-emerald-500" style="width:24px;height:14px;"></button>
             <span class="flex-1 min-w-0 sm:min-w-[5.5rem] truncate text-sm font-bold text-gray-700 dark:text-gray-200" title="${escapeHtml(t.label)} — 인원이 늘면 그만큼 시간이 더해집니다">${escapeHtml(t.label)}</span>
             <label class="shrink-0 text-[11px] text-gray-400 dark:text-gray-500 whitespace-nowrap"
                    title="이 업무를 하는 인원. 인원을 올리면 1인 시간만큼 총 시간이 자동으로 더해집니다(1명 340분 → 2명 680분). 0명으로 두면 그날은 하지 않는 업무로 보고 시간도 0이 됩니다.">동시
