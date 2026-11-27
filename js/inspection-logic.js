@@ -6,12 +6,12 @@ import { showToast, getCurrentTime, getTodayDateString, escapeHtml, showConfirm 
 import { doc, getDoc, setDoc, updateDoc, arrayUnion, serverTimestamp, increment, runTransaction, deleteField } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // 분리된 모듈 가져오기
-import { clearImageState, setExistingPhoto, resolvePhotoForSave, isPhotoBusy, bumpPhotoEpoch } from './inspection-media.js?v=9049bd2597b7-cad5241c';
+import { clearImageState, setExistingPhoto, resolvePhotoForSave, isPhotoBusy, bumpPhotoEpoch } from './inspection-media.js?v=6e64a569ae56-cad5241c';
 import { syncInspSegments, syncBrushedField } from './inspection-segments.js?v=95f7641dc727-fc1be8ff';
 import { moveDoneItems } from './lib/insp-day.js?v=df2594fe0811-d324b1d1';
-import { openManualAdd } from './inspection-manual.js?v=9049bd2597b7-6555fd07';   // [조회]에서 리스트에 없는 상품 → 개별 추가 창(2026-11-17)
+import { openManualAdd } from './inspection-manual.js?v=6e64a569ae56-6555fd07';   // [조회]에서 리스트에 없는 상품 → 개별 추가 창(2026-11-17)
 import { historyId } from './lib/insp-manual.js?v=25e0bc0396d2-21f87941';
-import { loadFor as loadSupNames, supNameOf, supNamesMeta } from './sup-names-store.js?v=d105e6dca190-1f52465e';   // 공급처상품명(GIP, 2026-11-27) — 대기 새창·상세 칩. 못 읽으면 빈칸
+import { loadFor as loadSupNames, supNameOf, supNamesMeta } from './sup-names-store.js?v=de8b3ea4a05e-1f52465e';   // 공급처상품명(GIP, 2026-11-27) — 대기 새창·상세 칩. 못 읽으면 빈칸
 import { TASK, tName } from './task-names.js?v=33eb5ccd69bc-26ab8ff7';
 import {
     CHECK_KEYS, BRUSHED_KEY, checkKeysFor, LABELS, judge, missingFields, nextPendingIndex, prevIndex, progress,
@@ -1416,5 +1416,5 @@ export const clearTodayList = async () => {
     renderTodayInspectionList();
 };
 
-export { toggleScanner, handleImageSelect, clearImageState, handleManualImageSelect, clearManualImageState } from './inspection-media.js?v=9049bd2597b7-cad5241c';
-export { loadAllInspectionHistory, loadInspectionLogs, prepareEditInspectionLog, updateInspectionLog, deleteInspectionLog, deleteProductHistory, savePreInspectionNote } from './inspection-editor.js?v=9049bd2597b7-a6083ed1';
+export { toggleScanner, handleImageSelect, clearImageState, handleManualImageSelect, clearManualImageState } from './inspection-media.js?v=6e64a569ae56-cad5241c';
+export { loadAllInspectionHistory, loadInspectionLogs, prepareEditInspectionLog, updateInspectionLog, deleteInspectionLog, deleteProductHistory, savePreInspectionNote } from './inspection-editor.js?v=6e64a569ae56-a6083ed1';

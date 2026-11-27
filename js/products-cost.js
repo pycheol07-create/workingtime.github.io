@@ -8,8 +8,8 @@
 import {
     doc, getDoc, getDocs, collection, query, where, orderBy, limit
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { S, countRead, fmtDateTime, tsMs } from './products-store.js?v=ba5573fa8d5a-44ec7d98';
-import { esc, toast } from './products.js?v=d3c6c1f5ccdf-749f10a1';
+import { S, countRead, fmtDateTime, tsMs } from './products-store.js?v=aea0e7b95eb8-44ec7d98';
+import { esc, toast } from './products.js?v=04287016d652-749f10a1';
 import { costBucketIds, costBucketId } from './lib/product-bucket.js?v=842897a6efab-a72f5a26';
 import { parseCostJson, diffCostObj, emptyCost, FIELD_LABEL, MEMO_MAX, isSupCode } from './lib/product-excel-rows.js?v=acc096d72726-b7ba4cab';
 import { normalizePrice, round2, fmt2 } from './lib/product-price.js?v=960affe3b8e6-35ad98ac';

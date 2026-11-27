@@ -9,7 +9,7 @@
 // 실패(권한·네트워크·문서 없음)하면 빈 결과 — 화면은 빈칸. 오류는 console 에 코드만.
 // 값 모양·문서 번호 규칙은 js/lib/sup-names.js (쓰는 쪽 앱\공급처상품명\수집.py).
 import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { SUP_COLLECTION, shardId, shardsFor, parseShard, metaN, lookup } from './lib/sup-names.js?v=dec9187a136b-1d6082e2';
+import { SUP_COLLECTION, shardId, shardsFor, parseShard, metaN, lookup } from './lib/sup-names.js?v=183b4208d6cc-78583a5f';
 
 const names = new Map();          // 코드 → 이름 (받은 문서들 합)
 const shardP = new Map();         // 문서 번호 → Promise (받는 중·받음)

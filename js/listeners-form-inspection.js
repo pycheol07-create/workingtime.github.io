@@ -11,15 +11,15 @@ import {
     clearTodayList,
     deleteInspectionList,
     openInspectionListWindow
-} from './inspection-logic.js?v=9049bd2597b7-aad5f436';
-import { openPackPicker } from './inspection-packs.js?v=bba095774b97-59151e29';
-import { openManualAdd } from './inspection-manual.js?v=9049bd2597b7-6555fd07';
+} from './inspection-logic.js?v=6e64a569ae56-aad5f436';
+import { openPackPicker } from './inspection-packs.js?v=3cedfdc9afaa-59151e29';
+import { openManualAdd } from './inspection-manual.js?v=6e64a569ae56-6555fd07';
 import { initInspSegments } from './inspection-segments.js?v=95f7641dc727-fc1be8ff';
 // 아래 함수들은 다른 작업 묶음에서 들어온다(goPrevInspectionItem·toggleTodoCollapsed — inspection-logic.js,
 // dropNewPhoto — inspection-media.js). 이름으로 import 하면 아직 없을 때 모듈 전체가 깨지므로 namespace 로 받고
 // typeof 로 확인한 뒤 부른다.
-import * as InspLogic from './inspection-logic.js?v=9049bd2597b7-aad5f436';
-import * as InspMedia from './inspection-media.js?v=9049bd2597b7-cad5241c';
+import * as InspLogic from './inspection-logic.js?v=6e64a569ae56-aad5f436';
+import * as InspMedia from './inspection-media.js?v=6e64a569ae56-cad5241c';
 
 const callIfFn = (mod, name, ...args) => {
     const fn = mod[name];

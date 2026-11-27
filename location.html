@@ -304,6 +304,25 @@
         th[data-col].th-drop-right { box-shadow: inset -3px 0 0 0 var(--primary); }
         /* 필터 ▼ 버튼은 드래그 대신 클릭이 우선되도록 */
         th[data-col] .filter-btn { cursor: pointer; }
+        /* 열 고정(2026-11-27) — left·sticky 규칙은 location.js applyColumnFreeze 가 <style id="loc-freeze-style"> 에 쓴다.
+           고정 칸은 뒤 칸이 비쳐 보이지 않게 줄 색과 같은 불투명 배경(--fz-bg), 마지막 고정 칸 오른쪽에 경계선+그림자 */
+        .list-table tbody tr { --fz-bg: var(--c-surface); }
+        .list-table tbody tr:hover { --fz-bg: var(--c-surface-2); }
+        .list-table tbody tr.row-today { --fz-bg: linear-gradient(var(--c-accent-row), var(--c-accent-row)), var(--c-surface); }
+        .list-table tbody tr.row-today:hover { --fz-bg: linear-gradient(var(--c-accent-soft), var(--c-accent-soft)), var(--c-surface); }
+        .list-table tbody tr.row-pre { --fz-bg: linear-gradient(var(--c-risk-row), var(--c-risk-row)), var(--c-surface); }
+        .list-table tbody tr.row-pre:hover { --fz-bg: linear-gradient(var(--c-risk-soft), var(--c-risk-soft)), var(--c-surface); }
+        .list-table { --fz-shadow: 6px 0 6px -4px rgba(30,40,60,.18); }
+        html.dark .list-table { --fz-shadow: 6px 0 6px -4px rgba(0,0,0,.55); }
+        .th-pin { position: absolute; top: 2px; left: 1px; font-size: 9px; line-height: 1; padding: 1px; cursor: pointer; opacity: 0; transition: opacity .15s; z-index: 2; }
+        th:hover .th-pin { opacity: .45; }
+        .th-pin:hover, .th-pin.on { opacity: 1; }
+        @media (hover: none) { .th-pin { opacity: .35; } }
+        .loc-freeze-menu { display: none; position: fixed; z-index: 10001; background: var(--c-surface); border: 1px solid var(--c-line); border-radius: var(--r-sm);
+                           box-shadow: var(--sh-pop); min-width: 140px; padding: 6px 0; color: var(--c-text); }
+        .loc-freeze-menu .filter-option::before { display: none; }
+        .loc-freeze-menu .filter-option.is-off { color: var(--c-text-4); cursor: default; background: transparent; }
+        @media print { .th-pin, .loc-freeze-menu { display: none !important; } }
 
         .modal-overlay {
             display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
@@ -1809,7 +1828,7 @@
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" integrity="sha384-vtjasyidUo0kW94K5MXDXntzOJpQgBKXmE7e2Ga4LG0skTTLeBi97eFAXsqewJjw" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-    <script type="module" src="js/location.js?v=4aa1928c8396-cf2026f7"></script>
+    <script type="module" src="js/location.js?v=de3d72b19021-b1013595"></script>
     <!-- 권한 개편 5단계: location.js 가 만든 window.* 위험 함수를 바깥에서 감싼다(반드시 location.js 다음) -->
     <script type="module" src="js/location-guard.js?v=ba9825ac51d6-f5212d38"></script>
     <script type="module" src="js/locdash-layout.js?v=2db0a0ac651c-bc6313c6"></script>

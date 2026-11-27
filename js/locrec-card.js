@@ -19,7 +19,7 @@ import {
 } from './lib/locrec-view.js?v=b56633c4d6cf-fdf32cdb';
 import { initFold } from './lib/card-fold.js?v=f5e7633be316-3d829324';
 import { getLocRecStore, todayKey } from './locrec-store.js?v=04ce2fa80879-bd971fd0';
-import { mountLocRecTable } from './locrec-table.js?v=da18dbdce935-f46ab729';
+import { mountLocRecTable } from './locrec-table.js?v=0abd70a7953c-f46ab729';
 import { initRouteCard } from './locrec-route-card.js?v=3d22f978a959-3f4fe9bc';
 
 /** window.localStorage 참조 자체가 던지는 브라우저도 있다 */

@@ -3,10 +3,10 @@
 //
 // 3,768행을 한 번에 그리지 않는다(50행씩). 추가 읽기 없음 — 전부 products-store.js 가 받아 둔 메모리에서.
 // 관리자 열(공급처·기본 단가)은 관리자일 때만 **만든다**(숨김 아님). 원가 값은 products-cost.js 메모리에만 있다.
-import { S, locSummary, supNameOfProduct } from './products-store.js?v=ba5573fa8d5a-44ec7d98';
-import { C, costOf } from './products-cost.js?v=d3c6c1f5ccdf-b46a7823';
-import { esc, toast } from './products.js?v=d3c6c1f5ccdf-749f10a1';
-import { loadXLSX } from './products-excel.js?v=d3c6c1f5ccdf-8f20252b';
+import { S, locSummary, supNameOfProduct } from './products-store.js?v=aea0e7b95eb8-44ec7d98';
+import { C, costOf } from './products-cost.js?v=04287016d652-b46a7823';
+import { esc, toast } from './products.js?v=04287016d652-749f10a1';
+import { loadXLSX } from './products-excel.js?v=04287016d652-8f20252b';
 import { catalogExportAoa } from './lib/product-excel-rows.js?v=acc096d72726-b7ba4cab';
 import { fmt2, hasOptionPrices } from './lib/product-price.js?v=960affe3b8e6-35ad98ac';
 
@@ -101,7 +101,7 @@ function colDefs() {
         { key: 'code', label: '상품코드', type: 'text', get: (pid, p) => p.code2 || pid, fget: (pid, p) => `${p.code2 || ''} ${pid}` },
         { key: 'name', label: '상품명', type: 'text', get: (pid, p) => p.name || '' },
         // 공급처상품명(GIP, 2026-11-27) — 첫 옵션 코드로 찾는다(sup-names-store.js). 업로드 엑셀과 무관한 별도 저장소
-        { key: 'supname', label: '공급처상품명', type: 'text', title: '첫 옵션 상품코드의 공급처상품명(GIP, 영문·숫자 모양만 — 한글 등이 섞인 값은 보이지 않음)', get: (pid, p) => supNameOfProduct(p) },
+        { key: 'supname', label: '공급처상품명', type: 'text', title: '첫 옵션 상품코드의 공급처상품명(GIP)', get: (pid, p) => supNameOfProduct(p) },
         { key: 'cat', label: '카테고리', type: 'set', get: (pid, p) => p.cat || NONE },
         { key: 'opt', label: '옵션', type: 'num', r: true, get: (pid, p) => activeOpts(p).length },
     ];

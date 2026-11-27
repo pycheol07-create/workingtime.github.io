@@ -1,5 +1,5 @@
 // === js/ui-main-dashboard.js ===
-import { getAllDashboardDefinitions } from './ui.js?v=167573df3855-a84d3554';
+import { getAllDashboardDefinitions } from './ui.js?v=b9044d61e3b1-a84d3554';
 import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
 import { getRegularMembersForCount, formatHM, escapeHtml, showToast, getCurrentTime } from './utils.js?v=65bb3512764f-e315797c';
 import { isLeaveActiveAt } from './lib/leave-timing.js?v=56494f977986-82fd27e6';
@@ -12,7 +12,7 @@ import { checkMissingQuantities } from './analysis-logic.js?v=ad17bad984b3-0bfe0
 import { minToHhmm } from './forecast-progress.js?v=dbbe835978a6-40fe586a';
 import { taskPace, combinePace, expectedRatio, rowsForDashboard, paceDoneQty, endedLooksDone } from './lib/task-pace.js?v=da341b20b6b9-41f49a23';
 import { subscribeShipAuto, morningAutoToday, morningForecastToday } from './ship-auto-sync.js?v=18944e3040fa-fe881227';
-import { isLocRecTask } from './locrec-dash.js?v=d6015c8267c6-a54bc4d0';
+import { isLocRecTask } from './locrec-dash.js?v=ff01ed3f8c28-a54bc4d0';
 import { locRecDoneToday, refreshLocRecDone } from './locrec-done.js?v=6df72eea34e4-37785663';   // 로케이션 동선관리 실적 = 변경 추천 표 오늘 완료 건수
 
 // 실시간 인원 현황 행 중 상세 펼침을 지원할 항목들
@@ -431,7 +431,7 @@ const quantityOpener = () => ['open-quantity-modal-today', 'open-quantity-modal-
  *  오늘 숫자를 받기 전에 열면 빈 칸이 저장될 수 있어 기다린다(app.js #open=quantity 와 같은 규칙). */
 const openQuantityFromCard = async () => {
     try {
-        const { whenTodayLoaded } = await import('./app-sync.js?v=167573df3855-68f6c921');
+        const { whenTodayLoaded } = await import('./app-sync.js?v=b9044d61e3b1-68f6c921');
         const ok = await Promise.race([whenTodayLoaded().then(() => true), new Promise(r => setTimeout(() => r(false), 15000))]);
         if (!ok) { showToast('오늘 데이터를 아직 받지 못해 처리량 입력 창을 열지 않았습니다. 사이드바에서 다시 눌러 주세요.', true); return; }
     } catch (e) { console.warn('[처리량 카드] 오늘 데이터 확인 실패:', e); return; }
@@ -632,7 +632,7 @@ const paintWorkloadPaceNow = () => {
     if (!paceMod) {
         if (!paceModLoading) {
             paceModLoading = true;
-            import('./ui-history-prediction.js?v=167573df3855-099e2602')
+            import('./ui-history-prediction.js?v=b9044d61e3b1-099e2602')
                 .then(m => { paceMod = m; paceLastAt = 0; schedulePace(); })
                 .catch(e => console.warn('[처리량 카드] 업무 예상 모듈 로드 실패:', e))
                 .finally(() => { paceModLoading = false; });

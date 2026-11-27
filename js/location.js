@@ -11,8 +11,8 @@ import { memberNameFor } from './app-shell-data.js?v=e42c6a10ca7a-9319c795';
 import { menuConfigOf } from './lib/perm.js?v=c1e53d91da8e-49afeea3';
 import { readHash, writeHash, onHashNav } from './hash-state.js?v=41d515385973-40fe10fb';
 import { initPageNav } from './page-nav.js?v=2d9f4a86d931-b8f40ef7';
-import { initRefillCard } from './refill-card.js?v=6e6087766b9d-4b7c0f41';
-import { initLocRecCard } from './locrec-card.js?v=4a658b78fa9f-ae2556ac';
+import { initRefillCard } from './refill-card.js?v=612bc2fc5501-4b7c0f41';
+import { initLocRecCard } from './locrec-card.js?v=5c24ce16f741-ae2556ac';
 import { getLocRecStore, peekLocRecStore } from './locrec-store.js?v=04ce2fa80879-bd971fd0';   // 오늘 변경 추천 예정 자리·최근 [처리함] 이동(엑셀 경고)
 import { initRebuildBar } from './rebuild-bar.js?v=bd473b84e41e-5c8233b1';
 import { mountRouteSlot } from './locrec-route-card.js?v=3d22f978a959-3f4fe9bc';
@@ -29,7 +29,7 @@ import { zoneDocIdOf, moveBadge, uploadMoveConflicts, uploadConflictText, isDesi
 import { dayKey as kstDayKey } from './lib/refill-view.js?v=3416a867c2d7-24e9bb3d';
 // 마지막 출고일(integrations/locLastOut, 로케이션추천\최근출고.py) — 업로드 '마지막출고.배송일'과 더 최근 값으로 합친다(2026-11-20)
 import { normDay, parseLastOut, laterDay, ezLastOf, cleanupDecision } from './lib/last-out.js?v=36085d31f68f-09edcbbe';
-import { loadAll as loadSupNames, supNameOf } from './sup-names-store.js?v=d105e6dca190-1f52465e';   // 목록 '공급처상품명' 열(2026-11-27, 기본 끔 — 켠 때만 읽음)
+import { loadAll as loadSupNames, supNameOf } from './sup-names-store.js?v=de8b3ea4a05e-1f52465e';   // 목록 '공급처상품명' 열(2026-11-27, 기본 끔 — 켠 때만 읽음)
 
 // 🔐 onclick="fn('...')" 안에 데이터를 넣을 때 반드시 통과시킬 것.
 //    작은따옴표만 막으면 상품명에 " < 역슬래시가 들어올 때 버튼이 동작하지 않거나
@@ -924,6 +924,9 @@ const locAngleSize = angleSizeOf;
 /** 추가 항목 열(cus_*) 필터·정렬 값 — 화면 칸과 같은 값. 칸수는 자리에 저장된 칸수(위 규칙), 입고대기는 오더+사입 합계, 그 밖은 업로드 원본 */
 function cusCellValue(d, key) {
     if (key === '칸수') { const a = locAngleSize(d); return a ? String(a).trim() : ''; }
+    // 비축창고재고 — 업로드 때 rawData 에서 빼고 stock2f 칸에 저장한다(excludeRaw). 엑셀 열 이름으로 켠 열(cus_비축창고재고)이
+    //   늘 비어 보였다(2026-11-27 사용자 문의) — 같은 값(stock2f)을 보인다
+    if (key === '비축창고재고' || key === '2층창고재고') return d.stock2f != null && d.stock2f !== '' ? String(d.stock2f).trim() : '';
     if (key === '입고대기') {
         const code = (d.code && d.code !== d.id) ? d.code : '';
         return code && incomingTotalByCode[code] ? incomingTotalByCode[code].toString() : '';
@@ -968,7 +971,8 @@ window.downloadMainExcel = async function() {
     // 헤더 구성
     // ★ 2026-10-12 사용자 양식: A '로케이션1'(로케이션(칸수) / 상품코드) + B '로케이션'(자리 번호만)
     const stdHeaders = ['로케이션1', '로케이션', '동', '위치', '상품코드', '상품명', '옵션', '정상재고', '비축창고재고'];
-    const cusHeaders = (window.excelHeaders || []).filter(h => h && !h.includes('<') && !h.includes('>') && !h.includes('=') && h !== '로케이션1');
+    // 비축창고재고·2층창고재고는 표준 열(stock2f)로 이미 내보낸다 — 옛 원본 값으로 두 번째 열이 생기면 다시 올릴 때 새 비축을 덮는다(2026-11-27 리뷰)
+    const cusHeaders = (window.excelHeaders || []).filter(h => h && !h.includes('<') && !h.includes('>') && !h.includes('=') && h !== '로케이션1' && h !== '비축창고재고' && h !== '2층창고재고');
     // '칸수' 열이 있는 파일을 한 번도 안 올렸으면 원본 열 목록에 없다 — 그래도 칸수 열은 늘 내보낸다(맨 끝)
     if (!cusHeaders.includes('칸수')) cusHeaders.push('칸수');
     const allHeaders = [...stdHeaders, ...cusHeaders];
@@ -1386,16 +1390,17 @@ function renderTableHeader() {
     document.querySelectorAll('.filter-popup').forEach(p => { p.addEventListener('click', function(e) { e.stopPropagation(); }); });
     setupFilterPopups();
     setupHeaderDragAndDrop();
+    setupColumnFreeze();
     ensureSupNames();
 }
 
 // ── 공급처상품명 열(2026-11-27) ─────────────────────────────
 //   값 = GIP 공급처상품명(ProductSupName, js/sup-names-store.js — 읽기만, 이 페이지 메모리에만). 상품코드로 찾고, 없거나 못 읽으면 빈칸.
 //   열 키 std_supname(필터·정렬 키 supname) — 엑셀에서 온 '공급처상품명' 열(cus_공급처상품명, rawData)과는 다른 열이다.
-//   둘 다 있으면 헷갈리지 않게 이 열 머리글을 '공급처상품명(GIP)' 로 보인다. 기본은 꺼짐(열 설정 visibleColumns 는 팀 공용).
+//   머리글은 늘 '공급처상품명'(사용자 요청 — 예전엔 엑셀 열과 겹치면 '(GIP)' 를 붙였다). 기본은 꺼짐(열 설정 visibleColumns 는 팀 공용).
 //   로케이션 다운로드 양식(stdHeaders)에는 넣지 않는다 — 다시 올리는 양식이라 rawData 에 섞인다.
 const SUPNAME_COL = 'std_supname';
-const supNameColLabel = () => ((window.excelHeaders || []).includes('공급처상품명') ? '공급처상품명(GIP)' : '공급처상품명');
+const supNameColLabel = () => '공급처상품명';   // 2026-11-27 사용자 요청 — '(GIP)' 붙이지 않음(엑셀 쪽 같은 이름 열은 열 설정에서 주황색 글자로 구분된다)
 const supNameOfLoc = (loc) => {
     const c = loc && loc.code && loc.code !== loc.id ? String(loc.code).trim() : '';
     return c ? supNameOf(c) : '';
@@ -1420,7 +1425,9 @@ function createTh(key, label, width, hasFilter, colId, tipHtml = '') {   // tipH
     // ★ 드래그앤드롭으로 컬럼 순서 변경 가능하도록 표식 부여
     const dragAttrs = colId ? ` draggable="true" data-col="${colId}" title="드래그해서 헤더 순서를 바꿀 수 있습니다"` : '';
     const resizeHtml = colId ? `<span class="th-resize" data-resize="${escAttr(colId)}" title="끌어서 폭 조절 · 더블클릭하면 기본 폭"></span>` : '';
-    return `<th ${widthStyle}${dragAttrs}><div class="th-content"><span class="title-text">${escAttr(label)}${tipHtml}</span>${filterHtml}</div>${resizeHtml}</th>`;
+    // 열 고정 단추(📌, 머리글 왼쪽 위) — 누르면 이 열까지 왼쪽 고정, 고정한 열에서 다시 누르면 풀기. 우클릭 메뉴도 같은 일(setupColumnFreeze)
+    const pinHtml = colId ? `<span class="th-pin" data-pin="${escAttr(colId)}" draggable="false">📌</span>` : '';
+    return `<th ${widthStyle}${dragAttrs}>${pinHtml}<div class="th-content"><span class="title-text">${escAttr(label)}${tipHtml}</span>${filterHtml}</div>${resizeHtml}</th>`;
 }
 
 // ── 열 폭 (2026-10-14) ──────────────────────────────────────
@@ -1466,6 +1473,7 @@ function setupColumnResize() {
                 const w = Math.round(Math.min(COL_W_MAX, Math.max(COL_W_MIN, startW + (ev.clientX - startX))));
                 th.style.width = w + 'px';
                 syncTableWidth();
+                applyColumnFreeze();   // 고정 열 left 다시 계산
             };
             let ended = false;
             const up = () => {
@@ -1496,8 +1504,144 @@ function setupColumnResize() {
             delete _colWidths[colId];
             saveColWidths();
             syncTableWidth();
+            applyColumnFreeze();
         });
     });
+}
+
+// ── 열 고정 (2026-11-27) ────────────────────────────────────
+//   '이 열까지 고정' = 체크 칸 + 맨 왼쪽부터 그 열까지 연속으로 고정(가로 스크롤해도 왼쪽에 남음). 기준 열 id 하나만 이 브라우저에 저장
+//   (사람마다 따로 — 팀 공용 INFO_CONFIG 는 안 건드린다). 순서를 바꾸면 기준 열 왼쪽에 있는 열들이 고정된다. 기준 열을 숨기면 고정 없음(저장값은 남김).
+//   셀마다 style 을 넣지 않고 <style id="loc-freeze-style"> 의 nth-child 규칙 몇 줄로 한다(행이 많아도 같은 비용, 가상 스크롤로 다시 그려도 유지).
+//   고정 폭 합계가 목록 폭의 일정 비율(좁은 화면 768px 미만 50%, 그 밖 75%)을 넘으면 넘지 않는 데까지만 고정한다
+//   (휴대폰에서 고정 열이 화면을 다 덮어 표가 안 보이는 것 방지 — 넓어지면 다시 전부).
+const FREEZE_KEY = 'loc.freezeCol';
+const FREEZE_MAX_RATIO = (w) => (w < 768 ? 0.5 : 0.75);
+let _freezeCol = loadFreezeCol();
+let _freezeObs = null;
+let _freezeLast = '';
+function loadFreezeCol() {
+    try { const v = localStorage.getItem(FREEZE_KEY); return typeof v === 'string' ? v : ''; }
+    catch (e) { return ''; }
+}
+function saveFreezeCol() {
+    try { if (_freezeCol) localStorage.setItem(FREEZE_KEY, _freezeCol); else localStorage.removeItem(FREEZE_KEY); }
+    catch (e) { /* 이번 화면에만 적용 */ }
+}
+/** 고정 규칙을 다시 쓴다. 돌려줌 { want: 원한 열 수(체크 칸 포함), n: 실제 고정한 열 수 } */
+function applyColumnFreeze() {
+    const theadTr = document.getElementById('dynamic-thead-tr');
+    const container = document.getElementById('list-container');
+    if (!theadTr || !container) return { want: 0, n: 0 };
+    let st = document.getElementById('loc-freeze-style');
+    if (!st) { st = document.createElement('style'); st.id = 'loc-freeze-style'; document.head.appendChild(st); }
+    const ths = [...theadTr.children];
+    const bi = _freezeCol ? ths.findIndex(th => th.dataset.col === _freezeCol) : -1;
+    const want = bi > 0 ? bi + 1 : 0;
+    const limit = container.clientWidth > 0 ? container.clientWidth * FREEZE_MAX_RATIO(container.clientWidth) : Infinity;   // 숨겨진 화면(0)은 제한 없이 — 보이면 ResizeObserver 가 다시
+    const lefts = [];
+    let x = 0;
+    for (let i = 0; i < want; i++) {
+        const w = parseFloat(ths[i].style.width) || ths[i].offsetWidth;
+        if (i > 0 && x + w > limit) break;
+        lefts.push(x);
+        x += w;
+    }
+    const n = lefts.length > 1 ? lefts.length : 0;   // 체크 칸만 남으면 고정 안 함
+    const T = '#list-container .list-table';
+    let css = '';
+    for (let i = 0; i < n; i++) {
+        const k = i + 1;
+        css += `${T} tr > :nth-child(${k}):not([colspan]){position:sticky;left:${lefts[i]}px;}`
+             + `${T} tbody tr > td:nth-child(${k}):not([colspan]){z-index:3;background:var(--fz-bg);}`
+             + `${T} thead tr > th:nth-child(${k}){z-index:12;}`;
+    }
+    if (n) {
+        css += `${T} tbody tr > td:nth-child(${n}):not([colspan]){box-shadow:inset -1px 0 0 var(--c-line-strong), var(--fz-shadow);}`
+             + `${T} thead tr > th:nth-child(${n}):not(.th-drop-left):not(.th-drop-right){box-shadow:inset -1px 0 0 var(--c-line-strong), inset 0 -1px 0 var(--c-line), var(--fz-shadow);}`;
+        css = `@media screen{${css}}`;   // 인쇄에는 고정 없음
+    }
+    if (css !== _freezeLast) { st.textContent = css; _freezeLast = css; }
+    theadTr.querySelectorAll('.th-pin').forEach(p => {
+        const on = p.dataset.pin === _freezeCol && want > 0;
+        p.classList.toggle('on', on);
+        p.title = on ? (n < want ? `고정 풀기 (화면이 좁아 ${Math.max(0, n - 1)}열까지만 고정됨)` : '고정 풀기') : '이 열까지 왼쪽에 고정 (이 브라우저에만)';
+    });
+    return { want, n };
+}
+function setColumnFreeze(colId) {
+    _freezeCol = colId || '';
+    saveFreezeCol();
+    const r = applyColumnFreeze();
+    if (!_freezeCol) showToast('열 고정을 풀었습니다.');
+    else if (r.n < r.want) showToast(r.n ? `화면이 좁아 앞 ${r.n - 1}열까지만 고정했습니다.` : '화면이 좁아 고정하지 못했습니다.');
+    else showToast(`왼쪽 ${r.n - 1}열을 고정했습니다.`);
+}
+window.setLocColumnFreeze = setColumnFreeze;
+/** 📌 단추·머리글 우클릭 메뉴. 머리글을 다시 그릴 때마다 부른다 */
+function setupColumnFreeze() {
+    const theadTr = document.getElementById('dynamic-thead-tr');
+    const container = document.getElementById('list-container');
+    if (!theadTr) return;
+    theadTr.querySelectorAll('.th-pin').forEach(p => {
+        p.addEventListener('dragstart', (e) => { e.preventDefault(); e.stopPropagation(); });
+        // 📌 를 누르는 동안은 머리글 끌기(열 순서 = 팀 공용 저장)를 끈다 — 누른 채 조금 움직여 놓아도 순서가 바뀌지 않게(리뷰)
+        p.addEventListener('pointerdown', (e) => {
+            e.stopPropagation();
+            const th = p.closest('th');
+            if (!th) return;
+            th.draggable = false;
+            const back = () => { th.draggable = true; window.removeEventListener('pointerup', back, true); window.removeEventListener('pointercancel', back, true); };
+            window.addEventListener('pointerup', back, true);
+            window.addEventListener('pointercancel', back, true);
+        });
+        p.addEventListener('click', (e) => {
+            e.stopPropagation();
+            setColumnFreeze(p.dataset.pin === _freezeCol ? '' : p.dataset.pin);
+        });
+    });
+    theadTr.querySelectorAll('th[data-col]').forEach(th => {
+        th.addEventListener('contextmenu', (e) => { e.preventDefault(); openFreezeMenu(e.clientX, e.clientY, th.dataset.col); });
+    });
+    if (!_freezeObs && container && typeof ResizeObserver === 'function') {
+        _freezeObs = new ResizeObserver(() => applyColumnFreeze());   // 화면 폭·목록 보이기·입고 대기 패널로 폭이 바뀌면 절반 제한 다시
+        _freezeObs.observe(container);
+    }
+    applyColumnFreeze();
+}
+function closeFreezeMenu() {
+    const m = document.getElementById('loc-freeze-menu');
+    if (m) m.style.display = 'none';
+}
+function openFreezeMenu(x, y, colId) {
+    let m = document.getElementById('loc-freeze-menu');
+    if (!m) {
+        m = document.createElement('div');
+        m.id = 'loc-freeze-menu';
+        m.className = 'loc-freeze-menu';
+        m.innerHTML = `<div class="filter-option" data-fz="pin">이 열까지 고정</div><div class="filter-option" data-fz="off">고정 풀기</div>`;
+        m.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const it = e.target.closest('[data-fz]');
+            if (!it || it.classList.contains('is-off')) return;
+            closeFreezeMenu();
+            setColumnFreeze(it.dataset.fz === 'pin' ? m.dataset.col : '');
+        });
+        m.addEventListener('contextmenu', (e) => e.preventDefault());
+        document.body.appendChild(m);
+        document.addEventListener('click', closeFreezeMenu);
+        document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeFreezeMenu(); });
+        window.addEventListener('blur', closeFreezeMenu);
+        const lc = document.getElementById('list-container');
+        if (lc) lc.addEventListener('scroll', closeFreezeMenu, { passive: true });
+    }
+    m.dataset.col = colId;
+    m.querySelector('[data-fz="pin"]').classList.toggle('is-off', colId === _freezeCol);
+    m.querySelector('[data-fz="off"]').classList.toggle('is-off', !_freezeCol);
+    m.style.display = 'block';
+    const r = m.getBoundingClientRect();
+    m.style.left = Math.max(4, Math.min(x, window.innerWidth - r.width - 4)) + 'px';
+    m.style.top = Math.max(4, Math.min(y, window.innerHeight - r.height - 4)) + 'px';
 }
 
 // ★ 헤더 드래그앤드롭 — th를 끌어다 놓으면 visibleColumns 순서를 바꾸고 저장한다.
@@ -3546,8 +3690,9 @@ function applyFiltersAndSort() {
         let aVal, bVal;
         if (sortConfig.key.startsWith('cus_')) {
             const key = sortConfig.key.replace('cus_', '');
-            aVal = key === '칸수' ? cusCellValue(a, key) : ((a.rawData && a.rawData[key]) ? a.rawData[key].toString() : '');
-            bVal = key === '칸수' ? cusCellValue(b, key) : ((b.rawData && b.rawData[key]) ? b.rawData[key].toString() : '');
+            const viaFn = key === '칸수' || key === '비축창고재고' || key === '2층창고재고';
+            aVal = viaFn ? cusCellValue(a, key) : ((a.rawData && a.rawData[key]) ? a.rawData[key].toString() : '');
+            bVal = viaFn ? cusCellValue(b, key) : ((b.rawData && b.rawData[key]) ? b.rawData[key].toString() : '');
         } else if (sortConfig.key === 'supname') {
             aVal = supNameOfLoc(a); bVal = supNameOfLoc(b);
         } else {
@@ -3757,6 +3902,7 @@ function renderVisibleRows() {
                 const key = col.replace('cus_', '');
                 let val = (loc.rawData && loc.rawData[key]) ? loc.rawData[key] : '';
                 if (key === '칸수') val = locAngleSize(loc);
+                if (key === '비축창고재고' || key === '2층창고재고') val = cusCellValue(loc, key);   // rawData 에 없음 — stock2f
                 // ★ 입고대기 컬럼은 오더리스트/사입리스트 합계로 덮어쓰기
                 if (key === '입고대기') {
                     const code = (loc.code && loc.code !== loc.id) ? loc.code : '';

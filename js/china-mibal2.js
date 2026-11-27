@@ -61,7 +61,7 @@ import { rowPasses, optionsFor, activeFilterCount, toStored, toChecked } from '.
 import { parsePackBoxes, packsOn, boxesFor, boxSortVal, cmpBoxSort, failedPacks, boxCount, totalBoxes } from './lib/pack-boxes.js?v=9e13a65b0cb3-3b57fd51';   // 박스 열(2026-11-26 — 패킹봇 box_sync 가 쓴 integrations/packBoxes)
 // [박스 확인] 창은 2026-11-27 이 화면에서 뺐다(파일 js/mibal2-boxcheck.js 도 지움) — 입고 스캐너로 옮김(판정은 js/lib/box-check.js 그대로)
 import { openFloatingFilter, closeFloatingFilter } from './table-filter.js?v=fd197c3531ef-b92b1b78';
-import { loadAll as loadSupNames, supNameOf } from './sup-names-store.js?v=d105e6dca190-1f52465e';   // 공급처상품명 열(2026-11-27 — ProductSupName, 화면 열 때 한 번)
+import { loadAll as loadSupNames, supNameOf } from './sup-names-store.js?v=de8b3ea4a05e-1f52465e';   // 공급처상품명 열(2026-11-27 — ProductSupName, 화면 열 때 한 번)
 import { createUrgentUi } from './china-mibal2-urgent.js?v=eb688f45d3b3-81c9d293';   // 긴급 상품 표시·선택(2026-11-27 — 쓰기는 live 모듈, 문서 mibal2/urgent)
 import { writeXls } from './lib/xls-limits.js?v=64b8f5a113a9-e512cb8a';
 import { readHash, writeHash, onHashNav } from './hash-state.js?v=41d515385973-40fe10fb';   // live 때만 씀(빠른 이동 #tab=mibal|location)

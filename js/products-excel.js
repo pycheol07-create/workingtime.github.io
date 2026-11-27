@@ -10,11 +10,11 @@
 //   원가는 전용 열(EZ_COST_COLS)·글 단가 해석(diffEzCost). 기본정보 반영 뒤 [원가 단계로 이어서] 로 같은 내용(메모리)을 원가에 쓴다.
 //   새 공급처는 반영 직전 확인 후 대장에 이름 빈칸으로 등록(ensureSuppliers). 설계: 이지어드민상품엑셀_설계.md
 // ⚠️ 원가 값을 console 에 찍지 말 것 — 시간·행 수만.
-import { S, applyLocalProduct } from './products-store.js?v=ba5573fa8d5a-44ec7d98';
-import { C, ledgerCodes, loadLedger } from './products-cost.js?v=d3c6c1f5ccdf-b46a7823';
-import { esc, toast, route, renderBasis } from './products.js?v=d3c6c1f5ccdf-749f10a1';
-import { costChangeText } from './products-cost.js?v=d3c6c1f5ccdf-b46a7823';
-import { catalogChangeText } from './products-detail.js?v=d3c6c1f5ccdf-38b27133';
+import { S, applyLocalProduct } from './products-store.js?v=aea0e7b95eb8-44ec7d98';
+import { C, ledgerCodes, loadLedger } from './products-cost.js?v=04287016d652-b46a7823';
+import { esc, toast, route, renderBasis } from './products.js?v=04287016d652-749f10a1';
+import { costChangeText } from './products-cost.js?v=04287016d652-b46a7823';
+import { catalogChangeText } from './products-detail.js?v=04287016d652-fd063a19';
 import { writeBucket, writeCatalogSummary, ensureSuppliers } from './products-write.js?v=c12131c8d88b-699dc490';
 import { catalogBucketId, costBucketId, CATALOG_BUCKETS } from './lib/product-bucket.js?v=842897a6efab-a72f5a26';
 import {

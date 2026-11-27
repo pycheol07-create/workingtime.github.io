@@ -5,8 +5,9 @@
 //   ProductSupName/META = { schema:1, rev, at, n, counts:{codes, kept, skipped, empty}, lastSeenDay }
 //   ProductSupName/S00..S{n-1} = { rev, data: "<JSON {names:[…], m:{코드: names 번호}}>" }
 //   문서 번호 = fnv1a32(코드) % n — product-bucket.js 의 fnv1a32 를 그대로 쓴다(수집.py 에 같은 함수).
-// 값은 'GGS…-…' 모양(예 GGS907-PTF040, 쉼표로 이은 목록 허용)만 저장된다 — 그 밖 값은 수집기가 거른다
-// (공급처 실명 방지, 사용자 결정 · 리뷰 2026-11-27).
+// 값은 GIP 값 전부(빈칸만 뺌 — 영문·숫자 품번·한글 설명 포함, 사용자 결정 2026-11-27). 수집기가 줄바꿈·제어문자를
+// 공백으로 바꾸고 120자에서 자른다. 업체 이름이 섞일 수 있다 — 화면에는 반드시 escape 해서 넣을 것.
+// (박스 확인이 글자를 공급처상품명으로 알아보는 규칙은 js/lib/box-check.js 가 GGS…-… 모양만 따로 본다.)
 // 계약 시험: tests/sup-names.test.js ↔ 공급처상품명\tests\test_수집.py (같은 사례 tests/fixtures/sup-names-case.json)
 //
 // 순수 모듈(DOM/Firebase 의존 없음). 브라우저와 node --test 가 함께 쓴다.
@@ -14,8 +15,8 @@ import { fnv1a32 } from './product-bucket.js?v=842897a6efab-a72f5a26';
 
 export const SUP_COLLECTION = 'ProductSupName';
 export const SUP_MAX_SHARDS = 16;
-/** 수집.py NAME_RE 와 같다 — 이 모양이 아니면 문서에 있어도 보이지 않는다 */
-export const SUP_NAME_RE = /^(?=.{1,60}$)GGS[0-9A-Z]+-[0-9A-Z\-]+(?:,GGS[0-9A-Z]+-[0-9A-Z\-]+)*$/;
+/** 수집.py NAME_RE 와 같다(빈칸 아님·제어문자 없음·120자 이하) — 아니면 문서에 있어도 보이지 않는다 */
+export const SUP_NAME_RE = /^(?=.*\S)[^\x00-\x1f\x7f]{1,120}$/;
 const SUP_CODE_RE = /^S[0-9]{1,30}$/;
 
 export const shardOf = (code, n) => fnv1a32(String(code)) % n;

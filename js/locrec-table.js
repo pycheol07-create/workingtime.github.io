@@ -25,7 +25,7 @@ import { NO_NAME, todayKey } from './locrec-store.js?v=04ce2fa80879-bd971fd0';
 import { higherOpenThan } from './modal-above.js?v=d7d701b363ef-215d273f';
 import { undoConfirmText } from './lib/locrec-apply.js?v=97d4b196868c-5def8df3';
 import { SORT_COLS, sortRows, nextSort, isLowStockRow, lineTotal } from './lib/locrec-sort.js?v=0dad920c4bfb-beea5dd6';
-import { loadAll as loadSupNames, supNameOf } from './sup-names-store.js?v=d105e6dca190-1f52465e';   // 공급처상품명 칸(2026-11-27 — 옵션 다음, 창을 처음 열 때 한 번)
+import { loadAll as loadSupNames, supNameOf } from './sup-names-store.js?v=de8b3ea4a05e-1f52465e';   // 공급처상품명 칸(2026-11-27 — 옵션 다음, 창을 처음 열 때 한 번)
 
 // location.html 의 #locrec-modal 과 같은 마크업(바꾸면 둘 다)
 const TEMPLATE = `

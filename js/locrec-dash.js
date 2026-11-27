@@ -22,7 +22,7 @@ let loading = null;
 async function load() {
     if (mods) return mods;
     if (!loading) {
-        loading = Promise.all([import('./locrec-store.js?v=04ce2fa80879-bd971fd0'), import('./locrec-table.js?v=da18dbdce935-f46ab729')]).then(([s, t]) => {
+        loading = Promise.all([import('./locrec-store.js?v=04ce2fa80879-bd971fd0'), import('./locrec-table.js?v=0abd70a7953c-f46ab729')]).then(([s, t]) => {
             const store = s.getLocRecStore({
                 db: State.db, auth: State.auth,
                 getMemberName: () => memberNameFor(State.appConfig && State.appConfig.memberEmails,

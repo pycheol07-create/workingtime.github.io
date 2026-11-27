@@ -11,8 +11,8 @@
 // 색·모양은 css/dash-d.css(#quick-menu-*) — 토큰을 쓰므로 다크 모드는 html.dark 토큰을 따른다.
 import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
 import { can } from './lib/perm.js?v=c1e53d91da8e-49afeea3';
-import { refillAllowed, openRefillFromDash } from './refill-dash.js?v=c77cf6053ec4-9d529bbc';
-import { locRecAllowed, openLocRecFromDash } from './locrec-dash.js?v=d6015c8267c6-a54bc4d0';
+import { refillAllowed, openRefillFromDash } from './refill-dash.js?v=fa20c3bb2e8b-9d529bbc';
+import { locRecAllowed, openLocRecFromDash } from './locrec-dash.js?v=ff01ed3f8c28-a54bc4d0';
 
 const BTN_ID = 'quick-menu-btn';
 const SHEET_ID = 'quick-menu-sheet';
@@ -35,10 +35,10 @@ const ITEMS = [
     { key: 'locrec', label: '변경추천표', ok: () => locRecAllowed(), run: () => openLocRecFromDash(),
       icon: svg('<path d="M7 7h11l-3-3M17 17H6l3 3"/>') },
     { key: 'insp', label: '샘플검수 매니저', ok: () => true,
-      run: () => import('./inspection-logic.js?v=9049bd2597b7-aad5f436').then(m => m.openInspectionManager()),
+      run: () => import('./inspection-logic.js?v=6e64a569ae56-aad5f436').then(m => m.openInspectionManager()),
       icon: svg('<circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5"/>') },
     { key: 'total-insp', label: '전량검수 매니저', ok: () => true,
-      run: () => import('./total-inspection-logic.js?v=45bb0686846c-9fc94c2e').then(m => m.openTotalInspection()),
+      run: () => import('./total-inspection-logic.js?v=ac83422340da-9fc94c2e').then(m => m.openTotalInspection()),
       icon: svg('<path d="M9 3h6l1 2h3v16H5V5h3z"/><path d="M9 13l2 2 4-4"/>') }
 ];
 

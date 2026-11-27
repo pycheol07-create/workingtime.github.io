@@ -7,7 +7,7 @@ import { inspTypeLabel } from './lib/insp-manual.js?v=25e0bc0396d2-21f87941';
 import { doc, getDoc, runTransaction, collection, getDocs, query, where, orderBy, limit as fsLimit } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { itemKey, patchItemsByKey } from './lib/insp-flow.js?v=5d563dd586be-06600d5f';
 import { dayRows, inspectorLabel, logDefectQty, periodLabel, accDocRow, DONE } from './lib/total-insp.js?v=d83d978fa87f-5334595d';
-import { loadFor as loadSupNames, supNameOf } from './sup-names-store.js?v=d105e6dca190-1f52465e';   // 공급처상품명(GIP, 2026-11-27) — 표의 '공급처상품명' 열. 못 읽으면 빈칸
+import { loadFor as loadSupNames, supNameOf } from './sup-names-store.js?v=de8b3ea4a05e-1f52465e';   // 공급처상품명(GIP, 2026-11-27) — 표의 '공급처상품명' 열. 못 읽으면 빈칸
 
 /** 공급처상품명 칸 — 코드(S…)로 찾고 없으면 빈칸. data-sup-code 는 상품별 보기가 늦게 받은 값을 채우는 자리 */
 const supCode = (v) => { const c = String(v == null ? '' : v).trim(); return c && c !== '-' ? c : ''; };

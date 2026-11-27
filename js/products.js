@@ -15,11 +15,11 @@ import { onAuthStateChanged, signInWithEmailAndPassword } from "https://www.gsta
 import { doc, getDocFromServer } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { initializeFirebase } from './config.js?v=242bb63abbe9-dd1665a9';
 import { emulatorEnabled } from './firebase-emulator.js?v=071adc2867a0-c60c17d2';
-import { S, loadAll, countRead, fmtDateTime, tsMs } from './products-store.js?v=ba5573fa8d5a-44ec7d98';
-import { renderList, exportCatalog } from './products-list.js?v=d3c6c1f5ccdf-fab17109';
-import { renderDetail, renderCatalogLog } from './products-detail.js?v=d3c6c1f5ccdf-38b27133';
-import { loadCosts, renderSuppliers, renderCostLog } from './products-cost.js?v=d3c6c1f5ccdf-b46a7823';
-import { openUpload } from './products-excel.js?v=d3c6c1f5ccdf-8f20252b';
+import { S, loadAll, countRead, fmtDateTime, tsMs } from './products-store.js?v=aea0e7b95eb8-44ec7d98';
+import { renderList, exportCatalog } from './products-list.js?v=04287016d652-ae157e02';
+import { renderDetail, renderCatalogLog } from './products-detail.js?v=04287016d652-fd063a19';
+import { loadCosts, renderSuppliers, renderCostLog } from './products-cost.js?v=04287016d652-b46a7823';
+import { openUpload } from './products-excel.js?v=04287016d652-8f20252b';
 import { setShellContext, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=b9a7199f3e1d-c80c27e9';
 import { memberNameFor } from './app-shell-data.js?v=e42c6a10ca7a-9319c795';
 

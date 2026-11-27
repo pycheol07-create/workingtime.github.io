@@ -253,3 +253,25 @@ textarea.pd-in { height: 84px; padding: 10px 12px; resize: vertical; line-height
     .pd-list-sec.is-cards .pd-pager .d-btn { min-height: 44px; padding: 0 16px; }
     .pd-list-sec.is-cards .pd-select { height: 40px; }
 }
+
+/* ── 촘촘하게(2026-11-27 사용자 요청: 전체 비율 줄이고, 위 숫자 카드 4개 작게, 목록을 더 크게·더 많이) — PC(769px 이상)만, 휴대폰 카드 보기는 그대로 ── */
+@media (min-width: 769px) {
+  .pd-head { padding: 10px 24px; gap: 8px 16px; }
+  .pd-head h1 { font-size: 17px; }
+  .pd-sub { font-size: 12px; }
+  .pd-main { padding: 14px 20px 24px; gap: 12px; }
+  .pd-card-pad { padding: 14px 18px; }
+  .pd-summary { padding: 2px 0; }
+  .pd-sum { padding: 7px 16px; }
+  .pd-sum-label { font-size: 12px; }
+  .pd-sum-val { font-size: 19px; margin-top: 2px; }
+  .pd-sum-val small { font-size: 12px; }
+  .pd-sum a, .pd-link { font-size: 12px; }
+  .pd-filters { padding: 10px 14px 8px; gap: 6px 8px; }
+  .pd-search { height: 32px; font-size: 13px; }
+  .pd-chip, .pd-select { height: 28px; font-size: 12.5px; }
+  .pd-count { font-size: 12.5px; }
+  .pd-t th { font-size: 12px; padding: 7px 10px; }
+  .pd-t td { font-size: 12.5px; padding: 6px 10px; }
+  .pd-list-scroll { max-height: calc(100vh - 110px - var(--as-h, 0px)); max-height: calc(100dvh - 110px - var(--as-h, 0px)); }   /* 목록 상자를 더 크게(예전 150px) */
+}

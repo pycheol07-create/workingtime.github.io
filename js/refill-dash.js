@@ -42,7 +42,7 @@ function paint() {
 async function load() {
     if (mods) return mods;
     if (!loading) {
-        loading = Promise.all([import('./refill-store.js?v=19c86fc8c3a0-f7e79867'), import('./refill-table.js?v=66b75bfdb6f2-1791a889')]).then(([s, t]) => {
+        loading = Promise.all([import('./refill-store.js?v=19c86fc8c3a0-f7e79867'), import('./refill-table.js?v=06a5690ce099-1791a889')]).then(([s, t]) => {
             const store = s.getRefillStore({
                 db: State.db, auth: State.auth, watchRequest: false,
                 getMemberName: () => memberNameFor(State.appConfig && State.appConfig.memberEmails,

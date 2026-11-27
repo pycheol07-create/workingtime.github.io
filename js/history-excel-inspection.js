@@ -7,9 +7,9 @@ import { csvSafeSheet, csvSafeBook } from './lib/csv-safe.js?v=52895af199a4-46de
 import { inspTypeLabel } from './lib/insp-manual.js?v=25e0bc0396d2-21f87941';   // '유형' 열 — 전량 / 샘플 / 샘플(개별) / 요청확인(화면과 같은 이름)
 import { EXCEL_HEADERS, excelRow } from './lib/total-insp.js?v=d83d978fa87f-5334595d';
 import { historyRangeStart } from './lib/history-window.js?v=2641998b437e-d3102a84';
-import { fetchTotalInspLogs, totalInspLogsTruncated, TOTAL_LOG_LIMIT } from './ui-history-inspection.js?v=8466f46ce4de-ff9001e3';
+import { fetchTotalInspLogs, totalInspLogsTruncated, TOTAL_LOG_LIMIT } from './ui-history-inspection.js?v=d777195e58d7-ff9001e3';
 import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { loadAll as loadSupNames, supNameOf } from './sup-names-store.js?v=d105e6dca190-1f52465e';
+import { loadAll as loadSupNames, supNameOf } from './sup-names-store.js?v=de8b3ea4a05e-1f52465e';
 
 // 공급처상품명(GIP, 2026-11-27) — '공급처상품명' 열. 문서 전부(META + 1~2개, 한 번 받으면 다시 안 읽음). 못 읽으면 빈칸.
 //   '공급처' 열은 예전 그대로(공급처 코드, 없으면 옛 이름 칸) — 예전 머리글 '공급처 상품명' 은 실제로 이 값이라 '공급처' 로 바로잡았다.

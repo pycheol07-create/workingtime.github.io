@@ -13,7 +13,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { catalogBucketIds, CATALOG_BUCKETS } from './lib/product-bucket.js?v=842897a6efab-a72f5a26';
 import { parseCatalogJson } from './lib/product-excel-rows.js?v=acc096d72726-b7ba4cab';
-import { loadAll as loadSupNames, supNameOf, reset as resetSupNames } from './sup-names-store.js?v=d105e6dca190-1f52465e';
+import { loadAll as loadSupNames, supNameOf, reset as resetSupNames } from './sup-names-store.js?v=de8b3ea4a05e-1f52465e';
 
 const IDB_NAME = 'ggsing-products';
 const IDB_VER = 1;

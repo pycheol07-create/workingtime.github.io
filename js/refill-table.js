@@ -8,7 +8,7 @@
 // 공급처상품명 열(2026-11-27): 피킹로케이션 다음 — 창을 처음 열 때 js/sup-names-store.js 로 한 번 받는다(db 를 넘긴 경우만, 실패하면 빈칸).
 //   ⚠️ 칸을 늘리면 휴대폰에서 '누가·언제'를 숨기는 th:nth-child(7) 규칙(location.html · css/refill-modal.css)도 같이 맞춘다.
 import { escapeHtml } from './utils.js?v=65bb3512764f-e315797c';
-import { loadAll as loadSupNames, supNameOf } from './sup-names-store.js?v=d105e6dca190-1f52465e';
+import { loadAll as loadSupNames, supNameOf } from './sup-names-store.js?v=de8b3ea4a05e-1f52465e';
 import { dayLabel, fmtHM, progress, fmtCount, fixedNote } from './lib/refill-view.js?v=3416a867c2d7-24e9bb3d';
 import { NO_NAME, SHEETS, todayKey } from './refill-store.js?v=19c86fc8c3a0-f7e79867';
 import { higherOpenThan } from './modal-above.js?v=d7d701b363ef-215d273f';
