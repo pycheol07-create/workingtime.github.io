@@ -71,13 +71,41 @@ const isTouch = () => { try { return matchMedia('(pointer: coarse)').matches; } 
 const focusSearch = () => { if (!scanner && !isTouch() && !$('si-work').hidden) $('si-search').focus(); };
 const online = () => navigator.onLine !== false;
 // 음성 안내 — 앞 음성은 끊고 새로. 지원 안 되거나 막히면 조용히 넘어간다
+//   휴대폰(특히 iPhone)은 화면을 누른 그 순간에 시작한 음성만 허용한다 — 누름 결과는 서버 저장 뒤(await)에 읽으므로
+//   처음 화면을 누를 때 빈 음성을 한 번 내서 잠금을 푼다(입고 스캐너 scan.html 과 같은 방법, 2026-11-27 '음성 안 나옴').
+const hasSpeech = () => { try { return !!window.speechSynthesis && typeof SpeechSynthesisUtterance !== 'undefined'; } catch (_) { return false; } };
+let speechUnlocked = false;
+let koVoice = null;
+function pickVoice() {
+    try { koVoice = speechSynthesis.getVoices().find(v => /^ko(-|_|$)/i.test(v.lang)) || null; } catch (_) { koVoice = null; }
+}
+function unlockSpeech() {
+    if (speechUnlocked || !hasSpeech()) return;
+    speechUnlocked = true;
+    try {
+        pickVoice();
+        const u = new SpeechSynthesisUtterance(' ');
+        u.volume = 0;
+        u.lang = 'ko-KR';
+        speechSynthesis.speak(u);
+    } catch (_) { /* 무시 */ }
+}
+if (hasSpeech()) {
+    try { speechSynthesis.addEventListener('voiceschanged', pickVoice); } catch (_) { /* 옛 브라우저 */ }
+    pickVoice();
+    // 화면을 처음 누르는 순간(어느 단추든) 잠금을 푼다
+    ['pointerdown', 'touchstart', 'keydown'].forEach(ev => document.addEventListener(ev, unlockSpeech, { capture: true, passive: true }));
+}
 function speak(text) {
     try {
-        if (!window.speechSynthesis || typeof SpeechSynthesisUtterance === 'undefined') return;
+        if (!hasSpeech()) return;
         const u = new SpeechSynthesisUtterance(text);
         u.lang = 'ko-KR';
+        if (koVoice) u.voice = koVoice;
         u.rate = 1.1;
-        speechSynthesis.cancel();
+        // 말하는 중일 때만 끊는다 — cancel() 직후 speak() 가 조용히 무시되는 안드로이드 크롬이 있다
+        if (speechSynthesis.speaking || speechSynthesis.pending) speechSynthesis.cancel();
+        if (speechSynthesis.paused) speechSynthesis.resume();
         speechSynthesis.speak(u);
     } catch (_) { /* 음성 없음 */ }
 }
