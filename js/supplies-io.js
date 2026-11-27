@@ -17,11 +17,12 @@ import { escapeHtml as esc, showConfirm, showAlert } from './utils.js?v=65bb3512
 import { findByBarcode } from './lib/supplies-units.js?v=38146ad5b84d-33598b26';
 import { isLive, atMs } from './lib/supplies-mode.js?v=5f016d6adc90-90c9a625';
 import { ledgerErrorText } from './lib/supplies-ledger.js?v=44c94c8b86ad-92d65f68';
-import { newBatchId, loadStock, watchCart, cartPress, cartSend, cartClear, cartEntryId, ledgerEntryOnServer } from './supplies-ledger-store.js?v=a62e379586ce-61b761c2';
+import { newBatchId, loadStock, watchCart, cartPress, cartSend, cartClear, cartEntryId, ledgerEntryOnServer, loadLedger, commitRevert } from './supplies-ledger-store.js?v=a8c432ad2382-df961c02';
 import {
     safeItems, searchItems, favoriteItems, looksLikeBarcode, hangulBarcodeHint, burstCode, cardSummary, fmt, baseUnit, SESSION_KEY,
-    dropdownGroups, speechText, slotId, slotOf, countsDesc, pressSlot, slotRows, otherDirCount, slotEmptiedBy, agoText, slotIsOld
-} from './lib/supplies-io.js?v=61c6b531ea4a-780e0e48';
+    dropdownGroups, speechText, slotId, slotOf, countsDesc, pressSlot, slotRows, otherDirCount, slotEmptiedBy, agoText, slotIsOld,
+    kstDayStartMs, kstTimeText, historyRows
+} from './lib/supplies-io.js?v=bddbf2dbb1ab-51290bbd';
 import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
@@ -54,6 +55,10 @@ let busy = false;          // 전송 중
 let selectFor = null;      // 드롭다운을 그린 items(같으면 다시 안 그림 — 펼친 목록이 닫히지 않게)
 let me = { email: '', name: '' };
 let asking = 0;            // 앱 확인창·안내창이 떠 있는 수 — 그동안 카메라 스캔 결과는 버린다
+// 전송 기록(2026-11-27) — 열었을 때만 원장을 읽는다(한국 날짜 0시부터 · 한도 HIST_MAX)
+const HIST_MAX = 300;
+let hist = { open: false, days: 2, mine: false, entries: [], loading: false, err: '', full: false, msg: '', msgOk: false };
+const reverting = new Set();   // 되돌리는 중인 기록 id — 두 번 눌러도 한 번만(서버도 rv-{id} 한 번만)
 const HANGUL_TEXT = '바코드가 한글로 들어왔습니다 — 한/영 키를 영문으로 바꾼 뒤 다시 스캔하세요.';
 
 const nameOf = (id) => (byId.get(id) ? byId.get(id).name : '(알 수 없는 비품)');
@@ -107,7 +112,7 @@ function speak(text) {
         if (!hasSpeech()) return;
         const u = new SpeechSynthesisUtterance(text);
         u.lang = 'ko-KR';
-        if (koVoice) u.voice = koVoice;
+        // 목소리(u.voice)는 고르지 않는다 — 삼성 인터넷은 직접 고른 목소리면 조용해진다(입고 스캐너처럼 lang 만, 2026-11-27)
         u.rate = 1.1;
         u.volume = 1;
         lastUtter = u;
@@ -234,6 +239,7 @@ function renderAll() {
     renderFavs();
     renderCard();
     renderAcc();
+    renderHistory();
 }
 
 // 꺼짐일 때 남은 누적 칸(입고·출고 모두) — 비우기만 된다. 켜짐이면 숨김
@@ -448,6 +454,118 @@ async function clearSlot(itemId, dirX = dir) {
     }
 }
 
+// ───────── 전송 기록 보기·되돌리기(2026-11-27) ─────────
+// 원장(suppliesLedger)을 한국 날짜 0시부터(오늘·어제 → [7일 보기]) 새 것부터 HIST_MAX 건까지 읽어, 이 화면이 보낸 입고·출고(batchId 있는 것)와
+// 그 되돌림만 보인다(js/lib/supplies-io.js historyRows). [되돌리기]는 비품 관리 이력과 같은 commitRevert(규칙: 비품 권한·앱 기준 켜짐,
+// 기록마다 'rv-' + id 한 번만, 되돌림 기록은 되돌리지 않음, 재고 0 밑이면 거절).
+function openHistory() {
+    hist.open = true;
+    hist.days = 2;
+    hist.msg = '';
+    $('si-hist').hidden = false;
+    loadHistory();
+    $('si-hist').scrollIntoView({ block: 'start', behavior: 'smooth' });
+}
+function closeHistory() { hist.open = false; renderHistory(); }
+
+let histSeq = 0;   // 늦게 온 앞 응답이 새 결과를 덮지 않게(리뷰)
+async function loadHistory() {
+    if (!hist.open) return;
+    const seq = ++histSeq;
+    hist.loading = true; hist.err = '';
+    renderHistory();
+    try {
+        const r = await loadLedger(db, { sinceMs: kstDayStartMs(Date.now(), hist.days - 1), max: HIST_MAX });
+        if (seq !== histSeq) return;
+        hist.entries = r;
+        hist.full = !!r.full;
+    } catch (e) {
+        if (seq !== histSeq) return;
+        console.warn('[supplies-io] 전송 기록 읽기 실패:', e && e.code);
+        hist.err = '전송 기록을 불러오지 못했습니다 — 연결을 확인한 뒤 다시 열어 주세요.';
+    } finally {
+        if (seq === histSeq) { hist.loading = false; renderHistory(); }
+    }
+}
+
+function renderHistory() {
+    const sec = $('si-hist');
+    $('si-hist-btn').setAttribute('aria-pressed', hist.open ? 'true' : 'false');
+    $('si-hist-btn').disabled = live !== true;
+    sec.hidden = !hist.open || live !== true;
+    if (sec.hidden) return;
+    document.querySelectorAll('#si-hist-who [data-hist-who]').forEach(b => {
+        const on = (b.dataset.histWho === 'mine') === hist.mine;
+        b.classList.toggle('is-on', on);
+        b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+    const rows = historyRows(hist.entries, { mine: hist.mine, myEmail: me.email, liveAtMs });
+    $('si-hist-range').textContent = (hist.days > 2 ? '최근 7일' : '오늘·어제') + ` · ${rows.length}건`
+        + (hist.full ? ` (기록이 많아 최근 ${HIST_MAX}건만 봤습니다)` : '');
+    const list = $('si-hist-list');
+    if (hist.loading && !hist.entries.length) list.innerHTML = '<li class="si-acc-empty">불러오는 중…</li>';
+    else if (hist.err) list.innerHTML = `<li class="si-acc-empty">${esc(hist.err)}</li>`;
+    else if (!rows.length) list.innerHTML = `<li class="si-acc-empty">${hist.mine ? '내가 보낸 기록이 없습니다.' : '보낸 기록이 없습니다.'}</li>`;
+    else list.innerHTML = rows.map(r => {
+        const word = r.kind === 'out' ? '출고' : r.kind === 'in' ? '입고' : '되돌림';
+        const tag = `<span class="si-hist-tag ${r.kind === 'revert' ? '' : esc(r.kind)}">${word}</span>`;
+        const state = r.reverted ? ' · <b>되돌림됨</b>' : r.locked === 'count' ? ' · 실사 이후라 되돌릴 수 없음' : r.locked === 'live' ? ' · 앱 기준 전환 전 기록' : '';
+        const btn = r.canRevert
+            ? `<button type="button" class="d-btn d-btn-sm si-hist-rv" data-revert="${esc(r.id)}"${reverting.has(r.id) || busy ? ' disabled' : ''}>${reverting.has(r.id) ? '되돌리는 중…' : '되돌리기'}</button>`
+            : '';
+        return `<li class="si-hist-li${r.reverted || r.kind === 'revert' ? ' done' : ''}" data-hist="${esc(r.id)}">${tag}`
+            + `<span class="si-acc-name">${esc(nameOf(r.itemId))}<span class="si-acc-meta">${esc(personOf(r.byEmail))} · ${esc(kstTimeText(r.atMs))}${state}</span></span>`
+            + `<span class="si-acc-qty num">${r.qty > 0 ? '+' : ''}${esc(fmt(r.qty))}${esc(unitOf(r.itemId))}</span>${btn}</li>`;
+    }).join('');
+    const m = $('si-hist-msg');
+    m.textContent = hist.msg;
+    m.classList.toggle('ok', hist.msgOk);
+    $('si-hist-more').hidden = hist.days > 2 || !!hist.err;
+}
+
+async function revertEntry(id) {
+    const e = (hist.entries || []).find(x => x.id === id);
+    const row = historyRows(hist.entries, { liveAtMs }).find(r => r.id === id);
+    if (!e || !row || !row.canRevert || reverting.has(id) || busy) return;
+    const unit = unitOf(e.itemId), word = e.kind === 'out' ? '출고' : '입고';
+    const back = -row.qty;
+    const ok = await confirmBox(`'${nameOf(e.itemId)}' ${word} ${fmt(Math.abs(row.qty))}${unit} (${kstTimeText(row.atMs)} · ${personOf(row.byEmail)}) 기록을 되돌릴까요?
+`
+        + `재고가 ${fmt(Math.abs(back))}${unit} ${back > 0 ? '늘어납니다' : '줄어듭니다'}. 원래 기록은 남고 되돌림 기록이 하나 더 생깁니다.`,
+        { title: '기록 되돌리기', okText: '되돌리기', danger: true });
+    if (!ok || reverting.has(id)) return;
+    reverting.add(id);
+    hist.msg = '';
+    renderHistory();
+    try {
+        let nowLive = null;
+        try { const s = await getDoc(SETTINGS_REF); nowLive = isLive(s.exists() ? s.data() : null); }
+        catch (err) { console.warn('[supplies-io] 재고 기준 설정 다시 읽기 실패:', err && err.code); }
+        if (nowLive !== true) {
+            hist.msg = nowLive === false ? '앱 기준이 꺼져 있어 되돌리지 않았습니다.' : '재고 기준 설정을 읽지 못해 되돌리지 않았습니다 — 연결을 확인해 주세요.';
+            hist.msgOk = false;
+            if (nowLive === false) live = false;
+            return;
+        }
+        let r;
+        try { r = await commitRevert(db, { id: e.id, itemId: e.itemId, kind: e.kind, qty: row.qty }, me); }
+        catch (err) {
+            console.warn('[supplies-io] 되돌리기 쓰기 실패:', err && err.code);
+            r = { ok: false, reason: err && err.code === 'permission-denied' ? 'denied' : 'write' };
+        }
+        if (r.ok) { hist.msg = `${nameOf(e.itemId)} ${word} 기록을 되돌렸습니다(재고 ${back > 0 ? '+' : ''}${fmt(back)}${unit}).`; hist.msgOk = true; }
+        else if (r.reason === 'already') { hist.msg = '이미 되돌린 기록입니다(두 번 들어가지 않았습니다).'; hist.msgOk = false; }
+        else if (r.reason === 'denied') { hist.msg = '되돌리지 못했습니다 — 비품 관리 권한이 없거나 방금 앱 기준이 꺼졌습니다.'; hist.msgOk = false; }
+        else if (r.reason === 'write') { hist.msg = '되돌리지 못했습니다 — 연결을 확인한 뒤 다시 눌러 주세요(되돌림은 기록마다 한 번만 들어갑니다).'; hist.msgOk = false; }
+        else { hist.msg = `되돌리지 못했습니다 — ${ledgerErrorText({ ...r, itemId: e.itemId }, nameOf)}`; hist.msgOk = false; }
+        await loadStockNow();
+    } finally {
+        reverting.delete(id);
+        await loadHistory();   // 되돌림 기록·'되돌림됨' 표시를 서버 값으로
+        renderAll();
+    }
+}
+
 // ───────── 전송(고른 비품 칸만) ─────────
 const errText = (e) => ledgerErrorText(e, nameOf);
 
@@ -500,6 +618,7 @@ async function save() {
         } else if (r.ok) {
             showResult('ok', `<b>${word} 전송했습니다</b> — ${esc(it.name)} ${sign}${esc(fmt(r.qty))}${esc(unit)}`);
             selId = null;
+            if (hist.open) loadHistory();   // 열어 둔 전송 기록에 바로 보이게
         } else if (r.reason === 'cancel') {
             showResult('part', `<b>전송하지 않았습니다</b> — ${esc(it.name)} 누적은 그대로 남아 있습니다.`);
         } else if (r.reason === 'moved') {
@@ -618,6 +737,17 @@ function wire() {
     // 고른 뒤 드롭다운은 '목록에서 고르기'로 되돌린다
     $('si-select').addEventListener('change', (e) => { const v = e.target.value; e.target.value = ''; if (v) pick(v); });
     $('si-save').addEventListener('click', save);
+    // 전송 기록 — 열기·닫기 · 전체/내 기록 · 7일 보기 · [되돌리기]
+    $('si-hist-btn').addEventListener('click', () => (hist.open ? closeHistory() : openHistory()));
+    $('si-hist-close').addEventListener('click', closeHistory);
+    $('si-hist-who').addEventListener('click', (e) => {
+        const b = e.target.closest('[data-hist-who]');
+        if (!b) return;
+        hist.mine = b.dataset.histWho === 'mine';
+        renderHistory();
+    });
+    $('si-hist-more').addEventListener('click', () => { hist.days = 7; loadHistory(); });
+    $('si-hist-list').addEventListener('click', (e) => { const b = e.target.closest('[data-revert]'); if (b) revertEntry(b.dataset.revert); });
     // USB 스캐너 — 찾기 칸 밖(단추에 초점 등)에서 빠르게 들어온 글자 + Enter 도 바코드로 받는다(js/lib/supplies-io.js burstCode).
     //   그때 Enter 는 막는다(초점이 간 단추가 눌리지 않게). 다른 입력칸·찾기 칸에서는 건드리지 않는다(찾기 칸은 자기 Enter 처리)
     let burst = [];

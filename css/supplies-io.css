@@ -76,6 +76,15 @@ body { margin: 0; }
 .si-acc-li.cur { background: var(--c-accent-soft); box-shadow: inset 3px 0 0 var(--c-accent); }
 .si-acc-li.flash { animation: si-acc-flash 1.2s ease-out; }
 @keyframes si-acc-flash { from { background: var(--c-accent-soft); } to { background: transparent; } }
+.si-hist { border-top: 3px solid var(--c-line-strong); }
+.si-hist .si-seg { margin-top: 8px; }
+.si-hist-li { display: flex; align-items: center; gap: 8px; padding: 8px 4px; font-size: 14px; }
+.si-hist-li + .si-hist-li { border-top: 1px solid var(--c-line-soft); }
+.si-hist-li.done { opacity: .6; }
+.si-hist-tag { font-size: 11px; font-weight: 700; padding: 1px 6px; border-radius: var(--r-pill); background: var(--c-surface-2); color: var(--c-text-2); white-space: nowrap; }
+.si-hist-tag.out { background: var(--c-risk-soft); color: var(--c-risk-text); }
+.si-hist-tag.in { background: var(--c-ok-soft); color: var(--c-ok-text); }
+.si-hist-rv { min-height: 40px; padding: 0 12px; white-space: nowrap; }
 .si-acc-empty { padding: 6px 0; font-size: 13px; color: var(--c-text-2); }
 
 .si-big { width: 100%; min-height: 54px; margin-top: 12px; font-size: 17px; border-radius: var(--r-inner); }

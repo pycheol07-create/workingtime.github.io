@@ -31,7 +31,7 @@ import { normalizeItemUnits, validateUnits, unitButtons, checkBaseQty, findByBar
 import { isLive, atMs, stockOf, isLowBy, ezLeftover, resumeBatchId, ledgerWho, cutoverStale, cutoverStartBlock, liveOnBlock } from './lib/supplies-mode.js?v=5f016d6adc90-90c9a625';
 import { ledgerErrorText, ITEM_ID_RE } from './lib/supplies-ledger.js?v=44c94c8b86ad-92d65f68';
 import { nextSupplyCodes, findDuplicateCode, isBlankCode, isEzCode, codeChanged } from './lib/supplies-codes.js?v=a9e176f7d66f-13c66d6f';
-import { newBatchId, loadStock, loadStockOf, loadLedger, commitLines, commitCount, commitRevert } from './supplies-ledger-store.js?v=a62e379586ce-61b761c2';
+import { newBatchId, loadStock, loadStockOf, loadLedger, commitLines, commitCount, commitRevert } from './supplies-ledger-store.js?v=a8c432ad2382-df961c02';
 import {
     effectiveStatus, statusBadge, depleteText, depleteSortValue, reorderText, reorderSortValue, reorderDaysLeft, recommendText, isStale, parseQty, mdw, basisText,
     leadTimeText, expectedDateFor, orderSummaryText, appOnlyWarning, packsProgressText, safetySuggestion, alertReasons, sortAlertRows,

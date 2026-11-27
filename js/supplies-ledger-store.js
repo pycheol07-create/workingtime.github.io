@@ -31,12 +31,14 @@ export async function loadStockOf(db, itemId) {
 /**
  * 최근 기록(기본 30일) — 새 것부터. 비품별로 보려면 화면에서 거른다(at 한 칸 범위+정렬이라 복합 색인 필요 없음)
  * before = 앞 결과의 .cursor(마지막 문서) — 주면 그보다 오래된 것부터(더 보기). days 를 null 로 주면 날짜 제한 없음.
+ * sinceMs 를 주면 days 대신 그 시각(밀리초)부터 — 휴대폰 입·출고 [전송 기록](오늘·어제 / 7일, 한국 날짜 0시부터).
  * 돌려주는 배열에 .cursor(다음 [더 보기]용, 없으면 null)·.full(max 만큼 찼나 — 더 있을 수 있음)을 붙인다.
  * (같은 트랜잭션 기록은 at 이 같다 — 값이 아니라 문서로 이어 받아야 같은 시각 기록이 빠지지 않는다)
  */
-export async function loadLedger(db, { days = 30, max = 500, before = null } = {}) {
+export async function loadLedger(db, { days = 30, max = 500, before = null, sinceMs = null } = {}) {
     const parts = [];
-    if (days != null) parts.push(where('at', '>=', Timestamp.fromMillis(Date.now() - days * 86400000)));
+    if (sinceMs != null) parts.push(where('at', '>=', Timestamp.fromMillis(sinceMs)));
+    else if (days != null) parts.push(where('at', '>=', Timestamp.fromMillis(Date.now() - days * 86400000)));
     parts.push(orderBy('at', 'desc'));
     if (before) parts.push(startAfter(before));
     parts.push(limit(max));

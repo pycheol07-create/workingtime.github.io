@@ -340,3 +340,52 @@ export function agoText(atMs, nowMs = Date.now()) {
     const t = new Date(atMs), p2 = (n) => String(n).padStart(2, '0');
     return `${t.getMonth() + 1}/${t.getDate()} ${p2(t.getHours())}:${p2(t.getMinutes())}`;
 }
+
+// ───────── 전송 기록(2026-11-27) — 이 화면이 보낸 원장 기록 보기·되돌리기 ─────────
+const DAY_MS = 86400000, KST_MS = 9 * 3600000;
+
+/** 한국 날짜 0시(밀리초) — back 일 전. kstDayStartMs(now, 1) = 어제 0시 */
+export const kstDayStartMs = (nowMs, back = 0) => Math.floor((nowMs + KST_MS) / DAY_MS) * DAY_MS - KST_MS - back * DAY_MS;
+
+/** 기록 시각 글 — '오늘 14:05' · '어제 09:10' · '11/25 08:00'(한국 시각) */
+export function kstTimeText(ms, nowMs = Date.now()) {
+    if (!Number.isFinite(ms)) return '방금';
+    const t = new Date(ms + KST_MS), p2 = (n) => String(n).padStart(2, '0');
+    const hm = `${p2(t.getUTCHours())}:${p2(t.getUTCMinutes())}`;
+    const today = kstDayStartMs(nowMs);
+    if (ms >= today) return `오늘 ${hm}`;
+    if (ms >= today - DAY_MS) return `어제 ${hm}`;
+    return `${t.getUTCMonth() + 1}/${t.getUTCDate()} ${hm}`;
+}
+
+/**
+ * 원장 기록(loadLedger 결과, at 은 Timestamp·밀리초) → 전송 기록 줄.
+ *   보이는 것 = 입고·출고 전송 기록(kind in/out, batchId 있음 — 실사(ct-)·옛 화면 손 입력 중 batchId 없는 것은 뺌)
+ *             + 그 기록을 되돌린 기록(kind revert, ref 가 위 기록). 새 것부터.
+ *   reverted = 되돌림 기록이 있는 원 기록(단추 끔). mine 이면 byEmail 이 나인 것만.
+ * @returns {{ id, itemId, kind, qty, atMs, byEmail, ref, reverted:boolean, canRevert:boolean }[]}
+ */
+export function historyRows(entries, { mine = false, myEmail = '', liveAtMs = NaN } = {}) {
+    const src = Array.isArray(entries) ? entries : [];
+    const msOf = (a) => (a && typeof a.toMillis === 'function' ? a.toMillis() : (typeof a === 'number' ? a : NaN));
+    const isSend = (e) => e && (e.kind === 'in' || e.kind === 'out') && typeof e.batchId === 'string' && e.batchId !== '' && !String(e.id || '').startsWith('ct-');
+    const sendIds = new Set(src.filter(isSend).map(e => e.id));
+    const reverted = new Set(src.filter(e => e && e.kind === 'revert' && e.ref).map(e => e.ref));
+    // 같은 비품에 그 기록보다 늦은 실사(kind 'count')가 있으면 되돌릴 수 없다 — 실사가 이미 그 출고·입고를 반영한 재고라
+    //   되돌리면 재고가 틀어진다. 앱 기준을 (다시) 켠 시각(liveAtMs)보다 앞선 기록도 같다(켤 때 실사로 새로 셈). 2026-11-27 리뷰
+    const lastCount = new Map();
+    src.forEach(e => { if (e && e.kind === 'count' && e.itemId) { const t = msOf(e.at); if (Number.isFinite(t) && !(lastCount.get(e.itemId) >= t)) lastCount.set(e.itemId, t); } });
+    const lockedWhy = (e) => {
+        const t = msOf(e.at);
+        if (Number.isFinite(liveAtMs) && Number.isFinite(t) && t < liveAtMs) return 'live';
+        const c = lastCount.get(e.itemId);
+        return Number.isFinite(c) && Number.isFinite(t) && c > t ? 'count' : '';
+    };
+    const me = str(myEmail).toLowerCase();
+    return src.filter(e => isSend(e) || (e && e.kind === 'revert' && sendIds.has(e.ref)))
+        .filter(e => !mine || str(e.byEmail).toLowerCase() === me)
+        .map(e => ({ id: e.id, itemId: e.itemId, kind: e.kind, qty: Number(e.qty) || 0, atMs: msOf(e.at), byEmail: str(e.byEmail).toLowerCase(),
+            ref: e.ref || '', reverted: reverted.has(e.id), locked: e.kind !== 'revert' && !reverted.has(e.id) ? lockedWhy(e) : '',
+            canRevert: e.kind !== 'revert' && !reverted.has(e.id) && !lockedWhy(e) }))
+        .sort((a, b) => ((Number.isFinite(b.atMs) ? b.atMs : Infinity) - (Number.isFinite(a.atMs) ? a.atMs : Infinity)) || String(b.id).localeCompare(String(a.id)));
+}
