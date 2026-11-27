@@ -1365,11 +1365,11 @@ function renderTableHeader() {
         else if (col.startsWith('cus_')) {
             const label = col.replace('cus_', '');
             // ★ 입고대기 컬럼에 툴팁 추가
-            let displayLabel = label;
-            if (label === '입고대기') {
-                displayLabel = `입고대기<span class="info-tip" data-tip-key="header-incoming">i<span class="info-tip-content"><b>오더리스트 + 사입리스트 합계</b><br>입고대기 사이드바에 연동된 구글시트의 <b>미입고수량</b>을 상품코드 기준으로 합산한 값입니다.<br>(같은 상품코드의 옵션별 수량이 모두 더해집니다)</span></span>`;
-            }
-            html += createTh(col, displayLabel, 120, true, col);
+            //   설명 툴팁은 고정 HTML 이라 글자(label)와 따로 넘긴다 — label 은 createTh 가 escape 한다(예전엔 툴팁 HTML 까지 escape 돼 머리글에 코드가 그대로 보였다, 2026-11-27)
+            const tipHtml = label === '입고대기'
+                ? `<span class="info-tip" data-tip-key="header-incoming">i<span class="info-tip-content"><b>오더리스트 + 사입리스트 합계</b><br>입고대기 사이드바에 연동된 구글시트의 <b>미입고수량</b>을 상품코드 기준으로 합산한 값입니다.<br>(같은 상품코드의 옵션별 수량이 모두 더해집니다)</span></span>`
+                : '';
+            html += createTh(col, label, 120, true, col, tipHtml);
             popupHtml += `<div id="pop-${escAttr(col)}" class="filter-popup"></div>`;
         }
     });
@@ -1386,7 +1386,7 @@ function renderTableHeader() {
     setupHeaderDragAndDrop();
 }
 
-function createTh(key, label, width, hasFilter, colId) {
+function createTh(key, label, width, hasFilter, colId, tipHtml = '') {   // tipHtml = 코드에 박힌 고정 설명 HTML 만(사용자 입력 금지)
     // 기본 폭 = 지정 폭 + 좌우 여백(24). 'auto'(상품명)는 280. 저장된 폭이 있으면 그것.
     const defW = (width === 'auto' ? 280 : width) + 24;
     const saved = colId ? Number(_colWidths[colId]) : NaN;
@@ -1396,7 +1396,7 @@ function createTh(key, label, width, hasFilter, colId) {
     // ★ 드래그앤드롭으로 컬럼 순서 변경 가능하도록 표식 부여
     const dragAttrs = colId ? ` draggable="true" data-col="${colId}" title="드래그해서 헤더 순서를 바꿀 수 있습니다"` : '';
     const resizeHtml = colId ? `<span class="th-resize" data-resize="${escAttr(colId)}" title="끌어서 폭 조절 · 더블클릭하면 기본 폭"></span>` : '';
-    return `<th ${widthStyle}${dragAttrs}><div class="th-content"><span class="title-text">${escAttr(label)}</span>${filterHtml}</div>${resizeHtml}</th>`;
+    return `<th ${widthStyle}${dragAttrs}><div class="th-content"><span class="title-text">${escAttr(label)}${tipHtml}</span>${filterHtml}</div>${resizeHtml}</th>`;
 }
 
 // ── 열 폭 (2026-10-14) ──────────────────────────────────────
