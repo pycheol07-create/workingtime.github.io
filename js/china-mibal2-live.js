@@ -11,6 +11,8 @@
 //   [작업 마감]       ChinaStockGoods_Archive/{작업번호} 보관 → InboundDiff(trigger 'close') → MIBAL_HISTORY 입고미발(v2)
 //                    → InboundHistory 삭제(읽은 문서만) · FLOOR2_STOCK·FORCE_ALLOW 비움 → batch 지움. StockLog·EDITED_CELLS 는 안 지운다.
 //   [지난 작업 보기]   보관함 목록·엑셀 받기 · [스캔 내역] 조회(마감 때 보관함과 한 batch 로 저장한 내역 — ChinaStockGoods_ScanDB_Versions/_archiveScans/jobs)
+//   [중간 저장] 아무것도 지우거나 확정하지 않고 mibal2/settings.pause 에 진행 기록만(트랜잭션 — 같은 작업일 때만). 다음에 열면 위 띠로 안내,
+//                    [스캐너에 반영]·[작업 마감](끝까지) 때 지운다. 마감 확인창은 남은 상품이 있으면 경고로 바뀐다(js/lib/mibal2-pause.js, 2026-11-27)
 //   [입고 오차 기록]   수동(기존 recordInboundDiffManual 과 같은 확인 흐름)
 //   [바코드 매핑 올리기] 엑셀의 상품코드·바코드 두 열 → BARCODE_MAP(통째로 바꿈, 기존 미발재고로그 업로드와 같음)
 //   [입고용 파일·미발확인 파일·비축창고 엑셀 받기] 이지어드민 업로드용 — 기존 화면과 같은 파일(내용은 lib/mibal2-live.js)
@@ -18,7 +20,7 @@
 //   위치 쓰기(js/china-mibal2-live-loc.js) · 관리 창·적재량 편집(js/china-mibal2-live-admin.js)
 //   긴급 상품(mibal2/urgent — js/china-mibal2-live-urgent.js, 2026-11-27): 이 모듈 안에서 유일하게 계약 칸에 이메일(byEmail·enabledBy)을 쓴다
 // 이메일은 저장하지 않는다(기록자 = 직원 이름) — 예외 하나: 긴급 상품 문서 mibal2/urgent 의 계약 칸 byEmail·enabledBy(소문자, js/china-mibal2-live-urgent.js). 공급처 이름·원가 없음.
-import { doc, getDoc, getDocs, getDocFromServer, getDocsFromServer, setDoc, writeBatch, collection, query, orderBy, limit, startAfter, where, documentId, serverTimestamp, deleteField }
+import { doc, getDoc, getDocs, getDocFromServer, getDocsFromServer, setDoc, writeBatch, collection, query, orderBy, limit, startAfter, where, documentId, serverTimestamp, deleteField, runTransaction }
     from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { scanApplyPlan, versionDataOf, archiveRecordOf, shrinkArchive, archiveAoa, diffRowsOf, historyGroupsOf, historyRecordsOf,
     stableSig, hasHistoryToday, mibalTotalsOf, barcodeMapOfAoa, batchIdOf, isoDay, ARCHIVE_COLL, RECENT_SCAN_MIN, partialRecordOf,
@@ -32,6 +34,7 @@ import { buildScanLogDocs, expandScanLogDocs, checkScanLogParts, docIdOf, scanLo
 import { setupLiveLoc } from './china-mibal2-live-loc.js?v=28def72fd727-50b3c820';
 import { setupLiveAdmin, readSheetRowsAOA, packMap, unpackMap } from './china-mibal2-live-admin.js?v=c327007483bd-b09af5b0';
 import { setupLiveUrgent } from './china-mibal2-live-urgent.js?v=2938a992249a-ecd76400';   // 긴급 상품 쓰기(mibal2/urgent, 2026-11-27)
+import { remainTotalsOf, pauseRecordOf, parsePause, pauseBannerLines, pauseConfirmText, closeWarnOf, isPartialClose } from './lib/mibal2-pause.js?v=33f41423fbf6-28ab0980';   // [중간 저장](2026-11-27)
 import { shipMismatchOf, mismatchLine, mismatchBlockText } from './lib/ship-mismatch.js?v=18b1bfe6bfc0-42172506';
 import { writeXls, xlsBytes } from './lib/xls-limits.js?v=64b8f5a113a9-e512cb8a';
 import { autoStopReason, autoStopText, serverBatchOpen, AUTO_TOAST_MS } from './lib/mibal2-auto-apply.js?v=594903dc6df2-338fd92d';
@@ -104,6 +107,7 @@ export function startLive(ctx) {
         // 버튼 자리(2026-11-13 고정 배치): '오늘 작업' 줄 = 입고용 파일 받기 · 스캐너에 반영 · 작업 마감
         //   [파일·기록 ▾] = 비축창고 엑셀 받기 · 스캐너 값 미리보기 엑셀 · 직전으로 되돌리기 · 지난 작업 보기 · 입고 오차 기록 · 입고 오차 통계 · 비축창고 보기
         //   [관리 ▾] = 관리 · 바코드 매핑 올리기 · 열 너비 원래대로 · ⚙ 버튼 설정(줄 편집)
+        //   (2026-11-27) '오늘 작업' 줄 = 입고용 파일 받기 · 스캐너에 반영 · 중간 저장 · 작업 마감
         const note = $('work-note');
         if (note) { note.id = 'live-batch-note'; note.textContent = ''; }
         const add = (id, text, title, parent, before) => {
@@ -115,6 +119,8 @@ export function startLive(ctx) {
         };
         const workRow = $('work-row'), files = $('menu-files-panel'), adminMenu = $('menu-admin-panel');
         add('btn-live-inbound-file', '입고용 파일 받기', '지금 표에 보이는 행의 상품코드·도착수량을 이지어드민 업로드용 파일(입고용파일.xls)로 받습니다', workRow, workRow && workRow.firstElementChild);
+        // [중간 저장] — 줄의 [작업 마감] 바로 앞(2026-11-27). 그날 다 못 찍었으면 마감 대신 이것
+        add('btn-live-pause', '중간 저장', '아무것도 지우거나 확정하지 않고 오늘 진행 상황만 기록합니다 — 다 못 찍은 날 [작업 마감] 대신', workRow, $('btn-scan-off-reset'));
         add('btn-live-floor2-file', '비축창고 엑셀 받기', '스캐너가 쌓은 비축창고 입고분의 상품코드·작업수량을 이지어드민 업로드용 파일(비축창고재고.xls)로 받습니다', files, files && files.firstElementChild);
         add('btn-live-archive', '지난 작업 보기', '작업 마감 때 저장한 보관함을 봅니다', files, $('btn-scan-off-diffrec'));
         add('btn-live-admin', '관리', '위치매핑 · 오류바코드 · 구역 적재량 · 본사도착 유예 · 빈 칸 넘침 규칙', adminMenu, adminMenu && adminMenu.firstElementChild);
@@ -141,6 +147,7 @@ export function startLive(ctx) {
         $('btn-scan-off-sync').addEventListener('click', () => guard(applyToScanner));
         $('btn-scan-off-version').addEventListener('click', () => guard(rollbackLast));
         $('btn-scan-off-reset').addEventListener('click', () => guard(closeWork));
+        $('btn-live-pause').addEventListener('click', () => guard(pauseWork));
         $('btn-scan-off-diffrec').addEventListener('click', () => guard(recordDiffManual));
         $('btn-live-archive').addEventListener('click', () => openArchive());
         $('btn-live-admin').addEventListener('click', () => admin.open());
@@ -213,6 +220,7 @@ export function startLive(ctx) {
     const sameInbound = (a, b) => a.docs.length === b.docs.length && a.lastMs === b.lastMs && a.sig === b.sig
         && a.docs.every((d, i) => d.id === b.docs[i].id);
     function renderBatchNote() {
+        renderPauseNote();
         const el = $('live-batch-note'); if (!el) return;
         const b = batchOf();
         if (!b) { el.className = 't-3'; el.textContent = '· 진행 중인 작업 없음 — [스캐너에 반영]을 누르면 작업이 시작됩니다'; return; }
@@ -220,6 +228,58 @@ export function startLive(ctx) {
         el.className = differ ? 't-warn' : 't-3';
         el.textContent = `· 작업 중: 출고일 ${b.ships.map(fmtMD).join(', ')}${b.appliedAt ? ` · ${mdhm(b.appliedAt)} 반영` : ''}`
             + (differ ? ' — ⚠ 지금 고른 출고일과 다릅니다(반영하면 바뀜)' : '');
+    }
+
+    /** 위 띠 — 지금 작업(batch)에 [중간 저장] 기록이 있으면(작업 줄 바로 아래). 없으면 숨김 */
+    function renderPauseNote() {
+        let el = $('live-pause-note');
+        const lines = pauseBannerLines(parsePause(ctx.getSettings()));
+        if (!lines.length) { if (el) el.hidden = true; return; }
+        if (!el) {
+            const bar = document.querySelector('.work-bar'); if (!bar) return;
+            el = document.createElement('div');
+            el.id = 'live-pause-note'; el.className = 'src-note live-only'; el.setAttribute('role', 'status');
+            el.style.cssText = 'background:var(--c-warn-soft);color:var(--c-warn-text);border:1px solid var(--c-warn);border-radius:var(--r-inner);font-weight:600;margin:6px 0;padding:8px 12px;';
+            bar.after(el);
+        }
+        el.textContent = '';
+        lines.forEach((t, i) => { const d = document.createElement('div'); d.textContent = t; if (i) { d.style.fontWeight = '500'; d.style.marginTop = '2px'; } el.appendChild(d); });
+        el.hidden = false;
+    }
+
+    /** 작업 출고일의 박스 목록 함수(packBoxes 를 못 읽었으면 null — 그때 남은 박스 수는 빼고 기록) */
+    const boxesOfShips = (ships) => (ctx.boxListFor ? ctx.boxListFor(ships) : null);
+
+    /**
+     * [중간 저장] — 지우거나 확정하는 것 없음. 작업(batch) 이 그대로일 때만 settings.pause 를 바꾼다(트랜잭션, pause 칸 하나 통째로).
+     */
+    async function pauseWork() {
+        const fresh = await reloadOrStop('중간 저장');
+        if (!fresh) return;
+        // 부분 마감 뒤(입고이력이 이미 지워짐)에는 남은 수가 모두 '남음'으로 잡힌다 — 마감을 끝낼 차례
+        if (isPartialClose(ctx.getSettings())) { showAlert('마감이 덜 끝났습니다 — [작업 마감]을 다시 누르세요(아무것도 바꾸지 않았습니다).', { title: '중간 저장하지 않았습니다', isError: true }); return; }
+        if (await closedStop()) return;
+        const b = batchOf();
+        if (!b || !b.id) { showAlert('진행 중인 작업이 없습니다 — [스캐너에 반영]으로 작업을 시작한 뒤에 쓰세요(아무것도 바꾸지 않았습니다).', { title: '멈출 작업이 없습니다' }); return; }
+        const ships = b.ships.map(String);
+        setLoading(true, '입고이력 읽는 중...');
+        const ih = await readInbound();
+        setLoading(false);
+        const totals = remainTotalsOf(ctx.rowsFor(ships, ih.map, { allGrace: true }), boxesOfShips(ships));
+        if (!(await showConfirm(pauseConfirmText(totals, ships, ctx.pendingFixCount ? ctx.pendingFixCount() : 0), { title: '중간 저장', okText: '중간 저장하기' }))) return;
+        const rec = pauseRecordOf({ batchId: b.id, ships, by: ctx.memberName(), totals });
+        const ref = doc(db, SETTINGS_PATH);
+        const r = await runTransaction(db, async (tx) => {
+            const sn = await tx.get(ref);
+            const cur = sn.exists() ? (sn.data() || {}) : {};
+            if (!cur.batch || String(cur.batch.id || '') !== String(b.id)) return { moved: true };   // 그사이 다른 PC 가 마감·새 작업
+            tx.update(ref, { pause: { ...rec, at: serverTimestamp() }, updatedAt: serverTimestamp() });
+            return { ok: true };
+        });
+        if (r.moved) { showAlert('확인하는 동안 다른 PC 에서 작업이 바뀌었습니다(마감 또는 새 작업) — 아무것도 쓰지 않았습니다.\n화면을 확인한 뒤 다시 누르세요.', { title: '쓰지 않았습니다', isError: true }); return; }
+        ctx.patchSettings({ pause: { ...rec, at: new Date() } });
+        renderBatchNote();
+        showToast(`⏸ 중간 저장 — 기록했습니다${totals.remainCodes ? ` · 남은 상품 ${n(totals.remainCodes)}개` : ''}`);
     }
 
     /** 다른 PC 값을 서버에서 다시 읽는다 — 못 읽으면 옛 값으로 진행하지 않고 null. quiet(자동 반영) = 창 대신 quiet(짧은 이유) */
@@ -395,7 +455,8 @@ export function startLive(ctx) {
         // appliedTs = 서버 시각(기록용) · appliedAt = PC 시각(표시·batchAlreadyClosed 판정)
         const batch = b ? { ...b, ships: dates, appliedAt: Date.now() } : { id: batchIdOf(now), ships: dates, startedAt: Date.now(), appliedAt: Date.now() };
         setLoading(false);
-        if (await saveBatchSetting({ batch: { ...batch, appliedTs: serverTimestamp() } }, '스캐너 반영')) ctx.patchSettings({ batch });
+        // [중간 저장] 기록은 다시 반영하면 지운다(이어서 하는 중 — 2026-11-27)
+        if (await saveBatchSetting({ batch: { ...batch, appliedTs: serverTimestamp() }, pause: deleteField() }, '스캐너 반영')) ctx.patchSettings({ batch, pause: undefined });
         renderBatchNote();
         const done = `상품 ${n(plan.totals.codes)}개${plan.totals.del ? ` · 지움 ${n(plan.totals.del)}개` : ''}`;
         if (auto) showToast(`✅ 갱신이 끝나 스캐너에 반영했습니다(출고일 ${dates.map(fmtMD).join(', ')} · ${done})\n스캐너는 새로고침하면 바로 바뀝니다`, AUTO_TOAST_MS);
@@ -444,8 +505,9 @@ export function startLive(ctx) {
             // merge 쓰기는 batch 안 칸도 합친다 — 복원본에 없는 칸(appliedTs 등)이 지금 값으로 남지 않게 지운다
             const curBatch = (ctx.getSettings() || {}).batch || {};
             const batchOut = bb ? { ...Object.fromEntries(Object.keys(curBatch).filter(k => !(k in bb)).map(k => [k, deleteField()])), ...bb } : deleteField();
-            if (await saveBatchSetting({ batch: batchOut, ...(restoreDates ? { shipDates: restoreDates } : {}) }, '되돌리기')) {
-                ctx.patchSettings({ batch: bb || undefined, ...(restoreDates ? { shipDates: restoreDates } : {}) });
+            // [중간 저장] 기록도 지운다 — 되돌린 작업에는 맞지 않는다(2026-11-27)
+            if (await saveBatchSetting({ batch: batchOut, pause: deleteField(), ...(restoreDates ? { shipDates: restoreDates } : {}) }, '되돌리기')) {
+                ctx.patchSettings({ batch: bb || undefined, pause: undefined, ...(restoreDates ? { shipDates: restoreDates } : {}) });
                 if (restoreDates) ctx.setSelectedDates(restoreDates);
             }
             renderBatchNote();
@@ -576,14 +638,18 @@ export function startLive(ctx) {
         else diffLine = `입고 오차 기록(출고일 ${diffRec.ships.map(fmtMD).join(', ')}): ${diffSummaryText(diffRec)}`;
         const t = arch.rec.totals;
         const differ = b && !sameList(b.ships, ctx.getSelectedDates());
-        if (!(await showConfirm((mm.warn ? mismatchLine(mm.outside, mm.best, mm.bestInShips) + ' — 그 상품도 이 작업으로 보관됩니다\n\n' : '')
+        // 남은 입고(도착 > 입고확인)가 있으면 맨 위 경고 + 제목·단추 글자를 바꾼다(위험 창 — [취소]에 초점, Enter 로 실행 안 됨). 없으면 예전 그대로(2026-11-27)
+        //   부분 마감 뒤(partialOf)는 입고이력이 지워진 뒤라 모두 '남음'으로 잡힌다 — 경고 없이 예전 창
+        const warn = partialOf ? null : closeWarnOf(remainTotalsOf(rows, boxesOfShips(ships)));
+        if (!(await showConfirm((warn ? warn.head : '') + (mm.warn ? mismatchLine(mm.outside, mm.best, mm.bestInShips) + ' — 그 상품도 이 작업으로 보관됩니다\n\n' : '')
             + `작업을 마감할까요? (출고일 ${ships.map(fmtMD).join(', ')}${b ? ` · 작업번호 ${id}` : ' · 반영 기록 없음 — 지금 고른 출고일로'})\n\n`
             + (skipArch ? `보관함: 지난번 마감(${partialOf}) 뒤 추가분 없음 — 새로 보관하지 않음\n${diffLine}\n\n`
                 : `보관함에 저장${partialOf ? `(지난번 마감 ${partialOf} 뒤 추가분)` : ''}: 상품 ${n(t.codes)}개 · 도착 ${n(t.arr)} · 입고 ${n(t.conf)} · 비축 ${n(t.floor2)} · 스캔 내역 ${n(scanLogN)}건\n${diffLine}\n\n`)
             + `비우는 것: 앱 입고이력 ${n(ih.docs.length)}건 · 비축창고 누적 ${n(Object.keys(f2).length)}개 상품 · 스캐너 강제전송 허용목록\n`
             + '유지되는 것: 스캐너 자료(다음 [스캐너에 반영] 때 바뀜) · 위치 데이터 · 적재량 개별값'
             + (differ ? '\n\n⚠ 지금 고른 출고일이 작업 출고일과 다릅니다 — 작업 출고일로 마감합니다.' : '')
-            + (ctx.pendingFixCount && ctx.pendingFixCount() ? `\n\n⚠ 저장 안 한 입고확인 ${n(ctx.pendingFixCount())}건도 버립니다.` : ''), { title: '작업을 마감할까요?', okText: '마감하기', danger: true }))) return;
+            + (ctx.pendingFixCount && ctx.pendingFixCount() ? `\n\n⚠ 저장 안 한 입고확인 ${n(ctx.pendingFixCount())}건도 버립니다.` : ''),
+            { title: warn ? warn.title : '작업을 마감할까요?', okText: warn ? warn.okText : '마감하기', danger: true }))) return;
         // 확인창이 떠 있는 동안 스캔이 들어왔으면 보관할 자료가 낡았다 — 아무것도 쓰지 않고 멈춘다
         setLoading(true, '입고이력·비축창고 다시 확인 중...');
         const [ih2, f2b, sig2] = await Promise.all([readInbound(), readF2(), ctx.readSharedSig()]);
@@ -668,8 +734,8 @@ export function startLive(ctx) {
         setLoading(false);
         const doneId = skipArch ? partialOf : id;
         // 마감이 끝나면 출고일 선택도 푼다 — 표가 비고 '작업 마감됨'이 보인다(자료는 지우지 않음, 그 출고일은 다시 고르면 보인다. 2026-11-10)
-        const cleared = await saveBatchSetting({ batch: deleteField(), lastClosedId: doneId, closePartial: deleteField(), closePartialF2: deleteField(), shipDates: [] }, '작업 마감');
-        if (cleared) ctx.patchSettings({ batch: undefined, lastClosedId: doneId, closePartial: undefined, closePartialF2: undefined, shipDates: [] });
+        const cleared = await saveBatchSetting({ batch: deleteField(), lastClosedId: doneId, closePartial: deleteField(), closePartialF2: deleteField(), shipDates: [], pause: deleteField() }, '작업 마감');
+        if (cleared) ctx.patchSettings({ batch: undefined, lastClosedId: doneId, closePartial: undefined, closePartialF2: undefined, shipDates: [], pause: undefined });
         if (cleared) ctx.setSelectedDates([]);
         renderBatchNote();
         showToast(`✅ 작업 마감 — 보관함 ${skipArch ? '(추가분 없음)' : id}${notes.length ? ' · ' + notes.join(' · ') : ''}${arch.shrunk ? ' · 상품명 빼고 보관(크기)' : ''}${cleared ? ' · 다음 출고일을 고르세요' : ''}`);

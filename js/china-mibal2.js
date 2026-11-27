@@ -1741,7 +1741,7 @@ const sharedSigOf = (snaps) => stableSig(snaps.map(x => (x.exists() ? x.data() :
 async function loadLiveTools() {
     if (!LIVE) return null;
     try {
-        const mod = await import('./china-mibal2-live.js?v=1a0698f6a918-5abaac26');
+        const mod = await import('./china-mibal2-live.js?v=70327e690a73-5fd94b87');
         return mod.startLive({
             db, showToast, setLoading, errText,
             isAdmin: () => accessIsAdmin,
@@ -1760,6 +1760,8 @@ async function loadLiveTools() {
             // opts.allGrace — 본사도착 유예를 보지 않고 그 출고일 도착분을 모두 넣는다(작업 마감: 유예가 지나도 작업 출고일 전부)
             rowsFor: (dates, im, opts) => withScanLink(computeRows({ ...liveBundle(), selectedDates: dates, ...(opts && opts.allGrace ? { graceDays: ALL_GRACE_DAYS } : {}) }), im || inboundMap, { keepOutside: true }),
             getShipItems: () => ship.items || {},   // 출고일 불일치 확인(js/lib/ship-mismatch.js)
+            // 출고일들의 박스 목록 함수 code → ['-1: 3', …] — 박스 번호(packBoxes)를 못 읽었으면 null([중간 저장]·마감 확인창의 남은 박스 수, 2026-11-27)
+            boxListFor: (ships) => { if (!packBoxes) return null; const on = packsOn(ships, packBoxes); return (code) => boxesFor(code, ships, packBoxes, on).list; },
             computeFor: (dates, opts) => computeRows({ ...liveBundle(), selectedDates: dates, ...(opts && opts.allGrace ? { graceDays: ALL_GRACE_DAYS } : {}) }),
             getSelectedDates: () => selectedDates.slice(),
             // 작업 마감·되돌리기 뒤 — 이 PC 의 선택을 맞춘다(저장은 호출한 쪽이 settings.shipDates 로 함께 했다)
