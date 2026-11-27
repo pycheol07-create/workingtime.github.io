@@ -33,12 +33,12 @@ import {
     dayKey, parseRecDay, rowState, dayOptions, defaultDay, canMark, excelRows, EXCEL_COLS, SHEET_NAME, fileNameOf,
     stripRows, fileNameAll, recReqUi, tsMs, TABS, dayVer, movedToday, PENDING_TEXT, plannedSlots, HOLD_UNDO_TEXT,
     sizeFreeList, sizeFreeSet, sizeFreeWrite, sizeFreeCode, sizeFreeToast
-} from './lib/locrec-view.js?v=0a665c750c65-fdf32cdb';
+} from './lib/locrec-view.js?v=b56633c4d6cf-fdf32cdb';
 import { laterMs } from './lib/rebuild-view.js?v=c6f3c13017e8-4d8ef11f';
 import { docIdsForRow, docIdsForApplied, planApply, planUndo, planClearMoves, applyFailText, undoFailText, bulkSummaryText, markOnlyOk, reasonText,
          dstBlocked, altOk, altRow, blockOf, altConfirmText, bulkAltText, EZ_REMIND_TEXT, BLOCKED_STATE,
-         recentAppliedMoves } from './lib/locrec-apply.js?v=66b0140a3bb3-5def8df3';
-import { pickAltTarget, prioritiesOf } from './lib/loc-recommend.js?v=98ac1aab2539-df186d4d';
+         recentAppliedMoves } from './lib/locrec-apply.js?v=97d4b196868c-5def8df3';
+import { pickAltTarget, prioritiesOf } from './lib/loc-recommend.js?v=f183a9bdbce1-df186d4d';
 import { uploadView, uploadBlockText } from './lib/busy-view.js?v=659be9925d1c-88862baa';
 
 const APP = 'artifacts/team-work-logger-v2';

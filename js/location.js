@@ -11,24 +11,25 @@ import { memberNameFor } from './app-shell-data.js?v=e42c6a10ca7a-9319c795';
 import { menuConfigOf } from './lib/perm.js?v=c1e53d91da8e-49afeea3';
 import { readHash, writeHash, onHashNav } from './hash-state.js?v=41d515385973-40fe10fb';
 import { initPageNav } from './page-nav.js?v=2d9f4a86d931-b8f40ef7';
-import { initRefillCard } from './refill-card.js?v=39ac1dafeb5a-fbc0ffd6';
-import { initLocRecCard } from './locrec-card.js?v=22ce1c81b7e0-8da41d23';
-import { getLocRecStore, peekLocRecStore } from './locrec-store.js?v=618115ced44e-bd971fd0';   // 오늘 변경 추천 예정 자리·최근 [처리함] 이동(엑셀 경고)
-import { initRebuildBar } from './rebuild-bar.js?v=ee9b5070de40-5c8233b1';
-import { mountRouteSlot } from './locrec-route-card.js?v=737cb85bc350-3f4fe9bc';
+import { initRefillCard } from './refill-card.js?v=6e6087766b9d-4b7c0f41';
+import { initLocRecCard } from './locrec-card.js?v=4a658b78fa9f-ae2556ac';
+import { getLocRecStore, peekLocRecStore } from './locrec-store.js?v=04ce2fa80879-bd971fd0';   // 오늘 변경 추천 예정 자리·최근 [처리함] 이동(엑셀 경고)
+import { initRebuildBar } from './rebuild-bar.js?v=bd473b84e41e-5c8233b1';
+import { mountRouteSlot } from './locrec-route-card.js?v=3d22f978a959-3f4fe9bc';
 import { whenPerm, onPerm, canFeature } from './feature-gate.js?v=7eaa46dbb8e9-a5458f75';   // 권한 개편 5단계 — 카드는 권한이 확인된 뒤에만 시작
 import { mountBusyBanner, createUploadStatus } from './busy-banner.js?v=a03ed2865bd9-b37af02e';
 import { uploadBlockText } from './lib/busy-view.js?v=659be9925d1c-88862baa';
 import { uploadStockView, ezStockView, stockSrcOf, countAuto, autoBadge } from './lib/ez-stock-view.js?v=e00def1b1135-64e359e0';
 import { INCOMING_WAIT_MAX_MS, SHEET_REQ_DAILY_MAX, incomingReadAt, requestServerMs, judgeIncomingSnap, createRunGuard, guardedRun, once, waitTimeoutText } from './lib/incoming-wait.js?v=47c3cd807778-95e00b98';
-import { angleSizeOf, SERVER_DEFAULTS, makeRankers, isEtcLocObj } from './lib/loc-recommend.js?v=98ac1aab2539-df186d4d';
+import { angleSizeOf, SERVER_DEFAULTS, makeRankers, isEtcLocObj } from './lib/loc-recommend.js?v=f183a9bdbce1-df186d4d';
 import { comboOf, isExcludedSlot, slotDigits, parseCards } from './lib/loc-cards.js?v=436e88b31445-bac5ec02';   // 자리 → 'A-1' 조합(카드 이름·제외 조합 같은 규칙)
 import { initLocSetPanel } from './locset-panel.js?v=d64dd2391f86-fa73784a';   // 환경설정 '추천·채우기' 탭(변경 추천 설정·채우기 설정)
 // 변경 추천 [처리함]이 옮긴 자리의 하루 표시(locRecMove)·오늘 재고 올리기 전 충돌 경고 — 계획·판정은 js/lib/locrec-apply.js
-import { zoneDocIdOf, moveBadge, uploadMoveConflicts, uploadConflictText, isDesignatedEmpty } from './lib/locrec-apply.js?v=66b0140a3bb3-5def8df3';
+import { zoneDocIdOf, moveBadge, uploadMoveConflicts, uploadConflictText, isDesignatedEmpty } from './lib/locrec-apply.js?v=97d4b196868c-5def8df3';
 import { dayKey as kstDayKey } from './lib/refill-view.js?v=3416a867c2d7-24e9bb3d';
 // 마지막 출고일(integrations/locLastOut, 로케이션추천\최근출고.py) — 업로드 '마지막출고.배송일'과 더 최근 값으로 합친다(2026-11-20)
 import { normDay, parseLastOut, laterDay, ezLastOf, cleanupDecision } from './lib/last-out.js?v=36085d31f68f-09edcbbe';
+import { loadAll as loadSupNames, supNameOf } from './sup-names-store.js?v=d105e6dca190-1f52465e';   // 목록 '공급처상품명' 열(2026-11-27, 기본 끔 — 켠 때만 읽음)
 
 // 🔐 onclick="fn('...')" 안에 데이터를 넣을 때 반드시 통과시킬 것.
 //    작은따옴표만 막으면 상품명에 " < 역슬래시가 들어올 때 버튼이 동작하지 않거나
@@ -1362,6 +1363,7 @@ function renderTableHeader() {
         else if (col === 'std_option') { html += createTh('option', '옵션', 180, true, col); popupHtml += `<div id="pop-option" class="filter-popup"></div>`; }
         else if (col === 'std_stock') { html += createTh('stock', '정상재고', 130, true, col); popupHtml += `<div id="pop-stock" class="filter-popup"></div>`; }
         else if (col === 'std_stock2f') { html += createTh('stock2f', '비축창고재고', 130, true, col); popupHtml += `<div id="pop-stock2f" class="filter-popup"></div>`; }
+        else if (col === 'std_supname') { html += createTh('supname', supNameColLabel(), 160, true, col); popupHtml += `<div id="pop-supname" class="filter-popup"></div>`; }
         else if (col.startsWith('cus_')) {
             const label = col.replace('cus_', '');
             // ★ 입고대기 컬럼에 툴팁 추가
@@ -1384,6 +1386,28 @@ function renderTableHeader() {
     document.querySelectorAll('.filter-popup').forEach(p => { p.addEventListener('click', function(e) { e.stopPropagation(); }); });
     setupFilterPopups();
     setupHeaderDragAndDrop();
+    ensureSupNames();
+}
+
+// ── 공급처상품명 열(2026-11-27) ─────────────────────────────
+//   값 = GIP 공급처상품명(ProductSupName, js/sup-names-store.js — 읽기만, 이 페이지 메모리에만). 상품코드로 찾고, 없거나 못 읽으면 빈칸.
+//   열 키 std_supname(필터·정렬 키 supname) — 엑셀에서 온 '공급처상품명' 열(cus_공급처상품명, rawData)과는 다른 열이다.
+//   둘 다 있으면 헷갈리지 않게 이 열 머리글을 '공급처상품명(GIP)' 로 보인다. 기본은 꺼짐(열 설정 visibleColumns 는 팀 공용).
+//   로케이션 다운로드 양식(stdHeaders)에는 넣지 않는다 — 다시 올리는 양식이라 rawData 에 섞인다.
+const SUPNAME_COL = 'std_supname';
+const supNameColLabel = () => ((window.excelHeaders || []).includes('공급처상품명') ? '공급처상품명(GIP)' : '공급처상품명');
+const supNameOfLoc = (loc) => {
+    const c = loc && loc.code && loc.code !== loc.id ? String(loc.code).trim() : '';
+    return c ? supNameOf(c) : '';
+};
+let _supNamesP = null;
+/** 열이 보일 때만 한 번 읽는다(META + 문서 n 개). 받으면 표를 다시 그린다. 실패하면 빈칸(다음 머리글 그리기 때 다시 시도) */
+function ensureSupNames() {
+    if (_supNamesP || !(window.visibleColumns || []).includes(SUPNAME_COL)) return;
+    _supNamesP = loadSupNames(db).then((m) => {
+        if (!m || !m.size) { _supNamesP = null; return; }   // 못 받았으면(빈 Map) 빈칸 그대로 — 다음 머리글 그리기 때 다시(받은 문서는 store 가 캐시)
+        applyFiltersAndSort();
+    });
 }
 
 function createTh(key, label, width, hasFilter, colId, tipHtml = '') {   // tipHtml = 코드에 박힌 고정 설명 HTML 만(사용자 입력 금지)
@@ -1552,7 +1576,8 @@ window.openSettingsModal = (e) => {
     
     const stdCols = [
         { id: 'std_dong', label: '동' }, { id: 'std_pos', label: '위치' }, { id: 'std_id', label: '로케이션(ID)' }, { id: 'std_category', label: '대분류' },
-        { id: 'std_code', label: '상품코드' }, { id: 'std_name', label: '상품명' }, { id: 'std_option', label: '옵션' }, { id: 'std_stock', label: '정상재고' }, { id: 'std_stock2f', label: '비축창고재고' }
+        { id: 'std_code', label: '상품코드' }, { id: 'std_name', label: '상품명' }, { id: 'std_option', label: '옵션' }, { id: 'std_stock', label: '정상재고' }, { id: 'std_stock2f', label: '비축창고재고' },
+        { id: SUPNAME_COL, label: supNameColLabel() }
     ];
     
     stdCols.forEach(col => {
@@ -2816,8 +2841,8 @@ function updateFilterButtonStates() {
         }
     });
 
-    // 상품명·옵션은 목록 필터가 없고 검색창만 있다
-    ['name', 'option'].forEach(type => {
+    // 상품명·옵션·공급처상품명은 목록 필터가 없고 검색창만 있다
+    ['name', 'option', 'supname'].forEach(type => {
         const btn = document.getElementById('btn-filter-' + type);
         if (btn) btn.classList.toggle('active', hasText(type));
     });
@@ -2858,6 +2883,8 @@ function setupFilterPopups() {
     if(codePop) codePop.innerHTML = codeHtml;
     if(namePop) namePop.innerHTML = window.getFilterSearchHtml('pop-name') + getSortButtonsHtml('name');
     if(optionPop) optionPop.innerHTML = window.getFilterSearchHtml('pop-option') + getSortButtonsHtml('option');
+    const supnamePop = document.getElementById('pop-supname');
+    if (supnamePop) supnamePop.innerHTML = window.getFilterSearchHtml('pop-supname') + getSortButtonsHtml('supname');
     const dongs = [...new Set(originalData.map(d => (d.dong || '').toString()))].filter(Boolean).sort();
     const dongAll = filters.dong.length === 0;
     let dongHtml = window.getFilterSearchHtml('pop-dong') + getSortButtonsHtml('dong') + `<div class="filter-option ${dongAll ? 'selected' : ''}" onclick="setFilter('dong', 'all')">전체선택/해제</div>`;
@@ -3495,6 +3522,7 @@ function applyFiltersAndSort() {
             else if (ck === 'code') cv = (item.code && item.code !== item.id) ? item.code : '';
             else if (ck === 'name') cv = item.name || '';
             else if (ck === 'option') cv = item.option || '';
+            else if (ck === 'supname') cv = supNameOfLoc(item);
             else if (ck === 'dong') cv = item.dong != null ? item.dong : '';
             else if (ck === 'pos') cv = item.pos != null ? item.pos : '';
             else if (ck === 'stock') cv = item.stock != null ? item.stock : '';
@@ -3520,6 +3548,8 @@ function applyFiltersAndSort() {
             const key = sortConfig.key.replace('cus_', '');
             aVal = key === '칸수' ? cusCellValue(a, key) : ((a.rawData && a.rawData[key]) ? a.rawData[key].toString() : '');
             bVal = key === '칸수' ? cusCellValue(b, key) : ((b.rawData && b.rawData[key]) ? b.rawData[key].toString() : '');
+        } else if (sortConfig.key === 'supname') {
+            aVal = supNameOfLoc(a); bVal = supNameOfLoc(b);
         } else {
             aVal = a[sortConfig.key] || ''; bVal = b[sortConfig.key] || '';
         }
@@ -3722,6 +3752,7 @@ function renderVisibleRows() {
             else if (col === 'std_option') html += `<td style="text-align:left; font-size:12px;">${escAttr(loc.option || '')}</td>`;
             else if (col === 'std_stock') html += `<td style="font-weight:600; font-variant-numeric:tabular-nums;">${escAttr(loc.stock || '0')}${autoBadge(loc)}</td>`;
             else if (col === 'std_stock2f') html += `<td style="font-weight:600; font-variant-numeric:tabular-nums;">${escAttr(loc.stock2f || '0')}${autoBadge(loc)}</td>`;
+            else if (col === SUPNAME_COL) html += `<td style="text-align:left; font-size:12px;">${escAttr(supNameOfLoc(loc))}</td>`;
             else if (col.startsWith('cus_')) {
                 const key = col.replace('cus_', '');
                 let val = (loc.rawData && loc.rawData[key]) ? loc.rawData[key] : '';

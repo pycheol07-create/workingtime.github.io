@@ -5,7 +5,10 @@
 //   스타일은 location.html <style> · index 는 css/refill-modal.css(#refill-modal 범위로 같은 모양).
 // ⚠️ role="dialog" · data-act 를 붙이지 않는다 — 업무마감봇이 div[role=dialog] 마지막 것 · [data-act] 로 자기 확인창을 읽는다.
 // 오버레이 자식 1개 · 첫 자식 .modal-header 라 공통 끌기(js/modal-drag.js)가 붙는다.
+// 공급처상품명 열(2026-11-27): 피킹로케이션 다음 — 창을 처음 열 때 js/sup-names-store.js 로 한 번 받는다(db 를 넘긴 경우만, 실패하면 빈칸).
+//   ⚠️ 칸을 늘리면 휴대폰에서 '누가·언제'를 숨기는 th:nth-child(7) 규칙(location.html · css/refill-modal.css)도 같이 맞춘다.
 import { escapeHtml } from './utils.js?v=65bb3512764f-e315797c';
+import { loadAll as loadSupNames, supNameOf } from './sup-names-store.js?v=d105e6dca190-1f52465e';
 import { dayLabel, fmtHM, progress, fmtCount, fixedNote } from './lib/refill-view.js?v=3416a867c2d7-24e9bb3d';
 import { NO_NAME, SHEETS, todayKey } from './refill-store.js?v=19c86fc8c3a0-f7e79867';
 import { higherOpenThan } from './modal-above.js?v=d7d701b363ef-215d273f';
@@ -29,7 +32,7 @@ const TEMPLATE = `
             <div id="refill-modal-meta" class="modal-meta" style="margin-bottom:8px;"></div>
             <div class="table-box refill-table-wrap">
                 <table class="usage-table refill-table">
-                    <thead><tr><th>완료</th><th>피킹로케이션</th><th>비축위치</th><th>채울수량</th><th>비축재고</th><th>누가·언제</th></tr></thead>
+                    <thead><tr><th>완료</th><th>피킹로케이션</th><th title="GIP 상품 정보의 공급처상품명(영문·숫자 모양만). 빈칸 = 값 없음 또는 못 읽음">공급처상품명</th><th>비축위치</th><th>채울수량</th><th>비축재고</th><th>누가·언제</th></tr></thead>
                     <tbody id="refill-tbody"></tbody>
                 </table>
             </div>
@@ -37,8 +40,9 @@ const TEMPLATE = `
 
 let mounted = null;
 
-/** 표 창을 붙인다(한 탭에 한 번). → { open(), close(), isOpen(), render(), el } */
-export function mountRefillTable({ store }) {
+/** 표 창을 붙인다(한 탭에 한 번). → { open(), close(), isOpen(), render(), el }
+ *  db: 선택 — 있으면 처음 열 때 공급처상품명을 읽는다(없으면 그 칸은 빈칸) */
+export function mountRefillTable({ store, db }) {
     if (mounted) return mounted;
     let modal = document.getElementById('refill-modal');
     if (!modal) {
@@ -78,7 +82,7 @@ export function mountRefillTable({ store }) {
         const rows = list.filter(r => !(todoOnly && S.work.checks[r.code] && S.work.checks[r.code].done === true));
         if (!rows.length) {
             const empty = !d ? (S.dayErr || '지시서를 불러오는 중…') : list.length ? '안 한 것이 없습니다' : '행이 없습니다';
-            mTbody.innerHTML = `<tr><td colspan="6" class="refill-empty">${escapeHtml(empty)}</td></tr>`;
+            mTbody.innerHTML = `<tr><td colspan="7" class="refill-empty">${escapeHtml(empty)}</td></tr>`;
             return;
         }
         mTbody.innerHTML = rows.map(r => {
@@ -93,13 +97,17 @@ export function mountRefillTable({ store }) {
             return `<tr class="${done ? 'refill-done' : ''}">`
                 + `<td class="refill-chk"><input type="checkbox" data-refill-code="${escapeHtml(r.code)}" aria-label="완료 ${escapeHtml(r.loc)}"`
                 + `${done ? ' checked' : ''}${editable && !busy ? '' : ' disabled'}></td>`
-                + `<td class="refill-loc">${escapeHtml(r.loc)}${added}${fixed}</td><td>${escapeHtml(r.reserve)}</td>`
+                + `<td class="refill-loc">${escapeHtml(r.loc)}${added}${fixed}</td><td class="refill-sname">${escapeHtml(supNameOf(r.code))}</td><td>${escapeHtml(r.reserve)}</td>`
                 + `<td class="refill-num">${escapeHtml(r.qty == null ? '' : fmtCount(r.qty))}</td><td class="refill-num">${escapeHtml(r.stock == null ? '' : fmtCount(r.stock))}</td>`
                 + `<td class="refill-who">${who}</td></tr>`;
         }).join('');
     }
 
-    function open() { modal.style.display = 'flex'; render(); }
+    let supP = null;   // 공급처상품명 — 처음 열 때 한 번(받은 문서는 store 가 캐시, 못 받았으면 다음 열 때 다시)
+    function open() {
+        modal.style.display = 'flex'; render();
+        if (db && !supP) supP = loadSupNames(db).then((m) => { if (!m || !m.size) supP = null; else render(); });
+    }
     function close() { modal.style.display = 'none'; }
 
     mTabs.addEventListener('click', (ev) => {

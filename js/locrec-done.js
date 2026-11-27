@@ -32,7 +32,7 @@ export function refreshLocRecDone(onChange) {
     const before = locRecDoneToday();
     pending = Promise.all([
         getDoc(doc(State.db, MARKS_PATH)),
-        viewMod ? Promise.resolve(viewMod) : import('./lib/locrec-view.js?v=0a665c750c65-fdf32cdb')
+        viewMod ? Promise.resolve(viewMod) : import('./lib/locrec-view.js?v=b56633c4d6cf-fdf32cdb')
     ]).then(([snap, v]) => {
         viewMod = v;
         const d = snap.exists() ? (snap.data({ serverTimestamps: 'estimate' }) || {}) : {};

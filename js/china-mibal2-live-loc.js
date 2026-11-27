@@ -10,7 +10,7 @@
 //   앱\채우기자동화\수집.py opt1_from_fields 와 같은 순서). 마지막 업로드(locationStock/uploadStatus 의 끝난 시각)가 LOC_STALE_DAYS 일보다
 //   오래됐거나 모르면(업로드 중·실패 포함) 받기를 막는다.
 import { doc, getDoc, getDocs, setDoc, collection, query, where, documentId } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { buildLocIndex } from './lib/mibal2-rows.js?v=b62da5fac598-c3562b36';
+import { buildLocIndex } from './lib/mibal2-rows.js?v=7d7db4274674-2928bfc2';
 import { locSourceOf, locFreshMsOf, locStaleReason } from './lib/mibal2-live.js?v=7ccac6277373-d7d6b954';
 import { locPartsArr, mergeCsvLocs } from './lib/loc-mode.js?v=cbf323cf3e0b-33e59b85';
 import { readSheetRowsAOA } from './china-mibal2-live-admin.js?v=c327007483bd-b09af5b0';

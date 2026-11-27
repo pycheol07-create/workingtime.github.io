@@ -3,7 +3,7 @@ import * as DOM from './dom-elements.js?v=2b9f19ecbde2-82fbef91';
 import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
 import { showToast, getTodayDateString, showConfirm } from './utils.js?v=65bb3512764f-e315797c';
 import { dayInspItems, resumePlan, removeMoved } from './lib/insp-day.js?v=df2594fe0811-d324b1d1';
-import { clearLocalCache } from './history-data-manager.js?v=ebb1fe4df5ba-a9403e97';
+import { clearLocalCache } from './history-data-manager.js?v=167573df3855-a9403e97';
 import { hasBrushed } from './lib/insp-flow.js?v=5d563dd586be-06600d5f';
 import { TASK, tName } from './task-names.js?v=33eb5ccd69bc-26ab8ff7';
 
@@ -11,7 +11,7 @@ import {
     renderInspectionHistoryTable, 
     renderInspectionLayout,
     renderInspectionListMode
-} from './ui-history.js?v=ebb1fe4df5ba-b575143a'; 
+} from './ui-history.js?v=167573df3855-b575143a'; 
 import { clearInspResultCache, seedInspResultCache, fetchTotalInspLogs, totalInspLogsTruncated, TOTAL_LOG_LIMIT } from './ui-history-inspection.js?v=8466f46ce4de-ff9001e3';   // 정상여부 캐시 · 전량 기록
 import { mergeIntoProductHistory, nameKey, totalHistoryLogsOf, bulkSummary, bulkMessage } from './lib/total-insp.js?v=d83d978fa87f-5334595d';
 import { editTotalLog, deleteTotalLog, listDayLogs, listProductLogs, deleteTotalDay, deleteTotalProduct, askTotalLogEdit, fetchAccDocs, removeOrRevertOne, setAccStatus, deleteAccDocIfEmpty } from './total-insp-edit.js?v=00825b3b7e9c-892af557';

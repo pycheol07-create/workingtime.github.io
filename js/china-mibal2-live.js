@@ -25,11 +25,11 @@ import { scanApplyPlan, versionDataOf, archiveRecordOf, shrinkArchive, archiveAo
     fileRowsOf, inboundFileAoa, mibalFileAoa, floor2FileAoa, readAllPages } from './lib/mibal2-live.js?v=7ccac6277373-d7d6b954';
 import { buildDiffRecord, shouldAutoSave, mergeRev, shrinkIfLarge, diffSummaryText, overlapping, queryRange } from './lib/inbound-diff.js?v=6028b21f8c15-bb911da2';
 import { inboundMapOf, floor2MapOf } from './lib/scan-link.js?v=143bf19ba572-01119c1f';
-import { liveHiddenCss } from './lib/mibal2-cols.js?v=60dbdb4fdfb6-c2662013';
+import { liveHiddenCss } from './lib/mibal2-cols.js?v=572b94a9239e-d28a8d4c';
 import { inboundSig } from './lib/inbound-fix.js?v=7894fc22c949-9113d082';
 import { buildScanLogDocs, expandScanLogDocs, checkScanLogParts, docIdOf, scanLogInputOf, scanLogListHtml, scanLogExcelRows,
     SCANLOG_JOBS_COLL, SCANLOG_MAX_PARTS } from './lib/mibal2-scanlog.js?v=afd9130d6f71-ce95b891';
-import { setupLiveLoc } from './china-mibal2-live-loc.js?v=44a277eadfff-50b3c820';
+import { setupLiveLoc } from './china-mibal2-live-loc.js?v=28def72fd727-50b3c820';
 import { setupLiveAdmin, readSheetRowsAOA, packMap, unpackMap } from './china-mibal2-live-admin.js?v=c327007483bd-b09af5b0';
 import { setupLiveUrgent } from './china-mibal2-live-urgent.js?v=2938a992249a-ecd76400';   // 긴급 상품 쓰기(mibal2/urgent, 2026-11-27)
 import { shipMismatchOf, mismatchLine, mismatchBlockText } from './lib/ship-mismatch.js?v=18b1bfe6bfc0-42172506';

@@ -22,16 +22,16 @@ let loading = null;
 async function load() {
     if (mods) return mods;
     if (!loading) {
-        loading = Promise.all([import('./locrec-store.js?v=618115ced44e-bd971fd0'), import('./locrec-table.js?v=278ab8eef61b-ae68a389')]).then(([s, t]) => {
+        loading = Promise.all([import('./locrec-store.js?v=04ce2fa80879-bd971fd0'), import('./locrec-table.js?v=da18dbdce935-f46ab729')]).then(([s, t]) => {
             const store = s.getLocRecStore({
                 db: State.db, auth: State.auth,
                 getMemberName: () => memberNameFor(State.appConfig && State.appConfig.memberEmails,
                     State.auth && State.auth.currentUser && State.auth.currentUser.email)
             });
-            const table = t.mountLocRecTable({ store });
+            const table = t.mountLocRecTable({ store, db: State.db });   // db: 공급처상품명 칸(2026-11-27)
             table.onClose(() => {                   // 닫으면 구독 해제 + 처리량 카드 완료 건수를 다시 읽게
                 store.stop();
-                import('./locrec-done.js?v=93ee51373dca-37785663').then(d => d.invalidateLocRecDone()).catch(() => {});
+                import('./locrec-done.js?v=6df72eea34e4-37785663').then(d => d.invalidateLocRecDone()).catch(() => {});
             });
             mods = { store, table };
             return mods;

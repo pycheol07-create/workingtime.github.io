@@ -11,8 +11,8 @@
 // 색·모양은 css/dash-d.css(#quick-menu-*) — 토큰을 쓰므로 다크 모드는 html.dark 토큰을 따른다.
 import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
 import { can } from './lib/perm.js?v=c1e53d91da8e-49afeea3';
-import { refillAllowed, openRefillFromDash } from './refill-dash.js?v=645fe513f7d4-1326a6ad';
-import { locRecAllowed, openLocRecFromDash } from './locrec-dash.js?v=eba3d1164b19-852ed13e';
+import { refillAllowed, openRefillFromDash } from './refill-dash.js?v=c77cf6053ec4-9d529bbc';
+import { locRecAllowed, openLocRecFromDash } from './locrec-dash.js?v=d6015c8267c6-a54bc4d0';
 
 const BTN_ID = 'quick-menu-btn';
 const SHEET_ID = 'quick-menu-sheet';

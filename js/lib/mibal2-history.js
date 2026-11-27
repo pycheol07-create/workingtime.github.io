@@ -13,7 +13,7 @@
 //   autoHistoryPlan  서버 한 회차 판정 → { action:'write'|'skip', reason, recs, patch, stats }
 //   reviveTs         서버가 보낸 시각 표시 {$ts: ms} → toMillis 를 가진 값
 // 상품명·공급처·원가는 결과(recs·stats)에 넣지 않는다 — 출고일·입고일·숫자만.
-import { computeRows, buildLocIndex, listShipDates, graceDaysFrom } from './mibal2-rows.js?v=b62da5fac598-c3562b36';
+import { computeRows, buildLocIndex, listShipDates, graceDaysFrom } from './mibal2-rows.js?v=7d7db4274674-2928bfc2';
 import { historyGroupsOf, historyRecordsOf, hasHistoryToday, mibalTotalsOf, isoDay } from './mibal2-live.js?v=7ccac6277373-d7d6b954';
 import { MIBAL2_LIVE } from './mibal2-mode.js?v=1dd1153363a5-6723d239';
 

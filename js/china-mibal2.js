@@ -39,7 +39,7 @@ import { sortMark } from './lib/china-stock-view.js?v=0adf1f9e36d2-b5ed5c66';
 import {
     listShipDates, buildLocIndex, computeRows, summarize, FLAG_INFO, excelAoaOf,
     graceDaysFrom, legacyDatesFrom, selectedDatesFrom, oldMapFromScan
-} from './lib/mibal2-rows.js?v=b62da5fac598-c3562b36';
+} from './lib/mibal2-rows.js?v=7d7db4274674-2928bfc2';
 import { setShellContext } from './app-shell-bridge.js?v=b9a7199f3e1d-c80c27e9';
 import { memberNameFor } from './app-shell-data.js?v=e42c6a10ca7a-9319c795';
 import { mountBusyBanner } from './busy-banner.js?v=a03ed2865bd9-b37af02e';
@@ -54,13 +54,14 @@ import { mibal2Access, MIBAL2_DENIED_MSG } from './lib/mibal2-access.js?v=6f7eed
 import { subscribeInbound, setupScanTools } from './china-mibal2-scan.js?v=128c6e55a1b5-895aaef7';
 import { setupLocMode } from './china-mibal2-loc.js?v=9381534f7c40-d01edb35';
 import { isMibal2Live } from './lib/mibal2-mode.js?v=1dd1153363a5-6723d239';
-import { liveDatesFrom } from './lib/mibal2-rows.js?v=b62da5fac598-c3562b36';
+import { liveDatesFrom } from './lib/mibal2-rows.js?v=7d7db4274674-2928bfc2';
 import { stableSig, ARCHIVE_COLL } from './lib/mibal2-live.js?v=7ccac6277373-d7d6b954';
 import { bestShipOf, mismatchLine, codeListText } from './lib/ship-mismatch.js?v=18b1bfe6bfc0-42172506';   // 출고일 불일치(2026-11-10)
-import { rowPasses, optionsFor, activeFilterCount, toStored, toChecked } from './lib/mibal2-filter.js?v=b356e616ebb6-06950e11';   // 열 필터(2026-11-26)
+import { rowPasses, optionsFor, activeFilterCount, toStored, toChecked } from './lib/mibal2-filter.js?v=a50454c425ba-f6ab7d51';   // 열 필터(2026-11-26)
 import { parsePackBoxes, packsOn, boxesFor, boxSortVal, cmpBoxSort, failedPacks, boxCount, totalBoxes } from './lib/pack-boxes.js?v=9e13a65b0cb3-3b57fd51';   // 박스 열(2026-11-26 — 패킹봇 box_sync 가 쓴 integrations/packBoxes)
 // [박스 확인] 창은 2026-11-27 이 화면에서 뺐다(파일 js/mibal2-boxcheck.js 도 지움) — 입고 스캐너로 옮김(판정은 js/lib/box-check.js 그대로)
 import { openFloatingFilter, closeFloatingFilter } from './table-filter.js?v=fd197c3531ef-b92b1b78';
+import { loadAll as loadSupNames, supNameOf } from './sup-names-store.js?v=d105e6dca190-1f52465e';   // 공급처상품명 열(2026-11-27 — ProductSupName, 화면 열 때 한 번)
 import { createUrgentUi } from './china-mibal2-urgent.js?v=eb688f45d3b3-81c9d293';   // 긴급 상품 표시·선택(2026-11-27 — 쓰기는 live 모듈, 문서 mibal2/urgent)
 import { writeXls } from './lib/xls-limits.js?v=64b8f5a113a9-e512cb8a';
 import { readHash, writeHash, onHashNav } from './hash-state.js?v=41d515385973-40fe10fb';   // live 때만 씀(빠른 이동 #tab=mibal|location)
@@ -69,7 +70,7 @@ import { refreshDoneAuto, claimOk, claimMine, autoStopText, serverBatchOpen, AUT
 import { closedQueryDates, closedCacheKey, closedViewOf, closedNoteLines } from './lib/mibal2-closed-view.js?v=99af493d6d0f-f6895793';
 import { COLS_PICK_KEY, LEGACY_COLS_KEY, DEFAULT_ON, REQUIRED, pickableCols, normalizeOn, colsFromStorage, serializeCols, toggleCol,
     hiddenCss, colsMode, visibleCount,
-    COL_ORDER_KEY, normalizeOrder, orderFromStorage, serializeOrder, isDefaultOrder, moveCol, stepCol } from './lib/mibal2-cols.js?v=60dbdb4fdfb6-c2662013';
+    COL_ORDER_KEY, normalizeOrder, orderFromStorage, serializeOrder, isDefaultOrder, moveCol, stepCol } from './lib/mibal2-cols.js?v=572b94a9239e-d28a8d4c';
 
 const { db, auth } = initializeFirebase();
 const LIVE = isMibal2Live();   // 단독 운영인가(지금은 false — 에뮬레이터 시험 주소 ?emu=1&live=1 에서만 true)
@@ -345,6 +346,7 @@ function liveCtx() {
 function sortKeyVal(r, key) {
     if (key === 'name') return (r.name + ' ' + r.option).toLowerCase();
     if (key === 'option') return String(r.option || '').toLowerCase();
+    if (key === 'sname') return r.supName ? String(r.supName).toLowerCase() : null;   // 빈칸은 아래로
     if (key === 'box') return boxSortVal(r.boxList);   // 첫 박스 [꼬리번호, 앞글자, 번호](없으면 아래로) — 비교는 cmpBoxSort
     if (key === 'code' || key === 'loc') return String(r[key] || '');
     if (key === 'conf') { const n = parseInt(r.conf); return isNaN(n) ? null : n; }   // 빈칸·수동 글자 → 모름(아래로)
@@ -371,7 +373,8 @@ function applyFilters() {
         if (!rowPasses(r, colFilters, flagLabel)) return false;   // 열 필터
         if (!urgentUi.passes(r)) return false;                     // 긴급만 보기(긴급 모드일 때만)
         if (!q) return true;
-        return r.code.toLowerCase().includes(q) || r.name.toLowerCase().includes(q) || r.option.toLowerCase().includes(q);
+        return r.code.toLowerCase().includes(q) || r.name.toLowerCase().includes(q) || r.option.toLowerCase().includes(q)
+            || String(r.supName || '').toLowerCase().includes(q);   // 공급처상품명도(2026-11-27)
     });
     const { key, dir } = sortConfig;
     const m = dir === 'asc' ? 1 : -1;
@@ -411,7 +414,7 @@ function applyFilters() {
 const mainHeadCells = () => { const t = $('table-body') && $('table-body').closest('table'); return t ? [...t.querySelectorAll('thead th:not(.usel-col)')] : []; };   // 긴급 체크칸 열은 메뉴 없음
 // 열 이름 = th data-col(시작 때 찍음 — 열 순서를 바꿔도 같다). No 열은 메뉴 없음('')
 function filterKeyOfTh(th, i, all) { const k = th.dataset.col || th.dataset.sort || (i === all.length - 1 ? 'flags' : ''); return k === 'no' ? '' : k; }
-const ASC_FIRST = ['code', 'name', 'option', 'box', 'loc'];   // 글자 열 — 오름차순을 먼저 보인다
+const ASC_FIRST = ['code', 'name', 'option', 'sname', 'box', 'loc'];   // 글자 열 — 오름차순을 먼저 보인다
 function openHeadMenu(th, key) {
     const label = (th.firstChild && th.firstChild.textContent ? th.firstChild.textContent : th.textContent).trim() || key;
     const options = optionsFor(allRows, key, colFilters, flagLabel);
@@ -579,6 +582,7 @@ function renderTableNow() {
             code: `<td class="code-cell" data-col="code">${urgentUi.badge(r)}${esc(r.code)}</td>`,
             name: `<td class="name-cell" data-col="name" title="${esc(r.name)}">${esc(r.name)}</td>`,
             option: `<td class="opt-cell" data-col="option" title="${esc(r.option || '')}">${esc(r.option || '')}</td>`,
+            sname: `<td class="sname-cell" data-col="sname" title="${esc(r.supName || '')}">${esc(r.supName || '')}</td>`,
             box: `<td class="box-cell" data-col="box" title="${esc(r.boxText || r.boxFail || '')}">${esc(r.boxText || '')}</td>`,
             loc: `<td data-col="loc">${r.locInfo ? esc(r.loc) : '<span class="t-risk">미지정</span>'}</td>`,
             cap: r.cap === null ? `<td data-col="cap">${numOr(null)}</td>` : `<td class="cap-cell" data-col="cap" title="${esc(r.capSrc)}">${esc(num(r.cap))}<span class="cap-kind">${esc(r.capKind)}</span></td>`,
@@ -918,6 +922,15 @@ function attachBoxes(rows) {
     const failText = fail.length ? `읽기 실패 — 패킹 ${fail.join(', ')} 의 박스 번호를 못 읽음(수정본)` : '';
     (rows || []).forEach(r => { const x = boxesFor(r.code, selectedDates, packBoxes, on); r.boxText = x.text; r.boxList = x.list; r.boxFail = x.text ? '' : failText; });
 }
+/** 행마다 공급처상품명(supName) — 받아 둔 ProductSupName 에서(아직 못 받았거나 실패면 빈칸) */
+function attachSupNames(rows) {
+    (rows || []).forEach(r => { r.supName = supNameOf(r.code); });
+}
+/** 공급처상품명 문서 한 번 읽기(js/sup-names-store.js 가 캐시) — 실패하면 빈칸 그대로. 받으면 표를 다시 그린다 */
+async function loadSupNameCol() {
+    await loadSupNames(db);
+    if (allRows.length) { attachSupNames(allRows); applyFilters(); }
+}
 /** 박스 번호 문서 한 번 읽기 — 못 읽으면 조용히 빈칸(콘솔에만). 읽으면 표를 다시 그린다 */
 async function loadPackBoxes() {
     try {
@@ -937,6 +950,7 @@ function recomputeAndRender() {
     allRows = (closedView && (closedView.loading || closedView.view)) ? withScanLink(computeRows(liveBundle()), closedView.loading ? {} : closedView.view.map)
         : withScanLink(computeRows(liveBundle()));   // 못 읽음(error)은 입고이력 값으로 보이되 쓰기는 막는다
     attachBoxes(allRows);
+    attachSupNames(allRows);
     urgentUi.attach(allRows);   // 긴급 표시(r.urgent) — 꺼져 있으면 모두 false
     computeMismatch();
     renderMismatch();
@@ -1725,7 +1739,7 @@ const sharedSigOf = (snaps) => stableSig(snaps.map(x => (x.exists() ? x.data() :
 async function loadLiveTools() {
     if (!LIVE) return null;
     try {
-        const mod = await import('./china-mibal2-live.js?v=c4fd994be71d-5abaac26');
+        const mod = await import('./china-mibal2-live.js?v=1a0698f6a918-5abaac26');
         return mod.startLive({
             db, showToast, setLoading, errText,
             isAdmin: () => accessIsAdmin,
@@ -1873,6 +1887,7 @@ async function startAfterAccess() {
     renderRefreshUI();
     // 단독 운영(live)에서는 기존 계산기 미발수량(비교값)을 읽지 않는다 — oldSnap 이 null 이면 '신규에만' 플래그·버전기록 경고도 나오지 않는다
     loadPackBoxes();   // 기다리지 않는다 — 박스 칸은 읽히면 채운다
+    loadSupNameCol();  // 같은 방식 — 공급처상품명 칸은 읽히면 채운다(실패면 빈칸)
     const results = await Promise.allSettled([loadConfig(), loadEditedCells(), loadLocations(), LIVE ? null : loadOldSnapshot().then(s => { oldSnap = s; }), loadSettings()]);
     const names = ['CONFIG', 'EDITED_CELLS', 'Locations', '기존 계산기 미발수량', 'settings'];
     const fails = results.map((r, i) => r.status === 'rejected' ? `${names[i]}(${(r.reason && r.reason.code) || r.reason})` : '').filter(Boolean);

@@ -10,7 +10,7 @@ import { aliasHistoryView } from './lib/task-alias-view.js?v=2e131477eb8e-af660c
 import { baselineSpeeds, normalizedUtilization, RECENT_SPEED_DAYS } from './lib/ops-metrics.js?v=5abf5efec2fb-58d6bcbb';
 import { buildYearPlan } from './lib/plan-year.js?v=b0148e3cc618-de8476b4';
 import { addDaysStr } from './lib/plan-week.js?v=8acad403f736-f2dd7a70';
-import { availableStaffOf } from './ui-history-prediction.js?v=ebb1fe4df5ba-099e2602';
+import { availableStaffOf } from './ui-history-prediction.js?v=167573df3855-099e2602';
 import { esc, n1, card } from './ui-ops-plan-parts.js?v=4172e29df300-895d8afe';
 
 /** 월 요약 띠 — 몇 달이 있나, 관리자는 [월 요약 다시 만들기](달 고르기) */

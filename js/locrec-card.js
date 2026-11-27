@@ -16,11 +16,11 @@ import { escapeHtml } from './utils.js?v=65bb3512764f-e315797c';
 import {
     verdictBadge, metricItems, dataWarnings, dataLine, dayOptions, dayMessage,
     TABS, TAB_LABEL, recStrip, tabSummary, dayLabel, rebuildLine
-} from './lib/locrec-view.js?v=0a665c750c65-fdf32cdb';
+} from './lib/locrec-view.js?v=b56633c4d6cf-fdf32cdb';
 import { initFold } from './lib/card-fold.js?v=f5e7633be316-3d829324';
-import { getLocRecStore, todayKey } from './locrec-store.js?v=618115ced44e-bd971fd0';
-import { mountLocRecTable } from './locrec-table.js?v=278ab8eef61b-ae68a389';
-import { initRouteCard } from './locrec-route-card.js?v=737cb85bc350-3f4fe9bc';
+import { getLocRecStore, todayKey } from './locrec-store.js?v=04ce2fa80879-bd971fd0';
+import { mountLocRecTable } from './locrec-table.js?v=da18dbdce935-f46ab729';
+import { initRouteCard } from './locrec-route-card.js?v=3d22f978a959-3f4fe9bc';
 
 /** window.localStorage 참조 자체가 던지는 브라우저도 있다 */
 const getStorage = () => { try { return window.localStorage; } catch (e) { return null; } };
@@ -38,7 +38,7 @@ export function initLocRecCard({ db, auth, getMemberName, sizeOf, altCtx, notify
     const detail = document.getElementById('locrec-detail');
 
     const store = getLocRecStore({ db, auth, getMemberName, sizeOf, altCtx, notify });
-    const table = mountLocRecTable({ store, sizeOf });   // sizeOf: 옛 문서 행의 칸수 보충(location.js)
+    const table = mountLocRecTable({ store, sizeOf, db });   // sizeOf: 옛 문서 행의 칸수 보충(location.js)
     // 머리줄 [변경 추천] 빠른 버튼(location.html)이 여는 창 — 권한이 있어 이 카드가 시작될 때만 생긴다
     window.openLocRecTable = () => table.open();
 

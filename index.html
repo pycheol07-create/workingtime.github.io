@@ -28,8 +28,8 @@
     <link rel="stylesheet" href="css/style.css?v=f40b368af7cc-35ff4575">
     <link rel="stylesheet" href="css/dash-d.css?v=766243b75cdb-d7239e29">
     <link rel="stylesheet" href="css/form-d.css?v=518b14ef02d3-a3ea6587">
-    <link rel="stylesheet" href="css/refill-modal.css?v=a63329052b3a-7a596bea">
-    <link rel="stylesheet" href="css/locrec-modal.css?v=4809c2c7f94e-5cc41d2c">
+    <link rel="stylesheet" href="css/refill-modal.css?v=31a039b85c99-84b6c019">
+    <link rel="stylesheet" href="css/locrec-modal.css?v=e37211dbac8c-6453996f">
 </head>
 <body class="overflow-hidden transition-colors duration-200" data-shell="index" data-shell-bar="off">
     <div id="toast-container" class="fixed bottom-24 md:bottom-5 right-5 z-[200] space-y-2 w-full max-w-xs"></div>
@@ -567,7 +567,7 @@
             ]);
 
             try {
-                await import('./js/app.js?v=077fe6b53e61-2ba8f711');
+                await import('./js/app.js?v=220ce1b06aed-2ba8f711');
             } catch (e) {
                 console.error("메인 앱 스크립트 로딩 실패:", e);
             }
@@ -655,10 +655,10 @@
     <script type="module">
         import { appState } from './js/state.js?v=c7f5fc984ef9-a2ce38c0';
         import { addNotice, toggleNotice, deleteNotice, editNotice, noticeMemberNames } from './js/notice-logic.js?v=9d1d22165214-c08a5845';
-        import { renderNoticeWidget } from './js/ui-main.js?v=ebb1fe4df5ba-d7b62405';
+        import { renderNoticeWidget } from './js/ui-main.js?v=167573df3855-d7b62405';
         import { initIncomingScheduleWidget } from './js/widget-incoming-schedule.js?v=98c211d9a608-237bc1dd';
-        import { initTodayProgressStrip } from './js/widget-today-progress.js?v=2c7a0e2b916d-e2bff3e0';
-        import { initDashInsights } from './js/dash-insights.js?v=f96cf33f68ce-8750fc39';
+        import { initTodayProgressStrip } from './js/widget-today-progress.js?v=8bd42e986c8a-e2bff3e0';
+        import { initDashInsights } from './js/dash-insights.js?v=640592b57438-8750fc39';
         initDashInsights();   // 하단 세 카드 — 오늘 진행 띠가 자료를 다 실은 뒤 그린다('dash-forecast-ready')
 
         // 🚚 입고 예정 위젯 — 캐시부터 그림. 데이터 구독은 로그인 후 app.js 가 시작
@@ -885,6 +885,6 @@
     <script type="module" src="js/modal-drag.js?v=c3010af0cdbe-22d0d415"></script>
     <!-- 공통 상단바(대시보드는 바 없이 메뉴 캐시만 채운다 — data-shell-bar="off") -->
     <script type="module" src="js/app-shell.js?v=0ad2923a7c3b-bf6553e1"></script>
-    <script src="js/app-version.js?v=10121901d50a-1f675d1e"></script>
+    <script src="js/app-version.js?v=cb527ca6ec9f-a2b82817"></script>
 </body>
 </html>

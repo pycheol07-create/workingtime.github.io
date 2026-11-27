@@ -5,6 +5,7 @@
 //   · 플래그(flags) = 여러 값 — 고른 플래그 중 하나라도 있으면 통과, 플래그 없는 행은 '(없음)'.
 //     긴급 모드(2026-11-27, js/lib/mibal2-urgent.js)가 켜져 긴급인 행(r.urgent)은 플래그 값에 '긴급' 이 하나 더 붙는다(꺼져 있으면 그대로).
 //   · 박스(box) = 여러 값(플래그처럼) — 행의 boxList(js/lib/pack-boxes.js boxesFor 의 list), 없으면 '(없음)'. 목록은 번호 순(A2 < A10).
+//   · 공급처상품명(sname) = 행의 supName(js/sup-names-store.js 에서 붙임), 빈칸이면 '(없음)'.
 //   · 저장 모양: null = 전체, [] = 아무것도, { ex: [값…] } = 그 값만 뺀다(2026-11-26 리뷰 — '고른 값만' 으로 두면
 //     실시간으로 새로 생긴 값(새 차이·새 코드)의 행이 조용히 숨는다). 목록 창(js/table-filter.js)은 '체크한 값 배열' 을 주고받으므로
 //     toStored·toChecked 로 바꾼다. 옛 배열 모양(그 값만)도 그대로 읽는다.
@@ -31,6 +32,7 @@ export function filterValueOf(r, key, flagLabel = (f) => f) {
         case 'loc': return r.locInfo ? String(r.loc == null ? '' : r.loc) : '미지정';
         case 'conf': return confMatchText(r);
         case 'flags': { const fs = Array.isArray(r.flags) ? r.flags.map(flagLabel) : []; if (r.urgent === true) fs.unshift(URGENT_FLAG); return fs.length ? fs : [NO_FLAG]; }
+        case 'sname': return String(r.supName == null ? '' : r.supName).trim() || NO_FLAG;
         case 'box': return Array.isArray(r.boxList) && r.boxList.length ? r.boxList.map(String) : [NO_FLAG];
         default: return numText(r[key]);
     }

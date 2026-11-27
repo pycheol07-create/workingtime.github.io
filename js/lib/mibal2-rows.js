@@ -322,7 +322,7 @@ export function compareRowsOf(rows) {
 
 /** 엑셀 열 — 화면 표 순서(상품명/옵션·적재량(출처)는 두 칸으로 나눔) + 확인필요 + 플래그 */
 const EXCEL_COLS = [
-    ['No', (r, i) => i + 1], ['코드', r => r.code], ['상품명', r => r.name], ['옵션', r => r.option], ['박스', r => r.boxText || ''],
+    ['No', (r, i) => i + 1], ['코드', r => r.code], ['상품명', r => r.name], ['옵션', r => r.option], ['공급처상품명', r => r.supName || ''], ['박스', r => r.boxText || ''],
     ['피킹로케이션', r => (r.locInfo ? r.loc : '미지정')], ['적재량', r => r.cap], ['적재량출처', r => r.capKind],
     ['도착', r => r.arr], ['총재고', r => r.stock], ['비축', r => r.bstock], ['피킹재고', r => r.pstock],
     ['접수', r => r.recv], ['송장', r => r.inv], ['출고예정', r => r.out], ['부족수량', r => r.short],
@@ -349,7 +349,7 @@ const hasConf = (rows) => (rows || []).some(r => r && r.confSrc !== undefined);
 const URGENT_COL = ['긴급', r => (r.urgent === true ? 'Y' : '')];
 const hasUrgent = (rows) => (rows || []).some(r => r && r.urgent === true);
 
-/** 행 → 엑셀용 2차원 배열(첫 줄 머리글). 숫자 칸의 null·숫자 아님은 빈칸. 상품코드·상품명·옵션·숫자만(공급처·원가·고객정보 없음) */
+/** 행 → 엑셀용 2차원 배열(첫 줄 머리글). 숫자 칸의 null·숫자 아님은 빈칸. 상품코드·상품명·옵션·공급처상품명(영문·숫자 모양만, js/lib/sup-names.js)·숫자만(공급처 이름·원가·고객정보 없음) */
 export function excelAoaOf(rows) {
     let cols = EXCEL_COLS;
     if (hasConf(rows)) {

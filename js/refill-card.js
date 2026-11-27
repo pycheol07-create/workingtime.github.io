@@ -12,7 +12,7 @@ import { escapeHtml } from './utils.js?v=65bb3512764f-e315797c';
 import { lastDays, dayLabel, fmtHM, progress, dayStatus, refillStrip, fmtCount } from './lib/refill-view.js?v=3416a867c2d7-24e9bb3d';
 import { initFold } from './lib/card-fold.js?v=f5e7633be316-3d829324';
 import { getRefillStore, todayKey, holidayName } from './refill-store.js?v=19c86fc8c3a0-f7e79867';
-import { mountRefillTable } from './refill-table.js?v=e7105a3eec89-3eba78ae';
+import { mountRefillTable } from './refill-table.js?v=66b75bfdb6f2-1791a889';
 
 /** window.localStorage 참조 자체가 던지는 브라우저도 있다 */
 const getStorage = () => { try { return window.localStorage; } catch (e) { return null; } };
@@ -28,7 +28,7 @@ export function initRefillCard({ db, auth, getMemberName }) {
     const detail = document.getElementById('refill-detail');
 
     const store = getRefillStore({ db, auth, getMemberName });
-    const table = mountRefillTable({ store });
+    const table = mountRefillTable({ store, db });   // db: 공급처상품명 칸(2026-11-27)
 
     // ── 카드 ──
     let lastSelHtml = '';

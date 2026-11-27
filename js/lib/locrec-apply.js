@@ -19,7 +19,7 @@
 import { cleanRaw } from './sensitive-cols.js?v=e134acbb436b-50d4f3cd';
 import { normLocId } from './multi-loc.js?v=eaa90e2a913d-3eb38b15';
 import { dayKey, fmtHM, tsMs, keyMs } from './refill-view.js?v=3416a867c2d7-24e9bb3d';
-import { isEtcLocObj, kstMidnight } from './loc-recommend.js?v=98ac1aab2539-df186d4d';
+import { isEtcLocObj, kstMidnight } from './loc-recommend.js?v=f183a9bdbce1-df186d4d';
 
 export const PRODUCT_FIELDS = ['code', 'name', 'option', 'stock', 'stock2f', 'rawDataStr'];
 export const EMPTY_PRODUCT = Object.freeze({ code: '', name: '', option: '', stock: '0', stock2f: '0', rawDataStr: '{}' });

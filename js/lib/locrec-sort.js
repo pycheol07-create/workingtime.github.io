@@ -8,6 +8,7 @@ export const SORT_COLS = [
     { key: 'code', label: '상품코드', sortable: true, title: '누르면 데이터 리스트에서 그 상품 보기 — 맞바꾸기·페어는 두 줄(A/B)' },
     { key: 'name', label: '상품명', sortable: true },
     { key: 'option', label: '옵션', sortable: true },
+    { key: 'sname', label: '공급처상품명', sortable: true, title: 'GIP 상품 정보의 공급처상품명(영문·숫자 모양만). 빈칸 = 값 없음 또는 못 읽음' },
     { key: 'from', label: '현재 로케이션', sortable: true },
     { key: 'to', label: '추천 로케이션', sortable: true },
     { key: 'qty', label: '이동수량', sortable: true, num: true, title: '옮길 수량(괄호는 비축 수량)' },
@@ -30,8 +31,8 @@ export function nextSort(cur, key) {
     return null;
 }
 
-/** 한 행의 비교 값. x = { r, st, i0 } · lines(r) = 줄 목록 */
-export function sortValue(x, key, { qtyWithReserve = false, lines } = {}) {
+/** 한 행의 비교 값. x = { r, st, i0 } · lines(r) = 줄 목록 · supName(code) = 공급처상품명(2026-11-27, 화면이 js/sup-names-store.js 로 넘김) */
+export function sortValue(x, key, { qtyWithReserve = false, lines, supName } = {}) {
     const r = (x && x.r) || {};
     const ls = typeof lines === 'function' ? lines(r) : [];
     const first = ls[0] || {};
@@ -39,6 +40,7 @@ export function sortValue(x, key, { qtyWithReserve = false, lines } = {}) {
     switch (key) {
         case 'rank': return r.carried ? null : (n(r.rank) ?? (x.i0 != null ? x.i0 + 1 : null));
         case 'code': case 'name': case 'option': case 'from': case 'to': return String(first[key] ?? '').trim();
+        case 'sname': return typeof supName === 'function' ? String(supName(String(first.code ?? '').trim()) || '').trim() : '';
         case 'qty': return sum(l => (qtyWithReserve ? lineTotal(l) : n(l.qty)));
         case 'daily': return sum(l => n(l.daily));
         case 'gain': return n(r.gain);

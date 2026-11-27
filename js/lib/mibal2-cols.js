@@ -14,13 +14,15 @@ export const COL_ORDER_KEY = 'mibal2.colOrder';  // 열 순서(2026-11-27) — �
 export const LEGACY_COLS_KEY = 'mibal2.cols';
 
 // thead 원래 순서. key = th data-col(= data-sort, No·플래그는 'no'·'flags' — js/china-mibal2.js colKey 와 같다)
-export const COLS = ['no', 'code', 'name', 'option', 'box', 'loc', 'cap', 'arr', 'conf', 'inDiff', 'stock', 'bstock', 'pstock', 'recv', 'inv', 'out',
+export const COLS = ['no', 'code', 'name', 'option', 'sname', 'box', 'loc', 'cap', 'arr', 'conf', 'inDiff', 'stock', 'bstock', 'pstock', 'recv', 'inv', 'out',
     'short', 'mibal', 'unres', 'room', 'third', 'pick', 'resv', 'refill', 'old', 'diff', 'flags'];
 // 예전 '간단히'(No·코드·상품명·피킹로케이션·적재량·도착·입고확인·차이(도착−입고)·총재고·미발수량·남는 부족수량·피킹 적재·비축 적재·플래그)
 //   + 옵션(2026-11-23) + 박스(2026-11-26 사용자 결정: 기본으로 켬 — 패킹 파일 SHEET1 E열 BOX(옵션별, 11-27), js/lib/pack-boxes.js)
-export const DEFAULT_ON = ['no', 'code', 'name', 'option', 'box', 'loc', 'cap', 'arr', 'conf', 'inDiff', 'stock', 'mibal', 'unres', 'pick', 'resv', 'flags'];
-// seen 이 없는 옛 저장값(v:1)이 알던 열 — 박스 열(2026-11-26) 앞의 COLS
-export const SEEN_BEFORE_BOX = COLS.filter(k => k !== 'box');
+//   + 공급처상품명(2026-11-27 기본 켬 — GIP 값, js/sup-names-store.js. 옛 저장값에는 seen 규칙으로 한 번 켜짐)
+export const DEFAULT_ON = ['no', 'code', 'name', 'option', 'sname', 'box', 'loc', 'cap', 'arr', 'conf', 'inDiff', 'stock', 'mibal', 'unres', 'pick', 'resv', 'flags'];
+// seen 이 없는 옛 저장값(v:1)이 알던 열 — 박스 열(2026-11-26) 앞의 COLS(그 뒤에 생긴 공급처상품명도 모른다)
+//   seen 이 있는 저장값(박스 ~ 공급처상품명 사이 저장)은 seen 에 'sname' 이 없으므로 같은 규칙으로 한 번 켜진다
+export const SEEN_BEFORE_BOX = COLS.filter(k => k !== 'box' && k !== 'sname');
 // 끌 수 없는 열 — 상품을 알아보는 코드·상품명·옵션, 입고확인(칸을 눌러 고친다)
 //   옵션은 2026-11-23 상품명 칸에서 나눴다(사용자 요청) — 예전에 저장한 칸 설정에도 보이게 필수로 둔다
 export const REQUIRED = ['code', 'name', 'option', 'conf'];

@@ -20,11 +20,12 @@
 import { escapeHtml, showConfirm } from './utils.js?v=65bb3512764f-e315797c';
 import { fmtHM, tabCounts, tabCarried, TABS, TAB_LABEL, fmtNum, canMark, tabMeta, dayLabel, rowLines, dayMessage, fmtGain, ROUTE_OUT_LABEL, ROUTE_OUT_HELP, locLabel, bulkDoneKeys, bulkUndoKeys, CARRIED_LABEL, qtyCellOf, PENDING_TEXT,
     shownTabs, fmtDaily1, BACK_TAB_HELP, BACK_GAIN_LABEL, BACK_SCORE_HELP, backReasonTitle, BLOCKED_LABEL, SKIP_HELP, holdRows, HOLD_ROW_LABEL, HOLD_UNDO_TEXT,
-    SIZE_FREE_LABEL, SIZE_FREE_HELP, sizeFreeShown, fmtMDHM } from './lib/locrec-view.js?v=0a665c750c65-fdf32cdb';
-import { NO_NAME, todayKey } from './locrec-store.js?v=618115ced44e-bd971fd0';
+    SIZE_FREE_LABEL, SIZE_FREE_HELP, sizeFreeShown, fmtMDHM } from './lib/locrec-view.js?v=b56633c4d6cf-fdf32cdb';
+import { NO_NAME, todayKey } from './locrec-store.js?v=04ce2fa80879-bd971fd0';
 import { higherOpenThan } from './modal-above.js?v=d7d701b363ef-215d273f';
-import { undoConfirmText } from './lib/locrec-apply.js?v=66b0140a3bb3-5def8df3';
-import { SORT_COLS, sortRows, nextSort, isLowStockRow, lineTotal } from './lib/locrec-sort.js?v=9ce27569c8c4-a7d96312';
+import { undoConfirmText } from './lib/locrec-apply.js?v=97d4b196868c-5def8df3';
+import { SORT_COLS, sortRows, nextSort, isLowStockRow, lineTotal } from './lib/locrec-sort.js?v=0dad920c4bfb-beea5dd6';
+import { loadAll as loadSupNames, supNameOf } from './sup-names-store.js?v=d105e6dca190-1f52465e';   // 공급처상품명 칸(2026-11-27 — 옵션 다음, 창을 처음 열 때 한 번)
 
 // location.html 의 #locrec-modal 과 같은 마크업(바꾸면 둘 다)
 const TEMPLATE = `
@@ -47,7 +48,7 @@ const TEMPLATE = `
             <div id="locrec-modal-meta" class="modal-meta" style="margin-bottom:8px;"></div>
             <div class="table-box locrec-table-wrap">
                 <table class="usage-table locrec-table">
-                    <thead><tr><th>순위</th><th title="누르면 데이터 리스트에서 그 상품 보기 — 맞바꾸기·페어는 두 줄(A/B)">상품코드</th><th>상품명</th><th>옵션</th><th>현재 로케이션</th><th>추천 로케이션</th><th title="옮길 수량(괄호는 비축 수량)">이동수량</th><th title="하루 평균 출고(개/일)">일출고</th><th title="하루에 덜 걷는 양(동·개/일)">이득</th><th title="이 줄만 처리하면 동선 점수(0~100)가 오르는 만큼">점수</th><th>상태</th><th>표시</th></tr></thead>
+                    <thead><tr><th>순위</th><th title="누르면 데이터 리스트에서 그 상품 보기 — 맞바꾸기·페어는 두 줄(A/B)">상품코드</th><th>상품명</th><th>옵션</th><th>공급처상품명</th><th>현재 로케이션</th><th>추천 로케이션</th><th title="옮길 수량(괄호는 비축 수량)">이동수량</th><th title="하루 평균 출고(개/일)">일출고</th><th title="하루에 덜 걷는 양(동·개/일)">이득</th><th title="이 줄만 처리하면 동선 점수(0~100)가 오르는 만큼">점수</th><th>상태</th><th>표시</th></tr></thead>
                     <tbody id="locrec-tbody"></tbody>
                 </table>
             </div>
@@ -59,8 +60,9 @@ let mounted = null;
 let sizeOfLoc = null;
 
 /** 표 창을 붙인다(한 탭에 한 번). → { open(), close(), isOpen(), render(), onClose(fn), el }
- *  sizeOf: 선택 — 행에 칸수(fromSize·toSize)가 없을 때 쓸 (자리 id) => 칸수. */
-export function mountLocRecTable({ store, sizeOf }) {
+ *  sizeOf: 선택 — 행에 칸수(fromSize·toSize)가 없을 때 쓸 (자리 id) => 칸수.
+ *  db: 선택 — 있으면 처음 열 때 공급처상품명(js/sup-names-store.js)을 읽는다(없거나 실패하면 그 칸은 빈칸). */
+export function mountLocRecTable({ store, sizeOf, db }) {
     if (typeof sizeOf === 'function') sizeOfLoc = sizeOf;
     if (mounted) return mounted;
     let modal = document.getElementById('locrec-modal');
@@ -226,6 +228,7 @@ export function mountLocRecTable({ store, sizeOf }) {
                 + `<td class="locrec-prod">${nameCell(l.name)}`
                 + (last && badges ? `<div class="locrec-badges">${badges}</div>` : '') + '</td>'
                 + `<td class="locrec-optcell">${escapeHtml(l.option || '')}</td>`
+                + `<td class="locrec-snamecell">${escapeHtml(supNameOf(String(l.code == null ? '' : l.code).trim()))}</td>`
                 + `<td class="locrec-loc locrec-from">${escapeHtml(fromTxt)}</td>`
                 + `<td class="locrec-loc"${toTitle}><b class="locrec-to">${escapeHtml(toTxt)}</b></td>`
                 + qtyCell(l)
@@ -253,7 +256,7 @@ export function mountLocRecTable({ store, sizeOf }) {
         return `<tr class="locrec-row tone-muted locrec-skipped locrec-hold">`
             + '<td class="locrec-rank"></td>'
             + `<td class="locrec-pcode">${escapeHtml(codes)}</td>`
-            + `<td class="locrec-prod" colspan="2">${escapeHtml('안 함으로 붙잡아 이번 판 추천에서 빠짐')}</td>`
+            + `<td class="locrec-prod" colspan="3">${escapeHtml('안 함으로 붙잡아 이번 판 추천에서 빠짐')}</td>`
             + `<td class="locrec-loc locrec-from">${escapeHtml(froms)}</td>`
             + `<td colspan="5" class="locrec-opt">${escapeHtml(`${until} 이 자리에서 옮기라고 하지 않음`)}</td>`
             + `<td class="locrec-state"><span class="locrec-st st-muted" title="${escapeHtml(SKIP_HELP)}">${escapeHtml(HOLD_ROW_LABEL)}</span></td>`
@@ -264,7 +267,7 @@ export function mountLocRecTable({ store, sizeOf }) {
     /** 칸수 무관 허용 목록(표 끝, '칸수 무관 N건 보기') — 머리 한 줄 + 상품마다 한 줄 [끄기]. inDay = 오늘 판에 그 상품 줄이 있나 */
     function sizeFreeHtml(S, list, inDay) {
         if (!list.length) return '';
-        const head = `<tr class="locrec-row tone-muted locrec-sf-head"><td colspan="13" class="locrec-opt" style="font-weight:600;">`
+        const head = `<tr class="locrec-row tone-muted locrec-sf-head"><td colspan="14" class="locrec-opt" style="font-weight:600;">`
             + `${escapeHtml(`${SIZE_FREE_LABEL} 허용 ${list.length}건 — (4)칸↔(2)칸으로 바꿔 추천합니다(끌 때까지 유지)`)}</td></tr>`;
         return head + list.map(x => {
             const busy = S.saving.has(store.sizeFreeBusyKey(x.code));
@@ -272,7 +275,7 @@ export function mountLocRecTable({ store, sizeOf }) {
             return `<tr class="locrec-row tone-muted locrec-sf-row">`
                 + '<td class="locrec-rank"></td>'
                 + `<td class="locrec-pcode">${escapeHtml(x.code)}</td>`
-                + `<td class="locrec-prod" colspan="2">${escapeHtml(inDay.has(x.code) ? '오늘 추천 표에 있음' : '오늘 추천 표에 없음')}</td>`
+                + `<td class="locrec-prod" colspan="3">${escapeHtml(inDay.has(x.code) ? '오늘 추천 표에 있음' : '오늘 추천 표에 없음')}</td>`
                 + `<td colspan="6" class="locrec-opt">${escapeHtml(`${who} 허용`)}</td>`
                 + `<td class="locrec-state"><span class="locrec-st st-muted" title="${escapeHtml(SIZE_FREE_HELP)}">${escapeHtml(SIZE_FREE_LABEL)}</span></td>`
                 + `<td class="locrec-acts"></td><td class="locrec-sfcol">${sfToggle(x.code, true, busy)}</td></tr>`;
@@ -319,7 +322,7 @@ export function mountLocRecTable({ store, sizeOf }) {
         const kept = shown.filter(x => keepRow(x.r));
         if (mLowCnt) mLowCnt.textContent = lowOn && shown.length !== kept.length ? `(${shown.length - kept.length}건 뺌)` : '';
         const rows = sortRows(kept.map((x, i) => ({ ...x, i0: shown.indexOf(x) })),
-            sort, { qtyWithReserve, lines: rowLines });
+            sort, { qtyWithReserve, lines: rowLines, supName: supNameOf });
         if (thead) thead.innerHTML = `<tr>${headHtml()}</tr>`;
         mSkip.checked = showSkipped;
         mSkipWrap.hidden = !(hiddenN || showSkipped);
@@ -361,19 +364,23 @@ export function mountLocRecTable({ store, sizeOf }) {
             mMeta.textContent = '';
             const t = (S.latest && dayMessage(store.entryOf(S.key)))
                 || S.dayErr || (S.latestErr ? `추천 상태를 읽지 못했습니다(${S.latestErr})` : '') || '표 불러오는 중…';
-            mTbody.innerHTML = `<tr><td colspan="13" class="refill-empty">${escapeHtml(t)}</td></tr>` + sfPart;
+            mTbody.innerHTML = `<tr><td colspan="14" class="refill-empty">${escapeHtml(t)}</td></tr>` + sfPart;
             return;
         }
         mMeta.textContent = tabMeta(tab, all) + (tab === 'back' ? ` · ${BACK_TAB_HELP}` : '') + (editable ? '' : ' · 지난 날짜는 볼 수만 있습니다');
         const holdPart = showSkipped ? holds.map(h => holdHtml(S, h)).join('') : '';
         if (!rows.length && !holdPart) {
-            mTbody.innerHTML = `<tr><td colspan="13" class="refill-empty">${escapeHtml(cnt[tab] || cry[tab] || holds.length ? (blockedN ? `모두 안 함·${BLOCKED_LABEL}으로 숨겼습니다` : '모두 안 함으로 숨겼습니다') : `${TAB_LABEL[tab]} 추천이 없습니다`)}</td></tr>` + sfPart;
+            mTbody.innerHTML = `<tr><td colspan="14" class="refill-empty">${escapeHtml(cnt[tab] || cry[tab] || holds.length ? (blockedN ? `모두 안 함·${BLOCKED_LABEL}으로 숨겼습니다` : '모두 안 함으로 숨겼습니다') : `${TAB_LABEL[tab]} 추천이 없습니다`)}</td></tr>` + sfPart;
             return;
         }
         mTbody.innerHTML = rows.map((x, i) => rowHtml(S, x.r, x.st, i, editable, !!pd, x.i0, allowed)).join('') + holdPart + sfPart;
     }
 
-    function open() { modal.style.display = 'flex'; render(); }
+    let supP = null;   // 공급처상품명 — 처음 열 때 한 번(받은 문서는 store 가 캐시, 못 받았으면 다음 열 때 다시)
+    function open() {
+        modal.style.display = 'flex'; render();
+        if (db && !supP) supP = loadSupNames(db).then((m) => { if (!m || !m.size) supP = null; else render(); });
+    }
     function close() {
         const was = isOpen();
         modal.style.display = 'none';

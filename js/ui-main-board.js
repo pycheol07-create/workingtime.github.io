@@ -7,10 +7,10 @@ import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=152edbc1d09a-
 import { getLeaveDisplayLabel } from './ui-main-utils.js?v=a649174fd12c-06309b7b';
 import { myWorkState, recentTasksFor } from './lib/my-work.js?v=470ecb003aaf-1a1aebb7';
 import { isLeaveActiveAt, isLeavePendingAt } from './lib/leave-timing.js?v=56494f977986-82fd27e6';
-import { isRefillTask, refillAllowed, refillProgressText, refillProgressTone, syncRefillDash } from './refill-dash.js?v=645fe513f7d4-1326a6ad';
-import { isLocRecTask, locRecAllowed, syncLocRecDash } from './locrec-dash.js?v=eba3d1164b19-852ed13e';
+import { isRefillTask, refillAllowed, refillProgressText, refillProgressTone, syncRefillDash } from './refill-dash.js?v=c77cf6053ec4-9d529bbc';
+import { isLocRecTask, locRecAllowed, syncLocRecDash } from './locrec-dash.js?v=d6015c8267c6-a54bc4d0';
 import { TASK, tName, isT } from './task-names.js?v=33eb5ccd69bc-26ab8ff7';
-import { setupQuickMenu } from './quick-menu.js?v=4f64ec2bb5e2-ac595a94';
+import { setupQuickMenu } from './quick-menu.js?v=41cee02b7554-ac595a94';
 import { setupPullRefresh } from './pull-refresh.js?v=daa0d8ec2d56-c48c56b1';
 
 // ===== 업무현황 카드 커버플로우(coverflow) 컨트롤러 =====

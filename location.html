@@ -909,6 +909,7 @@
         .locrec-table tr.locrec-sub > td { border-top: 1px dashed var(--c-line); }
         .locrec-table td.locrec-prod { min-width: 150px; }
         .locrec-table td.locrec-optcell { min-width: 70px; color: var(--c-text-2); }
+        .locrec-table td.locrec-snamecell { min-width: 70px; color: var(--c-text-2); }
         .locrec-table td.locrec-loc { width: 96px; white-space: nowrap; }
         .locrec-table td.locrec-num { width: 56px; text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
         .locrec-table td.locrec-rank { width: 40px; text-align: center; font-weight: 700; color: var(--c-accent-deep); }
@@ -995,7 +996,7 @@
             .refill-table td.refill-chk { width: 48px; height: 40px; }
             /* 휴대폰: 표가 화면 폭에 들어가게 — 최소 폭을 풀고 '누가·언제'(6번째 열) 를 숨긴다(css/refill-modal.css 와 같은 규칙) */
             #refill-modal .refill-table { min-width: 0; }
-            #refill-modal .refill-table th:nth-child(6), #refill-modal .refill-table td.refill-who { display: none; }
+            #refill-modal .refill-table th:nth-child(7), #refill-modal .refill-table td.refill-who { display: none; }
             .refill-chk input { width: 26px; height: 26px; }
             /* 지시서 표 창: 창은 화면에 고정하고 표 상자 안에서만 가로·세로 스크롤(창·페이지가 같이 밀리지 않게) */
             #refill-modal { overflow: hidden; overscroll-behavior: contain; }
@@ -1359,7 +1360,7 @@
             <div id="refill-modal-meta" class="modal-meta" style="margin-bottom:8px;"></div>
             <div class="table-box refill-table-wrap">
                 <table class="usage-table refill-table">
-                    <thead><tr><th>완료</th><th>피킹로케이션</th><th>비축위치</th><th>채울수량</th><th>비축재고</th><th>누가·언제</th></tr></thead>
+                    <thead><tr><th>완료</th><th>피킹로케이션</th><th title="GIP 상품 정보의 공급처상품명(영문·숫자 모양만). 빈칸 = 값 없음 또는 못 읽음">공급처상품명</th><th>비축위치</th><th>채울수량</th><th>비축재고</th><th>누가·언제</th></tr></thead>
                     <tbody id="refill-tbody"></tbody>
                 </table>
             </div>
@@ -1387,7 +1388,7 @@
             <div id="locrec-modal-meta" class="modal-meta" style="margin-bottom:8px;"></div>
             <div class="table-box locrec-table-wrap">
                 <table class="usage-table locrec-table">
-                    <thead><tr><th>순위</th><th title="누르면 데이터 리스트에서 그 상품 보기 — 맞바꾸기·페어는 두 줄(A/B)">상품코드</th><th>상품명</th><th>옵션</th><th>현재 로케이션</th><th>추천 로케이션</th><th title="옮길 수량(괄호는 비축 수량)">이동수량</th><th title="하루 평균 출고(개/일)">일출고</th><th title="하루에 덜 걷는 양(동·개/일)">이득</th><th title="이 줄만 처리하면 동선 점수(0~100)가 오르는 만큼">점수</th><th>상태</th><th>표시</th></tr></thead>
+                    <thead><tr><th>순위</th><th title="누르면 데이터 리스트에서 그 상품 보기 — 맞바꾸기·페어는 두 줄(A/B)">상품코드</th><th>상품명</th><th>옵션</th><th>공급처상품명</th><th>현재 로케이션</th><th>추천 로케이션</th><th title="옮길 수량(괄호는 비축 수량)">이동수량</th><th title="하루 평균 출고(개/일)">일출고</th><th title="하루에 덜 걷는 양(동·개/일)">이득</th><th title="이 줄만 처리하면 동선 점수(0~100)가 오르는 만큼">점수</th><th>상태</th><th>표시</th></tr></thead>
                     <tbody id="locrec-tbody"></tbody>
                 </table>
             </div>
@@ -1808,7 +1809,7 @@
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" integrity="sha384-vtjasyidUo0kW94K5MXDXntzOJpQgBKXmE7e2Ga4LG0skTTLeBi97eFAXsqewJjw" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-    <script type="module" src="js/location.js?v=3584240c5a76-086ec187"></script>
+    <script type="module" src="js/location.js?v=4aa1928c8396-cf2026f7"></script>
     <!-- 권한 개편 5단계: location.js 가 만든 window.* 위험 함수를 바깥에서 감싼다(반드시 location.js 다음) -->
     <script type="module" src="js/location-guard.js?v=ba9825ac51d6-f5212d38"></script>
     <script type="module" src="js/locdash-layout.js?v=2db0a0ac651c-bc6313c6"></script>
