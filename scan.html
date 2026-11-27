@@ -155,6 +155,11 @@
         .bx-name { flex: 1; min-width: 0; color: var(--c-text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .bx-sup { flex: 0 1 auto; max-width: 40%; min-width: 0; font-size: 12px; color: var(--c-text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .bx-sup:empty { display: none; }
+        /* (2026-11-27) 공급처상품명으로 찾기 */
+        .bx-box.bx-box-sup { font-size: 19px; word-break: break-all; }
+        .bx-supboxes { font-size: 24px; font-weight: 900; margin-top: 2px; }
+        .bx-ibox { flex-shrink: 0; padding: 1px 7px; border-radius: var(--r-pill); background: var(--c-track); color: var(--c-text); font-size: 13px; font-weight: 800; white-space: nowrap; }
+        .bx-pick.bx-pick-sup { min-width: 0; height: auto; min-height: 56px; padding: 6px 12px; font-size: 17px; word-break: break-all; }
         .bx-q { font-weight: 800; white-space: nowrap; color: var(--c-text-3); }
         .bx-q.bx-q-yes { color: var(--c-risk-text); font-size: 17px; }
         .bx-q.bx-q-unk { color: var(--c-text-2); }
@@ -341,11 +346,11 @@
         import { LOC_SCAN_COLL, buildLocScanDocs } from './js/lib/loc-scan-log.js?v=696b0986b508-7cdc6b24'; // 위치지정 건별 기록(문서 모양)
         import { connectEmulatorsIfEnabled } from './js/firebase-emulator.js?v=071adc2867a0-c60c17d2'; // 🧪 localhost + ?emu=1 일 때만 에뮬레이터(운영에서는 아무 일 안 함)
         import { escapeHtml } from './js/utils.js?v=65bb3512764f-e315797c';   // 대기열·배너에 상품명·바코드 등 넣을 때(2026-11-12 보안 점검)
-        import { setupScanBoxCheck } from './js/scan-boxcheck.js?v=a930487ffbe6-8f7296cf';   // (2026-11-27) 박스 확인 모드 — 읽기만
-        import { scanUrgentSet } from './js/lib/box-check.js?v=6dc90ab96df1-f0a046ea';   // (2026-11-27) 부족수량관리 '긴급' — 켜져 있을 때만 코드 Set
-        import { loadFor as loadSupNames, supNameOf } from './js/sup-names-store.js?v=d105e6dca190-1f52465e';   // (2026-11-27) 공급처상품명 — 선택 창·박스 확인 줄에 표시만(못 읽으면 빈칸)
+        import { setupScanBoxCheck } from './js/scan-boxcheck.js?v=96003f97ba8e-053bdf88';   // (2026-11-27) 박스 확인 모드 — 읽기만
+        import { scanUrgentSet } from './js/lib/box-check.js?v=e799768f294c-2f9c244b';   // (2026-11-27) 부족수량관리 '긴급' — 켜져 있을 때만 코드 Set
+        import { loadFor as loadSupNames, loadAll as loadAllSupNames, supNameOf } from './js/sup-names-store.js?v=d105e6dca190-1f52465e';   // (2026-11-27) 공급처상품명 — 선택 창·박스 확인 줄에 표시만(못 읽으면 빈칸)
 
-        const SCAN_VERSION = '10.12'; // 웹 배포 버전과 함께 올림 (china-stock-version.json의 web)
+        const SCAN_VERSION = '10.13'; // 웹 배포 버전과 함께 올림 (china-stock-version.json의 web)
 
         // ---------------- 서버 선택 (URL 파라미터 → 저장값 → 기본 config) ----------------
         const params = new URLSearchParams(location.search);
@@ -1676,8 +1681,10 @@
         $('status-line').textContent = `v${SCAN_VERSION} · 서버: ${serverLabel}`;
         setLocSubMode(locSubMode); // [Ver 4.1] 세부 작업 표시 — (2026-10-16) 열 때마다 '당일 입고분'으로 시작
         setMode(mode);
+        // (2026-11-27) supAll = 공급처상품명(GGS…-…)으로 박스 찾기 — 처음 필요할 때 한 번 loadAll
         try { boxChk = setupScanBoxCheck({ db, doc, getDoc, speak, camReady: () => !!(scanning && camTrack), grabPhoto: grabCamPhoto, urgent: () => scanUrgent,
-            supLoad: (codes) => loadSupNames(db, codes), supName: supNameOf }); } catch (e) { console.warn('[scan] 박스 확인 준비 실패', e); }   // [박스] 단추는 js/scan-boxcheck.js 가 연결
+            supLoad: (codes) => loadSupNames(db, codes), supName: supNameOf,
+            supAll: () => loadAllSupNames(db) }); } catch (e) { console.warn('[scan] 박스 확인 준비 실패', e); }   // [박스] 단추는 js/scan-boxcheck.js 가 연결
         checkVersion();
         // [Ver 10.7] 시작 정리 — 결과를 모른 채 남은 미발 확인(pending)을 맞추고, 못 푼 몫을 다시 푼다. 로그인 전이면 실패 → online·다음 시작 때
         resolvePendingHolds().finally(() => retryReleases());

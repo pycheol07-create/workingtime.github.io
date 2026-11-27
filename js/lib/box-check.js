@@ -318,3 +318,101 @@ export function enhanceGray(px) {
     }
     return { lo, hi };
 }
+
+// ── 공급처상품명(GGS…-…)으로 찾기(2026-11-27 사용자 요청) — 박스 라벨·입력에 'GGS907-PTF040' 같은 자체 품번이 있으면 ──
+//   ProductSupName(js/sup-names-store.js loadAll — 코드 → 이름) 을 거꾸로(이름 → 상품코드들, 옵션 여러 개) 보고,
+//   고른 패킹에서 그 상품들이 든 박스 번호를 보인다. 이름 모양은 js/lib/sup-names.js SUP_NAME_RE(쉼표로 이은 목록은 하나씩).
+//   실제로 있는 이름만 후보 — 사진 글자는 흔한 오인식(O↔0·I/L↔1·S↔5·B↔8·Z↔2·G↔6·A↔4)과 빠진 하이픈을 같은 글자로 본다.
+
+const SUP_ONE = /^GGS[0-9A-Z]+-[0-9A-Z-]+$/;
+const SUP_FIND = /GGS[0-9A-Z]+-[0-9A-Z-]+/g;
+const CANON = { O: '0', Q: '0', I: '1', L: '1', S: '5', B: '8', Z: '2', G: '6', A: '4' };
+/** 헷갈리는 글자를 한 글자로 맞추고 영문·숫자만 남긴 열쇠('GGS907-PTF040' → '665907PTF040' 의 대응) */
+const canonKey = (s) => String(s).toUpperCase().replace(/[^0-9A-Z]/g, '').replace(/[A-Z]/g, ch => CANON[ch] || ch);
+
+/**
+ * 코드 → 이름 Map → { byName: Map(이름 → [코드…] 정렬), byCanon: Map(열쇠 → [이름…]), size }
+ * 이름이 'GGS1-A,GGS2-B' 처럼 여럿이면 하나씩 넣는다. 모양이 아닌 이름은 뺀다.
+ */
+export function supIndex(names) {
+    const byName = new Map(), byCanon = new Map();
+    if (names && typeof names.forEach === 'function') {
+        names.forEach((nm, code) => {
+            String(nm || '').split(',').map(x => x.trim().toUpperCase()).filter(x => SUP_ONE.test(x)).forEach(x => {
+                if (!byName.has(x)) byName.set(x, []);
+                if (!byName.get(x).includes(code)) byName.get(x).push(code);
+            });
+        });
+    }
+    byName.forEach((codes, nm) => {
+        codes.sort();
+        const k = canonKey(nm);
+        if (!byCanon.has(k)) byCanon.set(k, []);
+        byCanon.get(k).push(nm);
+    });
+    return { byName, byCanon, size: byName.size };
+}
+
+/** 글자에 공급처상품명처럼 보이는 것이 있나(자료를 불러올지 정할 때 — 'GGS' 나 그 오인식 '665'·'G6S' 등 + 하이픈/긴 조각) */
+export function looksSup(text) {
+    const t = String(text == null ? '' : text).normalize('NFKC').toUpperCase();
+    return /[G6][G6][S5][0-9A-Z]/.test(t);
+}
+
+/**
+ * 글자 → 공급처상품명 후보 [{ name, codes, score, fixed, raw }] (점수 높은 순, 최대 max개). 자료(supIdx)에 있는 이름만.
+ *   raw = 글자에서 그 이름으로 본 조각(박스 번호 찾기에서 빼려고). 그대로 맞으면 fixed false, 오인식·하이픈 보정이면 true.
+ */
+export function supCandidates(text, sidx, max = 4) {
+    const t = String(text == null ? '' : text).normalize('NFKC').toUpperCase();
+    if (!t.trim() || !sidx || !sidx.size) return [];
+    const best = new Map();
+    const put = (name, score, fixed, raw) => {
+        const cur = best.get(name);
+        if (!cur || score > cur.score) best.set(name, { name, codes: sidx.byName.get(name), score, fixed, raw });
+    };
+    t.split(/[\s,]+/).filter(Boolean).forEach(tok => {
+        const clean = tok.replace(/[^0-9A-Z~-]/g, '');
+        // ① 그대로(앞뒤 잡글자 떼고)
+        (clean.match(SUP_FIND) || []).forEach(m => { if (sidx.byName.has(m)) put(m, 30, false, tok); });
+        // ② 헷갈리는 글자·빠진 하이픈 — 열쇠로. 'GGS' 자리(열쇠 '665')부터 끝까지가 이름 하나와 같아야 한다
+        const c = canonKey(clean);
+        for (let i = c.indexOf('665'); i >= 0; i = c.indexOf('665', i + 1)) {
+            (sidx.byCanon.get(c.slice(i)) || []).forEach(nm => { if (!best.has(nm) || best.get(nm).score < 30) put(nm, i === 0 ? 20 : 18, true, tok); });
+        }
+    });
+    return [...best.values()].sort((a, b) => (b.score - a.score) || (a.name < b.name ? -1 : a.name > b.name ? 1 : 0)).slice(0, max);
+}
+
+/** 박스 번호 표(boxIndex) → Map(코드 → [박스…] 정렬) */
+export function codeBoxes(idx) {
+    const out = new Map();
+    (idx || new Map()).forEach((packs, box) => {
+        packs.forEach(p => (p.codes || []).forEach(code => {
+            if (!out.has(code)) out.set(code, []);
+            if (!out.get(code).includes(box)) out.get(code).push(box);
+        }));
+    });
+    out.forEach(list => list.sort(cmpBox));
+    return out;
+}
+
+/**
+ * 공급처상품명 하나 → 고른 패킹에서의 자리. codes = 그 이름의 상품코드들(옵션).
+ * @returns {{ codes:string[], inPack:string[], boxes:string[], byCode:Object<string,string[]> }}
+ *   inPack = 이 패킹에 든 옵션, boxes = 그 옵션들이 든 박스(정렬), byCode = 옵션별 박스
+ */
+export function supPlace(codes, cbox) {
+    const list = [...new Set(codes || [])];
+    const byCode = {}, boxes = new Set();
+    const inPack = list.filter(c => cbox && cbox.has(c));
+    inPack.forEach(c => { byCode[c] = cbox.get(c).slice(); cbox.get(c).forEach(b => boxes.add(b)); });
+    return { codes: list, inPack, boxes: [...boxes].sort(cmpBox), byCode };
+}
+
+/** 글자에서 공급처상품명으로 본 조각을 뺀 나머지(박스 번호는 나머지에서만 찾는다 — 'GGS1-A1' 의 'A1' 을 박스로 보지 않게) */
+export function withoutSup(text, cands) {
+    let t = String(text == null ? '' : text).normalize('NFKC').toUpperCase();
+    (cands || []).forEach(c => { if (c && c.raw) t = t.split(c.raw).join(' '); });
+    return t.replace(/[ 	]+/g, ' ').trim();   // 줄바꿈은 남긴다 — 사진 후보 점수가 '그 줄에 혼자'를 본다(리뷰)
+}

@@ -15,10 +15,14 @@
 //   · 긴급(2026-11-27): 부족수량관리 '긴급'(mibal2/urgent, enabled 일 때만)인 상품이 박스에 있으면 맨 위에 빨강 '긴급 N종 포함' + 음성 '긴급'.
 //   · 공급처상품명(2026-11-27): 결과 줄 이름 옆에 작게 — scan.html 이 넘긴 supLoad(박스 안 코드가 든 문서만)·supName. 미발 판정과 따로,
 //     기다리지 않는다(먼저 그리고 받으면 그 칸만 채움). 못 읽으면 빈칸.
-// scan.html 은 setupScanBoxCheck({ db, doc, getDoc, speak, camReady, grabPhoto, supLoad, supName }) 한 번 부르고, onScan 에서 isOn() 이면 check(raw) 로 넘긴다.
+//   · 공급처상품명으로 찾기(2026-11-27 사용자 요청): 입력칸·블루투스 스캐너·사진 글자에 'GGS…-…' 가 있으면 ProductSupName 을 거꾸로
+//     (이름 → 상품코드들) 보고 고른 패킹에서 그 상품들이 든 박스·미발을 보인다. 자료는 처음 필요할 때 supAll(loadAll) 한 번(이 화면 동안 기억).
+//     박스 번호 후보와 공급처상품명 후보가 같이 나오면 둘 다 단추로(자동 확정 없음). 판단은 js/lib/box-check.js supCandidates·supPlace.
+// scan.html 은 setupScanBoxCheck({ db, doc, getDoc, speak, camReady, grabPhoto, supLoad, supName, supAll }) 한 번 부르고, onScan 에서 isOn() 이면 check(raw) 로 넘긴다.
 import { parsePackBoxes } from './lib/pack-boxes.js?v=9e13a65b0cb3-3b57fd51';
 import { boxIndex, findBox, boxReport, packChoices, pickPack, scanDbRows, mapLimit,
-    padLetters, padMatches, ocrCandidates, ocrScale, enhanceGray } from './lib/box-check.js?v=6dc90ab96df1-f0a046ea';
+    supIndex, looksSup, supCandidates, codeBoxes, supPlace, withoutSup,
+    padLetters, padMatches, ocrCandidates, ocrScale, enhanceGray } from './lib/box-check.js?v=e799768f294c-2f9c244b';
 import { escapeHtml as esc } from './utils.js?v=65bb3512764f-e315797c';
 
 // 글자 인식(Tesseract.js 5.1.1) — vendor/tesseract/(npm 공식 tarball 그대로, sha256 은 vendor/tesseract/SHA256SUMS.txt).
@@ -131,7 +135,8 @@ const hhmm = (d) => d.toTimeString().slice(0, 5);
 /**
  * @param {{ db:object, doc:Function, getDoc:Function, speak?:(t:string)=>void,
  *           camReady?:()=>boolean, grabPhoto?:()=>Promise<Blob|null>, urgent?:()=>Set<string>,
- *           supLoad?:(codes:string[])=>Promise<any>, supName?:(code:string)=>string }} o
+ *           supLoad?:(codes:string[])=>Promise<any>, supName?:(code:string)=>string, supAll?:()=>Promise<Map<string,string>> }} o
+ *   supAll = 공급처상품명 전부(js/sup-names-store.js loadAll — 코드 → 이름). 없으면 공급처상품명으로 찾기를 하지 않는다
  *   supLoad·supName = 공급처상품명(js/sup-names-store.js loadFor·supNameOf). 없으면 칸을 그리지 않는다
  *   urgent = 지금 긴급 상품코드(scan.html 이 mibal2/urgent 를 구독 — 꺼짐·못 읽음이면 빈 Set)
  *   camReady·grabPhoto = 스캐너 카메라가 켜져 있으면 지금 프레임(scan.html 수동 촬영과 같은 방법). 없으면 폰 카메라 사진 고르기
@@ -155,6 +160,8 @@ export function setupScanBoxCheck(o) {
     let manual = false;       // 이번에 켠 동안 사람이 패킹을 직접 골랐다(그동안은 자동으로 안 바꿈)
     let newer = false;
     let idx = new Map();
+    let cbox = new Map();     // 상품코드 → 이 패킹에서 든 박스들(공급처상품명으로 찾기)
+    let supIdxP = null;       // Promise<supIndex | null> — 처음 필요할 때 한 번(실패·빈 자료면 다음에 다시)
     let seq = 0;              // 늦게 끝난 앞 확인이 새 결과를 덮지 않게
     let last = { raw: '', at: 0 };
     let photoBusy = false;
@@ -170,6 +177,7 @@ export function setupScanBoxCheck(o) {
     function rebuild() {
         const p = curPack();
         idx = p && !p.err ? boxIndex([{ key: p.key, tag: '', b: p.b }]) : new Map();
+        cbox = codeBoxes(idx);
         renderPad();
     }
 
@@ -197,6 +205,11 @@ export function setupScanBoxCheck(o) {
         const okKey = pad ? pad.querySelector('[data-k="ok"]') : null;
         if (okKey) okKey.classList.toggle('bx-ready', !!(m.one || m.exact));
         if (!v) { padHint.innerHTML = idx.size ? '<span class="bx-hint-dim">번호를 누르세요</span>' : ''; return; }
+        if (o.supAll && looksSup(v)) {
+            if (okKey) okKey.classList.add('bx-ready');
+            padHint.innerHTML = '<span class="bx-hint-one">공급처상품명으로 찾기 — [확인]</span>';
+            return;
+        }
         if (!m.list.length) { padHint.innerHTML = `<span class="bx-hint-warn">${esc(v.toUpperCase())} — 이 패킹에 없는 번호</span>`; return; }
         padHint.innerHTML = m.list.map(b => `<button type="button" class="bx-chip${b === m.one ? ' bx-chip-one' : b === m.exact ? ' bx-chip-exact' : ''}" data-box="${esc(b)}">${esc(b)}</button>`).join('')
             + (m.more ? `<span class="bx-hint-dim">외 ${num(m.more)}개</span>` : '')
@@ -223,6 +236,7 @@ export function setupScanBoxCheck(o) {
         const v = input.value.trim().toUpperCase();
         const m = padMatches(v, idx);
         const typed = v.length <= 5 && /^[0-9]*[A-Z]*\d*$/.test(v);
+        if (o.supAll && looksSup(v)) { submitInput(); return; }   // 공급처상품명은 글자 그대로 확인
         if (m.exact) { pickBox(m.exact); return; }
         if (typed && m.one) { pickBox(m.one); return; }
         submitInput();
@@ -231,6 +245,21 @@ export function setupScanBoxCheck(o) {
         input.value = '';
         updateHint();
         check(b, { manual: true, pick: b }).finally(() => focusInput());
+    }
+    function pickSup(name) {
+        input.value = '';
+        updateHint();
+        check(name, { manual: true, sup: name }).finally(() => focusInput());
+    }
+    /** 공급처상품명 거꾸로 표 — 처음 부를 때 loadAll 한 번. 못 읽음·빈 자료면 null(다음에 다시) */
+    function getSupIdx() {
+        if (!o.supAll) return Promise.resolve(null);
+        if (!supIdxP) {
+            const mine = supIdxP = Promise.resolve().then(() => o.supAll()).then(m => { const si = supIndex(m); return si.size ? si : null; })
+                .catch(() => null);
+            mine.then(si => { if (!si && supIdxP === mine) supIdxP = null; });
+        }
+        return supIdxP;
     }
     function fillPacks() {
         const cs = choices();
@@ -331,7 +360,8 @@ export function setupScanBoxCheck(o) {
         });
     }
 
-    function showHit(box, packs, raw, weak, results) {
+    /** sup = { name, place(supPlace) } 이면 공급처상품명 결과(제목 = 이름 · 박스들, 줄마다 그 옵션의 박스) */
+    function showHit(box, packs, raw, weak, results, sup) {
         // 긴급(mibal2/urgent, 켜져 있을 때만 — 꺼져 있으면 빈 Set 이라 예전 화면과 같다). 미발 판정과 따로
         let urgent = null;
         try { urgent = o.urgent ? o.urgent() : null; } catch (e) { urgent = null; }
@@ -345,12 +375,15 @@ export function setupScanBoxCheck(o) {
         const say = has ? `미발 있음 ${num(rep.mibalCodes)}종 · ${num(rep.mibalQty)}개`
             : rep.unknown > 0 ? `확인 못 함 ${num(rep.unknown)}종`
             : allNoDoc ? '스캐너 목록에 없음 — 반영 여부 확인' : '미발 없음';
-        const sub = `${esc(curLabel())} · 박스 안 ${num(rep.total)}종`
+        const sub = (sup ? `옵션 ${num(sup.place.codes.length)}개`
+                + (sup.place.inPack.length < sup.place.codes.length ? `(이 패킹 ${num(sup.place.inPack.length)}개)` : '') + ` · ${esc(curLabel())}`
+            : `${esc(curLabel())} · 박스 안 ${num(rep.total)}종`)
             + (rep.unknown ? ` · 확인 못 함 ${num(rep.unknown)}종(${navigator.onLine === false ? '오프라인' : '읽기 실패'})` : '');
         const warn = weak ? `<div class="bx-warn">라벨 글자 '${esc(raw)}' 에서 ${esc(box)}번으로 읽었습니다 — 라벨의 박스 번호와 맞는지 확인하세요</div>` : '';
         const urgLine = urg ? `<div class="bx-urgent-top">${has ? `긴급 ${num(rep.urgentCodes)}종 포함` : `긴급 상품 있음 ${num(rep.urgentCodes)}종(미발 없음)`}</div>` : '';
         let h = banner(has ? 'bx-yes' : unsure ? 'bx-ask' : 'bx-no',
-            `${urgLine}<div class="bx-box">${esc(box)}번 박스</div><div class="bx-say">${say}</div>`, sub, warn);
+            `${urgLine}${sup ? `<div class="bx-box bx-box-sup">${esc(sup.name)}</div><div class="bx-supboxes">박스 ${esc(sup.place.boxes.join(', '))}</div>`
+                : `<div class="bx-box">${esc(box)}번 박스</div>`}<div class="bx-say">${say}</div>`, sub, warn);
         const items = rep.packs.flatMap(p => p.items);
         if (items.length) {
             h += '<ul class="bx-list">' + items.map(x => {
@@ -358,7 +391,8 @@ export function setupScanBoxCheck(o) {
                     : x.mibal > 0 ? `<span class="bx-q bx-q-yes">미발 ${esc(num(x.mibal))}</span>`
                     : x.noDoc ? '<span class="bx-q bx-q-nodoc">스캐너 목록에 없음</span>' : '<span class="bx-q">0</span>';
                 const cls = [x.mibal > 0 ? 'bx-hit' : '', x.urgent ? 'bx-urgent' : ''].filter(Boolean).join(' ');
-                return `<li class="${cls}">${x.urgent ? '<span class="bx-utag">긴급</span>' : ''}<span class="bx-code">${esc(x.code)}</span>`
+                const where = sup ? `<span class="bx-ibox">${esc((sup.place.byCode[x.code] || []).join(', '))}</span>` : '';
+                return `<li class="${cls}">${x.urgent ? '<span class="bx-utag">긴급</span>' : ''}<span class="bx-code">${esc(x.code)}</span>${where}`
                     + `<span class="bx-name">${x.name ? esc(x.name) : ''}</span>`
                     + (o.supLoad ? `<span class="bx-sup" data-code="${esc(x.code)}">${esc(supOf(x.code))}</span>` : '') + right + '</li>';
             }).join('') + '</ul>';
@@ -369,9 +403,45 @@ export function setupScanBoxCheck(o) {
             try { if (o.speak) o.speak(urg ? (has ? '긴급 미발' : '긴급') : '미발'); } catch (e) { /* 무시 */ }
             try { navigator.vibrate(urg ? [150, 80, 150] : 150); } catch (e) { /* 무시 */ }
         }
-        addHist(`${box}번`, (urg ? `긴급 ${num(rep.urgentCodes)}종 · ` : '')
+        addHist(sup ? `${sup.name} · 박스 ${sup.place.boxes.join(', ')}` : `${box}번`, (urg ? `긴급 ${num(rep.urgentCodes)}종 · ` : '')
             + (has ? `미발 ${num(rep.mibalCodes)}종 · ${num(rep.mibalQty)}개` : rep.unknown > 0 ? `확인 못 함 ${num(rep.unknown)}종` : allNoDoc ? '스캐너 목록에 없음' : '미발 없음'),
             has || urg ? 'bx-h-yes' : unsure ? 'bx-h-ask' : 'bx-h-no');
+    }
+
+    /** 후보 단추 — boxes = [{ box, fixed }], sups = supCandidates 결과. 하나뿐이어도 사람이 눌러야 확인 */
+    function showChoices(say, sub, boxes, sups, histLabel) {
+        const fixed = boxes.some(c => c.fixed) || sups.some(c => c.fixed);
+        out.innerHTML = banner('bx-ask', `<div class="bx-say">${esc(say)}</div>`,
+            `${sub}${fixed ? " · '보정' = 헷갈리는 글자를 바꿔 맞춘 것" : ''}`,
+            `<div class="bx-choices">${boxes.map(c => `<button type="button" class="bx-pick bx-pick-big" data-box="${esc(c.box)}">${esc(c.box)}번${c.fixed ? '<small> 보정</small>' : ''}</button>`).join('')}`
+            + `${sups.map(c => `<button type="button" class="bx-pick bx-pick-sup" data-sup="${esc(c.name)}">${esc(c.name)}<small> 공급처상품명${c.fixed ? ' · 보정' : ''}</small></button>`).join('')}</div>`
+            + '<div class="bx-sub">없으면 다시 찍거나 자판으로 넣으세요</div>');
+        out.querySelectorAll('[data-box]').forEach(b => b.addEventListener('click', () => pickBox(b.dataset.box)));
+        out.querySelectorAll('[data-sup]').forEach(b => b.addEventListener('click', () => pickSup(b.dataset.sup)));
+        scrollResult();
+        addHist(histLabel, `후보 ${[...boxes.map(c => c.box), ...sups.map(c => c.name)].join(', ')}`, 'bx-h-ask');
+    }
+
+    /** 공급처상품명 하나 → 고른 패킹의 박스들 + 미발. my = 이 확인의 순번 */
+    async function showSup(name, s, my) {
+        const si = await getSupIdx();
+        if (my !== seq) return;
+        if (!si) { ask('공급처상품명 자료를 읽지 못했습니다', '박스 번호로 넣어 주세요.', s, '공급처상품명 못 읽음'); return; }
+        const codes = si.byName.get(name) || [];
+        const place = supPlace(codes, cbox);
+        if (!place.inPack.length) {
+            ask('이 패킹에 없는 공급처상품명입니다', `${name} · 옵션 ${num(codes.length)}개 — 고른 패킹(${curLabel()})이 맞는지 확인하세요.`, name, '패킹에 없음');
+            return;
+        }
+        out.innerHTML = banner('bx-ask', `<div class="bx-box bx-box-sup">${esc(name)}</div><div class="bx-say">미발 확인 중…</div>`, '');
+        scrollResult();
+        const supP = supStart(place.inPack);
+        const results = await readCodes(place.inPack);
+        if (my !== seq) return;
+        const p = curPack();
+        showHit('', [{ tag: '', key: p ? p.key : '', codes: place.inPack }], s, false, results, { name, place });
+        fillSup(supP, my);
+        scrollResult();
     }
 
     /** 박스 번호 자료·고른 패킹이 아직 판정할 수 없으면 안내를 띄우고 true */
@@ -415,19 +485,17 @@ export function setupScanBoxCheck(o) {
                 prep(Math.round(m.progress * 100));
             });
             if (stale()) return;
-            const cands = ocrCandidates(text, idx);
-            if (!cands.length) {
+            // 공급처상품명처럼 보이면 그 자료(처음 한 번)로 후보를 찾고, 박스 번호는 그 조각을 뺀 나머지에서
+            const si = looksSup(text) ? await getSupIdx() : null;
+            if (stale()) return;
+            const sups = si ? supCandidates(text, si) : [];
+            const cands = ocrCandidates(sups.length ? withoutSup(text, sups) : text, idx);   // 이름 후보가 없으면 원문 그대로(줄 정보 유지 — 리뷰)
+            if (!cands.length && !sups.length) {
                 ask('읽지 못했습니다 — 자판으로 넣어 주세요', '라벨 번호가 크고 반듯하게 나오게 다시 찍거나, 아래 자판으로 번호를 넣으세요.', '사진', '못 읽음');
                 return;
             }
-            const fixedNote = cands.some(c => c.fixed) ? " · '보정' = 헷갈리는 글자를 바꿔 맞춘 번호" : '';
-            out.innerHTML = banner('bx-ask', '<div class="bx-say">라벨과 같은 번호를 누르세요</div>',
-                `사진에서 읽은 번호 중 ${esc(curLabel())} 에 있는 것만${fixedNote}`,
-                `<div class="bx-choices">${cands.map(c => `<button type="button" class="bx-pick bx-pick-big" data-box="${esc(c.box)}">${esc(c.box)}번${c.fixed ? '<small> 보정</small>' : ''}</button>`).join('')}</div>`
-                + '<div class="bx-sub">없으면 다시 찍거나 자판으로 넣으세요</div>');
-            out.querySelectorAll('[data-box]').forEach(b => b.addEventListener('click', () => pickBox(b.dataset.box)));
-            scrollResult();
-            addHist('사진', `후보 ${cands.map(c => c.box).join(', ')}`, 'bx-h-ask');
+            showChoices(sups.length ? '라벨과 같은 것을 누르세요' : '라벨과 같은 번호를 누르세요',
+                `사진에서 읽은 것 중 ${esc(curLabel())} 에 있는 번호${sups.length ? '·자료에 있는 공급처상품명' : ''}만`, cands, sups, '사진');
         } catch (e) {
             console.warn('[scan-box] 사진 읽기 실패', (e && e.message) || '');
             if (!stale()) ask('읽지 못했습니다 — 자판으로 넣어 주세요',
@@ -466,7 +534,26 @@ export function setupScanBoxCheck(o) {
         const my = ++seq;
         try {
             if (notReady(s)) return;
-            const r = opt.pick && idx.has(opt.pick) ? { status: 'hit', box: opt.pick, packs: idx.get(opt.pick), weak: false } : findBox(s, idx);
+            if (opt.sup) { await showSup(opt.sup, s, my); return; }
+            // 공급처상품명처럼 보이면(GGS…-…) 자료를 불러와 후보를 찾고, 박스 번호는 그 조각을 뺀 나머지에서만
+            let sups = [], supFail = false;
+            if (!opt.pick && o.supAll && looksSup(s)) {
+                out.innerHTML = banner('bx-ask', '<div class="bx-say">공급처상품명 찾는 중…</div>', '처음 한 번 자료를 받습니다');
+                const si = await getSupIdx();
+                if (my !== seq) return;
+                if (si) sups = supCandidates(s, si); else supFail = true;
+            }
+            const rest = sups.length ? withoutSup(s, sups) : s;
+            const r = opt.pick && idx.has(opt.pick) ? { status: 'hit', box: opt.pick, packs: idx.get(opt.pick), weak: false }
+                : rest ? findBox(rest, idx) : { status: 'none', candidates: [] };
+            if (sups.length) {
+                const boxes = r.status === 'hit' ? [r.box] : r.status === 'many' ? r.choices : [];
+                // 그대로 맞은 이름 하나뿐(박스 번호 후보 없음) = 사람이 넣은 그 이름 → 바로 결과. 그 밖은 고르게
+                if (!boxes.length && sups.length === 1 && !sups[0].fixed) { await showSup(sups[0].name, s, my); return; }
+                showChoices('박스 번호와 공급처상품명이 같이 읽힙니다 — 고르세요', `${esc(curLabel())} 기준`,
+                    boxes.map(b => ({ box: b, fixed: false })), sups, s);
+                return;
+            }
             if (r.status === 'hit') {
                 out.innerHTML = banner('bx-ask', `<div class="bx-box">${esc(r.box)}번 박스</div><div class="bx-say">미발 확인 중…</div>`, '');
                 scrollResult();
@@ -486,6 +573,12 @@ export function setupScanBoxCheck(o) {
             } else if (r.status === 'empty') {
                 ask('이 패킹에 박스 번호 자료가 없습니다', '다른 패킹을 고르세요.', s, '자료 없음');
             } else {
+                if (looksSup(s) && o.supAll) {
+                    ask(supFail ? '공급처상품명 자료를 읽지 못했습니다' : '자료에 없는 공급처상품명입니다',
+                        supFail ? '박스 번호로 넣어 주세요(잠시 뒤 다시 하면 다시 읽습니다).' : `읽은 글자: ${s} — 글자가 맞는지, 박스 번호로도 넣어 보세요.`,
+                        s, supFail ? '공급처상품명 못 읽음' : '없는 공급처상품명');
+                    return;
+                }
                 ask('이 패킹에 없는 박스 번호입니다',
                     `읽은 번호: ${r.candidates.length ? r.candidates.join(', ') : '없음'} — 고른 패킹(${curLabel()})이 맞는지, 라벨이 이 패킹 것인지 확인하세요.`,
                     s, '없는 박스');
