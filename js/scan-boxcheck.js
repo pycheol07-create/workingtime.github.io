@@ -14,9 +14,9 @@
 //     vendor/tesseract/ 에서 받는다(외부 요청 0 — 남의 서버 코드가 우리 출처(로그인 토큰이 있는 곳)에서 돌지 않게, 2026-11-27 리뷰).
 //   · 긴급(2026-11-27): 부족수량관리 '긴급'(mibal2/urgent, enabled 일 때만)인 상품이 박스에 있으면 맨 위에 빨강 '긴급 N종 포함' + 음성 '긴급'.
 // scan.html 은 setupScanBoxCheck({ db, doc, getDoc, speak, camReady, grabPhoto }) 한 번 부르고, onScan 에서 isOn() 이면 check(raw) 로 넘긴다.
-import { parsePackBoxes } from './lib/pack-boxes.js?v=3043c07f5de0-7d49b72c';
+import { parsePackBoxes } from './lib/pack-boxes.js?v=9e13a65b0cb3-3b57fd51';
 import { boxIndex, findBox, boxReport, packChoices, pickPack, scanDbRows, mapLimit,
-    padLetters, padMatches, ocrCandidates, ocrScale, enhanceGray } from './lib/box-check.js?v=45b7aaad0f94-f0a046ea';
+    padLetters, padMatches, ocrCandidates, ocrScale, enhanceGray } from './lib/box-check.js?v=6dc90ab96df1-f0a046ea';
 import { escapeHtml as esc } from './utils.js?v=65bb3512764f-e315797c';
 
 // 글자 인식(Tesseract.js 5.1.1) — vendor/tesseract/(npm 공식 tarball 그대로, sha256 은 vendor/tesseract/SHA256SUMS.txt).

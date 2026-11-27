@@ -93,6 +93,16 @@ export function boxCount(rows) {
     return { total: all.size, mibal: mib.size };
 }
 
+/** 고른 출고일 패킹들의 전체 박스 수(패킹 파일에 적힌 모든 상품의 박스 — 표에 없는 상품 박스도 포함). 패킹이 다르면 따로 센다.
+ *  on = packsOn 결과. 위 합계 '박스 합'의 필터 없을 때 값(2026-11-27 사용자 요청 — 다른 합계처럼 기본은 전체) */
+export function totalBoxes(on) {
+    const all = new Set();
+    (on || []).forEach(p => {
+        Object.keys(p.b || {}).forEach(code => expandText(p.b[code]).forEach(l => all.add(p.tag ? `${p.tag}: ${l}` : l)));
+    });
+    return all.size;
+}
+
 export function boxesFor(code, dates, parsed, on = null) {
     const ps = on || packsOn(dates, parsed);
     const texts = [], list = [];

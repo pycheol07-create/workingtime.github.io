@@ -58,10 +58,10 @@ import { liveDatesFrom } from './lib/mibal2-rows.js?v=b62da5fac598-c3562b36';
 import { stableSig, ARCHIVE_COLL } from './lib/mibal2-live.js?v=7ccac6277373-d7d6b954';
 import { bestShipOf, mismatchLine, codeListText } from './lib/ship-mismatch.js?v=18b1bfe6bfc0-42172506';   // 출고일 불일치(2026-11-10)
 import { rowPasses, optionsFor, activeFilterCount, toStored, toChecked } from './lib/mibal2-filter.js?v=b356e616ebb6-06950e11';   // 열 필터(2026-11-26)
-import { parsePackBoxes, packsOn, boxesFor, boxSortVal, cmpBoxSort, failedPacks, boxCount } from './lib/pack-boxes.js?v=3043c07f5de0-7d49b72c';   // 박스 열(2026-11-26 — 패킹봇 box_sync 가 쓴 integrations/packBoxes)
+import { parsePackBoxes, packsOn, boxesFor, boxSortVal, cmpBoxSort, failedPacks, boxCount, totalBoxes } from './lib/pack-boxes.js?v=9e13a65b0cb3-3b57fd51';   // 박스 열(2026-11-26 — 패킹봇 box_sync 가 쓴 integrations/packBoxes)
 // [박스 확인] 창은 2026-11-27 이 화면에서 뺐다(파일 js/mibal2-boxcheck.js 도 지움) — 입고 스캐너로 옮김(판정은 js/lib/box-check.js 그대로)
 import { openFloatingFilter, closeFloatingFilter } from './table-filter.js?v=fd197c3531ef-b92b1b78';
-import { createUrgentUi } from './china-mibal2-urgent.js?v=7c79b697e702-9f1b86d3';   // 긴급 상품 표시·선택(2026-11-27 — 쓰기는 live 모듈, 문서 mibal2/urgent)
+import { createUrgentUi } from './china-mibal2-urgent.js?v=eb688f45d3b3-81c9d293';   // 긴급 상품 표시·선택(2026-11-27 — 쓰기는 live 모듈, 문서 mibal2/urgent)
 import { writeXls } from './lib/xls-limits.js?v=64b8f5a113a9-e512cb8a';
 import { readHash, writeHash, onHashNav } from './hash-state.js?v=41d515385973-40fe10fb';   // live 때만 씀(빠른 이동 #tab=mibal|location)
 import { refreshDoneAuto, claimOk, claimMine, autoStopText, serverBatchOpen, AUTO_CLAIM_KEY, AUTO_TOAST_MS } from './lib/mibal2-auto-apply.js?v=594903dc6df2-338fd92d';
@@ -614,7 +614,8 @@ function renderSummary() {
     const s = summarize(viewRows);
     $('sum-sku').textContent = s.sku;
     $('sum-arrival').textContent = s.arr.toLocaleString();
-    { const bc = boxCount(viewRows); const el = $('sum-box'); if (el) { el.textContent = packBoxes ? bc.total.toLocaleString() : '–'; const sub = $('sum-box-note'); if (sub) sub.textContent = packBoxes && bc.total ? `미발 포함 ${bc.mibal.toLocaleString()}` : ''; } }
+    // 박스 합 — 필터 없으면 고른 출고일 패킹의 전체 박스 수, 거르면 보이는 행의 박스 수(다른 합계와 같이). 미발 포함은 늘 보이는 행 기준
+    { const bc = boxCount(viewRows); const filtered = viewRows.length < allRows.length; const shown = filtered ? bc.total : totalBoxes(packsOn(selectedDates, packBoxes)); const el = $('sum-box'); if (el) { el.textContent = packBoxes ? shown.toLocaleString() : '–'; const sub = $('sum-box-note'); if (sub) sub.textContent = packBoxes && shown ? `미발 포함 ${bc.mibal.toLocaleString()}` : ''; } }
     $('sum-mibal').textContent = s.mibal.toLocaleString();
     $('sum-unres').textContent = s.unres.toLocaleString();
     $('sum-third').textContent = s.third.toLocaleString();

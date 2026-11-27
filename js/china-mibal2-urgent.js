@@ -1,7 +1,7 @@
 // === js/china-mibal2-urgent.js ===
 // 부족수량관리(신규) '긴급' 상품 화면(2026-11-27 사용자 요청) — 표시·선택·단추. 쓰기 함수는 없다(쓰기는 live 모듈 js/china-mibal2-live-urgent.js).
 // 필요할 때만 켜서 쓰는 기능: 문서 mibal2/urgent 의 enabled 가 true 일 때만 긴급 관련 화면이 나온다. 꺼져 있으면 표·머리줄은 예전 그대로이고,
-//   쓸 수 있는 사람(live + 입장 판정 통과)에게만 표 위 오른쪽 [긴급 모드 켜기] 단추 하나가 보인다.
+//   쓸 수 있는 사람(live + 입장 판정 통과)에게만 [관리 ▾] 메뉴 맨 끝에 [긴급 모드 켜기]/[긴급 모드 끄기] 항목 하나가 보인다(2026-11-27 사용자 요청 — 표 위 줄에서 옮김).
 // 켜져 있으면:
 //   · 긴급 상품 행 — 코드 칸 앞 빨간 '긴급' 배지 + 행 왼쪽 빨간 띠, 플래그 열 필터 값에 '긴급'(js/lib/mibal2-filter.js)
 //   · 표 위 줄(#urgent-bar) — 긴급 N개 · [긴급만 보기] · (쓸 수 있으면) 'N개 선택(안 보이는 M개 포함)' [긴급 지정] [긴급 해제] [선택 풀기]
@@ -136,17 +136,16 @@ export function createUrgentUi(o) {
         let b = $('btn-urgent-mode');
         if (!canWrite()) { if (b) b.remove(); return; }
         if (!b) {
-            const host = document.querySelector('.table-bar-right');
+            const host = $('menu-admin-panel');   // [관리 ▾] — 누르면 메뉴는 닫힌다(china-mibal2.html 메뉴 스크립트)
             if (!host) return;
             b = document.createElement('button');
             b.type = 'button'; b.id = 'btn-urgent-mode'; b.className = 'd-btn d-btn-sm';
             b.addEventListener('click', () => toggleMode());
-            host.insertBefore(b, host.firstChild);
+            host.insertBefore(b, host.querySelector(':scope > .menu-empty'));   // 맨 끝(빈 안내 앞)
         }
         b.textContent = u.enabled ? '긴급 모드 끄기' : '긴급 모드 켜기';
         b.title = u.enabled ? '긴급 모드를 끕니다 — 지정한 긴급 상품도 모두 해제됩니다(스캐너 표시도 사라짐)'
             : '긴급 모드를 켭니다 — 표에서 상품을 골라 긴급으로 지정하면 모든 PC·스캐너에 보입니다(필요할 때만 켜서 쓰세요)';
-        b.classList.toggle('d-btn-primary', u.enabled);
         b.disabled = busy;
     }
     function syncBar() {
