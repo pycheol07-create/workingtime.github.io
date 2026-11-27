@@ -81,20 +81,21 @@ function pickVoice() {
 }
 function unlockSpeech() {
     if (speechUnlocked || !hasSpeech()) return;
-    speechUnlocked = true;
     try {
         pickVoice();
-        const u = new SpeechSynthesisUtterance(' ');
+        const u = new SpeechSynthesisUtterance('.');   // 빈 글자는 사파리가 건너뛰어 잠금이 안 풀린다 — 소리 없이 한 글자
         u.volume = 0;
         u.lang = 'ko-KR';
         speechSynthesis.speak(u);
-    } catch (_) { /* 무시 */ }
+        speechUnlocked = true;
+    } catch (_) { /* 무시 — 다음 탭에 다시 */ }
 }
 if (hasSpeech()) {
     try { speechSynthesis.addEventListener('voiceschanged', pickVoice); } catch (_) { /* 옛 브라우저 */ }
     pickVoice();
-    // 화면을 처음 누르는 순간(어느 단추든) 잠금을 푼다
-    ['pointerdown', 'touchstart', 'keydown'].forEach(ev => document.addEventListener(ev, unlockSpeech, { capture: true, passive: true }));
+    // 화면을 처음 탭할 때(어느 단추든) 잠금을 푼다 — 아이폰 사파리는 손을 뗄 때(touchend·click)만 사용자 동작으로 친다
+    //   (pointerdown·touchstart 에서 부르면 조용히 무시되고, 그 뒤로 다시 풀지 않아 음성이 계속 안 났다 — 2026-11-27)
+    ['touchend', 'click', 'keydown'].forEach(ev => document.addEventListener(ev, unlockSpeech, { capture: true, passive: true }));
 }
 function speak(text) {
     try {
@@ -346,6 +347,7 @@ async function pressUnitBtn(qty) {
     if (!online()) { pressWhy = '인터넷 연결이 없어 반영하지 않았습니다 — 연결된 뒤 다시 눌러 주세요.'; renderCard(); return; }
     if (!cartOk) { pressWhy = cartErr || '누적 칸을 불러오는 중입니다 — 잠시 뒤 다시 눌러 주세요.'; renderCard(); return; }
     if (slotIsOld(slotFor(it.id), liveAtMs) && slotFor(it.id).qty) { pressWhy = OLD_TEXT; renderCard(); return; }
+    unlockSpeech();   // 단위 단추를 누른 그 순간(서버 저장 전)에 — 아이폰 사파리 음성 잠금
     const d0 = dir;
     pressing++;
     pressWhy = '';
