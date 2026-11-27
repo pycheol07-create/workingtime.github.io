@@ -2,7 +2,7 @@
 import * as DOM from './dom-elements.js?v=2b9f19ecbde2-82fbef91';
 import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
 import { showToast, getTodayDateString, showConfirm } from './utils.js?v=65bb3512764f-e315797c';
-import { dayInspItems } from './lib/insp-day.js?v=d859a7e39527-456c14c8';
+import { dayInspItems, resumePlan, removeMoved } from './lib/insp-day.js?v=f8f7e2c433a4-c41ef17c';
 import { hasBrushed } from './lib/insp-flow.js?v=5447d8e8a137-43ce67d4';
 import { TASK, tName } from './task-names.js?v=33eb5ccd69bc-26ab8ff7';
 
@@ -10,8 +10,8 @@ import {
     renderInspectionHistoryTable, 
     renderInspectionLayout,
     renderInspectionListMode
-} from './ui-history.js?v=8975ac4ffa03-b575143a'; 
-import { clearInspResultCache, seedInspResultCache, fetchTotalInspLogs, totalInspLogsTruncated, TOTAL_LOG_LIMIT } from './ui-history-inspection.js?v=d90d33878f7c-92ecfe05';   // 정상여부 캐시 · 전량 기록
+} from './ui-history.js?v=fa13ed2b5a56-b575143a'; 
+import { clearInspResultCache, seedInspResultCache, fetchTotalInspLogs, totalInspLogsTruncated, TOTAL_LOG_LIMIT } from './ui-history-inspection.js?v=f1398222f730-772fed2f';   // 정상여부 캐시 · 전량 기록
 import { mergeIntoProductHistory, nameKey, totalHistoryLogsOf, bulkSummary, bulkMessage } from './lib/total-insp.js?v=d83d978fa87f-5334595d';
 import { editTotalLog, deleteTotalLog, listDayLogs, listProductLogs, deleteTotalDay, deleteTotalProduct, askTotalLogEdit, fetchAccDocs, removeOrRevertOne, setAccStatus, deleteAccDocIfEmpty } from './total-insp-edit.js?v=00825b3b7e9c-892af557';
 import { historyRangeStart } from './lib/history-window.js?v=2641998b437e-d3102a84';
@@ -21,7 +21,7 @@ import {
     renderQCStatsMode, 
     currentInspTypeFilter, 
     setInspTypeFilter 
-} from './ui-history-inspection.js?v=d90d33878f7c-92ecfe05';
+} from './ui-history-inspection.js?v=f1398222f730-772fed2f';
 
 import {
     loadInspectionLogs,
@@ -33,7 +33,7 @@ import {
     savePreInspectionNote,
     handleManualImageSelect, 
     clearManualImageState    
-} from './inspection-logic.js?v=d8811172578b-e4d6f36f';
+} from './inspection-logic.js?v=02c3205156e9-e4d6f36f';
 
 import { collection, getDocs, doc, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
@@ -70,30 +70,46 @@ async function loadTotalLogs(force) {
 // 검수이력 일자별 보기 → 그 날짜의 '대기' 항목을 오늘 검수 대기 리스트에 불러와 이어서 진행.
 // (검수 매니저는 메인 앱에 있으므로, 여기선 오늘 daily_data의 inspectionList에 머지 저장만 하고
 //  사용자는 메인 화면 '샘플검수'에서 이어서 진행한다. 메인 탭은 onSnapshot으로 자동 반영됨.)
+// 2026-11-27 사용자 요청: 오늘로 새로 붙인 대기 항목은 원래 날짜 리스트에서 뺀다(두 날짜에 같은 대기가 남지 않게).
+//   한 트랜잭션에서 원래 날짜 history·(마감 안 한 날이면) daily_data·오늘 daily_data 를 서버에서 읽고(js/lib/insp-day.js resumePlan),
+//   오늘에 붙인 열쇠(이름·옵션·출고일·코드)의 대기 줄만 원래 날짜에서 지운다. 그사이 완료된 줄은 안 붙이고 안 지운다.
 async function resumeInspectionFromDate(date) {
+    const today = getTodayDateString();
+    if (!date || date === today) { showToast('오늘 리스트는 메인 화면에서 바로 이어서 하면 됩니다.'); return; }
     const day = (State.allHistoryData || []).find(d => d.id === date);
-    const pending = (day && Array.isArray(day.inspectionList) ? day.inspectionList : [])
-        .filter(it => it.status !== '완료');
-    if (pending.length === 0) { showToast('이어서 할 대기 항목이 없습니다.', true); return; }
+    const shown = (day && Array.isArray(day.inspectionList) ? day.inspectionList : []).filter(it => it.status !== '완료').length;
+    if (shown === 0) { showToast('이어서 할 대기 항목이 없습니다.', true); return; }
+    const ok = await showConfirm(`${date} 리스트의 대기 ${shown}건을 오늘 검수 대기 리스트로 옮깁니다.\n옮긴 항목은 ${date} 리스트에서 빠집니다(완료 항목은 그대로).`,
+        { title: '이어서 검수', okText: '옮기기', cancelText: '취소' });
+    if (!ok) return;
     try {
-        const today = getTodayDateString();
-        const todayRef = doc(State.db, 'artifacts', 'team-work-logger-v2', 'daily_data', today);
-        // 서버 리스트를 읽고 붙인다(runTransaction — 그사이 다른 기기가 넣은 줄을 지우지 않게, 2026-11-17)
-        const keyOf = (it) => `${it.name || ''}|${it.code || ''}|${it.packingDate || ''}`;
-        const { merged, toAdd } = await runTransaction(State.db, async (tx) => {
-            const snap = await tx.get(todayRef);
-            const current = (snap.exists() && Array.isArray(snap.data().inspectionList)) ? snap.data().inspectionList : [];
-            const seen = new Set(current.map(keyOf));
-            const add = pending.filter(it => !seen.has(keyOf(it))).map(it => ({ ...it, status: '대기' }));
-            const next = [...current, ...add];
-            if (add.length > 0) tx.set(todayRef, { inspectionList: next }, { merge: true });
-            return { merged: next, toAdd: add };
+        const base = ['artifacts', 'team-work-logger-v2'];
+        const todayRef = doc(State.db, ...base, 'daily_data', today);
+        const histRef = doc(State.db, ...base, 'history', date);
+        const srcDailyRef = doc(State.db, ...base, 'daily_data', date);
+        const res = await runTransaction(State.db, async (tx) => {
+            // 읽기를 모두 먼저(트랜잭션 규칙)
+            const [tSnap, hSnap, dSnap] = [await tx.get(todayRef), await tx.get(histRef), await tx.get(srcDailyRef)];
+            const hList = hSnap.exists() && Array.isArray(hSnap.data().inspectionList) ? hSnap.data().inspectionList : [];
+            const dList = dSnap.exists() && Array.isArray(dSnap.data().inspectionList) ? dSnap.data().inspectionList : [];
+            // 원래 날짜 리스트 = 이력 쪽(없으면 마감 안 한 날의 daily_data 쪽)
+            const plan = resumePlan(hList.length ? hList : dList, tSnap.exists() ? tSnap.data() : {});
+            if (plan.add.length === 0) return plan;
+            tx.set(todayRef, { inspectionList: plan.nextToday }, { merge: true });
+            const rh = removeMoved(hList, plan.addKeys);
+            if (rh.removed > 0) tx.update(histRef, { inspectionList: rh.list });
+            // 마감 안 한 날은 daily_data 쪽 리스트가 남아 자가복구가 이력을 다시 덮을 수 있다 — 같은 줄을 거기서도 뺀다
+            const rd = removeMoved(dList, plan.addKeys);
+            if (rd.removed > 0) tx.update(srcDailyRef, { inspectionList: rd.list });
+            return plan;
         });
-        if (toAdd.length === 0) { showToast('이미 오늘 검수 대기 리스트에 모두 들어 있습니다.'); return; }
-        if (State.appState) State.appState.inspectionList = merged;
-        showToast(`검수 대기 리스트에 ${toAdd.length}건을 불러왔습니다. 메인 화면 '${tName(TASK.sample)}'에서 이어서 진행하세요.`);
+        if (res.add.length === 0) { showToast('이미 오늘 검수 대기 리스트에 모두 들어 있습니다.'); return; }
+        if (State.appState) State.appState.inspectionList = res.nextToday;
+        if (day) day.inspectionList = res.nextSrc;   // 화면 캐시도 서버와 같게
+        showToast(`검수 대기 리스트에 ${res.add.length}건을 옮겼습니다. 메인 화면 '${tName(TASK.sample)}'에서 이어서 진행하세요.`);
+        fetchAndRenderInspectionHistory({ reuse: true });
     } catch (err) {
-        console.error('이어서 검수 불러오기 실패:', err);
+        console.error('이어서 검수 불러오기 실패:', err && err.code ? err.code : err);
         showToast('이어서 검수 불러오기에 실패했습니다.', true);
     }
 }
@@ -428,8 +444,29 @@ export function setupHistoryInspectionListeners() {
                 const mode = tabBtn.dataset.inspTab;
                 if (State.context.inspectionViewMode !== mode) {
                     State.context.inspectionViewMode = mode;
-                    State.context.selectedInspectionDate = null; 
-                    fetchAndRenderInspectionHistory({ reuse: true }); 
+                    State.context.selectedInspectionDate = null;
+                    State.context.selectedInspPackDate = null;
+                    fetchAndRenderInspectionHistory({ reuse: true });
+                }
+                return;
+            }
+
+            // 일자별 보기 [검수일자별 | 패킹일자별](2026-11-27)
+            const byBtn = e.target.closest('.btn-insp-list-by');
+            if (byBtn) {
+                const by = byBtn.dataset.by === 'pack' ? 'pack' : 'insp';
+                if ((State.context.inspListBy || 'insp') !== by) {
+                    State.context.inspListBy = by;
+                    fetchAndRenderInspectionHistory({ reuse: true });
+                }
+                return;
+            }
+            const packBtn = e.target.closest('.btn-select-insp-pack');
+            if (packBtn) {
+                const pk = packBtn.dataset.pack || '';
+                if (State.context.selectedInspPackDate !== pk) {
+                    State.context.selectedInspPackDate = pk;
+                    fetchAndRenderInspectionHistory({ reuse: true });
                 }
                 return;
             }

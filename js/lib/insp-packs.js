@@ -9,7 +9,7 @@
 // 1장 기준은 옛 엑셀 업로드(2026-11-17 없앰)와 같다: 상품명::색상 1장(2026-11-09 사용자 결정 — 공급처는 보지 않는다), 그 묶음의 첫 품목이 대표.
 // 엑셀 한 파일 = 패킹 하나로 보고 패킹마다 따로 묶는다.
 
-import { dayInspItems } from './insp-day.js?v=d859a7e39527-456c14c8';
+import { dayInspItems } from './insp-day.js?v=f8f7e2c433a4-c41ef17c';
 import { reserveLocIds, normLocId } from './multi-loc.js?v=eaa90e2a913d-3eb38b15';
 
 export const COUNT_KEYS = ['packs', 'items', 'noSup', 'supNotCode', 'nonStd', 'dropped', 'zeroQty', 'conflicts', 'badShip'];

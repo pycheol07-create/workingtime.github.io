@@ -19,9 +19,9 @@ import {
     doc, getDoc, collection, query, where, limit as fsLimit, onSnapshot, runTransaction, serverTimestamp, increment, deleteField
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { TASK, tName } from './task-names.js?v=33eb5ccd69bc-26ab8ff7';
-import { openManualAdd } from './inspection-manual.js?v=d8811172578b-6555fd07';
+import { openManualAdd } from './inspection-manual.js?v=02c3205156e9-6555fd07';
 import { S as PS, loadLoc, locOf, fmtDateTime, tsMs } from './products-store.js?v=12e37e026ce6-ee5ce71b';   // [재고 연동] — 위치·재고 요약(ProductLoc, IndexedDB 캐시 같이 씀)
-import { getCurrentInspItem } from './inspection-logic.js?v=d8811172578b-e4d6f36f';
+import { getCurrentInspItem } from './inspection-logic.js?v=02c3205156e9-e4d6f36f';
 import { listKeyLogs, removeOrRevertOne } from './total-insp-edit.js?v=00825b3b7e9c-892af557';   // 잘못 연 회차 되돌리기(직전 회차 기록 합산)
 import {
     ON, DONE, canRevertRound, reopenConfirmText, isDoneToday, totalKey, startOrReopen, applySave, applyInfoSave, isInfoOnly, periodLabel, ymd, markDone, markReopen, progressOf, todayQtyOf,

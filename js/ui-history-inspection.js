@@ -2,7 +2,7 @@
 import * as DOM from './dom-elements.js?v=2b9f19ecbde2-82fbef91';
 import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
 import { getWeekOfYear, escapeHtml, getTodayDateString } from './utils.js?v=65bb3512764f-e315797c';
-import { dayInspItems, packDatesLabel } from './lib/insp-day.js?v=d859a7e39527-456c14c8';
+import { dayInspItems, packDatesLabel, packDateGroups } from './lib/insp-day.js?v=f8f7e2c433a4-c41ef17c';
 import { inspTypeLabel } from './lib/insp-manual.js?v=25e0bc0396d2-21f87941';
 import { doc, getDoc, runTransaction, collection, getDocs, query, where, orderBy, limit as fsLimit } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { itemKey, patchItemsByKey } from './lib/insp-flow.js?v=5447d8e8a137-43ce67d4';
@@ -280,7 +280,7 @@ export const renderInspectionLayout = (container) => {
                     </button>
                     <button class="px-4 py-2 text-sm font-medium transition-colors border-b-2 ${activeTab === 'list' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'}" 
                             data-insp-tab="list">
-                        검수 일자별 보기
+                        일자별 보기
                     </button>
                     <button class="px-4 py-2 text-sm font-medium transition-colors border-b-2 ${activeTab === 'qc' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'}" 
                             data-insp-tab="qc">
@@ -348,6 +348,11 @@ export const renderInspectionListMode = async (dateList, selectedDateData, total
             });
         }
     });
+
+    if (State.context.inspListBy === 'pack') {   // 패킹일자별(2026-11-27) — 서버 쓰기(샘플 수량 맞춤) 없이 보기만
+        await renderPackDateList(container, filteredDateList);
+        return;
+    }
 
     let selectedDate = State.context.selectedInspectionDate;
     if (!filteredDateList.find(d => d.date === selectedDate) && filteredDateList.length > 0) {
@@ -540,6 +545,7 @@ export const renderInspectionListMode = async (dateList, selectedDateData, total
     container.innerHTML = `
         <div class="absolute inset-0 flex border border-gray-200 rounded-lg overflow-hidden bg-white insp-list-loaded">
             <div class="w-40 border-r border-gray-200 bg-gray-50 overflow-y-auto custom-scrollbar shrink-0 insp-date-pane">
+                ${listByToggleHtml('insp')}
                 ${dateListHtml}
             </div>
             <div class="flex-1 overflow-hidden bg-white relative">
@@ -555,6 +561,135 @@ export const renderInspectionListMode = async (dateList, selectedDateData, total
         pane.addEventListener('scroll', () => { dateListScrollTop = pane.scrollTop; }, { passive: true });
     }
 };
+
+/** 일자별 보기 안 [검수일자별 | 패킹일자별] 전환(2026-11-27 사용자 요청) */
+const listByToggleHtml = (by) => {
+    const btn = (v, label) => `<button type="button" class="btn-insp-list-by flex-1 py-1 text-[11px] font-bold rounded ${by === v
+        ? 'bg-indigo-600 text-white shadow-sm' : 'text-gray-500 hover:bg-gray-200'}" data-by="${v}" aria-pressed="${by === v}">${label}</button>`;
+    return `<div class="sticky top-0 z-10 bg-gray-50 border-b border-gray-200 p-1.5 flex gap-1">${btn('insp', '검수일자별')}${btn('pack', '패킹일자별')}</div>`;
+};
+
+let packListScrollTop = 0;
+/** 패킹일자별 — 모든 검수일의 항목을 패킹일로 묶는다(js/lib/insp-day.js packDateGroups). 행마다 그 항목의 검수일로 정상여부·상세를 본다.
+ *  이어서 검수·리스트 삭제는 검수일 단위라 여기엔 없다. 전량검수 기록 표는 패킹일이 없어 뺀다. */
+async function renderPackDateList(container, dayList) {
+    const groups = packDateGroups(dayList.map(d => ({ date: d.date, data: d.data })));
+    let sel = State.context.selectedInspPackDate;
+    if (!groups.find(g => g.date === sel) && groups.length > 0) {
+        sel = groups[0].date;
+        State.context.selectedInspPackDate = sel;
+    }
+    const cur = groups.find(g => g.date === sel);
+    const items = cur ? cur.data : [];
+    if (items.length) {
+        await Promise.all([
+            loadHistLogs(items.filter(it => it.status === '완료').map(it => it.name)),
+            loadPackSrc(items),
+        ]);
+    }
+    const label = (pk) => pk || '패킹일 없음';
+    const listHtml = groups.length === 0
+        ? `<div class="p-4 text-center text-sm text-gray-400">조건에 맞는 리스트가 없습니다.</div>`
+        : groups.map(g => {
+            const on = g.date === sel;
+            const insp = [...new Set(g.data.map(it => it._inspDate))].sort();
+            const md = (v) => `${v.slice(5, 7)}/${v.slice(8, 10)}`;
+            const inspLabel = insp.length > 3 ? `${insp.slice(0, 3).map(md).join(', ')} 외 ${insp.length - 3}` : insp.map(md).join(', ');
+            const done = g.data.filter(it => it.status === '완료').length;
+            return `
+                <button class="w-full text-left px-2.5 py-2.5 border-l-4 transition-all ${on ? 'bg-indigo-50 border-indigo-500 text-indigo-700' : 'border-transparent hover:bg-gray-50 text-gray-600'} group btn-select-insp-pack" data-pack="${escapeHtml(g.date)}">
+                    <div class="flex justify-between items-center">
+                        <span class="font-semibold text-sm">${escapeHtml(label(g.date))}</span>
+                        <span class="text-[11px] bg-white border border-gray-200 px-1.5 py-0.5 rounded-full text-gray-500">${escapeHtml(done)}/${escapeHtml(g.count)}</span>
+                    </div>
+                    ${inspLabel ? `<div class="text-[11px] text-gray-500 mt-0.5">검수 ${escapeHtml(inspLabel)}</div>` : ''}
+                </button>`;
+        }).join('');
+
+    let detailHtml;
+    if (!cur) {
+        detailHtml = `<div class="flex h-full items-center justify-center text-gray-400 text-sm">좌측에서 패킹일을 선택해주세요.</div>`;
+    } else {
+        let totalInbound = 0, totalSample = 0;
+        const pending = items.filter(it => it.status !== '완료').length;
+        const rows = items.map(item => {
+            const isCompleted = item.status === '완료';
+            const inboundQty = Number(item.inboundQty || item.qty || 0);
+            const sampleQty = isCompleted ? (item.sampleQty !== undefined ? Number(item.sampleQty) : (item.inspectionType === 'total' ? inboundQty : 1)) : 0;
+            totalInbound += inboundQty;
+            totalSample += sampleQty;
+            const statusBadge = isCompleted
+                ? `<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-sky-100 text-sky-800">완료</span>`
+                : `<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600">대기</span>`;
+            const other = item._otherDates > 0 ? `<div class="text-[10px] text-amber-600" title="같은 항목이 다른 검수일 리스트에도 있었습니다(이어서 검수 등) — 완료된 것·늦은 검수일 하나만 보입니다">다른 날 ${escapeHtml(item._otherDates)}건</div>` : '';
+            return `
+                <tr class="hover:bg-blue-50 transition border-b last:border-0 cursor-pointer btn-view-detail"
+                    data-product-name="${escapeHtml(item.name)}"
+                    data-product-option="${escapeHtml(item.option || '-')}"
+                    data-product-code="${escapeHtml(item.code || '-')}"
+                    data-target-date="${escapeHtml(item._inspDate)}"
+                    title="클릭하여 상세 이력 펼치기">
+                    <td class="px-3 py-3 text-xs text-gray-600 whitespace-nowrap">${escapeHtml(item._inspDate)}${other}</td>
+                    <td class="px-3 py-3 text-center">${typeBadgeOf(item)}</td>
+                    <td class="px-2 py-3 text-center">${sourceBadge(item)}</td>
+                    <td class="px-3 py-3 text-xs font-mono text-gray-500">${escapeHtml(item.code || '-')}</td>
+                    <td class="px-3 py-3 text-sm font-medium text-gray-900">${escapeHtml(item.name)}</td>
+                    <td class="px-3 py-3 text-xs text-gray-600">${escapeHtml(item.option || '-')}</td>
+                    <td class="px-3 py-3 text-xs text-gray-600">${escapeHtml(item.supplierCode || item.supplierName || '-')}</td>
+                    <td class="px-3 py-3 text-center">
+                        <div class="text-xs font-bold text-gray-700">${escapeHtml(inboundQty.toLocaleString())}</div>
+                        <div class="text-[11px] ${isCompleted ? 'text-blue-600' : 'text-gray-400'} font-bold">(샘플검수: ${escapeHtml(sampleQty.toLocaleString())}개)</div>
+                    </td>
+                    <td class="px-3 py-3 text-center">${statusBadge}</td>
+                    <td class="px-3 py-3 text-center">${resultBadge(item, isCompleted, item._inspDate)}</td>
+                </tr>`;
+        }).join('');
+        detailHtml = `
+            <div class="flex flex-col h-full">
+                <div class="px-4 py-2 bg-gray-50 border-b border-gray-200 flex flex-wrap gap-2 items-center shrink-0">
+                    <h4 class="font-bold text-gray-700 text-sm">${escapeHtml(cur.date ? `패킹 ${cur.date}` : '패킹일 없음')} 검수 리스트</h4>
+                    <span class="text-[11px] font-medium bg-white border border-gray-200 shadow-sm px-2.5 py-1 rounded text-gray-600">
+                        완료 <strong class="text-gray-900">${escapeHtml(cur.count - pending)}</strong> / ${escapeHtml(cur.count)}건 <span class="mx-1 text-gray-300">|</span>
+                        총 입고: <strong class="text-gray-900">${escapeHtml(totalInbound.toLocaleString())}</strong>개 <span class="mx-1 text-gray-300">|</span>
+                        총 샘플검수: <strong class="text-blue-600">${escapeHtml(totalSample.toLocaleString())}</strong>개
+                    </span>
+                    ${pending > 0 ? `<span class="text-[11px] text-gray-500">대기 항목 이어서 검수는 [검수일자별]에서 그 검수일을 고르세요</span>` : ''}
+                </div>
+                <div class="flex-grow overflow-y-auto custom-scrollbar relative">
+                    <table class="w-full text-left border-collapse">
+                        <thead class="bg-white text-[11px] uppercase text-gray-500 sticky top-0 z-10 shadow-sm outline outline-1 outline-gray-200">
+                            <tr>
+                                <th class="px-3 py-2 font-bold bg-gray-50 w-[10%]">검수일</th>
+                                <th class="px-3 py-2 font-bold bg-gray-50 text-center w-[6%]">유형</th>
+                                <th class="px-2 py-2 font-bold bg-gray-50 text-center w-[6%]">구분</th>
+                                <th class="px-3 py-2 font-bold bg-gray-50 w-[10%]">코드</th>
+                                <th class="px-3 py-2 font-bold bg-gray-50 w-[18%]">상품명</th>
+                                <th class="px-3 py-2 font-bold bg-gray-50 w-[12%]">옵션</th>
+                                <th class="px-3 py-2 font-bold bg-gray-50 w-[10%]">공급처</th>
+                                <th class="px-3 py-2 font-bold bg-gray-50 text-center w-[12%]">수량 (입고/샘플검수)</th>
+                                <th class="px-3 py-2 font-bold bg-gray-50 text-center w-[7%]">상태</th>
+                                <th class="px-3 py-2 font-bold bg-gray-50 text-center w-[9%]">정상여부</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-100">${rows}</tbody>
+                    </table>
+                </div>
+            </div>`;
+    }
+    container.innerHTML = `
+        <div class="absolute inset-0 flex border border-gray-200 rounded-lg overflow-hidden bg-white insp-list-loaded">
+            <div class="w-40 border-r border-gray-200 bg-gray-50 overflow-y-auto custom-scrollbar shrink-0 insp-date-pane">
+                ${listByToggleHtml('pack')}
+                ${listHtml}
+            </div>
+            <div class="flex-1 overflow-hidden bg-white relative">${detailHtml}</div>
+        </div>`;
+    const pane = container.querySelector('.insp-date-pane');
+    if (pane) {
+        if (packListScrollTop) pane.scrollTop = packListScrollTop;
+        pane.addEventListener('scroll', () => { packListScrollTop = pane.scrollTop; }, { passive: true });
+    }
+}
 
 export const renderInspectionHistoryTable = (historyData) => {
     const container = document.getElementById('inspection-content-area');

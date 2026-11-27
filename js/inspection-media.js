@@ -4,8 +4,8 @@
 //   경로·메타데이터에 상품명·사람 정보를 넣지 않는다 — 경로 모양은 js/lib/insp-flow.js inspPhotoPath.
 import * as DOM from './dom-elements.js?v=2b9f19ecbde2-82fbef91';
 import { showToast, getTodayDateString } from './utils.js?v=65bb3512764f-e315797c';
-import { searchProductHistory } from './inspection-logic.js?v=d8811172578b-e4d6f36f';
-import { isManualAddOpen, feedManualScan } from './inspection-manual.js?v=d8811172578b-6555fd07';
+import { searchProductHistory } from './inspection-logic.js?v=02c3205156e9-e4d6f36f';
+import { isManualAddOpen, feedManualScan } from './inspection-manual.js?v=02c3205156e9-6555fd07';
 import { getApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
 import { connectStorageEmulatorIfEnabled } from './firebase-emulator.js?v=071adc2867a0-c60c17d2';

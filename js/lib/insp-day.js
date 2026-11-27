@@ -63,3 +63,74 @@ export function dayInspItems(day) {
     const inList = new Set(list.map(itemKey));
     return list.concat(done.filter(it => !inList.has(itemKey(it))));
 }
+
+/** 같은 검수 항목 열쇠(이름·옵션·출고일·코드) — 이어서 검수·패킹일자별이 같이 쓴다 */
+export const inspItemKey = itemKey;
+
+/**
+ * [이어서 검수](2026-11-27 사용자 요청) — 원래 날짜의 대기 항목을 오늘 리스트에 붙이고, 새로 붙인 것만 원래 날짜 리스트에서 뺀다.
+ *   srcList  = 원래 날짜 서버 문서의 inspectionList(history — 마감 안 한 날은 daily_data 쪽도 같은 함수로 뺀다)
+ *   todayDoc = 오늘 daily_data 문서 값({inspectionList, inspectionDone}) — 둘 다 보고 이미 있는 항목은 다시 안 붙인다
+ * → { add: 붙일 항목(상태 '대기'), nextToday: 오늘 inspectionList, nextSrc: 원래 날짜 inspectionList, removed: 뺀 수 }
+ */
+export function resumePlan(srcList, todayDoc) {
+    const src = Array.isArray(srcList) ? srcList : [];
+    const cur = Array.isArray(todayDoc && todayDoc.inspectionList) ? todayDoc.inspectionList : [];
+    const seen = new Set(dayInspItems(todayDoc).map(itemKey));
+    const addKeys = new Set();
+    const add = [];
+    src.forEach(it => {
+        if (!it || it.status === '완료') return;
+        const k = itemKey(it);
+        if (seen.has(k) || addKeys.has(k)) return;
+        addKeys.add(k);
+        add.push({ ...it, status: '대기' });
+    });
+    const { list: nextSrc, removed } = removeMoved(src, addKeys);
+    return { add, nextToday: cur.concat(add), nextSrc, removed, addKeys };
+}
+
+/** 리스트에서 옮긴(addKeys) 대기 줄만 뺀다 — 완료 줄은 그대로 */
+export function removeMoved(list, addKeys) {
+    const src = Array.isArray(list) ? list : [];
+    const next = src.filter(it => !(it && it.status !== '완료' && addKeys.has(itemKey(it))));
+    return { list: next, removed: src.length - next.length };
+}
+
+const packKeyOf = (it) => {
+    const v = s(it && it.packingDate).slice(0, 10);
+    return /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : '';
+};
+
+/**
+ * 일자별 보기 '패킹일자별'(2026-11-27 사용자 요청) — 검수일별 목록 [{date, data:[항목]}] → 패킹일별 [{date: 패킹일|'', count, data}].
+ *   data 의 항목은 사본에 _inspDate(그 항목의 검수일)·_otherDates(같은 항목이 있던 다른 검수일 수)를 붙인다(원본은 안 바꿈).
+ *   같은 항목(이름·옵션·출고일·코드)이 여러 검수일에 있으면(옛 이어서 검수) 하나만 — 완료 우선, 같으면 검수일이 늦은 것.
+ *   순서: 패킹일 최근 순, 패킹일 없음('')은 맨 뒤. 각 묶음 안은 검수일 최근 순.
+ */
+export function packDateGroups(dateList) {
+    const best = new Map();
+    (Array.isArray(dateList) ? dateList : []).forEach(d => {
+        const date = s(d && d.date);
+        (Array.isArray(d && d.data) ? d.data : []).forEach(it => {
+            if (!it) return;
+            const k = itemKey(it);
+            const prev = best.get(k);
+            if (!prev) { best.set(k, { it, date, n: 1 }); return; }
+            prev.n++;
+            const better = (it.status === '완료') !== (prev.it.status === '완료')
+                ? it.status === '완료'
+                : date > prev.date;
+            if (better) { prev.it = it; prev.date = date; }
+        });
+    });
+    const groups = new Map();
+    best.forEach(({ it, date, n }) => {
+        const pk = packKeyOf(it);
+        if (!groups.has(pk)) groups.set(pk, []);
+        groups.get(pk).push({ ...it, _inspDate: date, _otherDates: n - 1 });
+    });
+    return [...groups.entries()]
+        .sort((a, b) => (a[0] === '' ? 1 : b[0] === '' ? -1 : b[0].localeCompare(a[0])))
+        .map(([date, data]) => ({ date, count: data.length, data: data.sort((a, b) => b._inspDate.localeCompare(a._inspDate)) }));
+}

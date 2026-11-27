@@ -4,7 +4,7 @@ import { showToast, isMemberActiveOn, friendlyFirebaseError, escapeHtml, showCon
 import { doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // ✅ 엑셀 변환 함수 불러오기
-import { downloadLeaveLedgerExcel } from './history-excel.js?v=43edc6e1d08e-084171ab';
+import { downloadLeaveLedgerExcel } from './history-excel.js?v=41bada342cb9-084171ab';
 import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=152edbc1d09a-ab7817f6';
 import { updateLeaveSchedule } from './config.js?v=242bb63abbe9-dd1665a9';
 
