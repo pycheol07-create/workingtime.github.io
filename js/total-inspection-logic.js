@@ -19,9 +19,9 @@ import {
     doc, getDoc, collection, query, where, limit as fsLimit, onSnapshot, runTransaction, serverTimestamp, increment, deleteField
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { TASK, tName } from './task-names.js?v=33eb5ccd69bc-26ab8ff7';
-import { openManualAdd } from './inspection-manual.js?v=6e64a569ae56-6555fd07';
+import { openManualAdd } from './inspection-manual.js?v=746d3a1c9109-6555fd07';
 import { S as PS, loadLoc, locOf, fmtDateTime, tsMs } from './products-store.js?v=aea0e7b95eb8-44ec7d98';   // [재고 연동] — 위치·재고 요약(ProductLoc, IndexedDB 캐시 같이 씀)
-import { getCurrentInspItem } from './inspection-logic.js?v=6e64a569ae56-aad5f436';
+import { getCurrentInspItem } from './inspection-logic.js?v=746d3a1c9109-aad5f436';
 import { listKeyLogs, removeOrRevertOne } from './total-insp-edit.js?v=00825b3b7e9c-892af557';   // 잘못 연 회차 되돌리기(직전 회차 기록 합산)
 import { loadFor as loadSupNames, supNameOf, supNamesMeta } from './sup-names-store.js?v=de8b3ea4a05e-1f52465e';   // 공급처상품명(GIP, 2026-11-27) — 목록 줄·고른 줄. 못 읽으면 빈칸
 import {

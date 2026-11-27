@@ -21,7 +21,7 @@ import {
     effectiveStatus, forecastOpts, statusBadge, depleteText, depleteSortValue, reorderText, recommendText, isStale, kstToday
 } from './supplies-forecast-view.js?v=c308b964945e-6e807d3e';
 
-export const SUPPLIES_FEATURE = 'supplies.view';
+export const SUPPLIES_FEATURE = 'data.analysis';   // 데이터 관리 안 탭 = 데이터 관리 권한(11/27 사용자 결정). 원장 읽기 규칙은 등록 직원
 /** 원장 한 번에 읽는 상한 — 넘으면 화면에 '일부만' 표시 */
 export const LEDGER_MAX = 3000;
 /** item.logs 보관 개수(js/supplies.js MAX_LOG · 비품재고연동 연동.py MAX_LOG 와 같음) */

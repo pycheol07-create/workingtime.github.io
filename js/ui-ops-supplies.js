@@ -1,8 +1,9 @@
 // === js/ui-ops-supplies.js ===
-// 📦 운영 리포트 '비품' 탭(2026-11-27) — 고른 기간의 비품 사용·입고·일평균, 지금 안전재고 이하 비품, 소진 예상·발주 권장(예측 문서),
+// 📦 운영 리포트 '통계' 탭의 '비품' 장(2026-11-27, 처음엔 따로 탭) — 고른 기간의 비품 사용·입고·일평균, 지금 안전재고 이하 비품, 소진 예상·발주 권장(예측 문서),
 //   기간 발주·입고 건수와 리드타임, 사용량 추세(일·주·월) 그래프.
-//   숫자는 js/lib/ops-supplies.js buildSuppliesReport, 읽기·캐시는 js/ops-supplies-store.js. 탭 전환·권한은 js/ui-history-ops-report.js.
-//   권한: 탭 자체가 비품 권한(supplies.view)일 때만 보인다. 금액(단가 × 수량)은 비용 권한(data.reports)일 때만.
+//   숫자는 js/lib/ops-supplies.js buildSuppliesReport, 읽기·캐시는 js/ops-supplies-store.js. 탭 전환·권한은 js/ui-history-ops-report.js, 카드·장 펼침은 js/ui-ops-stats.js.
+//   통계 칸이 보이고 '비품' 장이 펼쳐져 있을 때만 그린다(숨은 칸 그래프 크기 0). 카드 숫자는 suppliesSummary(같은 캐시).
+//   권한: 탭 자체가 데이터 관리 권한(data.analysis)일 때만 보인다. 금액(단가 × 수량)은 비용 권한(data.reports)일 때만.
 //   읽기가 규칙에 막히면 조용히 '권한이 없습니다'.
 // ⚠️ 공급처 이름·연락처는 그리지 않는다(단가와 같은 화면에 두지 않기). 콘솔에 비품 이름·수량을 찍지 않는다.
 // ⚠️ role=dialog·data-act 금지(업무마감봇 선택자).
@@ -10,9 +11,9 @@
 import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
 import { escapeHtml as esc } from './utils.js?v=65bb3512764f-e315797c';
 import { D, alpha } from './d-chart.js?v=e918595219dd-dfe55644';
-import { buildSuppliesReport, periodBounds } from './lib/ops-supplies.js?v=6885f1ad3c7b-92bc58ee';
+import { buildSuppliesReport, periodBounds } from './lib/ops-supplies.js?v=f5cbd8a554cf-1a2dc6de';
 import { kstToday, mdw } from './lib/supplies-forecast-view.js?v=c308b964945e-6e807d3e';
-import { loadSuppliesReportData, invalidateSuppliesData } from './ops-supplies-store.js?v=e21a3b62ecd2-ac3f581c';
+import { loadSuppliesReportData, invalidateSuppliesData } from './ops-supplies-store.js?v=4f1046e123eb-971a2162';
 
 const $ = (id) => document.getElementById(id);
 const ok = (v) => v != null && isFinite(v);
@@ -42,14 +43,48 @@ export function destroySuppliesCharts() {
 }
 /** 지금 읽는 중인가(탭 [PDF 받기]가 '불러오는 중' 화면을 받지 않게) */
 export const isSuppliesLoading = () => loading;
-/** 탭을 떠날 때(다른 탭·결산·다른 레일 화면) — 읽는 중인 결과를 버리고(token) 차트를 정리한다. 돌아오면 다시 그린다. */
+/** 장을 떠날 때(장 접기·다른 탭·결산·다른 레일 화면) — 읽는 중인 결과를 버리고(token) 차트를 정리한다. 다시 펼치면 다시 그린다. */
 export function leaveOpsSupplies() {
     token++;
     loading = false;
     destroySuppliesCharts();
 }
-/** 비품 칸이 지금 보이나(숨은 칸에 그리거나 차트를 만들지 않게) */
-const paneShown = () => { const p = $('ops-supplies-panel'); return !!p && !p.classList.contains('hidden'); };
+/** 비품 장이 지금 보이나 — 통계 칸이 보이고 장이 펼쳐짐(숨은 칸에 그리거나 차트를 만들지 않게) */
+const paneShown = () => {
+    const p = $('ops-stats-panel'), sec = $('ops-stats-sec-supplies');
+    return !!p && !p.classList.contains('hidden') && !!sec && sec.open;
+};
+
+// 자료 읽기 + 모델 — 장 그리기와 카드(suppliesSummary)가 같이 쓴다(읽기는 js/ops-supplies-store.js 10분 캐시)
+async function loadModel(ctx, range) {
+    const data = await loadSuppliesReportData(State.db, range);
+    if (!data.ok.items) return { ok: false, denied: !!data.denied };
+    const m = buildSuppliesReport({
+        ...data, ...range, today: kstToday(), now: Date.now(), canCost: !!ctx.canCost,
+        ok: { items: data.ok.items, ledger: data.ok.ledger, stock: data.ok.stock, orders: data.ok.orders, forecast: data.ok.forecast }
+    });
+    return { ok: true, m };
+}
+
+/**
+ * 통계 카드용 숫자 — { ok, denied?, low(안전재고 이하 종 | null), order(발주 권장 종 | null), outQty(기간 사용 수량 | null), outItems }.
+ *   권한·기간·연결이 없으면 null. 금액은 넣지 않는다.
+ */
+export async function suppliesSummary(ctx = {}) {
+    if (!ctx.canSupplies || !State.db) return null;
+    const range = periodBounds(ctx.gran, ctx.key);
+    if (!range) return null;
+    const r = await loadModel(ctx, range);
+    if (!r.ok) return { ok: false, denied: r.denied };
+    const m = r.m;
+    return {
+        ok: true,
+        low: Array.isArray(m.low) ? m.low.length : null,
+        order: m.forecast ? m.forecast.counts.order : null,
+        outQty: m.meta.usageOk ? m.totals.outQty : null,
+        outItems: m.meta.usageOk ? m.totals.outItems : null
+    };
+}
 
 /** 머리 한 줄(글자만 — 부르는 쪽이 esc) */
 function periodText(m) {
@@ -189,6 +224,9 @@ function render(host, m) {
 
 let bound = false;
 let lastCtx = null;
+let onReload = () => {};
+/** [새로 읽기] 뒤 부를 함수(통계 카드 다시 그리기 — js/ui-ops-stats.js) */
+export function setSuppliesReloadHook(fn) { onReload = typeof fn === 'function' ? fn : () => {}; }
 function bindOnce(host) {
     if (bound || !host) return;
     bound = true;
@@ -196,6 +234,7 @@ function bindOnce(host) {
         if (!e.target.closest('[data-sup-reload]')) return;
         invalidateSuppliesData();
         if (lastCtx) renderOpsSupplies(lastCtx);
+        onReload();   // 통계 카드도 새 자료로
     });
 }
 
@@ -209,6 +248,7 @@ export async function renderOpsSupplies(ctx = {}) {
     lastCtx = ctx;
     destroySuppliesCharts();
     const my = ++token;
+    delete host.dataset.period;
     if (!paneShown()) { loading = false; return; }   // 숨은 칸에는 그리지 않는다(탭을 열 때 다시 부른다)
     if (!ctx.canSupplies) { loading = false; host.innerHTML = card('비품', '<p class="opv-note">권한이 없습니다.</p>'); return; }
     const range = periodBounds(ctx.gran, ctx.key);
@@ -217,19 +257,15 @@ export async function renderOpsSupplies(ctx = {}) {
     loading = true;
     host.innerHTML = empty('불러오는 중...');
     try {
-        const data = await loadSuppliesReportData(State.db, range);
-        if (my !== token || !paneShown()) return;   // 그사이 기간이 바뀌었거나 탭을 떠남
-        if (!data.ok.items) {
-            host.innerHTML = card('비품', `<p class="opv-note">${data.denied ? '권한이 없습니다.' : '비품 목록을 읽지 못했습니다. 잠시 뒤 [새로 읽기]를 눌러 주세요.'}</p>
-                ${data.denied ? '' : '<button type="button" class="opv-btn" data-sup-reload="1">새로 읽기</button>'}`);
+        const r = await loadModel(ctx, range);
+        if (my !== token || !paneShown()) return;   // 그사이 기간이 바뀌었거나 탭을 떠남·장을 접음
+        if (!r.ok) {
+            host.innerHTML = card('비품', `<p class="opv-note">${r.denied ? '권한이 없습니다.' : '비품 목록을 읽지 못했습니다. 잠시 뒤 [새로 읽기]를 눌러 주세요.'}</p>
+                ${r.denied ? '' : '<button type="button" class="opv-btn" data-sup-reload="1">새로 읽기</button>'}`);
             return;
         }
-        const m = buildSuppliesReport({
-            ...data, ...range, today: kstToday(), now: Date.now(), canCost: !!ctx.canCost,
-            ok: { items: data.ok.items, ledger: data.ok.ledger, stock: data.ok.stock, orders: data.ok.orders, forecast: data.ok.forecast }
-        });
-        if (!paneShown()) return;
-        render(host, m);
+        render(host, r.m);
+        host.dataset.period = `${range.from}|${range.to}`;   // 어느 기간으로 그렸나(화면 시험이 앞 기간 화면을 읽지 않게)
     } catch (e) {
         if (my !== token) return;
         console.error('비품 탭 그리기 실패:', e && (e.code || e.message));

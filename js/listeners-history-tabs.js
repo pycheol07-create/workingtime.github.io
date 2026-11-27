@@ -4,18 +4,18 @@ import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
 import { getWeekOfYear } from './utils.js?v=65bb3512764f-e315797c';
 
 // 💡 실적 예측 함수 불러오기 추가
-import { renderPredictionTab, renderForecastTab } from './ui-history-prediction.js?v=0e333fe7c86f-91ee5358';
-import { fetchAndRenderInspectionHistory } from './listeners-history-inspection.js?v=84f657cc84fd-85aca8bb';
-import * as UILeave from './ui-history-leave.js?v=38342bcc7f60-4c985a8b';
-import { switchHistoryView, renderHistoryDateListByMode, updateGranularityButtons } from './app-history-logic.js?v=b5228026028d-ef63fd43';
-import { setTreeVisible, showPanelLoadError, clearPanelLoadError } from './history-list-controller.js?v=b5228026028d-bba56cb8';
+import { renderPredictionTab, renderForecastTab } from './ui-history-prediction.js?v=7f2da6c8c7da-91ee5358';
+import { fetchAndRenderInspectionHistory } from './listeners-history-inspection.js?v=e46d6376fb42-85aca8bb';
+import * as UILeave from './ui-history-leave.js?v=6c36dd8285c9-4c985a8b';
+import { switchHistoryView, renderHistoryDateListByMode, updateGranularityButtons } from './app-history-logic.js?v=016c7f69fe91-ef63fd43';
+import { setTreeVisible, showPanelLoadError, clearPanelLoadError } from './history-list-controller.js?v=016c7f69fe91-bba56cb8';
 import { confirmDiscardManagementEdits } from './ui-history-management.js?v=f7cf514cd049-688719b9';
-import { historyLoadFailed } from './history-data-manager.js?v=0e333fe7c86f-a9403e97';
-import { SECTIONS, LEGACY_SECTIONS, TREELESS_SUBS, sectionIdFor, sectionIconSvg } from './history-sections.js?v=c5e89d216c58-1af66818';
-import { saveView } from './view-state.js?v=1eb0de390ca8-0da8b754';
+import { historyLoadFailed } from './history-data-manager.js?v=7f2da6c8c7da-a9403e97';
+import { SECTIONS, LEGACY_SECTIONS, TREELESS_SUBS, sectionIdFor, sectionIconSvg } from './history-sections.js?v=b52edcc3bc59-1af66818';
+import { saveView } from './view-state.js?v=889e2b485d5a-0da8b754';
 import { initPageNav } from './page-nav.js?v=2d9f4a86d931-b8f40ef7';
-import { OPS_MAIN, legacyTarget } from './lib/ops-report-route.js?v=4fa00ceeae4f-bf5c01ad';
-import { initOpsReport, openOpsReport, renderOpsReport, leaveOpsReport } from './ui-history-ops-report.js?v=b5228026028d-5da38d2e';
+import { OPS_MAIN, legacyTarget } from './lib/ops-report-route.js?v=84b67615cb52-4715e3b0';
+import { initOpsReport, openOpsReport, renderOpsReport, leaveOpsReport } from './ui-history-ops-report.js?v=016c7f69fe91-96e4e33e';
 
 // 좌측 트리 단위(globalGranularity) → 각 로우데이터 서브탭의 뷰 이름 매핑
 const SUBTAB_VIEW = {

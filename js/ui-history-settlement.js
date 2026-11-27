@@ -7,7 +7,6 @@ import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
 import { ensureHtml2pdf } from './lib/lazy-html2pdf.js?v=8e7180a5a596-4b2424ee';
 import { LEAVE_TYPES } from './state.js?v=c7f5fc984ef9-a2ce38c0';
 import { getRegularMembersForCount, formatDuration, buildMemberHourlyWageMap, getTodayDateString, escapeHtml, escapeHtml as esc, showAlert } from './utils.js?v=65bb3512764f-e315797c';   // escapeHtml 도 같이(2026-11-12 이스케이프 수정이 이름으로 불러 정산 화면이 깨졌다)
-import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { matchesFilter, hasFilter, filterCount, openFloatingFilter, closeFloatingFilter } from './table-filter.js?v=fd197c3531ef-b92b1b78';
 import { bindDrillListeners, drillWrap } from './settlement-drill.js?v=34bb0d91ea9e-db8ccb57';
 
@@ -27,19 +26,26 @@ import { D } from './d-chart.js?v=e918595219dd-dfe55644';
 import { aliasHistoryView } from './lib/task-alias-view.js?v=2e131477eb8e-af660ceb';
 import { periodSpeeds, lastDayIdOf, opsSummary, OEE_LEVELS } from './lib/ops-metrics.js?v=5abf5efec2fb-58d6bcbb';
 import { revenueTotalOf } from './revenue-channels.js?v=553320652df2-c473a26d';
-// 📦 비품 장(2026-11-27) — 비품 권한(supplies.view)일 때만. 숫자는 운영 리포트 '비품' 탭과 같은 js/lib/ops-supplies.js
+// 📦 비품 장(2026-11-27) — 데이터 관리 권한(data.analysis)일 때만. 숫자는 운영 리포트 '통계' 탭 비품 장과 같은 js/lib/ops-supplies.js
 import { currentPerm } from './feature-gate.js?v=7eaa46dbb8e9-a5458f75';
 import { can } from './lib/perm.js?v=c1e53d91da8e-49afeea3';
-import { buildSuppliesReport, suppliesExcelRows, SUPPLIES_FEATURE } from './lib/ops-supplies.js?v=6885f1ad3c7b-92bc58ee';
+import { buildSuppliesReport, suppliesExcelRows, SUPPLIES_FEATURE } from './lib/ops-supplies.js?v=f5cbd8a554cf-1a2dc6de';
 import { kstToday } from './lib/supplies-forecast-view.js?v=c308b964945e-6e807d3e';
-import { loadSuppliesReportData } from './ops-supplies-store.js?v=e21a3b62ecd2-ac3f581c';
+import { loadSuppliesReportData } from './ops-supplies-store.js?v=4f1046e123eb-971a2162';
+// 📥 입고 오차 장(2026-11-27) — 데이터 관리 권한(data.analysis)일 때만. 숫자는 운영 리포트 '통계' 탭 입고 오차 장과 같은 js/lib/ops-inbound-diff.js(→ inbound-diff.js)
+//   결산 장 순서(11/27 사용자 결정) = … 경영 지표 → 입고 오차 → 검수 이력 → 비품 → 운영 마일스톤 → 종합 의견
+import { buildInboundDiffReport, inboundDiffExcelRows, INBOUND_DIFF_FEATURE, INBOUND_DIFF_MAX_DOCS } from './lib/ops-inbound-diff.js?v=624ad11b88d5-b9e1dbc8';
+import { loadInboundDiffRange } from './ops-inbound-diff-store.js?v=0402b716870d-b56c6daa';
+// 🔍 검수 이력 장(2026-11-27) — 운영 리포트 '통계' 탭 검수 장과 같은 js/lib/ops-insp.js buildInspReport(검수 이력 품질 통계 기준: 샘플 + 전량 합침)
+import { buildInspReport, toSettleInsp, INSP_LOG_MAX } from './lib/ops-insp.js?v=fe78bbb6adc1-f4bf8003';
+import { loadInspData } from './ops-insp-store.js?v=03eafdd886ea-b6677284';
 // 엑셀(결산 xlsx)로 옮길 때 — 화면용 HTML 글(태그·escape 된 글자)을 보통 글자로
 const htmlToText = (h) => String(h == null ? '' : h).replace(/<[^>]+>/g, '').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&');
 
 // ============================================================
 // 모듈 상태
 // ============================================================
-let _productHistoryCache = null; // product_history 컬렉션 캐시 (검수이력용)
+let _inspSrc = null;             // 검수 자료(js/ops-insp-store.js loadInspData — 결산 연도 전체 범위로 한 번에) { productDocs, totalLogs, truncated, ok }
 let _currentPeriod = { granularity: 'month', year: new Date().getFullYear(), sub: new Date().getMonth() + 1 };
 let _chartInstances = [];
 let _renderOpts = { downloads: true };   // 머리 줄 [엑셀][PDF] 를 그릴지 — 다시 그릴 때(기간·정렬·필터)도 같은 값
@@ -357,72 +363,13 @@ function computeManagementSummary(currentDays, previousDays, appConfig, core) {
     return { curMgmt, prevMgmt, unitCost, revenueDaily };
 }
 
-function computeInspectionSummary(productHistoryCache, from, to) {
-    let totalInspectedQty = 0, totalDefectQty = 0, totalInspectionCount = 0, totalDefectCount = 0;
-    const productStats = {};
-    const defectReasonCounts = {};
-    const normalValues = ['정상', '양호', '동일', '없음', '해당없음', '통과', '-', ''];
-    const labelMap = { fabric: '원단', color: '컬러', distortion: '뒤틀림', unraveling: '올풀림', finishing: '마감', zipper: '지퍼', button: '단추', lining: '안감', pilling: '보풀', dye: '이염', brushed: '기모' };
-
-    (productHistoryCache || []).forEach(product => {
-        const pName = product.id;
-        (product.logs || []).forEach(log => {
-            if (!log.date || log.date < from || log.date > to) return;
-
-            const qty = Number(log.inboundQty) || Number(log.qty) || 0;
-            totalInspectionCount += 1;
-            totalInspectedQty += qty;
-
-            if (!productStats[pName]) productStats[pName] = { totalQty: 0, defectQty: 0, inspCount: 0, defectCount: 0, reasons: [] };
-            productStats[pName].totalQty += qty;
-            productStats[pName].inspCount += 1;
-
-            let isDefect = log.status === '불량';
-            const reasons = [];
-            if (log.defects && Array.isArray(log.defects) && log.defects.length > 0) { isDefect = true; reasons.push(...log.defects); }
-            if (log.checklist) {
-                Object.entries(log.checklist).forEach(([key, val]) => {
-                    if (key !== 'thickness' && val) {
-                        const cleanVal = String(val).trim();
-                        if (cleanVal && !normalValues.includes(cleanVal)) {
-                            isDefect = true;
-                            reasons.push(`${labelMap[key] || key}: ${cleanVal}`);
-                        }
-                    }
-                });
-            }
-
-            if (isDefect) {
-                totalDefectCount += 1;
-                totalDefectQty += qty;
-                productStats[pName].defectCount += 1;
-                productStats[pName].defectQty += qty;
-                const reasonList = reasons.length > 0 ? reasons : ['상태 불량/기타'];
-                reasonList.forEach(r => { defectReasonCounts[r] = (defectReasonCounts[r] || 0) + 1; });
-                productStats[pName].reasons.push(...reasonList);
-            }
-        });
-    });
-
-    const qtyDefectRate = totalInspectedQty > 0 ? (totalDefectQty / totalInspectedQty * 100) : 0;
-    const countDefectRate = totalInspectionCount > 0 ? (totalDefectCount / totalInspectionCount * 100) : 0;
-
-    const topDefective = Object.entries(productStats)
-        .map(([name, s]) => ({
-            name, defectCount: s.defectCount, defectQty: s.defectQty, totalQty: s.totalQty,
-            commonReason: Object.entries(s.reasons.reduce((acc, r) => { acc[r] = (acc[r] || 0) + 1; return acc; }, {})).sort((a, b) => b[1] - a[1])[0]?.[0] || '-'
-        }))
-        .filter(p => p.defectCount > 0)
-        .sort((a, b) => b.defectCount - a.defectCount)
-        .slice(0, 10);
-
-    const topReasons = Object.entries(defectReasonCounts).sort((a, b) => b[1] - a[1]).slice(0, 5);
-
-    return {
-        totalInspectedQty, totalDefectQty, totalInspectionCount, totalDefectCount,
-        qtyDefectRate, countDefectRate, topDefective, topReasons,
-        productTypeCount: Object.keys(productStats).length
-    };
+// 검수 요약 — 운영 리포트 통계 탭 검수 장과 같은 함수(js/lib/ops-insp.js). 옛 칸 이름(toSettleInsp)으로 넘겨 종합 의견·요약 카드·엑셀은 그대로.
+//   failed = 샘플 이력을 못 읽음 · noTotal = 전량 기록을 못 읽음(샘플만) · truncated = 전량 기록이 상한에 걸림
+function computeInspectionSummary(src, from, to) {
+    const okDocs = !!(src && src.ok && src.ok.docs);
+    const okLogs = !!(src && src.ok && src.ok.logs);
+    const r = buildInspReport({ productDocs: okDocs ? src.productDocs : [], totalLogs: okLogs ? src.totalLogs : [], from, to });
+    return { ...toSettleInsp(r), failed: !okDocs, noTotal: okDocs && !okLogs, truncated: !!(src && src.truncated) };
 }
 
 // 마일스톤 유형별 운영방안 문구 (효과 방향에 따라)
@@ -851,8 +798,8 @@ function renderExecutiveSummary(core, tp, wf, att, mg, insp, periodLabel, workin
             </div>
             <div>
                 <div class="text-[11px] text-gray-600 mb-1">${mg.curMgmt.revenue > 0 ? '총 매출' : '검수 불량률'}</div>
-                <div class="text-3xl font-extrabold">${mg.curMgmt.revenue > 0 ? fmt(mg.curMgmt.revenue) : insp.qtyDefectRate.toFixed(1)}<span class="text-sm font-medium text-gray-600 ml-1">${mg.curMgmt.revenue > 0 ? '원' : '%'}</span></div>
-                <div class="text-[11px] text-gray-600 mt-1">${escapeHtml(mg.curMgmt.revenue > 0 ? `발주 ${fmt(mg.curMgmt.orderCount)}건` : `검수 ${fmt(insp.totalInspectionCount)}건`)}</div>
+                <div class="text-3xl font-extrabold">${mg.curMgmt.revenue > 0 ? fmt(mg.curMgmt.revenue) : (insp.failed ? '—' : insp.qtyDefectRate.toFixed(1))}<span class="text-sm font-medium text-gray-600 ml-1">${mg.curMgmt.revenue > 0 ? '원' : (insp.failed ? '' : '%')}</span></div>
+                <div class="text-[11px] text-gray-600 mt-1">${escapeHtml(mg.curMgmt.revenue > 0 ? `발주 ${fmt(mg.curMgmt.orderCount)}건` : (insp.failed ? '검수 기록 못 읽음' : `검수 ${fmt(insp.totalInspectionCount)}건`))}</div>
             </div>
         </div>
 
@@ -1107,12 +1054,17 @@ function renderManagementSection(mg) {
 }
 
 function renderInspectionSection(insp) {
+    if (insp.failed) return sectionPanel('🔍', '검수 이력', '입고 검수 품질 현황', emptyNote('검수 기록을 읽지 못했습니다.'), 'border-l-rose-500');
     if (insp.totalInspectionCount === 0) return sectionPanel('🔍', '검수 이력', '입고 검수 품질 현황', emptyNote('해당 기간에 검수 기록이 없습니다.'), 'border-l-rose-500');
+    const notes = [
+        insp.noTotal ? '전량검수 기록을 읽지 못해 샘플검수만 셌습니다.' : '',
+        insp.truncated ? `전량검수 기록이 많아 최근 ${INSP_LOG_MAX}건만 셌습니다 — 앞 기간은 빠졌을 수 있습니다.` : ''
+    ].filter(Boolean);
 
     const body = `
         <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
-            ${heroStat('총 검수 수량', fmt(insp.productTypeCount), 'SKU', `<span class="text-[11px] text-gray-400">총 수량 ${escapeHtml(fmt(insp.totalInspectedQty))}개</span>`, 'text-rose-700')}
-            ${heroStat('불량 수량', fmt(insp.totalDefectQty), '개')}
+            ${heroStat('총 검수 수량', fmt(insp.productTypeCount), 'SKU', `<span class="text-[11px] text-gray-400">총 수량 ${escapeHtml(fmt(insp.totalInspectedQty))}개 · 샘플 ${escapeHtml(fmt(insp.sample.n))}건 · 전량 ${escapeHtml(fmt(insp.total.n))}건</span>`, 'text-rose-700')}
+            ${heroStat('불량 수량', fmt(insp.totalDefectQty), '개', `<span class="text-[11px] text-gray-400">불량 ${escapeHtml(fmt(insp.totalDefectCount))}건 · 샘플은 입고 수량, 전량은 불량 개수</span>`)}
             ${heroStat('수량 기준 불량률', insp.qtyDefectRate.toFixed(1), '%', '', insp.qtyDefectRate >= 5 ? 'text-red-600' : 'text-gray-800')}
             ${heroStat('건수 기준 불량률', insp.countDefectRate.toFixed(1), '%', '', insp.countDefectRate >= 5 ? 'text-red-600' : 'text-gray-800')}
         </div>
@@ -1122,6 +1074,7 @@ function renderInspectionSection(insp) {
                 <div class="text-xs font-bold text-gray-600 mb-2">불량 상위 제품</div>
                 ${sfTable('inspDefect', [
                     { key: 'name', label: '제품', filterable: true, get: r => r.name, cell: r => esc(r.name) },
+                    { key: 'code', label: '상품코드', filterable: true, get: r => r.code || '', cell: r => esc(r.code || '-') },
                     { key: 'defectCount', label: '불량건수', align: 'right', type: 'num', get: r => r.defectCount,
                       cell: r => `<span class="text-red-600 font-bold">${escapeHtml(r.defectCount)}</span>` },
                     { key: 'defectQty', label: '불량수량', align: 'right', type: 'num', get: r => r.defectQty, cell: r => fmt(r.defectQty) + '개' },
@@ -1141,8 +1094,9 @@ function renderInspectionSection(insp) {
                 </div>
             </div>
         </div>
+        ${notes.length ? narrative(esc(notes.join(' ')), 'amber') : ''}
     `;
-    return sectionPanel('🔍', '검수 이력', '입고 검수 품질 현황', body, 'border-l-rose-500');
+    return sectionPanel('🔍', '검수 이력', '입고 검수 품질 현황 — 샘플 + 전량(검수 이력 품질 통계와 같은 기준)', body, 'border-l-rose-500');
 }
 
 function renderMilestoneSection(ms) {
@@ -1535,9 +1489,84 @@ async function fillSuppliesSection(container, from, to) {
     }
 }
 
+// ============================================================
+// 6-2. 입고 오차 장(2026-11-27) — 결산 기간(출고일) 입고 오차. 기준은 부족수량관리 통계 기본값(전체 · 미스캔은 오차에서 뺌).
+//   공급처는 코드만, 저장자(직원)는 넣지 않는다. 자료는 비동기로 읽어 #settle-inbound-slot 에 채운다.
+// ============================================================
+const canInbound = () => { const p = permNow(); return !!p && can(p, INBOUND_DIFF_FEATURE); };
+let _idfToken = 0;
+let _idfLoading = false;
+const idfPanel = (body) => sectionPanel('📥', '입고 오차', '패킹 대비 입고 — 도착 − 입고확인', body, 'border-l-rose-500');
+const pct1 = (v) => (v == null ? '-' : (Math.round(v * 1000) / 10).toFixed(1) + '%');
+
+function renderInboundSection(m, full, days) {
+    const g = m.overall;
+    const chartId = 'settle-chart-inbound';
+    const hasTrend = m.trend.labels.length > 1 && (m.trend.short.some(v => v > 0) || m.trend.over.some(v => v > 0));
+    const none = (n, msg) => `<tr><td colspan="${n}" class="text-center text-gray-400 py-6">${msg}</td></tr>`;
+    const codeRows = m.codes.map((c, i) => `<tr>${td(i + 1, 'right')}${td(esc(c.c))}${td(esc(c.nm) + (c.op ? ` <span class="text-gray-400">${esc(c.op)}</span>` : ''))}${td(esc(c.sp))}${td(fmt(c.short), 'right')}${td(fmt(c.over), 'right')}${td(fmt(c.abs), 'right')}</tr>`).join('');
+    const spRows = m.suppliers.map((x, i) => `<tr>${td(i + 1, 'right')}${td(esc(x.sp))}${td(fmt(x.codes), 'right')}${td(fmt(x.errN), 'right')}${td(fmt(x.abs), 'right')}${td(pct1(x.rate), 'right')}</tr>`).join('');
+    const monthRows = m.months.map(x => `<tr>${td(esc(x.month))}${td(fmt(x.packs), 'right')}${td(fmt(x.arr), 'right')}${td(fmt(x.short), 'right')}${td(fmt(x.over), 'right')}${td(pct1(x.rate), 'right')}</tr>`).join('');
+    const body = `
+        <div class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-5">
+            ${heroStat('패킹(출고일)', fmt(g.packs), '건', g.bundles ? `<span class="text-[11px] text-gray-400">묶음 줄 ${escapeHtml(g.bundles)}</span>` : '', 'text-rose-700')}
+            ${heroStat('도착 / 입고', `${fmt(g.arr)}<span class="text-sm text-gray-400"> / ${fmt(g.conf)}</span>`, '')}
+            ${heroStat('오차 품목', fmt(g.errN), '품목', `<span class="text-[11px] text-gray-400">부족 ${fmt(g.short)} · 과입고 ${fmt(g.over)}</span>`)}
+            ${heroStat('오차율', g.rate == null ? '-' : (Math.round(g.rate * 1000) / 10).toFixed(1), g.rate == null ? '' : '%', '', g.rate != null && g.rate >= 0.05 ? 'text-red-600' : 'text-gray-800')}
+            ${heroStat('미스캔', fmt(g.noScanN), '품목', `<span class="text-[11px] text-gray-400">${fmt(g.noScanQ)}장 · 오차에서 뺌</span>`)}
+        </div>
+        ${hasTrend ? `<div class="mb-5">
+            <div class="text-xs font-bold text-gray-600 mb-2">${m.trend.unit === 'ship' ? '패킹(출고일)별' : '월별'} 부족·과입고</div>
+            <div style="height:200px;"><canvas id="${chartId}"></canvas></div>
+        </div>` : ''}
+        ${days > 31 ? `<div class="text-xs font-bold text-gray-600 mb-2">월별</div>
+        <div class="mb-5">${tableShell(th('월') + th('패킹', 'right') + th('도착', 'right') + th('부족', 'right') + th('과입고', 'right') + th('오차율', 'right'), monthRows || none(6, '기록 없음'), 'max-h-[260px]')}</div>` : ''}
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <div>
+                <div class="text-xs font-bold text-gray-600 mb-2">오차 큰 상품코드</div>
+                ${tableShell(th('순위', 'right') + th('상품코드') + th('상품명') + th('공급처 코드') + th('부족', 'right') + th('과입고', 'right') + th('|차이|', 'right'), codeRows || none(7, '오차 없음'), 'max-h-[300px]')}
+            </div>
+            <div>
+                <div class="text-xs font-bold text-gray-600 mb-2">공급처 코드별 (코드만)</div>
+                ${tableShell(th('순위', 'right') + th('공급처 코드') + th('오차 상품', 'right') + th('오차 건', 'right') + th('|차이|', 'right') + th('오차율', 'right'), spRows || none(6, '오차 없음'), 'max-h-[300px]')}
+            </div>
+        </div>
+        ${full ? narrative(esc(`기록이 많아 이른 출고일부터 ${INBOUND_DIFF_MAX_DOCS}개만 읽었습니다 — 기간 뒷부분이 빠졌을 수 있습니다.`), 'amber') : ''}`;
+    return { html: idfPanel(body), chartId: hasTrend ? chartId : null };
+}
+
+/** 결산을 그린 뒤 입고 오차 자리를 채운다. 권한이 없으면 자리째 비운다. 규칙에 막히면 부족수량관리와 같은 '권한 없음' 문구. */
+async function fillInboundSection(container, from, to) {
+    const slot = container.querySelector('#settle-inbound-slot');
+    const my = ++_idfToken;
+    _idfLoading = false;
+    if (!slot) return;
+    if (!canInbound() || !State.db) { slot.innerHTML = ''; return; }
+    slot.innerHTML = idfPanel(emptyNote('불러오는 중...'));
+    _idfLoading = true;
+    try {
+        const data = await loadInboundDiffRange(State.db, { from, to });
+        if (my !== _idfToken || !container.contains(slot)) return;
+        if (!data.ok) { slot.innerHTML = data.denied ? '' : idfPanel(emptyNote('입고 오차 기록을 읽지 못했습니다.')); return; }   // 규칙에 막히면 비품 장처럼 자리째 비움(PDF·엑셀 같게)
+        const days = Math.round((Date.parse(to + 'T00:00:00Z') - Date.parse(from + 'T00:00:00Z')) / 86400000) + 1;
+        const m = buildInboundDiffReport(data.records, { from, to, kind: 'all', includeNoScan: false, days });
+        if (!m.ships.length) { slot.innerHTML = idfPanel(emptyNote('해당 기간에 입고 오차 기록이 없습니다.')); if (_last) _last.data.inbound = m; return; }
+        const r = renderInboundSection(m, data.full, days);
+        slot.innerHTML = r.html;
+        if (r.chartId) createBarChart(r.chartId, m.trend.labels, m.trend.short.map((v, i) => v + (m.trend.over[i] || 0)), '부족 + 과입고', D.risk);
+        if (_last) _last.data.inbound = m;
+    } catch (e) {
+        if (my !== _idfToken) return;
+        console.error('결산 입고 오차 장 실패:', e && (e.code || e.message));
+        slot.innerHTML = idfPanel(emptyNote('입고 오차 기록을 읽지 못했습니다.'));
+    } finally {
+        if (my === _idfToken) _idfLoading = false;
+    }
+}
+
 // 7. 엑셀 받기
 // ============================================================
-function downloadSettlementExcel(periodLabel, core, tp, wf, wr, att, mg, insp, ms, opinion, sup = null) {
+function downloadSettlementExcel(periodLabel, core, tp, wf, wr, att, mg, insp, ms, opinion, sup = null, idf = null) {
     try {
         const rows = [
             ['구분', '항목', '값'],
@@ -1560,11 +1589,13 @@ function downloadSettlementExcel(periodLabel, core, tp, wf, wr, att, mg, insp, m
             ['경영지표', '평균 재고금액(원)', Math.round(mg.curMgmt.avgInventoryAmt)],
             ['경영지표', '평균 환율(USD)', mg.curMgmt.avgUsdRate > 0 ? mg.curMgmt.avgUsdRate.toFixed(1) : ''],
             ['경영지표', '평균 환율(CNY)', mg.curMgmt.avgCnyRate > 0 ? mg.curMgmt.avgCnyRate.toFixed(1) : ''],
-            ['검수이력', '총 검수 SKU(종)', insp.productTypeCount],
-            ['검수이력', '총 검수 수량(개)', Math.round(insp.totalInspectedQty)],
-            ['검수이력', '불량 수량(개)', Math.round(insp.totalDefectQty)],
-            ['검수이력', '수량기준 불량률(%)', insp.qtyDefectRate.toFixed(1)],
-            ['검수이력', '건수기준 불량률(%)', insp.countDefectRate.toFixed(1)],
+            ...(insp.failed ? [['검수이력', '검수', '못 읽음']] : [   // 검수 기록을 못 읽었으면 0 대신 '못 읽음' 한 줄(화면 장과 같게)
+                ['검수이력', '총 검수 SKU(종)', insp.productTypeCount],
+                ['검수이력', '총 검수 수량(개)', Math.round(insp.totalInspectedQty)],
+                ['검수이력', '불량 수량(개)', Math.round(insp.totalDefectQty)],
+                ['검수이력', '수량기준 불량률(%)', insp.qtyDefectRate.toFixed(1)],
+                ['검수이력', '건수기준 불량률(%)', insp.countDefectRate.toFixed(1)]
+            ]),
             ['마일스톤', '등록 건수', ms.total],
             ['마일스톤', '효과 측정 가능 건수', ms.measuredCount],
             ['마일스톤', '긍정 효과 건수', ms.positiveCount],
@@ -1580,6 +1611,7 @@ function downloadSettlementExcel(periodLabel, core, tp, wf, wr, att, mg, insp, m
                 `[해석] ${it.insight.interp} [운영방안] ${it.insight.action}`
             ]),
             ...(canSupplies() ? suppliesExcelRows(sup) : []),   // 비품 장(화면에 다 그려진 뒤에만 — 아직이면 빠짐)
+            ...(canInbound() ? inboundDiffExcelRows(idf) : []),   // 입고 오차 장(같음)
             ...(opinion.verdict ? [['종합의견', '종합 판정', opinion.verdict.text]] : []),
             ...(opinion.verdictSummary ? [['종합의견', '총평', opinion.verdictSummary]] : []),
             ...(opinion.points || []).map((p, i) => ['종합의견', `진단 해석 ${i + 1}`, htmlToText(p.text)]),
@@ -1726,7 +1758,7 @@ export function renderSettlementReport(container, appConfig, opts = null) {
     const wr = computeWorkReportSummary(core);
     const mg = computeManagementSummary(currentDays, previousDays, appConfig, core);
     const { from, to } = getPeriodDateRange(granularity, year, sub);
-    const insp = computeInspectionSummary(_productHistoryCache, from, to);
+    const insp = computeInspectionSummary(_inspSrc, from, to);
     const ms = computeMilestoneSummaryForPeriod(from, to);
     const opinion = computeOverallOpinion(core, tp, wf, att, mg, insp, ms, workingDaysCount);
 
@@ -1749,9 +1781,10 @@ export function renderSettlementReport(container, appConfig, opts = null) {
             ${renderWorkReportSection(wr, workingDaysCount, currentDays.length)}
             ${attResult.html || attResult}
             ${mgResult.html || mgResult}
+            <div id="settle-inbound-slot"></div>
             ${renderInspectionSection(insp)}
-            ${renderMilestoneSection(ms)}
             <div id="settle-supplies-slot"></div>
+            ${renderMilestoneSection(ms)}
             ${renderOverallOpinionSection(opinion, periodLabel, workingDaysCount)}
         </div>
     `;
@@ -1773,8 +1806,9 @@ export function renderSettlementReport(container, appConfig, opts = null) {
     const generatedAtEl = container.querySelector('#settle-generated-at');
     if (generatedAtEl) generatedAtEl.textContent = `생성: ${new Date().toLocaleString('ko-KR', { dateStyle: 'medium', timeStyle: 'short' })}`;
 
-    _last = { periodLabel, data: { core, tp, wf, wr, att, mg, insp, ms, opinion, supplies: null } };
+    _last = { periodLabel, data: { core, tp, wf, wr, att, mg, insp, ms, opinion, supplies: null, inbound: null } };
     fillSuppliesSection(container, from, to).catch(e => console.error('결산 비품 장 실패:', e && e.message));
+    fillInboundSection(container, from, to).catch(e => console.error('결산 입고 오차 장 실패:', e && e.message));
 
     const downloadBtn = container.querySelector('#settle-download-btn');
     if (downloadBtn) downloadBtn.addEventListener('click', () => downloadSettlement('excel'));
@@ -1797,9 +1831,12 @@ export function settlementPeriodLabel() {
  */
 export function downloadSettlement(kind, btn = null) {
     if (!_last) return false;
-    if (_supLoading) { showAlert(SUP_LOADING_MSG, { title: kind === 'pdf' ? 'PDF 저장' : '엑셀 받기' }); return true; }
+    if (_supLoading || _idfLoading) {
+        showAlert(_supLoading ? SUP_LOADING_MSG : '입고 오차 장을 불러오는 중입니다. 보고서에 다 보인 뒤 다시 받아 주세요.', { title: kind === 'pdf' ? 'PDF 저장' : '엑셀 받기' });
+        return true;
+    }
     const { periodLabel, data: d } = _last;
-    if (kind === 'excel') { downloadSettlementExcel(periodLabel, d.core, d.tp, d.wf, d.wr, d.att, d.mg, d.insp, d.ms, d.opinion, d.supplies); return true; }
+    if (kind === 'excel') { downloadSettlementExcel(periodLabel, d.core, d.tp, d.wf, d.wr, d.att, d.mg, d.insp, d.ms, d.opinion, d.supplies, d.inbound); return true; }
     if (kind === 'pdf') { downloadSettlementPdf(periodLabel, btn).catch(e => console.error('결산 PDF 실패:', e && e.message)); return true; }
     return false;
 }
@@ -1812,15 +1849,15 @@ export async function initSettlementReport(opts = null) {
     const container = document.getElementById('settlement-panel');
     if (!container) return;
 
-    if (!_productHistoryCache) {
-        try {
-            const snapshot = await getDocs(collection(State.db, 'product_history'));
-            _productHistoryCache = [];
-            snapshot.forEach(d => _productHistoryCache.push({ id: d.id, ...d.data() }));
-        } catch (e) {
-            console.error('검수 이력(product_history) 로드 실패:', e);
-            _productHistoryCache = [];
-        }
+    // 검수 자료 — 결산 연도 목록 전체(첫 해 1/1 ~ 끝 해 12/31)를 한 번에(기간 선택을 바꿔도 다시 읽지 않게, 저장소 10분 캐시).
+    //   전량 기록은 최근부터 INSP_LOG_MAX 건까지 — 넘으면 장에 '일부만'.
+    try {
+        const years = [...new Set([...(State.allHistoryData || []).map(d => String(d.id || '').substring(0, 4)), String(_currentPeriod.year)])]
+            .filter(y => /^\d{4}$/.test(y)).sort();
+        _inspSrc = State.db && years.length ? await loadInspData(State.db, { from: `${years[0]}-01-01`, to: `${years[years.length - 1]}-12-31` }) : null;
+    } catch (e) {
+        console.error('검수 자료 읽기 실패:', e && (e.code || e.message));
+        _inspSrc = null;
     }
 
     // 마일스톤 결과 데이터(운영 마일스톤 전/후 효과)를 캐시에 로드

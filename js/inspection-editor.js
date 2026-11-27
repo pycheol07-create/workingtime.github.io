@@ -3,10 +3,10 @@ import * as DOM from './dom-elements.js?v=2b9f19ecbde2-82fbef91';
 import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
 import { showToast, getCurrentTime, getTodayDateString, showConfirm, showAlert } from './utils.js?v=65bb3512764f-e315797c';
 import { doc, getDoc, setDoc, updateDoc, deleteDoc, arrayUnion, serverTimestamp, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { renderInspectionHistoryTable, renderInspectionLogTable, renderExpandedInspectionLog } from './ui-history-inspection.js?v=d777195e58d7-ff9001e3';
-import { getUniqueInboundCount } from './inspection-logic.js?v=6e64a569ae56-aad5f436';
+import { renderInspectionHistoryTable, renderInspectionLogTable, renderExpandedInspectionLog } from './ui-history-inspection.js?v=75ca8d727016-93b45531';
+import { getUniqueInboundCount } from './inspection-logic.js?v=746d3a1c9109-aad5f436';
 import { LABELS as CHECK_LABELS, hasBrushed } from './lib/insp-flow.js?v=5d563dd586be-06600d5f';
-import { manualImageBase64, clearManualImageState, uploadInspectionPhoto, dataUrlToBlob } from './inspection-media.js?v=6e64a569ae56-cad5241c';
+import { manualImageBase64, clearManualImageState, uploadInspectionPhoto, dataUrlToBlob } from './inspection-media.js?v=746d3a1c9109-cad5241c';
 
 export let currentProductLogs = [];
 // 수동 사전등록 사진을 올린 결과 — 저장이 실패해 다시 누를 때 같은 사진을 또 올리지 않게

@@ -567,7 +567,7 @@
             ]);
 
             try {
-                await import('./js/app.js?v=57f6f9e96983-2ba8f711');
+                await import('./js/app.js?v=0e80faf54575-2ba8f711');
             } catch (e) {
                 console.error("메인 앱 스크립트 로딩 실패:", e);
             }
@@ -655,10 +655,10 @@
     <script type="module">
         import { appState } from './js/state.js?v=c7f5fc984ef9-a2ce38c0';
         import { addNotice, toggleNotice, deleteNotice, editNotice, noticeMemberNames } from './js/notice-logic.js?v=9d1d22165214-c08a5845';
-        import { renderNoticeWidget } from './js/ui-main.js?v=0e333fe7c86f-d7b62405';
+        import { renderNoticeWidget } from './js/ui-main.js?v=7f2da6c8c7da-d7b62405';
         import { initIncomingScheduleWidget } from './js/widget-incoming-schedule.js?v=98c211d9a608-237bc1dd';
-        import { initTodayProgressStrip } from './js/widget-today-progress.js?v=d644adebd5ec-e2bff3e0';
-        import { initDashInsights } from './js/dash-insights.js?v=5e324888c2b3-8750fc39';
+        import { initTodayProgressStrip } from './js/widget-today-progress.js?v=d49bd7d048ca-e2bff3e0';
+        import { initDashInsights } from './js/dash-insights.js?v=4bb841f61e82-8750fc39';
         initDashInsights();   // 하단 세 카드 — 오늘 진행 띠가 자료를 다 실은 뒤 그린다('dash-forecast-ready')
 
         // 🚚 입고 예정 위젯 — 캐시부터 그림. 데이터 구독은 로그인 후 app.js 가 시작
@@ -884,7 +884,7 @@
     <script src="js/modal-esc.js?v=0458b4470d9a-71e98692"></script>
     <script type="module" src="js/modal-drag.js?v=c3010af0cdbe-22d0d415"></script>
     <!-- 공통 상단바(대시보드는 바 없이 메뉴 캐시만 채운다 — data-shell-bar="off") -->
-    <script type="module" src="js/app-shell.js?v=35b757f86d20-1454a9a2"></script>
-    <script src="js/app-version.js?v=6a7d6ef3e136-d44ded88"></script>
+    <script type="module" src="js/app-shell.js?v=e496089a1dfb-1454a9a2"></script>
+    <script src="js/app-version.js?v=283eeccb23f7-bd4f49a9"></script>
 </body>
 </html>

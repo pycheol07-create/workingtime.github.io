@@ -6,7 +6,7 @@
 // 2026-11-27: 다른 화면의 공통 메뉴(js/app-shell.js 접힌 레일·메뉴 서랍)도 같은 2차 메뉴 — 목록·여닫기는 여기 한 벌
 //   (flyoutCss · flyoutHtml · attachFlyout). 공통 메뉴는 섀도 DOM 안이라 단추·목록이 섀도 안에 있어도 되게 짰다(초점은 getRootNode 기준).
 // ⚠️ 봇 안전: role=dialog·data-act 를 쓰지 않는다(업무마감봇 선택자). 모양 토큰은 #dash-root 것(css/dash-d.css)이라 그 안에 붙인다.
-import { SECTIONS, SECTION_GROUPS, sectionIconSvg } from './history-sections.js?v=c5e89d216c58-1af66818';
+import { SECTIONS, SECTION_GROUPS, sectionIconSvg } from './history-sections.js?v=b52edcc3bc59-1af66818';
 
 /** 2차 메뉴 모양 — sel 은 목록 요소 선택자(대시보드 '#history-flyout', 공통 메뉴 '.hf-panel'). 색은 --c-* 토큰(없으면 밝은 기본값) */
 export const flyoutCss = (sel) => `

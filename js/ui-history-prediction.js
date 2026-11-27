@@ -8,7 +8,7 @@ import { doc, getDoc, collection, getDocs } from "https://www.gstatic.com/fireba
 import { mibalByArrival, makeArrivalLookup, makeArrivalsLookup } from './lib/mibal-forecast.js?v=60b17128e7b7-2e3b80a2';
 import { parseInspPacks, sampleCardsByArrival } from './lib/insp-packs.js?v=1b36ec3984ba-16eb76b5';
 import { inspListCountFor } from './lib/insp-day.js?v=df2594fe0811-d324b1d1';
-import { getSubscribedDate } from './app-sync.js?v=0e333fe7c86f-68f6c921';
+import { getSubscribedDate } from './app-sync.js?v=7f2da6c8c7da-68f6c921';
 import { runDay } from './lib/refill-view.js?v=3416a867c2d7-24e9bb3d';
 import { parseRecDay, pickRecDay, recCount, applyLocRecCount, dayKey as recDayKey } from './lib/locrec-view.js?v=b56633c4d6cf-fdf32cdb';
 import { LOCREC_TASK } from './lib/feature-catalog.js?v=b88b1c1e60c1-81ffd467';
@@ -24,7 +24,7 @@ import { can } from './lib/perm.js?v=c1e53d91da8e-49afeea3';
 import { precursorOffGate, noneNextStats, noneNextObs, precursorStateOfDay as precursorStateOfDayLib, looksRecorded } from './lib/cadence-gate.js?v=174fc3ed4bb2-634081b5';
 import { DELIVERY_CHANNELS, channelScope } from './revenue-channels.js?v=553320652df2-c473a26d';
 import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
-import { saveView } from './view-state.js?v=1eb0de390ca8-0da8b754';
+import { saveView } from './view-state.js?v=889e2b485d5a-0da8b754';
 import { getTodayDateString, getRegularMembersForCount, showToast, showConfirm, showAlert, getHolidayName, formatHM, getAllTaskKeys, escapeHtml } from './utils.js?v=65bb3512764f-e315797c';
 import { groupIncomingRowsByArrival } from './widget-incoming-schedule.js?v=98c211d9a608-237bc1dd';
 import { getIncomingQtyByDateFromCache, getIncomingDetailsByDateFromCache,
@@ -32,7 +32,7 @@ import { getIncomingQtyByDateFromCache, getIncomingDetailsByDateFromCache,
 import { getPlannedQuantitiesForDate, getPlannedTimeTasksForDate, getPlannedExcludeMinutesForDate, getPlannedAdminWorkersForDate,
          fetchPlannedData, savePlannedQuantities,
          saveForecastSnapshot, saveForecastSnapshotIfAbsent, deleteForecastSnapshot, fetchForecastSnapshots,
-         getForecastSnapshotForDate, historyLoadFailed, hasHistoryLoaded, fetchAllHistoryData } from './history-data-manager.js?v=0e333fe7c86f-a9403e97';
+         getForecastSnapshotForDate, historyLoadFailed, hasHistoryLoaded, fetchAllHistoryData } from './history-data-manager.js?v=7f2da6c8c7da-a9403e97';
 import { decomposeAccuracy, summarizeAccuracyRows, aggregateByTask, excludeTasksForAccuracy } from './forecast-accuracy.js?v=14735a690ed1-00c766d3';
 import { computeDayProgress, buildProgressRows, projectFinish, spentMinutesOf,
          nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=dbbe835978a6-40fe586a';

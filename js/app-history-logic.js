@@ -12,7 +12,7 @@ export {
     switchHistoryView,
     updateGranularityButtons,
     openHistoryQuantityModal
-} from './history-list-controller.js?v=b5228026028d-bba56cb8';
+} from './history-list-controller.js?v=016c7f69fe91-bba56cb8';
 
 // 3. 일별 상세 렌더링 (Daily Renderer)
 export { renderHistoryDetail } from './history-daily-renderer.js?v=5dc06639e61a-e4fed325';

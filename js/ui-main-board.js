@@ -10,7 +10,7 @@ import { isLeaveActiveAt, isLeavePendingAt } from './lib/leave-timing.js?v=56494
 import { isRefillTask, refillAllowed, refillProgressText, refillProgressTone, syncRefillDash } from './refill-dash.js?v=fa20c3bb2e8b-9d529bbc';
 import { isLocRecTask, locRecAllowed, syncLocRecDash } from './locrec-dash.js?v=ff01ed3f8c28-a54bc4d0';
 import { TASK, tName, isT } from './task-names.js?v=33eb5ccd69bc-26ab8ff7';
-import { setupQuickMenu } from './quick-menu.js?v=a0038ac08a62-ac595a94';
+import { setupQuickMenu } from './quick-menu.js?v=1f3361a57218-ac595a94';
 import { setupPullRefresh } from './pull-refresh.js?v=daa0d8ec2d56-c48c56b1';
 
 // ===== 업무현황 카드 커버플로우(coverflow) 컨트롤러 =====

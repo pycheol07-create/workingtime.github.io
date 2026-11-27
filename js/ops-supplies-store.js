@@ -2,7 +2,7 @@
 // 운영 리포트 '비품' 탭·팀 결산 '비품' 장의 읽기(2026-11-27). 계산은 js/lib/ops-supplies.js(순수).
 //   한 벌 문서(비품 목록·스위치·재고·발주·예측)는 한 번 읽어 10분 캐시, 원장은 기간(한국 날짜)마다 날짜 범위 쿼리 + limit 으로 10분 캐시.
 //   탭을 다시 열거나 같은 기간을 다시 그려도 다시 읽지 않는다. [새로 읽기]는 invalidateSuppliesData().
-//   읽기 규칙은 등록 직원 읽기(artifacts/**)지만 화면은 비품 권한(supplies.view)일 때만 부른다(js/ui-ops-supplies.js·결산).
+//   읽기 규칙은 등록 직원 읽기(artifacts/**)지만 화면은 데이터 관리 권한(data.analysis)일 때만 부른다(통계 탭 js/ui-ops-supplies.js·결산).
 //   못 읽은 문서는 ok.<이름> = false — 권한 거부(permission-denied)면 denied = true(화면은 '권한 없음'만).
 //   하나라도 못 읽은 회차는 캐시에 남기지 않는다(다음에 다시 읽음 — 스위치를 못 읽은 채 10분 '못 읽음' 이 남지 않게).
 //   원장은 켜짐이거나 켠 적이 있으면(liveAt — 다시 끈 경우 그 기간은 원장으로 센다, js/lib/ops-supplies.js ledgerWindow) 읽는다.
@@ -10,7 +10,7 @@
 
 import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { loadLedger, loadStock } from './supplies-ledger-store.js?v=bd8190f12a34-0854dfa3';
-import { kstRangeMs, LEDGER_MAX } from './lib/ops-supplies.js?v=6885f1ad3c7b-92bc58ee';
+import { kstRangeMs, LEDGER_MAX } from './lib/ops-supplies.js?v=f5cbd8a554cf-1a2dc6de';
 import { atMs } from './lib/supplies-mode.js?v=5f016d6adc90-90c9a625';
 
 const BASE = ['artifacts', 'team-work-logger-v2'];

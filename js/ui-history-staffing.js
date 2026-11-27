@@ -1,7 +1,7 @@
 // === js/ui-history-staffing.js ===
 import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
-import { getStaffingOutlook, ensureMibalHistory, ensureCorrectCtx } from './ui-history-prediction.js?v=0e333fe7c86f-91ee5358';
-import { fetchPlannedData } from './history-data-manager.js?v=0e333fe7c86f-a9403e97';
+import { getStaffingOutlook, ensureMibalHistory, ensureCorrectCtx } from './ui-history-prediction.js?v=7f2da6c8c7da-91ee5358';
+import { fetchPlannedData } from './history-data-manager.js?v=7f2da6c8c7da-a9403e97';
 import { getTodayDateString, escapeHtml } from './utils.js?v=65bb3512764f-e315797c';
 import { staffing as opsStaffing, periodSpeeds, lastDayIdOf } from './lib/ops-metrics.js?v=5abf5efec2fb-58d6bcbb';
 import { D } from './d-chart.js?v=e918595219dd-dfe55644';

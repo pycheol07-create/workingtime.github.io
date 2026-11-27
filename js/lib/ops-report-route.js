@@ -6,7 +6,9 @@
 //     업무 담당 변화는 업무 표 행을 누르면 뜨는 업무 상세 화면.
 //   옛 주소(#tab=dashboard, #tab=rawdata&sub=report, #tab=settlement, #tab=ops&sub=tasks …)·저장해 둔 화면 기억·Ctrl+K 옛 목적지는 여기서 바꾼다.
 //   2026-11-05 운영 계획 MVP-1: 탭 'plan'(운영 계획 — 다음 주 주간 계획서, data.analysis)을 맨 뒤에 더했다. 날짜 트리를 안 쓴다(isOpsTreeless).
-//   2026-11-27 탭 'supplies'(비품 — 기간 사용·입고·안전재고·예측·발주, js/ui-ops-supplies.js)를 비용과 운영 계획 사이에. 권한 = 비품 권한(supplies.view).
+//   2026-11-27 비품(supplies)·입고 오차(inbound) 탭을 '통계'(stats, js/ui-ops-stats.js) 탭 하나로 합쳤다(사용자 결정) — 비용과 운영 계획 사이.
+//     탭 안 = 요약 카드 3장 + 펼침 장 3개(입고 오차 → 검수 → 비품, STATS_SECTIONS). 권한 = 데이터 관리(data.analysis — 비품 금액은 그 안에서 data.reports 일 때만).
+//     옛 주소 #tab=ops&sub=supplies·inbound 는 SUB_ALIAS 로 stats.
 //   쓰는 곳: js/view-state.js(해시·기억 복원), js/listeners-history-tabs.js(showSection), js/ui-history-ops-report.js(탭 그리기).
 //   테스트: tests/ops-report-route.test.js
 
@@ -15,17 +17,18 @@ export const OPS_MAIN = 'ops';
 export const PLAN_TAB = 'plan';
 
 // 탭 순서 = 화면 순서
-export const OPS_TABS = ['summary', 'productivity', 'staffing', 'cost', 'supplies', 'plan'];
+export const OPS_TABS = ['summary', 'productivity', 'staffing', 'cost', 'stats', 'plan'];
 export const OPS_TAB_LABELS = {
-    summary: '요약', productivity: '생산성', staffing: '인력', cost: '비용', supplies: '비품', plan: '운영 계획'
+    summary: '요약', productivity: '생산성', staffing: '인력', cost: '비용', stats: '통계', plan: '운영 계획'
 };
-// 탭 권한(js/lib/feature-catalog.js 의 기능 id). 비용(인건비·원가·손실 금액)은 data.reports, 비품은 비품 관리 권한(supplies.view — 비품 금액은
-// 그 안에서 data.reports 일 때만), 나머지는 data.analysis(운영 계획은 시간·인원만 — 금액 없음).
+// 탭 권한(js/lib/feature-catalog.js 의 기능 id). 비용(인건비·원가·손실 금액)은 data.reports, 나머지는 data.analysis
+// (통계의 비품 금액은 그 안에서 data.reports 일 때만, 운영 계획은 시간·인원만 — 금액 없음).
 export const OPS_TAB_FEATURE = {
-    summary: 'data.analysis', productivity: 'data.analysis', staffing: 'data.analysis', cost: 'data.reports', supplies: 'supplies.view', plan: 'data.analysis'
+    summary: 'data.analysis', productivity: 'data.analysis', staffing: 'data.analysis', cost: 'data.reports', stats: 'data.analysis', plan: 'data.analysis'
 };
-/** 비품 탭·팀 결산 '비품' 장 */
-export const SUPPLIES_TAB = 'supplies';
+/** 통계 탭 — 입고 오차·검수·비품 장(팀 결산 장 순서와 같음) */
+export const STATS_TAB = 'stats';
+export const STATS_SECTIONS = ['inbound', 'insp', 'supplies'];
 /** [보고서 만들기](팀 결산)·생산성 탭의 '상세 표'(인건비 열) — 금액이 보이므로 data.reports */
 export const SETTLE_FEATURE = 'data.reports';
 export const DETAIL_FEATURE = 'data.reports';
@@ -35,7 +38,7 @@ export const OWNER_FEATURE = 'data.reports';
 export const TASK_TABLE_FEATURE = 'data.view';
 
 /** 없어진 탭 이름 → 지금 탭 (#tab=ops&sub=tasks — 통합 2단계 주소·기억) */
-export const SUB_ALIAS = { tasks: 'productivity' };
+export const SUB_ALIAS = { tasks: 'productivity', supplies: STATS_TAB, inbound: STATS_TAB };   // 비품·입고 오차 탭 → 통계(2026-11-27)
 
 // 옛 화면 → 운영 리포트. 키는 'main' 또는 'main/sub'.
 //   settle: [보고서 만들기](팀 결산 화면, 자체 기간 선택) · detail: 생산성 탭 '상세 표' 펼침 · owner: 업무 상세(담당 변화) 화면.

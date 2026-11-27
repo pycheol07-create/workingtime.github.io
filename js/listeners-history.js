@@ -3,24 +3,24 @@ import * as DOM from './dom-elements.js?v=2b9f19ecbde2-82fbef91';
 import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
 import { showToast, getTodayDateString, toDateString } from './utils.js?v=65bb3512764f-e315797c';
 
-import { setupHistoryDownloadListeners, openDownloadFormatModal } from './listeners-history-download.js?v=7af7d49eaad5-22e2520d';
-import { setupHistoryRecordListeners } from './listeners-history-records.js?v=a112a24b2440-1e7b78f7';
-import { setupHistoryAttendanceListeners } from './listeners-history-attendance.js?v=bdd86da69b96-c214419d';
-import { setupHistoryInspectionListeners } from './listeners-history-inspection.js?v=84f657cc84fd-85aca8bb';
+import { setupHistoryDownloadListeners, openDownloadFormatModal } from './listeners-history-download.js?v=23cb2ecdb00f-22e2520d';
+import { setupHistoryRecordListeners } from './listeners-history-records.js?v=541021e8eb01-1e7b78f7';
+import { setupHistoryAttendanceListeners } from './listeners-history-attendance.js?v=2528c0c14542-c214419d';
+import { setupHistoryInspectionListeners } from './listeners-history-inspection.js?v=e46d6376fb42-85aca8bb';
 
-import { loadAndRenderHistoryList, renderHistoryDetail, switchHistoryView, openHistoryQuantityModal, augmentHistoryWithPersistentLeave } from './app-history-logic.js?v=b5228026028d-ef63fd43';
-import { renderAttendanceDailyHistory, renderAttendanceWeeklyHistory, renderAttendanceMonthlyHistory, renderAttendanceYearlyHistory, renderReportDaily, renderReportWeekly, renderReportMonthly, renderReportYearly, renderPersonalReport, renderManagementDaily, renderManagementSummary, renderWeeklyHistory, renderMonthlyHistory, renderYearlyHistory, renderPredictionTab } from './ui-history.js?v=0e333fe7c86f-b575143a';
-import { syncTodayToHistory, saveManagementData, backfillFxRates, peekDailyData, recoverDailyDataToHistory, fetchAllHistoryData } from './history-data-manager.js?v=0e333fe7c86f-a9403e97';
+import { loadAndRenderHistoryList, renderHistoryDetail, switchHistoryView, openHistoryQuantityModal, augmentHistoryWithPersistentLeave } from './app-history-logic.js?v=016c7f69fe91-ef63fd43';
+import { renderAttendanceDailyHistory, renderAttendanceWeeklyHistory, renderAttendanceMonthlyHistory, renderAttendanceYearlyHistory, renderReportDaily, renderReportWeekly, renderReportMonthly, renderReportYearly, renderPersonalReport, renderManagementDaily, renderManagementSummary, renderWeeklyHistory, renderMonthlyHistory, renderYearlyHistory, renderPredictionTab } from './ui-history.js?v=7f2da6c8c7da-b575143a';
+import { syncTodayToHistory, saveManagementData, backfillFxRates, peekDailyData, recoverDailyDataToHistory, fetchAllHistoryData } from './history-data-manager.js?v=7f2da6c8c7da-a9403e97';
 import { REVENUE_CHANNELS, CHANNEL_METRICS } from './revenue-channels.js?v=553320652df2-c473a26d';
 import { doc, getDoc, updateDoc, deleteField } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-import { setupHistoryTabsListeners, getFilteredHistoryData, getPeriodFilteredData, renderAnalyticsTab } from './listeners-history-tabs.js?v=b5228026028d-8058cdde';
-import { saveView } from './view-state.js?v=1eb0de390ca8-0da8b754';
+import { setupHistoryTabsListeners, getFilteredHistoryData, getPeriodFilteredData, renderAnalyticsTab } from './listeners-history-tabs.js?v=016c7f69fe91-8058cdde';
+import { saveView } from './view-state.js?v=889e2b485d5a-0da8b754';
 import { goTo, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=b9a7199f3e1d-c80c27e9';
-import { initHistoryFlyout } from './history-flyout.js?v=17849b54f452-507d0536';
+import { initHistoryFlyout } from './history-flyout.js?v=a71315d9a35e-507d0536';
 import { isManagementDirty, confirmDiscardManagementEdits } from './ui-history-management.js?v=f7cf514cd049-688719b9';
-import { isLeaveDirty } from './ui-history-leave.js?v=38342bcc7f60-4c985a8b';
-import { isSimDirty } from './ui-history-prediction.js?v=0e333fe7c86f-91ee5358';
+import { isLeaveDirty } from './ui-history-leave.js?v=6c36dd8285c9-4c985a8b';
+import { isSimDirty } from './ui-history-prediction.js?v=7f2da6c8c7da-91ee5358';
 import { placeOpenDropdown } from './table-filter.js?v=fd197c3531ef-b92b1b78';
 import { deletionSummary, deletionDetail } from './lib/history-delete-text.js?v=45db1f2f0f26-10f77366';
 

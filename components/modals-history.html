@@ -194,6 +194,11 @@
     #history-modal .opv-fold[open] > summary { border-bottom: 1px solid var(--c-line); border-radius: var(--r-inner) var(--r-inner) 0 0; }
     #history-modal .opv-fold-hint { font-size: 11px; font-weight: 500; color: var(--c-text-3); }
     #history-modal .opv-fold-body { padding: 14px 16px; min-width: 0; }
+    /* 통계 탭 요약 카드(js/ui-ops-stats.js) — 누르면 그 장을 펼친다 */
+    #history-modal .ops-stat-card { appearance: none; border: 0; background: none; padding: 0; font: inherit; color: inherit; text-align: left; cursor: pointer; width: 100%; min-width: 0; border-radius: var(--r-inner); }
+    #history-modal .ops-stat-card > .opv-kpi { height: 100%; }
+    #history-modal .ops-stat-card:hover > .opv-kpi { border-color: var(--c-accent); }
+    #history-modal .ops-stat-card:focus-visible { outline: 2px solid var(--c-accent); outline-offset: 2px; }
     #history-modal .opv-btn {
         appearance: none; border: 1px solid var(--c-line-strong); background: var(--c-surface); color: var(--c-text);
         min-height: 28px; padding: 0 12px; border-radius: var(--r-sm); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer;
@@ -404,7 +409,7 @@
 
             <div id="history-main-content" class="flex-1 flex flex-col overflow-hidden relative">
 
-            <!-- 📊 운영 리포트 (2026-11-05 통합 · 내용 통합) — 탭: 요약·생산성·인력·비용·비품(11/27)·운영 계획 + [보고서 만들기](팀 결산).
+            <!-- 📊 운영 리포트 (2026-11-05 통합 · 내용 통합) — 탭: 요약·생산성·인력·비용·통계(11/27 — 입고 오차·검수·비품)·운영 계획 + [보고서 만들기](팀 결산).
                  탭 전환·권한은 js/ui-history-ops-report.js, 탭 안 그리기는 js/ui-ops-view.js(숫자는 js/lib/ops-view-model.js buildOpsModel 한 번).
                  아래 *-body 칸은 JS 가 채운다. 고정 id 칸(#report-view-container·#staffing-outlook·채우기→오류 차트·#taskowner-body·#settlement-panel)은
                  옛 그리기 함수가 id 로 찾아 채우므로 이름을 바꾸지 않는다.
@@ -416,7 +421,7 @@
                         <button type="button" class="ops-tab" data-ops-tab="productivity" data-feature="data.analysis" role="tab" aria-selected="false">생산성</button>
                         <button type="button" class="ops-tab" data-ops-tab="staffing" data-feature="data.analysis" role="tab" aria-selected="false">인력</button>
                         <button type="button" class="ops-tab" data-ops-tab="cost" data-feature="data.reports" role="tab" aria-selected="false">비용</button>
-                        <button type="button" class="ops-tab" data-ops-tab="supplies" data-feature="supplies.view" role="tab" aria-selected="false">비품</button>
+                        <button type="button" class="ops-tab" data-ops-tab="stats" data-feature="data.analysis" role="tab" aria-selected="false">통계</button>
                         <button type="button" class="ops-tab" data-ops-tab="plan" data-feature="data.analysis" role="tab" aria-selected="false">운영 계획</button>
                     </div>
                     <span id="ops-tab-note" class="ops-tab-note"></span>
@@ -483,9 +488,23 @@
                 <div id="ops-cost-body" class="opv-stack"></div>
             </div>
 
-            <!-- 비품(2026-11-27) — 고른 기간 사용·입고·발주 + 지금 안전재고·예측(권한 supplies.view, 금액은 data.reports 일 때만). js/ui-ops-supplies.js 가 채움. -->
-            <div id="ops-supplies-panel" class="ops-pane hidden">
-                <div id="ops-supplies-body" class="opv-stack"></div>
+            <!-- 통계(2026-11-27, 권한 data.analysis) — 요약 카드 3장(#ops-stats-cards, 누르면 그 장을 펼치고 이동) + 펼침 장 3개(입고 오차 → 검수 → 비품).
+                 카드·장 그리기는 js/ui-ops-stats.js. 장 안(*-body)은 펼친 뒤에만 그린다(숨은 칸 그래프 크기 0) — 입고 오차 js/ui-ops-inbound-diff.js,
+                 검수 js/ui-ops-stats.js(펼칠 때만 읽음), 비품 js/ui-ops-supplies.js(금액은 data.reports 일 때만). 공급처는 코드만, 직원 이름 없음. -->
+            <div id="ops-stats-panel" class="ops-pane hidden">
+                <div id="ops-stats-cards" class="opv-kpis"></div>
+                <details id="ops-stats-sec-inbound" class="opv-fold" data-stats-sec="inbound">
+                    <summary>입고 오차 <span class="opv-fold-hint">패킹 대비 입고 — 고른 기간 = 패킹 출고일(부족수량관리 입고 오차 통계와 같은 숫자)</span></summary>
+                    <div class="opv-fold-body"><div id="ops-inbound-body" class="opv-stack"></div></div>
+                </details>
+                <details id="ops-stats-sec-insp" class="opv-fold" data-stats-sec="insp">
+                    <summary>검수 <span class="opv-fold-hint">샘플·전량 검수 — 검수 이력 품질 통계와 같은 기준, 펼칠 때 읽음</span></summary>
+                    <div class="opv-fold-body"><div id="ops-insp-body" class="opv-stack"></div></div>
+                </details>
+                <details id="ops-stats-sec-supplies" class="opv-fold" data-stats-sec="supplies">
+                    <summary>비품 <span class="opv-fold-hint">안전재고·예측은 지금 기준, 사용·입고·발주는 고른 기간</span></summary>
+                    <div class="opv-fold-body"><div id="ops-supplies-body" class="opv-stack"></div></div>
+                </details>
             </div>
 
             <!-- 운영 계획(MVP-1 주간 계획서) — 다음 주 월~일 고정, 날짜 트리 숨김(js/ui-ops-plan.js 가 채움). 시간·인원만(금액 없음), 저장 없음. -->

@@ -7,7 +7,7 @@ import { csvSafeSheet, csvSafeBook } from './lib/csv-safe.js?v=52895af199a4-46de
 import { inspTypeLabel } from './lib/insp-manual.js?v=25e0bc0396d2-21f87941';   // '유형' 열 — 전량 / 샘플 / 샘플(개별) / 요청확인(화면과 같은 이름)
 import { EXCEL_HEADERS, excelRow } from './lib/total-insp.js?v=d83d978fa87f-5334595d';
 import { historyRangeStart } from './lib/history-window.js?v=2641998b437e-d3102a84';
-import { fetchTotalInspLogs, totalInspLogsTruncated, TOTAL_LOG_LIMIT } from './ui-history-inspection.js?v=d777195e58d7-ff9001e3';
+import { fetchTotalInspLogs, totalInspLogsTruncated, TOTAL_LOG_LIMIT } from './ui-history-inspection.js?v=75ca8d727016-93b45531';
 import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { loadAll as loadSupNames, supNameOf } from './sup-names-store.js?v=de8b3ea4a05e-1f52465e';
 

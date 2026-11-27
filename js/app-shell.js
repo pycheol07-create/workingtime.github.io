@@ -1,5 +1,5 @@
 // === js/app-shell.js ===
-// 공통 상단바 + 메뉴 서랍 (UI 1단계 1a, 2026-10-16). <script type="module" src="js/app-shell.js?v=35b757f86d20-1454a9a2"> 로 붙이면 스스로 돈다.
+// 공통 상단바 + 메뉴 서랍 (UI 1단계 1a, 2026-10-16). <script type="module" src="js/app-shell.js?v=e496089a1dfb-1454a9a2"> 로 붙이면 스스로 돈다.
 //   <body data-shell="페이지ID">              → 위쪽에 바를 얹는다(css/app-shell.css 가 본문을 그만큼 내린다)
 //   <body data-shell="index" data-shell-bar="off"> → 바 없이 메뉴 캐시만 채운다(대시보드)
 // 페이지는 js/app-shell-bridge.js 의 setShellContext 로 로그인 상태를 알려 준다.
@@ -381,7 +381,7 @@ function start() {
         if (!flyMq || !flyMq.matches) return;
         if (flyMod) { cb(flyMod); return; }
         if (!flyLoad) {
-            flyLoad = import('./history-flyout.js?v=17849b54f452-507d0536').then(m => (flyMod = m))
+            flyLoad = import('./history-flyout.js?v=a71315d9a35e-507d0536').then(m => (flyMod = m))
                 .catch(e => { console.warn('[app-shell] 데이터 관리 2차 메뉴를 불러오지 못함(링크는 그대로 씀):', e && e.message); return null; });
         }
         flyLoad.then(m => { if (m) cb(m); });

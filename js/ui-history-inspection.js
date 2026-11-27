@@ -7,6 +7,7 @@ import { inspTypeLabel } from './lib/insp-manual.js?v=25e0bc0396d2-21f87941';
 import { doc, getDoc, runTransaction, collection, getDocs, query, where, orderBy, limit as fsLimit } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { itemKey, patchItemsByKey } from './lib/insp-flow.js?v=5d563dd586be-06600d5f';
 import { dayRows, inspectorLabel, logDefectQty, periodLabel, accDocRow, DONE } from './lib/total-insp.js?v=d83d978fa87f-5334595d';
+import { logDefect } from './lib/ops-insp.js?v=fe78bbb6adc1-f4bf8003';   // 품질 통계 불량 판정(통계 탭·결산과 같은 함수)
 import { loadFor as loadSupNames, supNameOf } from './sup-names-store.js?v=de8b3ea4a05e-1f52465e';   // 공급처상품명(GIP, 2026-11-27) — 표의 '공급처상품명' 열. 못 읽으면 빈칸
 
 /** 공급처상품명 칸 — 코드(S…)로 찾고 없으면 빈칸. data-sup-code 는 상품별 보기가 늦게 받은 값을 채우는 자리 */
@@ -1185,29 +1186,8 @@ export const renderQCStatsMode = (historyData, periodType = 'month', selectedPer
                     totalInspectedQty += qty;
                     totalSampledQty += sampleQty;
 
-                    let isDefect = false;
-                    const defectReasons = [];
-                    const normalValues = ['정상', '양호', '동일', '없음', '해당없음', '통과', '-', ''];
-
-                    if (log.status === '불량') isDefect = true;
-                    
-                    if (log.defects && Array.isArray(log.defects) && log.defects.length > 0) {
-                        isDefect = true;
-                        defectReasons.push(...log.defects);
-                    }
-
-                    if (log.checklist) {
-                        const labelMap = { fabric: '원단', color: '컬러', distortion: '뒤틀림', unraveling: '올풀림', finishing: '마감', zipper: '지퍼', button: '단추', lining: '안감', pilling: '보풀', dye: '이염', brushed: '기모' };
-                        Object.entries(log.checklist).forEach(([key, val]) => {
-                            if (key !== 'thickness' && val) {
-                                const cleanVal = String(val).trim();
-                                if (cleanVal && !normalValues.includes(cleanVal)) {
-                                    isDefect = true;
-                                    defectReasons.push(`${labelMap[key] || key}: ${cleanVal}`);
-                                }
-                            }
-                        });
-                    }
+                    // 불량 판정·사유 = js/lib/ops-insp.js logDefect(운영 리포트 통계 검수 장·팀 결산과 한 벌, 2026-11-27)
+                    const { bad: isDefect, reasons: defectReasons } = logDefect(log);
 
                     if (isDefect) {
                         productStats[pName].defectCount += 1;
@@ -1218,11 +1198,7 @@ export const renderQCStatsMode = (historyData, periodType = 'month', selectedPer
                         productStats[pName].defectQty += dq;
                         totalDefectQty += dq;
 
-                        if (defectReasons.length > 0) {
-                            productStats[pName].defectsList.push(...defectReasons);
-                        } else {
-                            productStats[pName].defectsList.push('상태 불량/기타');
-                        }
+                        productStats[pName].defectsList.push(...defectReasons);   // 사유가 없으면 logDefect 가 '상태 불량/기타'
                     }
                 }
             });
