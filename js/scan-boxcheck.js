@@ -360,7 +360,13 @@ export function setupScanBoxCheck(o) {
     }
 
     /** 결과 띠가 자판 아래로 밀려 안 보이면 박스 칸 안에서 보이게 */
-    function scrollResult() { try { out.scrollIntoView({ block: 'nearest' }); } catch (e) { /* 무시 */ } }
+    // 박스 칸(#bx-panel)만 스크롤한다 — scrollIntoView 는 페이지 전체를 밀어 카메라가 화면 밖으로 밀릴 수 있다(2026-11-27 사용자 피드백)
+    function scrollResult() {
+        try {
+            const pr = panel.getBoundingClientRect(), r = out.getBoundingClientRect();
+            if (r.top < pr.top || r.top > pr.bottom - 60) panel.scrollTop += r.top - pr.top - 6;
+        } catch (e) { /* 무시 */ }
+    }
     function banner(cls, say, sub, extra) {
         return `<div class="bx-banner ${cls}" role="status">${say}${sub ? `<div class="bx-sub">${sub}</div>` : ''}${extra || ''}</div>`;
     }
