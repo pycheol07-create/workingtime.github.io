@@ -288,8 +288,45 @@ html.dark #personnel-hover-tooltip { background: #2A3038; box-shadow: 0 0 0 1px 
 #dash-root .d-row-hover:hover { background: var(--c-surface-2); }
 #dash-root .d-hoverbar { background: var(--c-surface); border: 1px solid var(--c-line); border-radius: var(--r-sm); }
 
-/* 모바일 새로고침 (body 에 붙음) */
-#mobile-refresh-btn.d-fab { background: var(--c-accent); color: #FFFFFF; box-shadow: var(--sh-pop); }
+/* 휴대폰 퀵메뉴(js/quick-menu.js, body 에 붙음 — 2026-11-27 새로고침 단추 자리). 새로고침은 당겨서(js/pull-refresh.js) */
+#quick-menu-btn.d-fab { background: var(--c-accent); color: #FFFFFF; box-shadow: var(--sh-pop); }
+#quick-menu-btn svg { width: 22px; height: 22px; }
+#quick-menu-btn.qm-btn-open { z-index: 62; }
+#quick-menu-backdrop { position: fixed; inset: 0; z-index: 60; background: rgba(17,20,24,.40); opacity: 0; transition: opacity .18s ease; }
+#quick-menu-backdrop.qm-open { opacity: 1; }
+#quick-menu-sheet { position: fixed; left: 0; right: 0; bottom: 0; z-index: 61; background: var(--c-surface); color: var(--c-text);
+    border-top-left-radius: var(--r-card); border-top-right-radius: var(--r-card); box-shadow: var(--sh-pop); border-top: 1px solid var(--c-line);
+    padding: 8px 16px calc(84px + env(safe-area-inset-bottom, 0px)); transform: translateY(100%); transition: transform .2s ease;
+    max-height: 85vh; overflow-y: auto; overscroll-behavior: contain; font-family: var(--font-sans); }
+#quick-menu-sheet.qm-open { transform: translateY(0); }
+#quick-menu-sheet[hidden], #quick-menu-backdrop[hidden] { display: none; }
+#quick-menu-sheet .qm-handle { width: 40px; height: 4px; border-radius: var(--r-pill); background: var(--c-line-strong); margin: 0 auto 10px; }
+#quick-menu-sheet .qm-title { font-size: 14px; font-weight: 700; color: var(--c-text-2); margin: 0 4px 10px; }
+#quick-menu-sheet .qm-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+#quick-menu-sheet .qm-item { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; min-height: 92px; padding: 10px 6px;
+    background: var(--c-surface-2); border: 1px solid var(--c-line); border-radius: var(--r-inner); color: var(--c-text); text-align: center;
+    text-decoration: none; font: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+#quick-menu-sheet .qm-item:active { background: var(--c-accent-soft); border-color: var(--c-accent-mid); }
+#quick-menu-sheet .qm-item:focus-visible { outline: 2px solid var(--c-accent); outline-offset: 2px; }
+#quick-menu-sheet .qm-ico { display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: var(--r-pill);
+    background: var(--c-accent-soft); color: var(--c-accent-deep); }
+#quick-menu-sheet .qm-ico svg { width: 22px; height: 22px; }
+#quick-menu-sheet .qm-label { font-size: 13px; font-weight: 600; line-height: 1.25; word-break: keep-all; }
+#quick-menu-sheet .qm-sub { font-size: 11px; color: var(--c-text-3); line-height: 1.2; }
+#quick-menu-sheet .qm-note { font-size: 13px; color: var(--c-text-3); text-align: center; padding: 18px 0; margin: 0; }
+#quick-menu-sheet .qm-note[hidden] { display: none; }
+@media (min-width:768px) { #quick-menu-sheet, #quick-menu-backdrop { display: none !important; } }
+@media (prefers-reduced-motion: reduce) { #quick-menu-sheet, #quick-menu-backdrop, #pull-refresh-ind { transition: none !important; } }
+
+/* 휴대폰 당겨서 새로고침 표시(js/pull-refresh.js, body 에 붙음). 위치·이동은 스크립트가 style 로 */
+#pull-refresh-ind { position: fixed; left: 50%; z-index: 55; pointer-events: none; display: flex; align-items: center; gap: 6px;
+    padding: 7px 14px; border-radius: var(--r-pill); background: var(--c-surface); color: var(--c-text-2); border: 1px solid var(--c-line);
+    box-shadow: var(--sh-pop); font-size: 13px; font-weight: 600; font-family: var(--font-sans); white-space: nowrap; opacity: 0; }
+#pull-refresh-ind[hidden] { display: none; }
+#pull-refresh-ind.pr-ready { color: var(--c-accent-deep); border-color: var(--c-accent-mid); }
+#pull-refresh-ind.pr-back { transition: transform .18s ease, opacity .18s ease; }
+#pull-refresh-ind .pr-arrow { display: inline-block; transition: transform .15s ease; }
+#pull-refresh-ind.pr-ready .pr-arrow { transform: rotate(180deg); }
 
 /* ── 업무 캘린더 (style.css 577-702 의 색만) ── */
 #dash-root .d-seg { background: var(--c-track); border-radius: var(--r-pill); padding: 3px; }

@@ -20,8 +20,8 @@
 // 옵션 칩(2026-11-17): 색상별 묶음 + 사이즈 순서(lib groupOptions), 옵션이 MANY_OPTIONS 개 넘으면 거르기 칸·묶음별 [전체], 사라진 옵션은 접어 둔다.
 import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
 import { showToast, getTodayDateString, escapeHtml } from './utils.js?v=65bb3512764f-e315797c';
-import { renderTodoList, selectTodoItem } from './inspection-logic.js?v=bbc156ff6905-e4d6f36f';
-import { toggleScanner, startInlineScanner } from './inspection-media.js?v=bbc156ff6905-cad5241c';
+import { renderTodoList, selectTodoItem } from './inspection-logic.js?v=e78427f6ef2e-c40d2f6c';
+import { toggleScanner, startInlineScanner } from './inspection-media.js?v=e78427f6ef2e-cad5241c';
 import { S as PS, loadCatalog, loadLoc, locOf } from './products-store.js?v=12e37e026ce6-ee5ce71b';
 import { thicknessFromHistoryDoc } from './lib/insp-packs.js?v=1b36ec3984ba-16eb76b5';
 import {

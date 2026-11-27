@@ -65,6 +65,9 @@ export const refillProgressTone = () => last.tone || '';
 export function syncRefillDash(present) {
     const want = !!present && refillAllowed() && !!State.db && !!State.auth;
     if (want === active) { if (want) paint(); return; }
+    // 카드 없이 연 창(휴대폰 퀵메뉴 — js/quick-menu.js)은 보드를 다시 그려도 닫지 않는다. 닫힌 뒤 다음 그리기에서 정리된다
+    if (!want && fromQuick && mods && mods.table.isOpen() && refillAllowed()) return;
+    fromQuick = false;
     active = want;
     if (want) {
         load().then(m => { if (active) { m.store.start(); paint(); } })
@@ -89,8 +92,10 @@ function waitMeta(store, ms) {
 }
 
 /** [지시서] 버튼 · 업무 시작 때. 오늘 지시서가 없거나 휴일이면 안내만 한다 */
-export async function openRefillFromDash() {
+let fromQuick = false;   // 퀵메뉴에서 연 창(카드 없이) — 이때만 보드를 다시 그려도 창을 유지(리뷰: 카드에서 연 창은 예전처럼)
+export async function openRefillFromDash({ quick = false } = {}) {
     if (!refillAllowed()) return;
+    fromQuick = !!quick;
     let m;
     try { m = await load(); }
     catch (e) { showToast('채우기 지시서를 열지 못했습니다. 새로고침해 주세요.', true); return; }

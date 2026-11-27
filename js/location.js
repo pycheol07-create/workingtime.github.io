@@ -817,7 +817,8 @@ function setupRealtimeListenerA() {
         
         renderTableHeader(); 
         applyUrlSearchOnce();
-        applyFiltersAndSort(); 
+        applyUrlOpenOnce();
+        applyFiltersAndSort();
         if(document.getElementById('incoming-sidebar').classList.contains('open')) window.renderIncomingQueue();
         
         // 도면 탭이 열려있으면 자동 재렌더링
@@ -3392,6 +3393,29 @@ window.locSearchCode = function(code) {
     const box = document.getElementById('view-list');
     if (box && box.scrollIntoView) box.scrollIntoView({ block: 'start' });
 };
+
+// 대시보드 휴대폰 퀵메뉴 [변경추천표] → location.html?open=locrec (js/quick-menu.js, 2026-11-27) — 첫 데이터가 오면 한 번만
+//   변경 추천 창을 연다(머리줄 [변경 추천]과 같은 window.openLocRecTable — 권한이 있어 카드가 시작됐을 때만 생긴다).
+//   권한이 없으면 열지 않고 조용히 넘어간다. 주소의 open 은 지운다(새로고침해도 다시 열리지 않게). 값은 페이지를 열 때 읽어 둔다
+//   — ?q 처리(applyUrlSearchOnce)가 주소의 ? 뒤를 통째로 지운다.
+const _urlOpen = new URLSearchParams(window.location.search).get('open');
+let _urlOpenApplied = false;
+function applyUrlOpenOnce() {
+    if (_urlOpenApplied) return;
+    _urlOpenApplied = true;
+    if (!_urlOpen) return;
+    try {
+        const p = new URLSearchParams(window.location.search);
+        if (p.has('open')) {
+            p.delete('open');
+            const qs = p.toString();
+            history.replaceState(history.state, '', window.location.pathname + (qs ? `?${qs}` : '') + window.location.hash);
+        }
+    } catch (e) { /* 무시 */ }
+    if (_urlOpen !== 'locrec') return;
+    // 카드 시작(whenPerm, 위쪽)이 먼저 등록돼 있어 같은 'perm:ready' 에서 카드 → 이것 순서로 돈다
+    whenPerm('location.locrec', () => { if (typeof window.openLocRecTable === 'function') window.openLocRecTable(); });
+}
 
 // 상품 관리 [로케이션관리에서 보기] → location.html?q=코드,코드#tab=list — 첫 데이터가 오면 한 번만 머리줄 검색에 넣는다
 let _urlSearchApplied = false;

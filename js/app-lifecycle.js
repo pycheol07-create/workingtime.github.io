@@ -1,13 +1,13 @@
 // === js/app-lifecycle.js ===
 import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
 import { getCurrentTime, displayCurrentDate, getTodayDateString, isWeekday, calcElapsedMinutes, formatDuration, showToast } from './utils.js?v=65bb3512764f-e315797c';
-import { saveProgress, isDayClosedOnServer, clearLocalCache, isClosingInProgress } from './history-data-manager.js?v=ddf9eee26ebd-a9403e97';
+import { saveProgress, isDayClosedOnServer, clearLocalCache, isClosingInProgress } from './history-data-manager.js?v=9a5a1aebec3c-a9403e97';
 import { saveStateToFirestore } from './app-data.js?v=9a8d4e266c76-c4996a74';
 import { collection, doc, writeBatch, getDoc, setDoc, waitForPendingWrites } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { getSubscribedDate } from './app-sync.js?v=ddf9eee26ebd-68f6c921';
+import { getSubscribedDate } from './app-sync.js?v=9a5a1aebec3c-68f6c921';
 import { findOpenModal } from './lib/noti-popup.js?v=a01e8d07acd1-85d726e6';
 import { emulatorEnabled } from './firebase-emulator.js?v=071adc2867a0-c60c17d2';
-import { applyDueLeaves, activeLeaveSignature } from './leave-auto-apply.js?v=790996156aec-afa2df94';
+import { applyDueLeaves, activeLeaveSignature } from './leave-auto-apply.js?v=133698984036-afa2df94';
 
 // ⏰ 예약 근태 — 마지막으로 본 분(HH:MM)과 그때 근태 중이던 사람 집합
 let lastLeaveMinute = null;
@@ -406,7 +406,7 @@ export const updateElapsedTimes = async () => {
         applyDueLeaves(now).catch(e => console.warn('[예약 근태] 적용 실패:', e));
         const sig = activeLeaveSignature(now);
         if (lastLeaveSig !== null && sig !== lastLeaveSig) {
-            import('./app.js?v=097b61589901-2ba8f711').then(m => m.render()).catch(e => console.warn('[예약 근태] 다시 그리기 실패:', e));
+            import('./app.js?v=c0c47b4823db-2ba8f711').then(m => m.render()).catch(e => console.warn('[예약 근태] 다시 그리기 실패:', e));
         }
         lastLeaveSig = sig;
     }

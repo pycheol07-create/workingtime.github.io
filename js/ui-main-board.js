@@ -7,9 +7,11 @@ import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=152edbc1d09a-
 import { getLeaveDisplayLabel } from './ui-main-utils.js?v=a649174fd12c-06309b7b';
 import { myWorkState, recentTasksFor } from './lib/my-work.js?v=470ecb003aaf-1a1aebb7';
 import { isLeaveActiveAt, isLeavePendingAt } from './lib/leave-timing.js?v=56494f977986-82fd27e6';
-import { isRefillTask, refillAllowed, refillProgressText, refillProgressTone, syncRefillDash } from './refill-dash.js?v=3021b4cb88b2-60f2d3b8';
+import { isRefillTask, refillAllowed, refillProgressText, refillProgressTone, syncRefillDash } from './refill-dash.js?v=645fe513f7d4-1326a6ad';
 import { isLocRecTask, locRecAllowed, syncLocRecDash } from './locrec-dash.js?v=b034eb53143e-852ed13e';
 import { TASK, tName, isT } from './task-names.js?v=33eb5ccd69bc-26ab8ff7';
+import { setupQuickMenu } from './quick-menu.js?v=5f80065005d8-ac595a94';
+import { setupPullRefresh } from './pull-refresh.js?v=daa0d8ec2d56-c48c56b1';
 
 // ===== 업무현황 카드 커버플로우(coverflow) 컨트롤러 =====
 // 가운데 업무 카드 1개만 크고 선명하게, 양옆 카드는 작고 흐리게 뒤로 물러남.
@@ -918,13 +920,6 @@ export const renderCompletedWorkLog = (appState) => {
     });
 };
 
-const setupMobileRefreshButton = () => {
-    if (document.getElementById('mobile-refresh-btn')) return;
-    const btn = document.createElement('button');
-    btn.id = 'mobile-refresh-btn';
-    btn.className = 'fixed bottom-6 right-6 w-12 h-12 d-fab rounded-full z-50 md:hidden flex items-center justify-center';   // 색은 css/dash-d.css
-    btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" /></svg>`;
-    btn.onclick = () => window.location.reload();
-    document.body.appendChild(btn);
-};
-setupMobileRefreshButton();
+// 휴대폰: 오른쪽 아래 둥근 단추는 퀵메뉴(js/quick-menu.js — 예전 새로고침 단추 자리), 새로고침은 #app-content 를 당겨서(js/pull-refresh.js). 2026-11-27
+setupQuickMenu();
+setupPullRefresh();

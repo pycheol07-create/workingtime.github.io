@@ -362,7 +362,7 @@ ${startTime} 이후에 시작한 업무는 그대로 두고, 그 전부터 진�
                     // 지난 시각으로 끊을 때는 그 시각 이후에 시작한 기록을 건드리지 않는다(onlyStartedBefore).
                     if ((type === '외출' || type === '조퇴') && !isScheduled) {
                         try {
-                            const { forceEndMemberWork } = await import('./app-sync.js?v=ddf9eee26ebd-68f6c921');
+                            const { forceEndMemberWork } = await import('./app-sync.js?v=9a5a1aebec3c-68f6c921');
                             const r = await forceEndMemberWork(memberName, newDailyEntry.startTime, { onlyStartedBefore: true });
                             if (r.ended > 0) {
                                 console.warn(`[외출/조퇴 자동 종료] ${memberName}: ${r.ended}건`, r.summaries);

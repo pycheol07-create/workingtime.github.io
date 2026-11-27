@@ -3,12 +3,12 @@
 
 import * as DOM from './dom-elements.js?v=2b9f19ecbde2-82fbef91';
 import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
-import { render } from './app.js?v=097b61589901-2ba8f711';
+import { render } from './app.js?v=c0c47b4823db-2ba8f711';
 import { showToast, formatTimeTo24H, showConfirm, getCurrentTime } from './utils.js?v=65bb3512764f-e315797c';
 import { isLeaveActiveAt } from './lib/leave-timing.js?v=56494f977986-82fd27e6';
-import { renderLeaveTypeModalOptions } from './ui.js?v=ddf9eee26ebd-a84d3554';
+import { renderLeaveTypeModalOptions } from './ui.js?v=9a5a1aebec3c-a84d3554';
 import { nameWithRankPosition } from './lib/member-title.js?v=9a5f2a824905-0bafbd16';
-import { openTeamSelectForTask } from './listeners-form-team.js?v=097b61589901-b3ccf5fa';
+import { openTeamSelectForTask } from './listeners-form-team.js?v=c0c47b4823db-b3ccf5fa';
 import {
     stopWorkIndividual, pauseWorkGroup, resumeWorkGroup,
     pauseWorkIndividual, resumeWorkIndividual,
@@ -16,11 +16,11 @@ import {
     startWorkGroup,
     addMembersToWorkGroup,
     pauseWorkByTask, resumeWorkByTask
-} from './app-logic.js?v=eb62a5ed09f7-5cd27cd7';
+} from './app-logic.js?v=1fe8609b9b05-5cd27cd7';
 
-import { renderTodayInspectionList, initializeInspectionSession } from './inspection-logic.js?v=bbc156ff6905-e4d6f36f';
-import { openTotalInspection } from './total-inspection-logic.js?v=60bd5013598e-19692d1a';   // 진행 목록 구독은 창이 열린 동안만(닫으면 해제)
-import { isRefillTask, refillAllowed, openRefillFromDash } from './refill-dash.js?v=3021b4cb88b2-60f2d3b8';
+import { initializeInspectionSession, openInspectionManager } from './inspection-logic.js?v=e78427f6ef2e-c40d2f6c';
+import { openTotalInspection } from './total-inspection-logic.js?v=49fd6388e51c-19692d1a';   // 진행 목록 구독은 창이 열린 동안만(닫으면 해제)
+import { isRefillTask, refillAllowed, openRefillFromDash } from './refill-dash.js?v=645fe513f7d4-1326a6ad';
 import { openLocRecFromDash } from './locrec-dash.js?v=b034eb53143e-852ed13e';
 import { TASK, isT } from './task-names.js?v=33eb5ccd69bc-26ab8ff7';
 
@@ -244,12 +244,7 @@ export function setupMainBoardListeners() {
         const openInspectionBtn = e.target.closest('button[data-action="open-inspection"]');
         if (openInspectionBtn) {
             e.stopPropagation(); // 카드 클릭이 중복 발생하지 않도록 차단
-            renderTodayInspectionList();
-            if (DOM.inspectionManagerModal) DOM.inspectionManagerModal.classList.remove('hidden');
-            // 휴대폰·터치 화면에서는 자동 초점을 주지 않는다(키보드가 올라와 창을 가림)
-            if (!matchMedia('(max-width:768px), (pointer:coarse)').matches) {
-                if (DOM.inspProductNameInput) DOM.inspProductNameInput.focus();
-            }
+            openInspectionManager();   // 휴대폰 퀵메뉴(js/quick-menu.js)와 같은 동작
             return;
         }
 

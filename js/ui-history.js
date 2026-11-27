@@ -51,7 +51,7 @@ import {
 // ✅ [신규] 8. 실적 예측 관련 함수
 import {
     renderPredictionTab
-} from './ui-history-prediction.js?v=ddf9eee26ebd-099e2602';
+} from './ui-history-prediction.js?v=9a5a1aebec3c-099e2602';
 
 
 // --- 모든 함수를 ui.js 및 리스너가 사용할 수 있도록 다시 내보내기 ---
