@@ -1,0 +1,5 @@
+# vendor/qrcode — 박스 번호 QR 스티커(box-qr.html · js/box-qr.js)용. 외부 CDN 없이 우리 배포본에서 같은 출처로 쓴다(2026-11-27).
+# 출처 = npm 공식 tarball qrcode-generator@2.0.4 (받은 tarball 의 sha512 가 레지스트리 dist.integrity 와 같음을 확인). 파일은 고치지 않고 그대로 복사했다.
+#   dist/qrcode.mjs → qrcode.mjs (MIT)
+# 확인: (bash) cd vendor/qrcode && sha256sum -c SHA256SUMS.txt
+ea91d7118a5395289170da848b7c6758b996163bfbccf312591ab65a4911b7c0 *qrcode.mjs

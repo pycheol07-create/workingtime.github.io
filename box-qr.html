@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <script src="js/theme-boot.js?v=cc87c43d70fe-c7b53f24"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#6B5B95">
+    <title>박스 번호 QR 스티커</title>
+    <!-- 박스 번호 QR 스티커 만들기(2026-11-27 사용자 요청, 실사용은 검토 중) — 번호 범위·장수·용지를 고르면 A4 라벨지에 QR + 큰 박스 번호를 그려
+         브라우저 인쇄(PDF 저장 가능)로 뽑는다. QR 내용 = 'GGSBOX:<번호>'(js/lib/box-qr.js), 입고 스캐너 박스 모드가 읽으면 그 번호로 바로 확정.
+         QR 은 이 화면 안에서만 만든다(vendor/qrcode — 외부 요청 없음). 데이터를 읽거나 쓰지 않는다. 화면 코드 js/box-qr.js · 시험 tests/box-qr.test.js · tools/scan-boxcheck-check.py -->
+    <link rel="stylesheet" href="css/suit.css?v=46e3de7a3d1d-51b336f8">
+    <link rel="stylesheet" href="css/d-theme.css?v=953f526a14fe-f287cc85">
+    <link rel="stylesheet" href="css/app-shell.css?v=5966338d2f36-2dcf6c28">
+    <style>
+        body { margin: 0; font-family: 'SUIT', 'Noto Sans KR', 'Malgun Gothic', sans-serif; background: var(--c-bg); color: var(--c-text); }
+        .bq-wrap { max-width: 980px; margin: 0 auto; padding: 12px; }
+        .bq-card { background: var(--c-surface); border: 1px solid var(--c-line); border-radius: var(--r-card); padding: 14px; margin-bottom: 12px; }
+        .bq-h { font-size: 18px; font-weight: 900; margin: 0 0 8px; }
+        .bq-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; margin-top: 10px; }
+        .bq-row label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; font-weight: 800; color: var(--c-text-2); }
+        .bq-row label[hidden] { display: none; }   /* 위 display:flex 가 hidden 을 덮지 않게 */
+        .bq-row input, .bq-row select, #bq-ranges { padding: 9px 10px; border: 1px solid var(--c-line-strong); border-radius: var(--r-sm); font-size: 15px; font-family: inherit; background: var(--c-surface); color: var(--c-text); }
+        #bq-ranges { width: 100%; min-height: 84px; resize: vertical; text-transform: uppercase; }
+        .bq-row input[type=number] { width: 90px; }
+        .bq-help { font-size: 12.5px; color: var(--c-text-3); margin-top: 4px; line-height: 1.6; }
+        .bq-sum { margin-top: 10px; font-size: 15px; font-weight: 800; }
+        .bq-err { margin-top: 6px; font-size: 13px; color: var(--c-warn-text); font-weight: 800; }
+        .bq-btn { padding: 11px 18px; border: none; border-radius: var(--r-sm); background: #6B5B95; color: #fff; font-size: 16px; font-weight: 900; font-family: inherit; cursor: pointer; }
+        .bq-btn:disabled { opacity: .45; cursor: default; }
+        .bq-preview { overflow: auto; padding: 8px 0; }
+        /* 용지 — 실제 크기(mm)로 그리고 화면에서는 zoom 으로 줄여 보인다. 인쇄 때는 그대로 */
+        .bq-sheet { position: relative; width: 210mm; height: 297mm; background: #fff; box-shadow: 0 2px 10px rgba(0,0,0,.18); margin: 0 auto 14px; zoom: var(--bq-zoom, .5); overflow: hidden; color: #000; }
+        .bq-cell { position: absolute; display: flex; align-items: center; gap: 2mm; padding: 1.5mm 2mm; box-sizing: border-box; outline: .2mm dashed #c9c9c9; }
+        .bq-cell svg { flex: 0 0 auto; display: block; }
+        .bq-txt { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; justify-content: center; align-items: center; line-height: 1; }
+        .bq-num { font-weight: 900; font-family: 'Arial Black', 'Arial', sans-serif; letter-spacing: -.02em; white-space: nowrap; }
+        .bq-tag { margin-top: 1.2mm; font-size: 2.6mm; font-weight: 800; letter-spacing: .3mm; color: #333; }
+        .bq-gate { text-align: center; padding: 40px 12px; }
+        @media print {
+            @page { size: A4; margin: 0; }
+            html, body { background: #fff !important; margin: 0 !important; padding: 0 !important; }   /* 상단바 자리(app-shell)도 비움 */
+            body[data-shell]:not([data-shell-bar="off"]) { padding-top: 0 !important; }   /* css/app-shell.css 와 같은 선택자 — 뒤에 있어 이긴다 */
+            body > *:not(#bq-main) { display: none !important; }
+            #bq-main > *:not(.bq-preview-card) { display: none !important; }
+            .bq-wrap, .bq-preview-card, .bq-preview { margin: 0 !important; padding: 0 !important; border: 0 !important; max-width: none !important; background: none !important; overflow: visible !important; }
+            .bq-preview-card > *:not(.bq-preview) { display: none !important; }
+            .bq-sheet { zoom: 1 !important; box-shadow: none !important; margin: 0 !important; break-after: page; page-break-after: always; }
+            .bq-sheet:last-child { break-after: auto; page-break-after: auto; }
+            .bq-cell { outline: none !important; }
+        }
+    </style>
+</head>
+<body data-shell="scan">
+    <div id="bq-loading" class="bq-gate">불러오는 중…</div>
+    <div id="bq-gate" class="bq-gate" hidden>
+        <b>로그인이 필요합니다</b>
+        <p>메인 앱(업무관리)이나 입고 스캐너에서 먼저 로그인한 뒤 이 페이지를 열어 주세요.</p>
+    </div>
+
+    <main id="bq-main" class="bq-wrap" hidden>
+        <section class="bq-card">
+            <h1 class="bq-h">박스 번호 QR 스티커</h1>
+            <label for="bq-ranges" class="bq-help" style="display:block; margin:0 0 4px;">박스 번호 — 범위·한 개씩, 줄이나 쉼표로 여러 개 (예: <b>1~200</b> · <b>A1~A50</b> · <b>A1~50</b> · <b>B7</b>)</label>
+            <textarea id="bq-ranges" spellcheck="false" autocapitalize="characters">1~24</textarea>
+            <div class="bq-row">
+                <label>같은 번호 장수<input type="number" id="bq-copies" min="1" max="50" value="1"></label>
+                <label>용지
+                    <select id="bq-sheet">
+                        <option value="24">A4 라벨지 24칸 (3×8, 64×33.9mm)</option>
+                        <option value="12">A4 라벨지 12칸 (2×6, 99.1×42.3mm)</option>
+                        <option value="custom">직접 (가로·세로 칸 · 여백)</option>
+                    </select>
+                </label>
+                <label class="bq-custom" hidden>가로 칸<input type="number" id="bq-cols" min="1" max="10" value="3"></label>
+                <label class="bq-custom" hidden>세로 칸<input type="number" id="bq-rows" min="1" max="20" value="8"></label>
+                <label class="bq-custom" hidden>여백 mm<input type="number" id="bq-margin" min="0" max="40" step="0.5" value="8"></label>
+                <button type="button" id="bq-print" class="bq-btn">인쇄 (PDF 저장 가능)</button>
+            </div>
+            <div class="bq-help">QR 내용은 <b>GGSBOX:번호</b> 입니다. 입고 스캐너 [박스] 모드에서 카메라로 찍으면 그 번호로 바로 확인합니다.
+                인쇄 창에서 <b>배율 100%(실제 크기)·여백 없음</b>으로 뽑으세요. 처음엔 보통 종이에 한 장 뽑아 라벨지에 대 보고 쓰세요.</div>
+            <div id="bq-sum" class="bq-sum" role="status" aria-live="polite"></div>
+            <div id="bq-err" class="bq-err" role="alert" hidden></div>
+        </section>
+        <section class="bq-card bq-preview-card">
+            <h2 class="bq-h" style="font-size:15px;">미리보기</h2>
+            <div id="bq-preview" class="bq-preview"></div>
+        </section>
+    </main>
+
+    <script type="module" src="js/box-qr.js?v=ddd7df231c40-1f568d04"></script>
+    <script type="module" src="js/page-gate.js?v=91ff5d6d21f9-d1e977d0" data-perm-page="scan.view"></script>
+    <script type="module" src="js/app-shell.js?v=0ad2923a7c3b-bf6553e1"></script>
+</body>
+</html>

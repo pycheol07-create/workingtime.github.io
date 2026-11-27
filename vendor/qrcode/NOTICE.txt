@@ -1,0 +1,6 @@
+이 폴더의 qrcode.mjs 는 아래 공개 소프트웨어를 고치지 않고 그대로 담은 것이다(박스 번호 QR 스티커 — box-qr.html, 2026-11-27).
+
+- QR Code Generator for JavaScript (npm qrcode-generator 2.0.4, dist/qrcode.mjs)
+  https://github.com/kazuhikoarase/qrcode-generator — MIT License, Copyright (c) 2009 Kazuhiko Arase
+  패키지에는 LICENSE 파일이 따로 없고 파일 머리말·package.json 에 MIT 로 적혀 있다 — LICENSE-qrcode-generator.txt 는 그 MIT 원문.
+- 'QR Code' 는 DENSO WAVE INCORPORATED 의 등록 상표다(파일 머리말).

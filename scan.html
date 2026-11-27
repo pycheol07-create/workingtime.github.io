@@ -179,6 +179,7 @@
         .bx-shutter:active { filter: brightness(1.15); }
         body.box-mode .bx-shutter { display: block; }
         body.box-mode .btn-capture { display: none !important; }   /* 박스 모드는 바코드 수동 촬영 대신 [찍어서 읽기] */
+        .bx-qr-link { display: inline-block; margin: 12px 2px 4px; font-size: 13px; font-weight: 800; color: #6B5B95; }
         .bx-other-title { margin: 12px 2px 4px; font-size: 13px; font-weight: 800; color: var(--c-text-2); }
         .bx-list.bx-list-other li { font-size: 13px; padding: 6px 10px; }
         .bx-entry-toggle { width: 100%; padding: 8px 10px; border: 1px dashed var(--c-line-strong); background: var(--c-surface); color: var(--c-text-2); border-radius: var(--r-sm); font-size: 14px; font-weight: 800; font-family: inherit; cursor: pointer; }
@@ -286,6 +287,8 @@
         <div id="bx-result"></div>
         <div class="bx-hist-title">최근 확인</div>
         <ul id="bx-hist"></ul>
+        <!-- (2026-11-27) 박스 번호 QR 스티커 만들기 — 실사용 검토 중 -->
+        <a class="bx-qr-link" id="bx-qr-link" href="box-qr.html" target="_blank" rel="noopener">박스 번호 QR 스티커 만들기 ↗</a>
     </div>
 
     <div class="scan-wrap">
@@ -367,11 +370,12 @@
         import { LOC_SCAN_COLL, buildLocScanDocs } from './js/lib/loc-scan-log.js?v=696b0986b508-7cdc6b24'; // 위치지정 건별 기록(문서 모양)
         import { connectEmulatorsIfEnabled, emulatorEnabled } from './js/firebase-emulator.js?v=071adc2867a0-c60c17d2'; // 🧪 localhost + ?emu=1 일 때만 에뮬레이터(운영에서는 아무 일 안 함)
         import { escapeHtml } from './js/utils.js?v=65bb3512764f-e315797c';   // 대기열·배너에 상품명·바코드 등 넣을 때(2026-11-12 보안 점검)
-        import { setupScanBoxCheck } from './js/scan-boxcheck.js?v=ebe65c93be51-ddbe9458';   // (2026-11-27) 박스 확인 모드 — 읽기만
-        import { scanUrgentSet } from './js/lib/box-check.js?v=9ea481795e93-c7b970d6';   // (2026-11-27) 부족수량관리 '긴급' — 켜져 있을 때만 코드 Set
+        import { setupScanBoxCheck } from './js/scan-boxcheck.js?v=40fa7ed87b75-7d44b7d0';   // (2026-11-27) 박스 확인 모드 — 읽기만
+        import { scanUrgentSet } from './js/lib/box-check.js?v=9ea481795e93-c7b970d6';
+        import { isBoxQr } from './js/lib/box-qr.js?v=b6f91b6e9e93-9b7fb1d9';   // (2026-11-27) 박스 번호 QR 스티커 'GGSBOX:<번호>'(box-qr.html)   // (2026-11-27) 부족수량관리 '긴급' — 켜져 있을 때만 코드 Set
         import { loadFor as loadSupNames, loadAll as loadAllSupNames, supNameOf } from './js/sup-names-store.js?v=de8b3ea4a05e-1f52465e';   // (2026-11-27) 공급처상품명 — 선택 창·박스 확인 줄에 표시만(못 읽으면 빈칸)
 
-        const SCAN_VERSION = '10.16'; // 웹 배포 버전과 함께 올림 (china-stock-version.json의 web)
+        const SCAN_VERSION = '10.17'; // 웹 배포 버전과 함께 올림 (china-stock-version.json의 web)
 
         // ---------------- 서버 선택 (URL 파라미터 → 저장값 → 기본 config) ----------------
         const params = new URLSearchParams(location.search);
@@ -717,8 +721,9 @@
 
         // (2026-11-27) 카메라 바코드 인식 결과 — 박스 확인 모드에선 쓰지 않는다(라벨에 바코드가 없다 — [📷 찍어서 읽기]로 글자 인식).
         //   손스캐너·수동입력은 onScan 으로 바로 가므로 그대로 받는다
+        //   단 박스 번호 QR 스티커(GGSBOX:번호, box-qr.html)는 박스 모드에서 받는다(그 번호로 바로 확정)
         function onCamScan(text) {
-            if (boxChk && boxChk.isOn()) return;
+            if (boxChk && boxChk.isOn()) { if (isBoxQr(text)) return onScan(text); return; }
             return onScan(text);
         }
         if (emulatorEnabled()) window.__scanCamDecode = onCamScan;   // 🧪 에뮬레이터 시험에서만(운영 주소에선 만들지 않음)
@@ -744,6 +749,8 @@
                 try { await boxChk.check(raw); } catch (e) { console.warn('[scan] 박스 확인 오류', e); }
                 resumeScan(1200); return;
             }
+            // (2026-11-27) 박스 번호 QR 스티커는 상품·위치가 아니다 — 안내만(쓰기 없음)
+            if (isBoxQr(raw)) { showAlert('박스 스티커입니다 — [박스] 모드에서 찍으세요.\n(' + raw + ')'); return; }
             if (mode === 'in') await processInbound(raw); else processLocation(raw);
         }
 

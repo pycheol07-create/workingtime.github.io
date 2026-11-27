@@ -22,11 +22,13 @@
 //     카메라 화면의 [📷 찍어서 읽기](#bx-shutter)로 지금 화면 한 장을 글자 인식한다(카메라가 꺼져 있으면 폰 카메라 촬영). 켤 때 인식 엔진을 미리 불러 둔다.
 //     한 장에서 박스 번호와 공급처상품명(또는 款号 → 공급처상품명)이 같이 읽히면 '그 박스에 그 품번 옵션이 실제로 든' 조합만 보인다(pairCandidates).
 //     못 읽으면 그 자리에서 입력 도구·자판을 펼친다.
+//   · 박스 번호 QR 스티커(2026-11-27, box-qr.html — 실사용 검토 중): 'GGSBOX:<번호>' 를 카메라·손스캐너로 읽으면 그 번호로 바로 확정(후보 고르기 없음).
 // scan.html 은 setupScanBoxCheck({ db, doc, getDoc, speak, camReady, grabPhoto, supLoad, supName, supAll }) 한 번 부르고, onScan 에서 isOn() 이면 check(raw) 로 넘긴다.
 import { parsePackBoxes } from './lib/pack-boxes.js?v=9e13a65b0cb3-3b57fd51';
 import { boxIndex, findBox, boxReport, packChoices, pickPack, scanDbRows, mapLimit,
     supIndex, looksSup, supCandidates, codeBoxes, supPlace, withoutSup, pairCandidates, pairSplit,
     padLetters, padMatches, ocrCandidates, ocrScale, enhanceGray } from './lib/box-check.js?v=9ea481795e93-c7b970d6';
+import { isBoxQr, parseBoxQr } from './lib/box-qr.js?v=b6f91b6e9e93-9b7fb1d9';
 import { escapeHtml as esc } from './utils.js?v=65bb3512764f-e315797c';
 
 // 글자 인식(Tesseract.js 5.1.1) — vendor/tesseract/(npm 공식 tarball 그대로, sha256 은 vendor/tesseract/SHA256SUMS.txt).
@@ -224,6 +226,11 @@ export function setupScanBoxCheck(o) {
         const okKey = pad ? pad.querySelector('[data-k="ok"]') : null;
         if (okKey) okKey.classList.toggle('bx-ready', !!(m.one || m.exact));
         if (!v) { padHint.innerHTML = idx.size ? '<span class="bx-hint-dim">번호를 누르세요</span>' : ''; return; }
+        if (isBoxQr(v)) {
+            if (okKey) okKey.classList.add('bx-ready');
+            padHint.innerHTML = '<span class="bx-hint-one">박스 스티커 — [확인]</span>';
+            return;
+        }
         if (o.supAll && looksSup(v)) {
             if (okKey) okKey.classList.add('bx-ready');
             padHint.innerHTML = '<span class="bx-hint-one">공급처상품명으로 찾기 — [확인]</span>';
@@ -255,6 +262,7 @@ export function setupScanBoxCheck(o) {
         const v = input.value.trim().toUpperCase();
         const m = padMatches(v, idx);
         const typed = v.length <= 5 && /^[0-9]*[A-Z]*\d*$/.test(v);
+        if (isBoxQr(v)) { submitInput(); return; }   // 박스 스티커(GGSBOX:번호)는 글자 그대로
         if (o.supAll && looksSup(v)) { submitInput(); return; }   // 공급처상품명은 글자 그대로 확인
         if (m.exact) { pickBox(m.exact); return; }
         if (typed && m.one) { pickBox(m.one); return; }
@@ -648,6 +656,16 @@ export function setupScanBoxCheck(o) {
             if (notReady(s)) return;
             if (!opt.pair) pairCtx = null;
             if (opt.pair) { await showPair(opt.pair.box, opt.pair.name, s, my); return; }
+            // 박스 번호 QR 스티커 — 'GGSBOX:<번호>' 면 그 번호로 바로(공급처상품명·후보 고르기 없음)
+            if (!opt.pick && !opt.sup && isBoxQr(s)) {
+                const qb = parseBoxQr(s);
+                if (!qb) { ask('박스 스티커 번호를 읽지 못했습니다', `'${s}' — 스티커가 맞는지 확인하세요.`, s, '스티커 번호 오류'); return; }
+                if (!idx.has(qb)) {
+                    ask('이 패킹에 없는 박스 번호입니다', `스티커 ${qb}번 — 고른 패킹(${curLabel()})이 맞는지, 스티커가 이 패킹 박스에 붙은 것인지 확인하세요.`, `${qb}번(스티커)`, '없는 박스');
+                    return;
+                }
+                opt = { ...opt, pick: qb };
+            }
             if (opt.sup) { await showSup(opt.sup, s, my); return; }
             // 공급처상품명처럼 보이면(GGS…-…) 자료를 불러와 후보를 찾고, 박스 번호는 그 조각을 뺀 나머지에서만
             let sups = [], supFail = false;
