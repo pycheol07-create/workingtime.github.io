@@ -1475,6 +1475,8 @@ function setupColResize() {
         });
         th.appendChild(grip);
     });
+    // [관리 ▾] 박스 번호 QR 스티커 만들기(2026-11-27 사용자 요청 — 부족수량관리 설정에서) — 새 탭
+    $('btn-box-qr')?.addEventListener('click', () => { window.open('box-qr.html', '_blank', 'noopener'); });
     $('btn-col-reset').addEventListener('click', () => {
         delete colWidths[curMode()];
         saveColWidths();
