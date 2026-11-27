@@ -20,10 +20,10 @@
 import { escapeHtml, showConfirm } from './utils.js?v=65bb3512764f-e315797c';
 import { fmtHM, tabCounts, tabCarried, TABS, TAB_LABEL, fmtNum, canMark, tabMeta, dayLabel, rowLines, dayMessage, fmtGain, ROUTE_OUT_LABEL, ROUTE_OUT_HELP, locLabel, bulkDoneKeys, bulkUndoKeys, CARRIED_LABEL, qtyCellOf, PENDING_TEXT,
     shownTabs, fmtDaily1, BACK_TAB_HELP, BACK_GAIN_LABEL, BACK_SCORE_HELP, backReasonTitle, BLOCKED_LABEL, SKIP_HELP, holdRows, HOLD_ROW_LABEL, HOLD_UNDO_TEXT,
-    SIZE_FREE_LABEL, SIZE_FREE_HELP, sizeFreeShown, fmtMDHM } from './lib/locrec-view.js?v=0912d3bb4878-fdf32cdb';
-import { NO_NAME, todayKey } from './locrec-store.js?v=c47757e4b639-bd971fd0';
+    SIZE_FREE_LABEL, SIZE_FREE_HELP, sizeFreeShown, fmtMDHM } from './lib/locrec-view.js?v=0a665c750c65-fdf32cdb';
+import { NO_NAME, todayKey } from './locrec-store.js?v=618115ced44e-bd971fd0';
 import { higherOpenThan } from './modal-above.js?v=d7d701b363ef-215d273f';
-import { undoConfirmText } from './lib/locrec-apply.js?v=4586a41093cd-5def8df3';
+import { undoConfirmText } from './lib/locrec-apply.js?v=66b0140a3bb3-5def8df3';
 import { SORT_COLS, sortRows, nextSort, isLowStockRow, lineTotal } from './lib/locrec-sort.js?v=9ce27569c8c4-a7d96312';
 
 // location.html 의 #locrec-modal 과 같은 마크업(바꾸면 둘 다)

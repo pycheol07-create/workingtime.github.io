@@ -80,6 +80,19 @@ export function packsOn(dates, parsed) {
  * 한 상품의 박스 칸. → { text, list } — text = 칸 글자('' = 없음), list = 박스별 값(열 필터용, 패킹이 둘 이상이면 '-1: 3' 모양).
  * dates = 고른 출고일들, parsed = parsePackBoxes 결과(못 읽었으면 null).
  */
+/** 위 합계 '박스' 카드(2026-11-27 사용자 요청) — 행들의 boxList 에서 서로 다른 박스 수, 그중 미발(행 mibal > 0) 상품이 든 박스 수.
+ *  boxList 는 패킹이 둘 이상이면 '-1: 3' 모양이라 패킹이 달라도 같은 번호를 따로 센다. */
+export function boxCount(rows) {
+    const all = new Set(), mib = new Set();
+    (rows || []).forEach(r => {
+        (r && Array.isArray(r.boxList) ? r.boxList : []).forEach(b => {
+            all.add(b);
+            if (Number(r.mibal) > 0) mib.add(b);
+        });
+    });
+    return { total: all.size, mibal: mib.size };
+}
+
 export function boxesFor(code, dates, parsed, on = null) {
     const ps = on || packsOn(dates, parsed);
     const texts = [], list = [];

@@ -17,7 +17,7 @@
 import { doc, onSnapshot, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getHolidayName, showAlert, showConfirm } from './utils.js?v=65bb3512764f-e315797c';
 import { tsMs, dayKey, runDay, reqUi } from './lib/refill-view.js?v=3416a867c2d7-24e9bb3d';
-import { recReqUi } from './lib/locrec-view.js?v=0912d3bb4878-fdf32cdb';
+import { recReqUi } from './lib/locrec-view.js?v=0a665c750c65-fdf32cdb';
 import { combinedReqUi, confirmText, requestPathOf, laterMs, doneCounts, REFILL_REQUEST, LOCREC_REQUEST } from './lib/rebuild-view.js?v=c6f3c13017e8-4d8ef11f';
 
 const APP = 'artifacts/team-work-logger-v2';

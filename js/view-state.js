@@ -14,8 +14,8 @@
 //   js/lib/ops-report-route.js redirectView 로 운영 리포트 탭으로 바꿔 연다(복원 뒤 주소도 새 형식으로 바뀐다).
 
 import { readHash, writeHash, onHashNav } from './hash-state.js?v=41d515385973-40fe10fb';
-import { TREELESS_MAINS, TREELESS_SUBS, sectionIdFor } from './history-sections.js?v=2fc2330007e7-1af66818';
-import { OPS_MAIN, redirectView, isOpsTreeless } from './lib/ops-report-route.js?v=bc1ec7e463eb-3f6f2065';
+import { TREELESS_MAINS, TREELESS_SUBS, sectionIdFor } from './history-sections.js?v=c5e89d216c58-1af66818';
+import { OPS_MAIN, redirectView, isOpsTreeless } from './lib/ops-report-route.js?v=4fa00ceeae4f-bf5c01ad';
 import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
 
 const KEY = 'viewstate:' + (location.pathname.split('/').pop() || 'index');

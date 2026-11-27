@@ -13,26 +13,30 @@
 //   차트: 지금 보이는 탭만 그린다. 탭을 바꾸면 차트를 정리하고, 같은 기간 모델은 다시 계산하지 않는다(ui-ops-view 캐시).
 //   옛 그리기 함수(renderDashboardTab·renderProductivityTab·renderStaffingTab)와 *Old 계산은 비교 도구(tools/ops-metrics-compare.mjs)가 써서 남겨 둔다 — 여기선 부르지 않는다.
 //   운영 계획(plan, 2026-11-05 MVP-1) = 다음 주 주간 계획서(js/ui-ops-plan.js) — 날짜 트리를 숨긴다(자기 기간). 다른 탭으로 가면 트리를 다시 보인다.
+//   비품(supplies, 2026-11-27) = js/ui-ops-supplies.js — 날짜 트리 기간으로 원장을 읽는다(비동기, 비품 권한 supplies.view).
 // ⚠️ role=dialog·data-act 금지(업무마감봇 선택자). 직원 이름·금액을 콘솔에 찍지 않는다.
 
 import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
-import { renderHistoryDateListByMode, updateGranularityButtons } from './app-history-logic.js?v=622b55524564-ef63fd43';
-import { setTreeVisible, showPanelLoadError, clearPanelLoadError } from './history-list-controller.js?v=622b55524564-bba56cb8';
-import { saveView } from './view-state.js?v=c2e4bf06fdce-0da8b754';
+import { renderHistoryDateListByMode, updateGranularityButtons } from './app-history-logic.js?v=41327d6e4d96-ef63fd43';
+import { setTreeVisible, showPanelLoadError, clearPanelLoadError } from './history-list-controller.js?v=41327d6e4d96-bba56cb8';
+import { saveView } from './view-state.js?v=1eb0de390ca8-0da8b754';
 import { currentPerm, onPerm } from './feature-gate.js?v=7eaa46dbb8e9-a5458f75';
 import { can } from './lib/perm.js?v=c1e53d91da8e-49afeea3';
 import { showToast } from './utils.js?v=65bb3512764f-e315797c';
 import {
     OPS_MAIN, PLAN_TAB, allowedTabs, pickTab, tabOf, canSettle, canDetail, canOwner, canTaskTable, settlePresetOf, tabPdfBlock
-} from './lib/ops-report-route.js?v=bc1ec7e463eb-3f6f2065';
+} from './lib/ops-report-route.js?v=4fa00ceeae4f-bf5c01ad';
 import {
     renderOpsTab, renderDetailTables, invalidateOpsModel, destroyOpsCharts, openTaskDetail, closeTaskDetail
-} from './ui-ops-view.js?v=1ca0175af698-e3a195b5';
-import { renderOpsPlan, invalidateOpsPlan, leaveOpsPlan } from './ui-ops-plan.js?v=7d67cf00ed06-58c185af';
+} from './ui-ops-view.js?v=1e0cbea4978a-6c18620a';
+import { renderOpsPlan, invalidateOpsPlan, leaveOpsPlan } from './ui-ops-plan.js?v=55a589cb96ae-58c185af';
+import { renderOpsSupplies, leaveOpsSupplies, isSuppliesLoading } from './ui-ops-supplies.js?v=2078bc44cb54-4fe53871';
+import { SUPPLIES_FEATURE } from './lib/ops-supplies.js?v=6885f1ad3c7b-92bc58ee';
 import { downloadPanelPdf, pdfFileName } from './panel-pdf.js?v=6a9ff1406b2a-ea9942f8';
 
 const TAB_PANEL = {
-    summary: 'ops-summary-panel', productivity: 'ops-productivity-panel', staffing: 'ops-staffing-panel', cost: 'ops-cost-panel', plan: 'ops-plan-panel'
+    summary: 'ops-summary-panel', productivity: 'ops-productivity-panel', staffing: 'ops-staffing-panel', cost: 'ops-cost-panel',
+    supplies: 'ops-supplies-panel', plan: 'ops-plan-panel'
 };
 
 const $ = (id) => document.getElementById(id);
@@ -61,7 +65,7 @@ const saveOps = (tab, settle) => {
     else saveView({ main: OPS_MAIN, sub: tab, settle: settle ? '1' : undefined, detail: !settle && State.context.opsDetailOpen ? 'tables' : undefined });
 };
 
-const periodKey = () => `${granNow()}|${keyNow()}|${(State.allHistoryData || []).length}|${canNow(REPORTS) ? 1 : 0}`;
+const periodKey = () => `${granNow()}|${keyNow()}|${(State.allHistoryData || []).length}|${canNow(REPORTS) ? 1 : 0}|${canNow(SUPPLIES_FEATURE) ? 1 : 0}`;
 const viewCtx = () => ({ gran: granNow(), key: keyNow(), canCost: canNow(REPORTS), canTaskTable: canTaskTable(canNow), canOwner: canOwner(canNow) });
 
 // 탭 줄 — 권한 없는 탭·[보고서 만들기]·상세 표 숨김. 지금 탭을 못 보게 되면 볼 수 있는 탭으로.
@@ -87,6 +91,7 @@ function applyTabVisibility() {
 const noteHtml = (tab) => {
     if (tab === 'cost') return '금액이 보이는 탭입니다.';
     if (tab === PLAN_TAB) return '다음 주 월~일 고정 — 왼쪽 날짜 목록과 상관없습니다.';
+    if (tab === 'supplies') return '안전재고·예측은 지금 기준, 사용·입고·발주는 고른 기간입니다.';
     return '';
 };
 
@@ -135,6 +140,7 @@ function showTab(tab) {
     // 다른 탭(또는 결산)으로 — 차트를 정리하고 생산성 펼침(상세 표·채우기→오류)을 닫는다. 돌아오면 다시 그린다.
     if (prevTab !== tab || settleOpen) {
         destroyOpsCharts();
+        leaveOpsSupplies();   // 읽는 중이던 비품 결과는 버린다(돌아오면 다시 그림 — 캐시라 다시 읽지 않음)
         if (prevTab) delete rendered[prevTab];
         if (tab !== 'productivity' || settleOpen) closeDetailFolds();
     }
@@ -145,6 +151,7 @@ export function leaveOpsReport() {
     closeTaskDetail();
     leaveOpsPlan();
     destroyOpsCharts();
+    leaveOpsSupplies();
     rendered = {};
     if (State.context) closeDetailFolds();
 }
@@ -153,7 +160,10 @@ export function leaveOpsReport() {
 function renderTab(tab) {
     try {
         if (tab === PLAN_TAB) renderOpsPlan({ canAnalysis: canNow('data.analysis'), canNames: canOwner(canNow) });   // 이름 = 리포트 권한
-        else renderOpsTab(tab, viewCtx());
+        else if (tab === 'supplies') {
+            renderOpsSupplies({ ...viewCtx(), canSupplies: canNow(SUPPLIES_FEATURE) })   // 비동기 — 실패는 안에서 화면에 표시
+                .catch(err => console.error('비품 탭 그리기 실패:', err && err.message));
+        } else renderOpsTab(tab, viewCtx());
     } catch (err) {
         console.error('운영 리포트 탭 그리기 실패:', tab, err && err.message);
     }
@@ -255,7 +265,7 @@ async function openSettlement(preset) {
     saveOps('cost', true);
     const panel = $('settlement-panel');
     try {
-        settleMod = await import('./ui-history-settlement.js?v=5f07b4308f0e-48fa5e8b');
+        settleMod = await import('./ui-history-settlement.js?v=97fb597dd656-dc850dab');
         clearPanelLoadError(panel);   // 앞서 실패해 띄운 오류 상자
         // downloads:false = 결산 화면 머리 줄의 [엑셀][PDF] 를 그리지 않음(받기는 위 줄의 [PDF 받기][엑셀 받기])
         await settleMod.initSettlementReport({ downloads: false });
@@ -288,7 +298,7 @@ function applySettlePreset(panel, p) {
 async function downloadSettle(kind, btn) {
     if (!canSettle(canNow)) return;
     try {
-        if (!settleMod) settleMod = await import('./ui-history-settlement.js?v=5f07b4308f0e-48fa5e8b');
+        if (!settleMod) settleMod = await import('./ui-history-settlement.js?v=97fb597dd656-dc850dab');
         if (typeof settleMod.downloadSettlement === 'function') {
             const done = await settleMod.downloadSettlement(kind, btn);
             if (done === false) showToast('먼저 보고서를 만들어 주세요.');
@@ -337,6 +347,7 @@ async function downloadTabPdf(btn) {
     if (why === 'stale') { renderTab(tab); showToast('화면을 지금 권한·기간으로 다시 그렸습니다. 확인한 뒤 다시 받아 주세요.'); return; }
     if (why === 'perm') { showToast('이 화면을 받을 권한이 없습니다.'); return; }
     if (why) return;
+    if (tab === 'supplies' && isSuppliesLoading()) { showToast('비품 자료를 불러오는 중입니다. 다 보인 뒤 다시 받아 주세요.'); return; }
     const label = (document.querySelector(`#ops-tabbar .ops-tab[data-ops-tab="${tab}"]`)?.textContent || tab).trim();
     await downloadPanelPdf(panel, {
         filename: pdfFileName(['운영리포트', label, pdfPeriodText(tab)]),

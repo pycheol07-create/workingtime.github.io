@@ -5,19 +5,19 @@ import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/f
 import { waitForPendingWrites } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { initializeFirebase, loadAppConfig, loadLeaveSchedule, loadPrivateConfig, applyPrivateConfig } from './config.js?v=242bb63abbe9-dd1665a9';
 import { displayCurrentDate, showToast } from './utils.js?v=65bb3512764f-e315797c';
-import { renderDashboardLayout, renderRealtimeStatus, renderCompletedWorkLog, updateSummary, renderTaskAnalysis, renderTaskSelectionModal, applyDynamicSidebar } from './ui.js?v=c71236d37e51-a84d3554';
-import { initializeAppListeners } from './app-listeners.js?v=3379baf557be-60136d0c';
+import { renderDashboardLayout, renderRealtimeStatus, renderCompletedWorkLog, updateSummary, renderTaskAnalysis, renderTaskSelectionModal, applyDynamicSidebar } from './ui.js?v=c93402830d22-a84d3554';
+import { initializeAppListeners } from './app-listeners.js?v=81ea42a7505a-60136d0c';
 import * as DOM from './dom-elements.js?v=2b9f19ecbde2-82fbef91';
 import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
 import { renderLongRunWarning } from './long-run-warn.js?v=5b49c7c10800-1d9ce55a';
-import { autoPauseForLunch, autoResumeFromLunch } from './app-logic.js?v=e8d1ba57f91c-5cd27cd7';
+import { autoPauseForLunch, autoResumeFromLunch } from './app-logic.js?v=26ae84cefe70-5cd27cd7';
 import { subscribeNotices, unsubscribeNotices } from './notice-logic.js?v=9d1d22165214-c08a5845';
 
 // ✅ 분리된 모듈 가져오기
-import { updateElapsedTimes, autoSaveProgress, markDataAsDirty } from './app-lifecycle.js?v=3379baf557be-be3588c4';
+import { updateElapsedTimes, autoSaveProgress, markDataAsDirty } from './app-lifecycle.js?v=81ea42a7505a-be3588c4';
 import { setupNotificationListeners } from './app-notifications.js?v=2ea8413ffd18-af702167';
-import { setupFirebaseListeners, stopFirebaseListeners, whenTodayLoaded } from './app-sync.js?v=c71236d37e51-68f6c921';
-import { healYesterdayOnStartup } from './history-data-manager.js?v=c71236d37e51-a9403e97';
+import { setupFirebaseListeners, stopFirebaseListeners, whenTodayLoaded } from './app-sync.js?v=c93402830d22-68f6c921';
+import { healYesterdayOnStartup } from './history-data-manager.js?v=c93402830d22-a9403e97';
 import { initWorkCalendarWidget } from './widget-calendar.js?v=9c4229050546-0dba5334';
 import { subscribeLeaveSchedule, unsubscribeLeaveSchedule } from './leave-schedule-sync.js?v=152edbc1d09a-ab7817f6';
 import { subscribeEzadmin, unsubscribeEzadmin } from './ezadmin-sync.js?v=31eccc182e0d-764bb82a';

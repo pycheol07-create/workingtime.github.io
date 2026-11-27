@@ -35,7 +35,7 @@
 // import 는 같은 lib 의 refill-view.js(날짜·시각, KST)·loc-recommend.js(엑셀 5열) 만 — 같은 규칙을 두 벌 두지 않는다.
 
 import { tsMs, dayKey, keyMs, lastDays, dayLabel, fmtHM, kstParts, waitInfo } from './refill-view.js?v=3416a867c2d7-24e9bb3d';
-import { excelRows, EXCEL_COLS } from './loc-recommend.js?v=25ef24855b24-df186d4d';
+import { excelRows, EXCEL_COLS } from './loc-recommend.js?v=98ac1aab2539-df186d4d';
 
 export { tsMs, dayKey, keyMs, lastDays, dayLabel, fmtHM, excelRows, EXCEL_COLS };
 

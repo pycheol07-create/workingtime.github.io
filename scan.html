@@ -163,6 +163,32 @@
         #bx-hist li.bx-h-yes { color: var(--c-risk-text); }
         #bx-hist li.bx-h-no { color: var(--c-ok-text); }
         #bx-hist .bx-t { color: var(--c-text-3); }
+        /* (2026-11-27) 라벨에 바코드가 없다 — 번호 자판·사진 읽기 */
+        .bx-tools { display: flex; gap: 6px; margin-top: 6px; }
+        .bx-tools button { flex: 1; padding: 11px 8px; border: 1px solid var(--c-line-strong); background: var(--c-surface); color: var(--c-text); border-radius: var(--r-sm); font-size: 15px; font-weight: 800; font-family: inherit; cursor: pointer; }
+        .bx-tools button#bx-photo { border-color: #6B5B95; color: #6B5B95; }
+        #bx-pad-hint { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; min-height: 34px; margin: 6px 0 2px; font-size: 13.5px; }
+        .bx-chip { min-width: 52px; height: 34px; padding: 0 10px; border: 1px solid var(--c-line-strong); border-radius: var(--r-pill); background: var(--c-surface); color: var(--c-text); font-size: 16px; font-weight: 800; font-family: inherit; cursor: pointer; }
+        .bx-chip.bx-chip-exact { border: 2px solid #6B5B95; }
+        .bx-chip.bx-chip-one { border: 2px solid #6B5B95; background: #6B5B95; color: #fff; }
+        .bx-hint-dim { color: var(--c-text-3); }
+        .bx-hint-warn { color: var(--c-warn-text); font-weight: 800; }
+        .bx-hint-one { color: #6B5B95; font-weight: 800; }
+        #bx-pad[hidden] { display: none; }
+        .bx-pad-letters { display: flex; gap: 6px; margin-bottom: 6px; }
+        .bx-pad-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+        .bx-key { height: 50px; border: 1px solid var(--c-line-strong); border-radius: var(--r-sm); background: var(--c-surface); color: var(--c-text); font-size: 22px; font-weight: 800; font-family: inherit; cursor: pointer; touch-action: manipulation; user-select: none; -webkit-user-select: none; }
+        .bx-key:active { background: var(--c-track); }
+        .bx-key.bx-key-l { flex: 1; background: var(--c-track); }
+        .bx-key.bx-key-f { font-size: 15px; }
+        .bx-key.bx-key-ok { grid-column: span 3; border: none; background: #6B5B95; color: #fff; font-size: 19px; opacity: .55; }
+        .bx-key.bx-key-ok.bx-ready { opacity: 1; box-shadow: 0 0 0 3px var(--c-warn-soft); }
+        .bx-pick.bx-pick-big { min-width: 110px; height: 64px; font-size: 26px; }
+        .bx-pick small { font-size: 12px; font-weight: 700; color: var(--c-warn-text); }
+        /* (2026-11-27) 긴급(부족수량관리 mibal2/urgent 켜짐일 때만) */
+        .bx-urgent-top { margin: -4px -4px 8px; padding: 8px; border-radius: var(--r-sm); background: var(--c-risk); color: #fff; font-size: 24px; font-weight: 900; }
+        .bx-list li.bx-urgent { background: var(--c-risk-soft); border-left: 5px solid var(--c-risk); }
+        .bx-utag { flex-shrink: 0; padding: 2px 7px; border-radius: var(--r-pill); background: var(--c-risk); color: #fff; font-size: 12.5px; font-weight: 900; }
     </style>
 </head>
 <body data-shell="scan">
@@ -220,9 +246,17 @@
         </div>
         <div class="bx-src" id="bx-src">박스 번호 자료를 읽는 중…</div>
         <form class="bx-row" id="bx-form" autocomplete="off">
-            <input id="bx-input" placeholder="박스 라벨 찍기 또는 번호 입력 (예: A5, 12)" autocapitalize="characters" autocomplete="off" enterkeyhint="done">
+            <input id="bx-input" placeholder="박스 번호 (예: A5, 12)" autocapitalize="characters" autocomplete="off" enterkeyhint="done">
             <button type="submit" class="bx-go">확인</button>
         </form>
+        <div class="bx-tools">
+            <button type="button" id="bx-photo">사진으로 읽기</button>
+            <button type="button" id="bx-pad-toggle" aria-pressed="false">번호 자판</button>
+        </div>
+        <!-- 사진은 폰 안에서만 글자 인식(js/scan-boxcheck.js) — 어디에도 올리지 않는다 -->
+        <input type="file" id="bx-photo-file" accept="image/*" capture="environment" hidden>
+        <div id="bx-pad-hint"></div>
+        <div id="bx-pad" hidden></div>
         <div id="bx-result"></div>
         <div class="bx-hist-title">최근 확인</div>
         <ul id="bx-hist"></ul>
@@ -248,6 +282,7 @@
     <div class="overlay" id="ov-select"><div class="modal">
         <div class="m-code" id="sel-code"></div>
         <div class="m-loc" id="sel-loc"></div>
+        <div id="sel-urgent" style="display:none; background:var(--c-risk); color:#fff; border-radius:var(--r-sm); padding:10px 11px; margin:9px 0; font-size:24px; font-weight:900; text-align:center; letter-spacing:2px;">긴급</div>
         <div id="sel-memo" style="display:none; background:var(--c-risk-soft); color:var(--c-risk-text); border:2px solid var(--c-risk); border-radius:var(--r-sm); padding:9px 11px; margin:9px 0; font-size:16px; font-weight:800; text-align:center; white-space:pre-line; line-height:1.4;"></div>
         <button type="button" class="m-btn mibal" id="sel-mibal" style="display:none;"></button>
         <div class="m-remain" id="sel-remain-row">미발수량: <b id="sel-remain">0</b></div>
@@ -271,6 +306,7 @@
     <!-- 알림 모달 -->
     <div class="overlay" id="ov-alert"><div class="modal">
         <div style="font-weight:900; color:var(--c-risk-text); font-size:17px;">알림</div>
+        <div id="alert-urgent" style="display:none; background:var(--c-risk); color:#fff; border-radius:var(--r-sm); padding:8px 11px; margin-top:9px; font-size:22px; font-weight:900; text-align:center; letter-spacing:2px;">긴급 상품</div>
         <div id="alert-msg" style="margin:12px 0; font-size:15px; white-space:pre-line;"></div>
         <div style="display:flex; gap:8px;">
             <button class="m-btn" id="alert-ok" style="flex:1;">확인</button>
@@ -302,9 +338,10 @@
         import { LOC_SCAN_COLL, buildLocScanDocs } from './js/lib/loc-scan-log.js?v=696b0986b508-7cdc6b24'; // 위치지정 건별 기록(문서 모양)
         import { connectEmulatorsIfEnabled } from './js/firebase-emulator.js?v=071adc2867a0-c60c17d2'; // 🧪 localhost + ?emu=1 일 때만 에뮬레이터(운영에서는 아무 일 안 함)
         import { escapeHtml } from './js/utils.js?v=65bb3512764f-e315797c';   // 대기열·배너에 상품명·바코드 등 넣을 때(2026-11-12 보안 점검)
-        import { setupScanBoxCheck } from './js/scan-boxcheck.js?v=d1fe6b5f3a06-06934056';   // (2026-11-27) 박스 확인 모드 — 읽기만
+        import { setupScanBoxCheck } from './js/scan-boxcheck.js?v=3143cca38968-a9c6a49d';   // (2026-11-27) 박스 확인 모드 — 읽기만
+        import { scanUrgentSet } from './js/lib/box-check.js?v=45b7aaad0f94-f0a046ea';   // (2026-11-27) 부족수량관리 '긴급' — 켜져 있을 때만 코드 Set
 
-        const SCAN_VERSION = '10.10'; // 웹 배포 버전과 함께 올림 (china-stock-version.json의 web)
+        const SCAN_VERSION = '10.11'; // 웹 배포 버전과 함께 올림 (china-stock-version.json의 web)
 
         // ---------------- 서버 선택 (URL 파라미터 → 저장값 → 기본 config) ----------------
         const params = new URLSearchParams(location.search);
@@ -339,6 +376,19 @@
         const serverLabel = serverCfg ? (serverCfg.label || serverCfg.projectId) : (firebaseConfig.projectId + ' (기본)');
         const app = initializeApp(activeCfg, 'scanApp');
         const db = getFirestore(app);
+        // (2026-11-27) 부족수량관리 '긴급' 상품(mibal2/urgent — china-mibal2 쪽이 씀, 여기는 읽기만). 필요할 때만 켜는 기능:
+        //   enabled 가 true 일 때만 코드가 들어오고, 꺼짐·문서 없음·못 읽음이면 빈 Set = 긴급 표시 전혀 없음(입고 흐름·쓰기는 그대로).
+        let scanUrgent = new Set();
+        let urgentSubbed = false;
+        function subscribeUrgent() {
+            if (urgentSubbed) return;
+            urgentSubbed = true;
+            try {
+                onSnapshot(doc(db, 'artifacts/team-work-logger-v2/mibal2/urgent'),
+                    (snap) => { scanUrgent = scanUrgentSet(snap.exists() ? snap.data() : null); },
+                    () => { scanUrgent = new Set(); urgentSubbed = false; });   // 못 읽음 → 긴급 없음, 다음 로그인 때 다시
+            } catch (e) { scanUrgent = new Set(); urgentSubbed = false; }
+        }
         // 🧪 기본 서버일 때만, 첫 읽기·쓰기보다 먼저. 운영(GitHub Pages)에서는 hostname 검사에 걸려 아무 일도 하지 않는다.
         if (!serverCfg) connectEmulatorsIfEnabled(db, getAuth(app));
 
@@ -379,7 +429,7 @@
                 setShellContext(user ? { signedIn: true, uid: user.uid } : { signedIn: false });
                 scanWorkerName = ''; scanWorkerRead = false; scanWorkerUser = user || null;
                 if (user) loadScanWorkerName(user);   // 기다리지 않는다
-                if (user) { gate.remove(); resolvePendingHolds().finally(() => retryReleases()); return; } // [Ver 10.7] 로그인 뒤 미발 확인·해제 정리
+                if (user) { gate.remove(); subscribeUrgent(); resolvePendingHolds().finally(() => retryReleases()); return; } // [Ver 10.7] 로그인 뒤 미발 확인·해제 정리
                 // 업무관리에 로그인해 두었어도 세션이 공유되지 않는 경우가 있다
                 // (홈 화면 앱에서 다른 브라우저로 열리거나, 사생활 보호 모드 등).
                 // 그래서 여기서 바로 로그인할 수 있게 한다 — 계정은 업무관리와 같다.
@@ -585,28 +635,32 @@
 
         // [Ver 3.9] 수동 촬영 인식: 풀해상도 사진(지원 시) 또는 현재 프레임을 캡처해 디코딩
         let fileScanner = null;
-        async function manualCapture() {
-            if (!scanning || processing || !camTrack) return;
-            toast('촬영 인식 중...');
-            let file = null;
+        // (2026-11-27) 지금 카메라 사진 한 장(Blob) — 수동 촬영과 박스 확인 [사진으로 읽기]가 같이 쓴다. 못 얻으면 null
+        async function grabCamPhoto() {
+            if (!scanning || !camTrack) return null;
             // 1) 풀해상도 사진 (안드로이드 크롬 등 지원 기기)
             try {
                 if (window.ImageCapture) {
                     const blob = await new ImageCapture(camTrack).takePhoto();
-                    file = new File([blob], 'cap.jpg', { type: blob.type || 'image/jpeg' });
+                    if (blob) return blob;
                 }
             } catch (e) {}
             // 2) 폴백: 현재 비디오 프레임을 캔버스로 캡처 (아이폰 등)
-            if (!file) {
-                try {
-                    const video = document.querySelector('#reader video');
-                    const cv = document.createElement('canvas');
-                    cv.width = video.videoWidth; cv.height = video.videoHeight;
-                    cv.getContext('2d').drawImage(video, 0, 0);
-                    const blob = await new Promise(res => cv.toBlob(res, 'image/jpeg', 0.95));
-                    file = new File([blob], 'cap.jpg', { type: 'image/jpeg' });
-                } catch (e) {}
-            }
+            try {
+                const video = document.querySelector('#reader video');
+                const cv = document.createElement('canvas');
+                cv.width = video.videoWidth; cv.height = video.videoHeight;
+                cv.getContext('2d').drawImage(video, 0, 0);
+                const blob = await new Promise(res => cv.toBlob(res, 'image/jpeg', 0.95));
+                if (blob) return blob;
+            } catch (e) {}
+            return null;
+        }
+        async function manualCapture() {
+            if (!scanning || processing || !camTrack) return;
+            toast('촬영 인식 중...');
+            const blob = await grabCamPhoto();
+            const file = blob ? new File([blob], 'cap.jpg', { type: blob.type || 'image/jpeg' }) : null;
             if (!file) { toast('촬영 실패 (다시 시도)'); return; }
             try {
                 if (!fileScanner) fileScanner = new Html5Qrcode('file-reader', { experimentalFeatures: { useBarCodeDetectorIfSupported: true } });
@@ -719,21 +773,25 @@
                     mibalQty: shown, mibalRaw: raw, holdUnknown: !!d && !holdOk && raw > 0, noScanDb: !d, aliasMemo: memoText,
                     heldOthers: (d && holdOk) ? heldByOthers(holdData, [...inboundQueue.map(it => it && it.id), ...deletedEntries.keys()], Date.now()) : 0 };
             };
-            const proceedWith = (d) => showSelect(buildItem(d));
+            // (2026-11-27) 긴급(mibal2/urgent 켜짐일 때만) — 경고 창·사유 음성에서 이미 '긴급'을 말했으면 선택 창에서 다시 말하지 않는다(urgentSaid)
+            const urgent = scanUrgent.has(key);
+            let urgentSaid = false;
+            const proceedWith = (d) => showSelect({ ...buildItem(d), urgentSaid });
             // [Ver 8.51] 강제전송 → 정상 입고 진행. (2026-10-22) 허용목록 등록은 수량을 골라 입고가 확정될 때(addInbound)만 한다 — 팝업만 열고 닫으면 등록 안 됨
-            const forceProceed = (d) => showSelect({ ...buildItem(d), forceAllow: true });
+            const forceProceed = (d) => showSelect({ ...buildItem(d), forceAllow: true, urgentSaid });
             const memoPfx = memoText ? ('오류바코드: ' + memoText + '\n\n') : ''; // [Ver 8.84] 경고에도 사유 표시
-            if (memoText) { speak('오류 바코드 확인'); try { navigator.vibrate([120, 80, 120]); } catch (e) {} }
+            if (memoText) { speak(urgent ? '긴급. 오류 바코드 확인' : '오류 바코드 확인'); urgentSaid = urgent; try { navigator.vibrate([120, 80, 120]); } catch (e) {} }
+            const alertIn = (msg, act) => { showAlert(msg, act, undefined, { urgent }); if (urgent) urgentSaid = true; };   // 입고 경고 — 긴급이면 첫 경고에 같이
 
-            if (dbError) { showAlert(memoPfx + 'DB 조회 오류\n(네트워크 확인)\n(' + key + ')', () => proceedWith(null)); return; } // [Ver 8.51] 모든 오류에 강제전송. (2026-10-22) 조회 실패는 일시 오류라 허용목록에 올리지 않는다
+            if (dbError) { alertIn(memoPfx + 'DB 조회 오류\n(네트워크 확인)\n(' + key + ')', () => proceedWith(null)); return; } // [Ver 8.51] 모든 오류에 강제전송. (2026-10-22) 조회 실패는 일시 오류라 허용목록에 올리지 않는다
             if (!snap || !snap.exists()) {
                 if (isForceAllowed(key)) { proceedWith(null); return; } // [Ver 8.51] 이미 강제전송 허용된 상품 → 오류 없이 진행
-                showAlert(memoPfx + '등록되지 않은 상품입니다.\n(' + key + ')', () => forceProceed(null)); // [Ver 8.51] 미등록도 강제전송 가능
+                alertIn(memoPfx + '등록되지 않은 상품입니다.\n(' + key + ')', () => forceProceed(null)); // [Ver 8.51] 미등록도 강제전송 가능
                 return;
             }
             const d = snap.data();
             if ((!d.location || d.location === '미지정') && !isForceAllowed(key)) { // [Ver 8.49] 로케이션 미지정 오류 (단, [Ver 8.50] 강제전송 등록된 상품은 통과)
-                showAlert(memoPfx + '로케이션 미지정 상품입니다.\n(' + key + ')\n위치를 먼저 지정한 뒤 입고해주세요.', () => forceProceed(d));
+                alertIn(memoPfx + '로케이션 미지정 상품입니다.\n(' + key + ')\n위치를 먼저 지정한 뒤 입고해주세요.', () => forceProceed(d));
                 return;
             }
             proceedWith(d);
@@ -763,7 +821,15 @@
             // [Ver 8.83] 오류바코드 사유 표시 (등록된 경우) — 작업자가 처리 판단 (음성/진동은 processInbound에서 처리)
             const memoEl = $('sel-memo');
             if (memoEl) { if (item.aliasMemo) { memoEl.textContent = '오류바코드: ' + item.aliasMemo; memoEl.style.display = 'block'; } else memoEl.style.display = 'none'; }
-            if (!item.aliasMemo && (parseInt(item.mibalQty) || 0) > 0) speak('미발'); // [Ver 8.79] 미발수량 있을 때만 '미발' 음성 (사유 있으면 사유 음성 우선)
+            // (2026-11-27) 긴급 상품이면 빨강 띠 + 음성 '긴급'(한 번만 — speak 가 앞 음성을 끊으므로 미발·사유를 한 문장에) + 짧은 진동. 표시만
+            const urgent = scanUrgent.has(item.code);
+            const urgentEl = $('sel-urgent');
+            if (urgentEl) urgentEl.style.display = urgent ? 'block' : 'none';
+            if (urgent && !item.urgentSaid) {
+                speak((parseInt(item.mibalQty) || 0) > 0 ? '긴급 미발' : '긴급');
+                try { navigator.vibrate([150, 80, 150]); } catch (e) {}
+            }
+            else if (!urgent && !item.aliasMemo && (parseInt(item.mibalQty) || 0) > 0) speak('미발'); // [Ver 8.79] 미발수량 있을 때만 '미발' 음성 (사유 있으면 사유 음성 우선)
             $('ov-select').style.display = 'flex';
             pushScanModal(); // [Ver 9.7] 뒤로가기로 팝업만 닫히게
             if (qtyView === 'pad') focusPad();
@@ -1487,8 +1553,11 @@
         }
 
         let alertForceAction = null; // [Ver 8.50] 강제 진행 콜백 (있으면 강제 버튼 노출)
-        function showAlert(msg, forceAction, forceLabel) {
-            speak('오류');
+        function showAlert(msg, forceAction, forceLabel, opt) {
+            // (2026-11-27) opt.urgent = 긴급 상품(mibal2/urgent 켜짐) — 띠 + 음성을 '긴급. 오류' 한 번으로
+            const urgent = !!(opt && opt.urgent);
+            const ue = $('alert-urgent'); if (ue) ue.style.display = urgent ? 'block' : 'none';
+            speak(urgent ? '긴급. 오류' : '오류');
             try { navigator.vibrate([200, 100, 200]); } catch (e) {} // [Ver 8.50] 오류 시 진동
             $('alert-msg').textContent = msg;
             alertForceAction = forceAction || null;
@@ -1598,7 +1667,7 @@
         $('status-line').textContent = `v${SCAN_VERSION} · 서버: ${serverLabel}`;
         setLocSubMode(locSubMode); // [Ver 4.1] 세부 작업 표시 — (2026-10-16) 열 때마다 '당일 입고분'으로 시작
         setMode(mode);
-        try { boxChk = setupScanBoxCheck({ db, doc, getDoc, speak }); } catch (e) { console.warn('[scan] 박스 확인 준비 실패', e); }   // [박스] 단추는 js/scan-boxcheck.js 가 연결
+        try { boxChk = setupScanBoxCheck({ db, doc, getDoc, speak, camReady: () => !!(scanning && camTrack), grabPhoto: grabCamPhoto, urgent: () => scanUrgent }); } catch (e) { console.warn('[scan] 박스 확인 준비 실패', e); }   // [박스] 단추는 js/scan-boxcheck.js 가 연결
         checkVersion();
         // [Ver 10.7] 시작 정리 — 결과를 모른 채 남은 미발 확인(pending)을 맞추고, 못 푼 몫을 다시 푼다. 로그인 전이면 실패 → online·다음 시작 때
         resolvePendingHolds().finally(() => retryReleases());

@@ -345,6 +345,9 @@ const CONF_COLS = [
 ];
 const CONF_NUM_KEYS = new Set(['차이(도착−입고확인)']);
 const hasConf = (rows) => (rows || []).some(r => r && r.confSrc !== undefined);
+// 긴급(2026-11-27) — 긴급 모드가 켜져 긴급 행(r.urgent)이 하나라도 있을 때만 맨 끝에 '긴급' 열(Y). 꺼져 있으면 예전 열 그대로
+const URGENT_COL = ['긴급', r => (r.urgent === true ? 'Y' : '')];
+const hasUrgent = (rows) => (rows || []).some(r => r && r.urgent === true);
 
 /** 행 → 엑셀용 2차원 배열(첫 줄 머리글). 숫자 칸의 null·숫자 아님은 빈칸. 상품코드·상품명·옵션·숫자만(공급처·원가·고객정보 없음) */
 export function excelAoaOf(rows) {
@@ -353,6 +356,7 @@ export function excelAoaOf(rows) {
         const at = EXCEL_COLS.findIndex(c => c[0] === '차이(피킹 배정−기존)') + 1;
         cols = [...EXCEL_COLS.slice(0, at), ...CONF_COLS, ...EXCEL_COLS.slice(at)];
     }
+    if (hasUrgent(rows)) cols = [...cols, URGENT_COL];
     const aoa = [cols.map(c => c[0])];
     (rows || []).forEach((r, i) => {
         aoa.push(cols.map(([h, f]) => {

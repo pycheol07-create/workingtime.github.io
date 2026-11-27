@@ -12,7 +12,7 @@ import {
     deleteInspectionList,
     openInspectionListWindow
 } from './inspection-logic.js?v=e78427f6ef2e-c40d2f6c';
-import { openPackPicker } from './inspection-packs.js?v=b284dd006334-59151e29';
+import { openPackPicker } from './inspection-packs.js?v=1a88780320f9-59151e29';
 import { openManualAdd } from './inspection-manual.js?v=e78427f6ef2e-6555fd07';
 import { initInspSegments } from './inspection-segments.js?v=4deded8f323d-fc1be8ff';
 // 아래 함수들은 다른 작업 묶음에서 들어온다(goPrevInspectionItem·toggleTodoCollapsed — inspection-logic.js,

@@ -6,9 +6,9 @@
 // 창은 처음 열 때 body 에 만든다. 오버레이 자식 1개 · 첫 자식 .modal-header 라 공통 끌기(js/modal-drag.js)가 붙고,
 //   닫기 버튼 [data-esc-close] 라 Esc 는 js/modal-esc.js 가 처리한다.
 import { escapeHtml } from './utils.js?v=65bb3512764f-e315797c';
-import { routeDetailHead, routeHeatDetail, HEAT_HELP, routeCardHelp, frontHelp, frontAreaText, PREV_MODE_DIFF_HELP } from './lib/locrec-view.js?v=0912d3bb4878-fdf32cdb';
+import { routeDetailHead, routeHeatDetail, HEAT_HELP, routeCardHelp, frontHelp, frontAreaText, PREV_MODE_DIFF_HELP } from './lib/locrec-view.js?v=0a665c750c65-fdf32cdb';
 import { trendSeries, trendPoints, trendSvg, trendRows } from './lib/locrec-trend.js?v=cc8001ccf07a-a6e6ea0d';
-import { todayKey } from './locrec-store.js?v=c47757e4b639-bd971fd0';
+import { todayKey } from './locrec-store.js?v=618115ced44e-bd971fd0';
 
 const MODAL_ID = 'locrec-route-modal';
 let store = null;

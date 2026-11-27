@@ -1,0 +1,7 @@
+이 폴더의 파일은 아래 공개 소프트웨어를 고치지 않고 그대로 담은 것이다.
+
+- Tesseract.js 5.1.1 (https://github.com/naptha/tesseract.js) — Apache License 2.0 (LICENSE-tesseract.js.txt)
+- Tesseract.js-core 5.1.1 (https://github.com/naptha/tesseract.js-core) — Apache License 2.0 (core/LICENSE-tesseract.js-core.txt)
+  Tesseract OCR 엔진(https://github.com/tesseract-ocr/tesseract)을 WebAssembly 로 빌드한 것 — Apache License 2.0
+- 영문 글자 자료 eng.traineddata (tesseract-ocr tessdata_best 정수화본, https://github.com/tesseract-ocr/tessdata_best)
+  — Apache License 2.0. npm 패키지 @tesseract.js-data/eng 1.0.0(MIT)로 받음

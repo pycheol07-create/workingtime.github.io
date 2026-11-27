@@ -16,7 +16,8 @@
 //   [입고용 파일·미발확인 파일·비축창고 엑셀 받기] 이지어드민 업로드용 — 기존 화면과 같은 파일(내용은 lib/mibal2-live.js)
 //   화면을 열면 그날 1회 MIBAL_HISTORY(basis 'v2') — 아직 입고 안 된 패킹별 미발수량(업무예상)
 //   위치 쓰기(js/china-mibal2-live-loc.js) · 관리 창·적재량 편집(js/china-mibal2-live-admin.js)
-// 이메일은 어디에도 저장하지 않는다(기록자 = 직원 이름). 공급처 이름·원가 없음.
+//   긴급 상품(mibal2/urgent — js/china-mibal2-live-urgent.js, 2026-11-27): 이 모듈 안에서 유일하게 계약 칸에 이메일(byEmail·enabledBy)을 쓴다
+// 이메일은 저장하지 않는다(기록자 = 직원 이름) — 예외 하나: 긴급 상품 문서 mibal2/urgent 의 계약 칸 byEmail·enabledBy(소문자, js/china-mibal2-live-urgent.js). 공급처 이름·원가 없음.
 import { doc, getDoc, getDocs, getDocFromServer, getDocsFromServer, setDoc, writeBatch, collection, query, orderBy, limit, startAfter, where, documentId, serverTimestamp, deleteField }
     from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { scanApplyPlan, versionDataOf, archiveRecordOf, shrinkArchive, archiveAoa, diffRowsOf, historyGroupsOf, historyRecordsOf,
@@ -28,8 +29,9 @@ import { liveHiddenCss } from './lib/mibal2-cols.js?v=60dbdb4fdfb6-c2662013';
 import { inboundSig } from './lib/inbound-fix.js?v=7894fc22c949-9113d082';
 import { buildScanLogDocs, expandScanLogDocs, checkScanLogParts, docIdOf, scanLogInputOf, scanLogListHtml, scanLogExcelRows,
     SCANLOG_JOBS_COLL, SCANLOG_MAX_PARTS } from './lib/mibal2-scanlog.js?v=afd9130d6f71-ce95b891';
-import { setupLiveLoc } from './china-mibal2-live-loc.js?v=c5f7d213294a-50b3c820';
+import { setupLiveLoc } from './china-mibal2-live-loc.js?v=44a277eadfff-50b3c820';
 import { setupLiveAdmin, readSheetRowsAOA, packMap, unpackMap } from './china-mibal2-live-admin.js?v=c327007483bd-b09af5b0';
+import { setupLiveUrgent } from './china-mibal2-live-urgent.js?v=2938a992249a-ecd76400';   // 긴급 상품 쓰기(mibal2/urgent, 2026-11-27)
 import { shipMismatchOf, mismatchLine, mismatchBlockText } from './lib/ship-mismatch.js?v=18b1bfe6bfc0-42172506';
 import { writeXls, xlsBytes } from './lib/xls-limits.js?v=64b8f5a113a9-e512cb8a';
 import { autoStopReason, autoStopText, serverBatchOpen, AUTO_TOAST_MS } from './lib/mibal2-auto-apply.js?v=594903dc6df2-338fd92d';
@@ -949,6 +951,7 @@ export function startLive(ctx) {
         onDates: renderBatchNote,
         autoApply,
         isBusy: () => busy,
-        setClosedUI
+        setClosedUI,
+        urgent: setupLiveUrgent(ctx)   // 긴급 모드 켜기·끄기·지정·해제 — 화면은 js/china-mibal2-urgent.js
     };
 }

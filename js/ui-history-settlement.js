@@ -27,6 +27,12 @@ import { D } from './d-chart.js?v=e918595219dd-dfe55644';
 import { aliasHistoryView } from './lib/task-alias-view.js?v=2e131477eb8e-af660ceb';
 import { periodSpeeds, lastDayIdOf, opsSummary, OEE_LEVELS } from './lib/ops-metrics.js?v=5abf5efec2fb-58d6bcbb';
 import { revenueTotalOf } from './revenue-channels.js?v=553320652df2-c473a26d';
+// 📦 비품 장(2026-11-27) — 비품 권한(supplies.view)일 때만. 숫자는 운영 리포트 '비품' 탭과 같은 js/lib/ops-supplies.js
+import { currentPerm } from './feature-gate.js?v=7eaa46dbb8e9-a5458f75';
+import { can } from './lib/perm.js?v=c1e53d91da8e-49afeea3';
+import { buildSuppliesReport, suppliesExcelRows, SUPPLIES_FEATURE } from './lib/ops-supplies.js?v=6885f1ad3c7b-92bc58ee';
+import { kstToday } from './lib/supplies-forecast-view.js?v=c308b964945e-6e807d3e';
+import { loadSuppliesReportData } from './ops-supplies-store.js?v=e21a3b62ecd2-ac3f581c';
 // 엑셀(결산 xlsx)로 옮길 때 — 화면용 HTML 글(태그·escape 된 글자)을 보통 글자로
 const htmlToText = (h) => String(h == null ? '' : h).replace(/<[^>]+>/g, '').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&');
 
@@ -1437,9 +1443,101 @@ async function downloadSettlementPdf(periodLabel, btnArg = null) {
     }
 }
 
+// ============================================================
+// 6-1. 비품 장(2026-11-27) — 결산 기간(월·분기·년) 비품 사용·입고·안전재고·예측·발주. 자료는 비동기로 읽어 자리(#settle-supplies-slot)에 채운다.
+//   공급처 이름·연락처는 넣지 않는다(단가·금액과 같은 보고서에 두지 않기). 금액은 결산 권한(data.reports)이라 보인다.
+// ============================================================
+const permNow = () => currentPerm() || (State.appState && State.appState.perm) || null;
+const canSupplies = () => { const p = permNow(); return !!p && can(p, SUPPLIES_FEATURE); };
+let _supToken = 0;
+let _supLoading = false;   // 비품 장을 읽는 중 — [PDF 받기][엑셀 받기]는 막고 안내(downloadSettlement)
+const SUP_LOADING_MSG = '비품 장을 불러오는 중입니다. 보고서에 비품 장이 다 보인 뒤 다시 받아 주세요.';
+const SUP_TITLE = ['📦', '비품', '사용·입고·안전재고·예측·발주'];
+const supPanel = (body) => sectionPanel(...SUP_TITLE, body, 'border-l-amber-500');
+
+function renderSuppliesSection(m) {
+    const T = m.totals;
+    const chartId = 'settle-chart-supplies';
+    const hasTrend = m.trend.labels.length > 1 && m.trend.out.some(v => v > 0);
+    const notes = m.meta.notes.length ? narrative(m.meta.notes.map(n => esc(n)).join('<br>'), 'amber') : '';
+    const unitOf = (u) => (u ? ' ' + esc(u) : '');
+    const none = (n, msg) => `<tr><td colspan="${n}" class="text-center text-gray-400 py-6">${msg}</td></tr>`;
+    const U = m.meta.usageOk !== false;   // 스위치·원장을 못 읽으면 사용·입고는 '못 읽음'
+    const topRows = m.top.map(t => `<tr>${td(esc(t.name))}${td(fmt(t.out) + unitOf(t.unit), 'right')}${td(t.perDay != null ? t.perDay.toFixed(1) : '-', 'right')}${td(t.amount != null ? fmt(t.amount) + '원' : '-', 'right')}</tr>`).join('');
+    const lowRows = (m.low || []).map(l => `<tr>${td(esc(l.name))}${td(fmt(l.stock) + unitOf(l.unit), 'right')}${td(fmt(l.safety), 'right')}${td(esc(l.status && l.status !== 'nocode' ? l.statusLabel : '-'))}</tr>`).join('');
+    const F = m.forecast;
+    const fRows = F ? F.rows.map(f => `<tr>${td(esc(f.name))}${td(esc(f.statusLabel))}${td(esc(f.deplete))}${td(esc(f.reorder))}${td(esc(f.recommend), 'right')}</tr>`).join('') : '';
+    const O = m.orders;
+    const body = `
+        <div class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-5">
+            ${heroStat('사용(출고) 수량', U ? fmt(T.outQty) : '못 읽음', '', `<span class="text-[11px] text-gray-400">비품 ${escapeHtml(T.outItems)}종 · 단위 섞인 참고값</span>`, 'text-amber-700')}
+            ${heroStat('일평균 사용', T.outPerDay != null ? T.outPerDay.toFixed(1) : '-', '')}
+            ${heroStat('입고 수량', U ? fmt(T.inQty) : '못 읽음', '', `<span class="text-[11px] text-gray-400">비품 ${escapeHtml(T.inItems)}종</span>`)}
+            ${heroStat('사용 금액(추정)', T.outAmount != null ? fmt(T.outAmount) : '-', T.outAmount != null ? '원' : '', '<span class="text-[11px] text-gray-400">단가 × 사용 수량</span>')}
+            ${heroStat('안전재고 이하', m.low ? fmt(m.low.length) : '못 읽음', m.low ? '종' : '', '<span class="text-[11px] text-gray-400">지금 기준</span>', m.low && m.low.length ? 'text-red-600' : 'text-gray-800')}
+        </div>
+        ${hasTrend ? `<div class="mb-5">
+            <div class="text-xs font-bold text-gray-600 mb-2">${escapeHtml({ day: '일별', week: '주별', month: '월별' }[m.trend.unit])} 사용 수량 추이</div>
+            <div style="height:200px;"><canvas id="${chartId}"></canvas></div>
+        </div>` : ''}
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-5 mb-5">
+            <div>
+                <div class="text-xs font-bold text-gray-600 mb-2">사용 상위 비품</div>
+                ${tableShell(th('비품') + th('사용', 'right') + th('일평균', 'right') + th('금액', 'right'), topRows || none(4, U ? '사용 기록 없음' : '못 읽음'), 'max-h-[300px]')}
+            </div>
+            <div>
+                <div class="text-xs font-bold text-gray-600 mb-2">안전재고 이하 (지금 기준)</div>
+                ${m.low == null ? emptyNote('못 읽음 — 재고 또는 재고 기준 스위치를 읽지 못했습니다.')
+                    : tableShell(th('비품') + th('현재고', 'right') + th('안전재고', 'right') + th('예측 상태'), lowRows || none(4, '없음'), 'max-h-[300px]')}
+            </div>
+        </div>
+        <div class="text-xs font-bold text-gray-600 mb-2">소진 예상 · 발주 권장 (지금 기준${F && F.basisDate ? ` · 예측 ${escapeHtml(F.basisDate)}` : ''})</div>
+        ${!F ? emptyNote('예측 문서를 읽지 못했습니다.') : `
+        <div class="grid grid-cols-3 gap-2 mb-2">
+            ${miniStat('발주 필요', fmt(F.counts.order) + '종')}${miniStat('주의', fmt(F.counts.watch) + '종')}${miniStat('발주함', fmt(F.counts.ordered) + '종')}
+        </div>
+        ${F.rows.length ? tableShell(th('비품') + th('상태') + th('소진 예상') + th('발주 권장일') + th('권장량', 'right'), fRows, 'max-h-[300px]') : emptyNote('발주 필요·주의·발주함인 비품이 없습니다.')}`}
+        <div class="text-xs font-bold text-gray-600 mt-5 mb-2">발주 · 입고 (기간)</div>
+        ${!O ? emptyNote('발주 기록을 읽지 못했습니다.') : `<div class="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
+            ${miniStat('발주', fmt(O.ordered) + '건', O.cancelled ? `취소 ${escapeHtml(O.cancelled)}건 별도` : '')}
+            ${miniStat('입고 확인', fmt(O.received) + '건')}
+            ${miniStat('평균 리드타임', O.lead.n ? O.lead.avg.toFixed(1) + '일' : '-', O.lead.n ? `${escapeHtml(O.lead.n)}건 · ${escapeHtml(O.lead.min)}~${escapeHtml(O.lead.max)}일` : '')}
+            ${miniStat('지금 입고 대기', fmt(O.open) + '건')}
+        </div>`}
+        ${notes}`;
+    return { html: supPanel(body), chartId: hasTrend ? chartId : null };
+}
+
+/** 결산을 그린 뒤 비품 자리를 채운다. 권한이 없거나 규칙에 막히면 자리째 비운다(장이 보이지 않음). */
+async function fillSuppliesSection(container, from, to) {
+    const slot = container.querySelector('#settle-supplies-slot');
+    const my = ++_supToken;
+    _supLoading = false;
+    if (!slot) return;
+    if (!canSupplies() || !State.db) { slot.innerHTML = ''; return; }
+    slot.innerHTML = supPanel(emptyNote('불러오는 중...'));
+    _supLoading = true;
+    try {
+        const data = await loadSuppliesReportData(State.db, { from, to });
+        if (my !== _supToken || !container.contains(slot)) return;
+        if (!data.ok.items) { slot.innerHTML = data.denied ? '' : supPanel(emptyNote('비품 자료를 읽지 못했습니다.')); return; }
+        const m = buildSuppliesReport({ ...data, from, to, today: kstToday(), now: Date.now(), canCost: true, ok: data.ok });
+        const r = renderSuppliesSection(m);
+        slot.innerHTML = r.html;
+        if (r.chartId) createBarChart(r.chartId, m.trend.labels, m.trend.out, '사용 수량', D.accent);
+        if (_last) _last.data.supplies = m;
+    } catch (e) {
+        if (my !== _supToken) return;
+        console.error('결산 비품 장 실패:', e && (e.code || e.message));
+        slot.innerHTML = supPanel(emptyNote('비품 자료를 읽지 못했습니다.'));
+    } finally {
+        if (my === _supToken) _supLoading = false;
+    }
+}
+
 // 7. 엑셀 받기
 // ============================================================
-function downloadSettlementExcel(periodLabel, core, tp, wf, wr, att, mg, insp, ms, opinion) {
+function downloadSettlementExcel(periodLabel, core, tp, wf, wr, att, mg, insp, ms, opinion, sup = null) {
     try {
         const rows = [
             ['구분', '항목', '값'],
@@ -1481,6 +1579,7 @@ function downloadSettlementExcel(periodLabel, core, tp, wf, wr, att, mg, insp, m
                 `${it.milestone.date} ${it.milestone.title || ''}`.trim(),
                 `[해석] ${it.insight.interp} [운영방안] ${it.insight.action}`
             ]),
+            ...(canSupplies() ? suppliesExcelRows(sup) : []),   // 비품 장(화면에 다 그려진 뒤에만 — 아직이면 빠짐)
             ...(opinion.verdict ? [['종합의견', '종합 판정', opinion.verdict.text]] : []),
             ...(opinion.verdictSummary ? [['종합의견', '총평', opinion.verdictSummary]] : []),
             ...(opinion.points || []).map((p, i) => ['종합의견', `진단 해석 ${i + 1}`, htmlToText(p.text)]),
@@ -1652,6 +1751,7 @@ export function renderSettlementReport(container, appConfig, opts = null) {
             ${mgResult.html || mgResult}
             ${renderInspectionSection(insp)}
             ${renderMilestoneSection(ms)}
+            <div id="settle-supplies-slot"></div>
             ${renderOverallOpinionSection(opinion, periodLabel, workingDaysCount)}
         </div>
     `;
@@ -1673,7 +1773,8 @@ export function renderSettlementReport(container, appConfig, opts = null) {
     const generatedAtEl = container.querySelector('#settle-generated-at');
     if (generatedAtEl) generatedAtEl.textContent = `생성: ${new Date().toLocaleString('ko-KR', { dateStyle: 'medium', timeStyle: 'short' })}`;
 
-    _last = { periodLabel, data: { core, tp, wf, wr, att, mg, insp, ms, opinion } };
+    _last = { periodLabel, data: { core, tp, wf, wr, att, mg, insp, ms, opinion, supplies: null } };
+    fillSuppliesSection(container, from, to).catch(e => console.error('결산 비품 장 실패:', e && e.message));
 
     const downloadBtn = container.querySelector('#settle-download-btn');
     if (downloadBtn) downloadBtn.addEventListener('click', () => downloadSettlement('excel'));
@@ -1696,8 +1797,9 @@ export function settlementPeriodLabel() {
  */
 export function downloadSettlement(kind, btn = null) {
     if (!_last) return false;
+    if (_supLoading) { showAlert(SUP_LOADING_MSG, { title: kind === 'pdf' ? 'PDF 저장' : '엑셀 받기' }); return true; }
     const { periodLabel, data: d } = _last;
-    if (kind === 'excel') { downloadSettlementExcel(periodLabel, d.core, d.tp, d.wf, d.wr, d.att, d.mg, d.insp, d.ms, d.opinion); return true; }
+    if (kind === 'excel') { downloadSettlementExcel(periodLabel, d.core, d.tp, d.wf, d.wr, d.att, d.mg, d.insp, d.ms, d.opinion, d.supplies); return true; }
     if (kind === 'pdf') { downloadSettlementPdf(periodLabel, btn).catch(e => console.error('결산 PDF 실패:', e && e.message)); return true; }
     return false;
 }

@@ -404,7 +404,7 @@
 
             <div id="history-main-content" class="flex-1 flex flex-col overflow-hidden relative">
 
-            <!-- 📊 운영 리포트 (2026-11-05 통합 · 내용 통합) — 탭: 요약·생산성·인력·비용 + [보고서 만들기](팀 결산).
+            <!-- 📊 운영 리포트 (2026-11-05 통합 · 내용 통합) — 탭: 요약·생산성·인력·비용·비품(11/27)·운영 계획 + [보고서 만들기](팀 결산).
                  탭 전환·권한은 js/ui-history-ops-report.js, 탭 안 그리기는 js/ui-ops-view.js(숫자는 js/lib/ops-view-model.js buildOpsModel 한 번).
                  아래 *-body 칸은 JS 가 채운다. 고정 id 칸(#report-view-container·#staffing-outlook·채우기→오류 차트·#taskowner-body·#settlement-panel)은
                  옛 그리기 함수가 id 로 찾아 채우므로 이름을 바꾸지 않는다.
@@ -416,6 +416,7 @@
                         <button type="button" class="ops-tab" data-ops-tab="productivity" data-feature="data.analysis" role="tab" aria-selected="false">생산성</button>
                         <button type="button" class="ops-tab" data-ops-tab="staffing" data-feature="data.analysis" role="tab" aria-selected="false">인력</button>
                         <button type="button" class="ops-tab" data-ops-tab="cost" data-feature="data.reports" role="tab" aria-selected="false">비용</button>
+                        <button type="button" class="ops-tab" data-ops-tab="supplies" data-feature="supplies.view" role="tab" aria-selected="false">비품</button>
                         <button type="button" class="ops-tab" data-ops-tab="plan" data-feature="data.analysis" role="tab" aria-selected="false">운영 계획</button>
                     </div>
                     <span id="ops-tab-note" class="ops-tab-note"></span>
@@ -480,6 +481,11 @@
             <!-- 비용 — 금액이 보이는 탭(권한 data.reports). -->
             <div id="ops-cost-panel" class="ops-pane hidden">
                 <div id="ops-cost-body" class="opv-stack"></div>
+            </div>
+
+            <!-- 비품(2026-11-27) — 고른 기간 사용·입고·발주 + 지금 안전재고·예측(권한 supplies.view, 금액은 data.reports 일 때만). js/ui-ops-supplies.js 가 채움. -->
+            <div id="ops-supplies-panel" class="ops-pane hidden">
+                <div id="ops-supplies-body" class="opv-stack"></div>
             </div>
 
             <!-- 운영 계획(MVP-1 주간 계획서) — 다음 주 월~일 고정, 날짜 트리 숨김(js/ui-ops-plan.js 가 채움). 시간·인원만(금액 없음), 저장 없음. -->

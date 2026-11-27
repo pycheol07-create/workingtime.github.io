@@ -12,7 +12,7 @@
 import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
 import { can } from './lib/perm.js?v=c1e53d91da8e-49afeea3';
 import { refillAllowed, openRefillFromDash } from './refill-dash.js?v=645fe513f7d4-1326a6ad';
-import { locRecAllowed, openLocRecFromDash } from './locrec-dash.js?v=b034eb53143e-852ed13e';
+import { locRecAllowed, openLocRecFromDash } from './locrec-dash.js?v=eba3d1164b19-852ed13e';
 
 const BTN_ID = 'quick-menu-btn';
 const SHEET_ID = 'quick-menu-sheet';

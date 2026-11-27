@@ -15,9 +15,9 @@ import { aliasHistoryView } from './lib/task-alias-view.js?v=2e131477eb8e-af660c
 import { buildOpsModel, opsModelInputs, OPS_VIEW_LEVELS } from './lib/ops-view-model.js?v=299e58bb8a3f-08a53556';
 import { revenueTotalOf } from './revenue-channels.js?v=553320652df2-c473a26d';
 import { D, alpha } from './d-chart.js?v=e918595219dd-dfe55644';
-import { renderStaffingOutlook } from './ui-history-staffing.js?v=324c382b1482-929220f5';
-import { ensureMibalHistory, ensureCorrectCtx } from './ui-history-prediction.js?v=c71236d37e51-099e2602';
-import { fetchPlannedData } from './history-data-manager.js?v=c71236d37e51-a9403e97';
+import { renderStaffingOutlook } from './ui-history-staffing.js?v=049cd3e3b06d-929220f5';
+import { ensureMibalHistory, ensureCorrectCtx } from './ui-history-prediction.js?v=c93402830d22-099e2602';
+import { fetchPlannedData } from './history-data-manager.js?v=c93402830d22-a9403e97';
 import { renderFillErrorSection, destroyFillErrorCharts } from './ui-history-productivity.js?v=1402015c3123-a604e855';
 import { renderReportDaily, renderReportWeekly, renderReportMonthly, renderReportYearly } from './ui-history-reports.js?v=eb6573657ef5-9b003c86';
 import { taskListOf } from './lib/task-owner.js?v=82e303e4c972-e73c99c8';
@@ -25,7 +25,7 @@ import { TASK, tName } from './task-names.js?v=33eb5ccd69bc-26ab8ff7';
 import { higherOpenThan } from './modal-above.js?v=d7d701b363ef-215d273f';
 import { buildOwnerAdvice, adviceForOutput } from './lib/plan-owner-advice.js?v=755a7754882f-7e84deed';
 import { PEOPLE_NOTE } from './lib/plan-skills.js?v=7416db6792ac-166a535f';
-import { nextWeekAvailable } from './ui-ops-plan-people.js?v=810ab58ddc06-808bebb0';
+import { nextWeekAvailable } from './ui-ops-plan-people.js?v=3b4098aca418-808bebb0';
 
 const $ = (id) => document.getElementById(id);
 
@@ -477,7 +477,7 @@ export function renderDetailTables({ gran, key, rangeData }) {
 let detailReturnFocus = null;
 let detailTask = null;
 let lastCtx = {};
-const UNDER_IDS = ['ops-summary-panel', 'ops-productivity-panel', 'ops-staffing-panel', 'ops-cost-panel', 'ops-plan-panel', 'ops-settle-wrap'];
+const UNDER_IDS = ['ops-summary-panel', 'ops-productivity-panel', 'ops-staffing-panel', 'ops-cost-panel', 'ops-supplies-panel', 'ops-plan-panel', 'ops-settle-wrap'];
 const setUnderInert = (on) => UNDER_IDS.forEach(id => { const el = $(id); if (el) el.inert = !!on; });
 function onDocKey(e) {
     if (e.key !== 'Escape' || !isTaskDetailOpen()) return;

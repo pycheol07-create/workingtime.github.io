@@ -3,6 +3,7 @@
 //   · 값 = 화면에 보이는 글자 기준. 숫자는 쉼표 없는 정수 글자, 모르는 값은 '(모름)'.
 //   · 입고확인(conf) = '일치' / '불일치' / '(모름)' — 예전 화면([Ver 8.90] 색으로 거르기)과 같이, 칸이 빨간지(입고확인 ≠ 도착)로.
 //   · 플래그(flags) = 여러 값 — 고른 플래그 중 하나라도 있으면 통과, 플래그 없는 행은 '(없음)'.
+//     긴급 모드(2026-11-27, js/lib/mibal2-urgent.js)가 켜져 긴급인 행(r.urgent)은 플래그 값에 '긴급' 이 하나 더 붙는다(꺼져 있으면 그대로).
 //   · 박스(box) = 여러 값(플래그처럼) — 행의 boxList(js/lib/pack-boxes.js boxesFor 의 list), 없으면 '(없음)'. 목록은 번호 순(A2 < A10).
 //   · 저장 모양: null = 전체, [] = 아무것도, { ex: [값…] } = 그 값만 뺀다(2026-11-26 리뷰 — '고른 값만' 으로 두면
 //     실시간으로 새로 생긴 값(새 차이·새 코드)의 행이 조용히 숨는다). 목록 창(js/table-filter.js)은 '체크한 값 배열' 을 주고받으므로
@@ -13,6 +14,7 @@ export const UNKNOWN = '(모름)';
 export const NO_FLAG = '(없음)';
 export const MATCH = '일치';
 export const MISMATCH = '불일치';
+export const URGENT_FLAG = '긴급';   // js/lib/mibal2-urgent.js URGENT_LABEL 과 같은 글자
 
 const numText = (v) => (v === null || v === undefined || v === '' || !Number.isFinite(Number(v))) ? UNKNOWN : String(Math.round(Number(v)));
 
@@ -28,7 +30,7 @@ export function filterValueOf(r, key, flagLabel = (f) => f) {
         case 'code': case 'name': case 'option': return String(r[key] == null ? '' : r[key]).trim();
         case 'loc': return r.locInfo ? String(r.loc == null ? '' : r.loc) : '미지정';
         case 'conf': return confMatchText(r);
-        case 'flags': { const fs = Array.isArray(r.flags) ? r.flags.map(flagLabel) : []; return fs.length ? fs : [NO_FLAG]; }
+        case 'flags': { const fs = Array.isArray(r.flags) ? r.flags.map(flagLabel) : []; if (r.urgent === true) fs.unshift(URGENT_FLAG); return fs.length ? fs : [NO_FLAG]; }
         case 'box': return Array.isArray(r.boxList) && r.boxList.length ? r.boxList.map(String) : [NO_FLAG];
         default: return numText(r[key]);
     }

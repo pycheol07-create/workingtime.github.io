@@ -15,7 +15,9 @@
 //         미발재고로그 1회 읽기. 이 파일은 그 자료를 직접 읽지 않는다. 보기 선택은 이 브라우저에만 기억(localStorage mibal2.view)
 //       표의 입고확인·차이(도착−입고) 열·'선택 출고일 밖 입고' 행 — 2026-10-27 에 뺐다가 2026-10-28 다시 넣음(사용자 결정: 기능은 다 넣고 쓰기는 꺼 둠)
 //       + live 에서 출고일을 바꿀 때 ChinaStockGoods_Archive(ships array-contains-any, 캐시) — 마감한 출고일이면 입고확인 = 보관함 기록(2026-11-12)
+//       + mibal2/urgent 구독(긴급 상품, 2026-11-27 — js/china-mibal2-urgent.js. 그 쓰기는 live 모듈 js/china-mibal2-live-urgent.js)
 // 쓰기: artifacts/team-work-logger-v2/mibal2/{settings, refreshRequest} 2종만. 그 외 쓰기 0건.
+//       (mibal2/urgent 긴급 상품 쓰기는 이 파일이 아니라 live 모듈 js/china-mibal2-live-urgent.js — 이 화면 단추가 그 함수를 부른다)
 //       운영 스캐너 자료(ScanDB·InboundHistory·FLOOR2_STOCK·FORCE_ALLOW·ScanDB_Versions·LOC_SHARD·InboundDiff)에는 쓰지 않는다
 //       — 그 쓰기 버튼은 화면에서 disabled('시험 모드 — 꺼짐'). tests/mibal2-readonly.test.js 가 소스를 검사한다.
 //       예외(2026-11-04 사용자 결정): 입고확인 칸을 고치고 아래 막대 [저장]을 누르면 js/inbound-fix-write.js(그때만 동적 import)가
@@ -37,7 +39,7 @@ import { sortMark } from './lib/china-stock-view.js?v=0adf1f9e36d2-b5ed5c66';
 import {
     listShipDates, buildLocIndex, computeRows, summarize, FLAG_INFO, excelAoaOf,
     graceDaysFrom, legacyDatesFrom, selectedDatesFrom, oldMapFromScan
-} from './lib/mibal2-rows.js?v=7e329105283b-5a50671e';
+} from './lib/mibal2-rows.js?v=b62da5fac598-c3562b36';
 import { setShellContext } from './app-shell-bridge.js?v=b9a7199f3e1d-c80c27e9';
 import { memberNameFor } from './app-shell-data.js?v=e42c6a10ca7a-9319c795';
 import { mountBusyBanner } from './busy-banner.js?v=a03ed2865bd9-b37af02e';
@@ -52,13 +54,14 @@ import { mibal2Access, MIBAL2_DENIED_MSG } from './lib/mibal2-access.js?v=6f7eed
 import { subscribeInbound, setupScanTools } from './china-mibal2-scan.js?v=128c6e55a1b5-895aaef7';
 import { setupLocMode } from './china-mibal2-loc.js?v=9381534f7c40-d01edb35';
 import { isMibal2Live } from './lib/mibal2-mode.js?v=1dd1153363a5-6723d239';
-import { liveDatesFrom } from './lib/mibal2-rows.js?v=7e329105283b-5a50671e';
+import { liveDatesFrom } from './lib/mibal2-rows.js?v=b62da5fac598-c3562b36';
 import { stableSig, ARCHIVE_COLL } from './lib/mibal2-live.js?v=7ccac6277373-d7d6b954';
 import { bestShipOf, mismatchLine, codeListText } from './lib/ship-mismatch.js?v=18b1bfe6bfc0-42172506';   // 출고일 불일치(2026-11-10)
-import { rowPasses, optionsFor, activeFilterCount, toStored, toChecked } from './lib/mibal2-filter.js?v=5afbd872551e-6927d56c';   // 열 필터(2026-11-26)
-import { parsePackBoxes, packsOn, boxesFor, boxSortVal, cmpBoxSort, failedPacks } from './lib/pack-boxes.js?v=ff567fa413e9-8c6a9912';   // 박스 열(2026-11-26 — 패킹봇 box_sync 가 쓴 integrations/packBoxes)
+import { rowPasses, optionsFor, activeFilterCount, toStored, toChecked } from './lib/mibal2-filter.js?v=b356e616ebb6-06950e11';   // 열 필터(2026-11-26)
+import { parsePackBoxes, packsOn, boxesFor, boxSortVal, cmpBoxSort, failedPacks, boxCount } from './lib/pack-boxes.js?v=3043c07f5de0-7d49b72c';   // 박스 열(2026-11-26 — 패킹봇 box_sync 가 쓴 integrations/packBoxes)
 // [박스 확인] 창은 2026-11-27 이 화면에서 뺐다(파일 js/mibal2-boxcheck.js 도 지움) — 입고 스캐너로 옮김(판정은 js/lib/box-check.js 그대로)
 import { openFloatingFilter, closeFloatingFilter } from './table-filter.js?v=fd197c3531ef-b92b1b78';
+import { createUrgentUi } from './china-mibal2-urgent.js?v=7c79b697e702-9f1b86d3';   // 긴급 상품 표시·선택(2026-11-27 — 쓰기는 live 모듈, 문서 mibal2/urgent)
 import { writeXls } from './lib/xls-limits.js?v=64b8f5a113a9-e512cb8a';
 import { readHash, writeHash, onHashNav } from './hash-state.js?v=41d515385973-40fe10fb';   // live 때만 씀(빠른 이동 #tab=mibal|location)
 import { refreshDoneAuto, claimOk, claimMine, autoStopText, serverBatchOpen, AUTO_CLAIM_KEY, AUTO_TOAST_MS } from './lib/mibal2-auto-apply.js?v=594903dc6df2-338fd92d';
@@ -144,6 +147,16 @@ let viewRows = [];
 let colFilters = {};
 let filterDatesSig = null;   // 출고일이 바뀌면 열 필터를 비운다(다른 출고일 값으로 걸러 둔 채 남지 않게)
 const flagLabel = (f) => (FLAG_INFO[f] ? FLAG_INFO[f][0] : f);
+// 긴급 상품(2026-11-27, 필요할 때만 켜는 기능 — js/china-mibal2-urgent.js). 문서가 꺼져 있으면 표·머리줄은 예전 그대로.
+//   구독은 입장 판정 뒤(startAfterAccess). 지정 단추·체크칸은 live 쓰기 도구가 있을 때만(live.urgent)
+const urgentUi = createUrgentUi({
+    db, showToast, showAlert, showConfirm, errText: (e) => errText(e),
+    getAllRows: () => allRows, getViewRows: () => viewRows,
+    rerender: () => applyFilters(), relayout: () => applyColWidths(),
+    writer: () => (isAccessOk && live && live.urgent) || null,
+    // 꺼지면 플래그 열 필터를 푼다 — '긴급' 값을 빼 둔 채 남으면 예전 긴급 행이 조용히 숨는다
+    onModeChange: () => { if (colFilters.flags != null) colFilters = { ...colFilters, flags: null }; }
+});
 let sortConfig = LIVE ? { key: 'mibal', dir: 'desc' } : { key: 'diffAbs', dir: 'desc' };   // live 는 기존 비교 열이 없다
 let expanded = new Set();
 let pending = null;            // 지금 갱신 요청 대기 { atMs, baseRun, baseNoteAt }
@@ -356,6 +369,7 @@ function applyFilters() {
         if (diffOnly && !hasDiff) return false;
         if (checkOnly && !r.check) return false;
         if (!rowPasses(r, colFilters, flagLabel)) return false;   // 열 필터
+        if (!urgentUi.passes(r)) return false;                     // 긴급만 보기(긴급 모드일 때만)
         if (!q) return true;
         return r.code.toLowerCase().includes(q) || r.name.toLowerCase().includes(q) || r.option.toLowerCase().includes(q);
     });
@@ -388,12 +402,13 @@ function applyFilters() {
         } else if (mk) mk.remove();
     });
     syncColFilterMarks();   // 정렬 표시가 title 을 다시 쓴 뒤에 '(필터 걸림)' 을 붙인다
+    urgentUi.sync();        // 긴급 — 체크칸 머리글·표 위 줄·[긴급 모드] 단추
 }
 
 // ── 머리글 메뉴(2026-11-26 — 머리글을 누르면 정렬·필터를 고른다, 따로 아이콘 없음) ──────────────────
 //   위: [오름차순]/[내림차순](정렬 열만) · 아래: 값 목록 필터(js/table-filter.js — 입고확인은 일치/불일치, No 열은 메뉴 없음).
 //   목록 값은 다른 열 필터를 통과한 행에서(엑셀처럼). 필터가 걸린 머리글은 글자색(th.col-filtered). 표 위 '열 필터 N개 [모두 풀기]'.
-const mainHeadCells = () => { const t = $('table-body') && $('table-body').closest('table'); return t ? [...t.querySelectorAll('thead th')] : []; };
+const mainHeadCells = () => { const t = $('table-body') && $('table-body').closest('table'); return t ? [...t.querySelectorAll('thead th:not(.usel-col)')] : []; };   // 긴급 체크칸 열은 메뉴 없음
 // 열 이름 = th data-col(시작 때 찍음 — 열 순서를 바꿔도 같다). No 열은 메뉴 없음('')
 function filterKeyOfTh(th, i, all) { const k = th.dataset.col || th.dataset.sort || (i === all.length - 1 ? 'flags' : ''); return k === 'no' ? '' : k; }
 const ASC_FIRST = ['code', 'name', 'option', 'box', 'loc'];   // 글자 열 — 오름차순을 먼저 보인다
@@ -536,6 +551,12 @@ function renderTable() {
     // 입고확인 칸에 커서가 있으면 다시 그리기를 미룬다(구독 때문에 입력 중 글자가 날아가지 않게) — 칸을 나갈 때 한 번 그린다
     if (editingConfActive()) { renderDeferred = true; return; }
     renderDeferred = false;
+    // 긴급 체크칸 열 — 실제로 그릴 때만 정하고, 그린 뒤 머리글을 같이 맞춘다(미루는 동안 머리글만 바뀌어 칸이 어긋나지 않게)
+    urgentUi.markRender();
+    renderTableNow();
+    urgentUi.sync();
+}
+function renderTableNow() {
     if (fixBar || Object.keys(pendingFix).length) updateFixBar();   // 표에 없는 대기 건수
     const tb = $('table-body');
     $('row-count').textContent = `${viewRows.length}행 / 전체 ${allRows.length}행`;
@@ -549,12 +570,13 @@ function renderTable() {
         if (r.diff !== null && Math.abs(r.diff) >= DIFF_BIG) cls.push('diff-big');
         else if (r.diff !== null && r.diff !== 0) cls.push('diff-some');
         if (r.check) cls.push('need-check');
+        if (urgentUi.rowClass(r)) cls.push(urgentUi.rowClass(r));
         const diffTxt = r.diff === null ? numOr(null) : (r.diff > 0 ? '+' + num(r.diff) : num(r.diff));
         const warnNum = (v) => (v > 0 ? `<b class="t-warn">${esc(num(v))}</b>` : numOr(v));
         // 칸마다 열 이름(data-col) — [칸 설정] 숨김 CSS 가 이름으로 고르고, 머리글 순서(colOrder)대로 붙인다(2026-11-27 열 옮기기)
         const c = {
             no: `<td data-col="no">${i + 1}</td>`,
-            code: `<td class="code-cell" data-col="code">${esc(r.code)}</td>`,
+            code: `<td class="code-cell" data-col="code">${urgentUi.badge(r)}${esc(r.code)}</td>`,
             name: `<td class="name-cell" data-col="name" title="${esc(r.name)}">${esc(r.name)}</td>`,
             option: `<td class="opt-cell" data-col="option" title="${esc(r.option || '')}">${esc(r.option || '')}</td>`,
             box: `<td class="box-cell" data-col="box" title="${esc(r.boxText || r.boxFail || '')}">${esc(r.boxText || '')}</td>`,
@@ -581,8 +603,9 @@ function renderTable() {
             diff: `<td class="diff-cell" data-col="diff">${diffTxt}</td>`,
             flags: `<td data-col="flags">${flagsHtml(r)}</td>`,
         };
-        html += `<tr class="${esc(cls.join(' '))}" data-code="${esc(r.code)}">${colOrder.map(k => c[k] || '').join('')}</tr>`;
-        if (expanded.has(r.code)) html += `<tr class="detail-row"><td colspan="${colSpan()}">${detailHtml(r)}</td></tr>`;
+        // 긴급 체크칸(긴급 모드 + 쓸 수 있을 때만)은 늘 맨 앞 — 열 순서(colOrder) 밖
+        html += `<tr class="${esc(cls.join(' '))}" data-code="${esc(r.code)}">${urgentUi.selTd(r)}${colOrder.map(k => c[k] || '').join('')}</tr>`;
+        if (expanded.has(r.code)) html += `<tr class="detail-row"><td colspan="${colSpan()}">${urgentUi.detailHtml(r)}${detailHtml(r)}</td></tr>`;
     });
     tb.innerHTML = html;
 }
@@ -591,6 +614,7 @@ function renderSummary() {
     const s = summarize(viewRows);
     $('sum-sku').textContent = s.sku;
     $('sum-arrival').textContent = s.arr.toLocaleString();
+    { const bc = boxCount(viewRows); const el = $('sum-box'); if (el) { el.textContent = packBoxes ? bc.total.toLocaleString() : '–'; const sub = $('sum-box-note'); if (sub) sub.textContent = packBoxes && bc.total ? `미발 포함 ${bc.mibal.toLocaleString()}` : ''; } }
     $('sum-mibal').textContent = s.mibal.toLocaleString();
     $('sum-unres').textContent = s.unres.toLocaleString();
     $('sum-third').textContent = s.third.toLocaleString();
@@ -912,6 +936,7 @@ function recomputeAndRender() {
     allRows = (closedView && (closedView.loading || closedView.view)) ? withScanLink(computeRows(liveBundle()), closedView.loading ? {} : closedView.view.map)
         : withScanLink(computeRows(liveBundle()));   // 못 읽음(error)은 입고이력 값으로 보이되 쓰기는 막는다
     attachBoxes(allRows);
+    urgentUi.attach(allRows);   // 긴급 표시(r.urgent) — 꺼져 있으면 모두 false
     computeMismatch();
     renderMismatch();
     renderClosedNote();
@@ -1257,7 +1282,7 @@ async function downloadExcel() {
 // 열 숨김은 #cols-style(만든 CSS). body[data-cols] 는 예전 이름 그대로(colsMode) — 요약 카드·차이 체크·색·열 너비 기억이 예전처럼 따른다
 let colsOn = colsFromStorage(null, null).on;
 let colOrder = normalizeOrder(null);          // 화면 열 순서(머리글 끌기·[칸 설정] ▲▼, 2026-11-27) — loadColOrder 가 이 PC 저장값으로
-const colSpan = () => visibleCount(colsOn);   // 펼친 상세 행 칸 수
+const colSpan = () => visibleCount(colsOn) + urgentUi.extraCols();   // 펼친 상세 행 칸 수(+ 긴급 체크칸)
 function setCols(on, save) {
     colsOn = normalizeOn(on);
     // 숨긴 열의 열 필터는 푼다 — 보이지 않는 열이 표를 계속 거르지 않게(아래 '차이 있는 행만' 과 같은 원칙)
@@ -1352,7 +1377,7 @@ function loadColWidths() {
     return out;
 }
 let colWidths = loadColWidths();
-const headCells = () => [...document.querySelectorAll('.list-table thead th')];
+const headCells = () => [...document.querySelectorAll('.list-table thead th:not(.usel-col)')];   // 긴급 체크칸 열(th.usel-col)은 열 너비·순서·칸 설정 대상이 아니다
 // data-col 먼저(stampHeadCols 가 시작 때 찍는다 — 그 뒤로는 열 순서를 바꿔도 이름이 그대로). 위치 판정은 찍기 전 처음 한 번만 쓰인다
 const colKey = (th, i, all) => th.dataset.col || th.dataset.sort || (i === 0 ? 'no' : (i === all.length - 1 ? 'flags' : 'c' + i));
 const isShown = (el) => getComputedStyle(el).display !== 'none';
@@ -1373,7 +1398,7 @@ function applyColWidths() {
     // 기억에 없는 열(나중에 생긴 열 등)은 지금 자동 너비를 그대로 쓴다
     const w = ths.map((th, i, all) => (isShown(th) ? (saved[colKey(th, i, all)] || Math.ceil(th.getBoundingClientRect().width)) : 0));
     ths.forEach((th, i) => { if (w[i]) th.style.width = w[i] + 'px'; });
-    table.style.width = w.reduce((x, y) => x + y, 0) + 'px';
+    table.style.width = (w.reduce((x, y) => x + y, 0) + urgentUi.selWidth()) + 'px';   // + 긴급 체크칸 열(있을 때)
     table.classList.add('cols-fixed');
 }
 function setupColResize() {
@@ -1590,6 +1615,7 @@ function setupEvents() {
     $('btn-view-loc').addEventListener('click', () => setView('loc', true));
     setupColFilters();   // 머리글을 누르면 정렬·필터 메뉴(예전 '누를 때마다 정렬 바꾸기' 대신, 2026-11-26 사용자 요청)
     $('table-body').addEventListener('click', (e) => {
+        if (urgentUi.onBodyClick(e)) return;   // 긴급 체크칸·상세의 [긴급 지정/해제] — 줄 펼치기 대신
         if (e.target.closest('td.conf-edit')) { e.stopPropagation(); return; }   // 입고확인 칸은 고치는 곳(펼치기 대신)
         const tr = e.target.closest('tr.data-row'); if (!tr) return;
         const code = tr.dataset.code;
@@ -1698,11 +1724,12 @@ const sharedSigOf = (snaps) => stableSig(snaps.map(x => (x.exists() ? x.data() :
 async function loadLiveTools() {
     if (!LIVE) return null;
     try {
-        const mod = await import('./china-mibal2-live.js?v=98fb04274ad2-d71f42ed');
+        const mod = await import('./china-mibal2-live.js?v=c4fd994be71d-5abaac26');
         return mod.startLive({
             db, showToast, setLoading, errText,
             isAdmin: () => accessIsAdmin,
             memberName: () => myMemberName,
+            myEmail: () => String((auth && auth.currentUser && auth.currentUser.email) || '').toLowerCase(),   // 긴급 문서 계약 칸(byEmail·enabledBy)에만
             getRows: () => allRows,
             getViewRows: () => viewRows,   // 화면에 보이는 행(검색·필터·정렬 반영) — 이지어드민 업로드용 받기
             // 지금 걸린 거르기(검색·확인 필요만·열 필터) — 입고용 파일을 일부 상품만으로 받기 전에 묻는다(2026-11-26)
@@ -1854,6 +1881,7 @@ async function startAfterAccess() {
     const sd = LIVE ? liveDatesFrom(settings) : selectedDatesFrom(config, settings);
     selectedDates = sd.dates; dateSource = sd.source;
     if (LIVE) live = await loadLiveTools();   // 단독 운영 도구 — 위치지정 보기(옵션추가항목1 원천)보다 먼저
+    urgentUi.start();   // 긴급 문서 구독(mibal2/urgent — 읽기만. 쓰기 단추는 live 도구가 있을 때만)
 
     // includeMetadataChanges: 캐시 → 서버 확인으로 넘어가는 순간도 이벤트로 받아, 서버 자료로만 자동 요청을 판단한다
     onSnapshot(doc(db, LATEST_PATH), { includeMetadataChanges: true }, (snap) => {

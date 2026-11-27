@@ -17,7 +17,7 @@ import { escapeHtml as esc, showConfirm, showAlert } from './utils.js?v=65bb3512
 import { findByBarcode } from './lib/supplies-units.js?v=38146ad5b84d-33598b26';
 import { isLive, atMs } from './lib/supplies-mode.js?v=5f016d6adc90-90c9a625';
 import { ledgerErrorText } from './lib/supplies-ledger.js?v=44c94c8b86ad-92d65f68';
-import { newBatchId, loadStock, watchCart, cartPress, cartSend, cartClear, cartEntryId, ledgerEntryOnServer, loadLedger, commitRevert } from './supplies-ledger-store.js?v=a8c432ad2382-df961c02';
+import { newBatchId, loadStock, watchCart, cartPress, cartSend, cartClear, cartEntryId, ledgerEntryOnServer, loadLedger, commitRevert } from './supplies-ledger-store.js?v=bd8190f12a34-0854dfa3';
 import {
     safeItems, searchItems, favoriteItems, looksLikeBarcode, hangulBarcodeHint, burstCode, cardSummary, fmt, baseUnit, SESSION_KEY,
     dropdownGroups, speechText, slotId, slotOf, countsDesc, pressSlot, unpressSlot, slotRows, otherDirCount, slotEmptiedBy, agoText, slotIsOld,
