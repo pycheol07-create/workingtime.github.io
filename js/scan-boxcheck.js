@@ -13,7 +13,9 @@
 //     (Tesseract 는 브라우저 worker 안에서 돈다). 스크립트·worker·인식 엔진(wasm)·영문 글자 자료는 모두 우리 배포본
 //     vendor/tesseract/ 에서 받는다(외부 요청 0 — 남의 서버 코드가 우리 출처(로그인 토큰이 있는 곳)에서 돌지 않게, 2026-11-27 리뷰).
 //   · 긴급(2026-11-27): 부족수량관리 '긴급'(mibal2/urgent, enabled 일 때만)인 상품이 박스에 있으면 맨 위에 빨강 '긴급 N종 포함' + 음성 '긴급'.
-// scan.html 은 setupScanBoxCheck({ db, doc, getDoc, speak, camReady, grabPhoto }) 한 번 부르고, onScan 에서 isOn() 이면 check(raw) 로 넘긴다.
+//   · 공급처상품명(2026-11-27): 결과 줄 이름 옆에 작게 — scan.html 이 넘긴 supLoad(박스 안 코드가 든 문서만)·supName. 미발 판정과 따로,
+//     기다리지 않는다(먼저 그리고 받으면 그 칸만 채움). 못 읽으면 빈칸.
+// scan.html 은 setupScanBoxCheck({ db, doc, getDoc, speak, camReady, grabPhoto, supLoad, supName }) 한 번 부르고, onScan 에서 isOn() 이면 check(raw) 로 넘긴다.
 import { parsePackBoxes } from './lib/pack-boxes.js?v=9e13a65b0cb3-3b57fd51';
 import { boxIndex, findBox, boxReport, packChoices, pickPack, scanDbRows, mapLimit,
     padLetters, padMatches, ocrCandidates, ocrScale, enhanceGray } from './lib/box-check.js?v=6dc90ab96df1-f0a046ea';
@@ -128,7 +130,9 @@ const hhmm = (d) => d.toTimeString().slice(0, 5);
 
 /**
  * @param {{ db:object, doc:Function, getDoc:Function, speak?:(t:string)=>void,
- *           camReady?:()=>boolean, grabPhoto?:()=>Promise<Blob|null>, urgent?:()=>Set<string> }} o
+ *           camReady?:()=>boolean, grabPhoto?:()=>Promise<Blob|null>, urgent?:()=>Set<string>,
+ *           supLoad?:(codes:string[])=>Promise<any>, supName?:(code:string)=>string }} o
+ *   supLoad·supName = 공급처상품명(js/sup-names-store.js loadFor·supNameOf). 없으면 칸을 그리지 않는다
  *   urgent = 지금 긴급 상품코드(scan.html 이 mibal2/urgent 를 구독 — 꺼짐·못 읽음이면 빈 Set)
  *   camReady·grabPhoto = 스캐너 카메라가 켜져 있으면 지금 프레임(scan.html 수동 촬영과 같은 방법). 없으면 폰 카메라 사진 고르기
  * @returns {{ isOn:()=>boolean, setOn:(v:boolean)=>void, check:(raw:string, opt?:object)=>Promise<void>, reload:()=>Promise<void> } | null}
@@ -302,6 +306,18 @@ export function setupScanBoxCheck(o) {
         if (history.length > HIST_MAX) history.pop();
         hist.innerHTML = history.map(x => `<li class="${esc(x.cls)}"><span class="bx-t">${esc(hhmm(x.at))}</span> <b>${esc(x.label)}</b> — ${esc(x.text)}</li>`).join('');
     }
+    const supOf = (code) => { try { return o.supName ? String(o.supName(String(code || '').trim()) || '') : ''; } catch (e) { return ''; } };
+    /** 공급처상품명 받기 시작(미발 읽기와 같이) — 다 받아 둔 코드면 null. 실패해도 reject 하지 않는다 */
+    const supStart = (codes) => (!o.supLoad || !codes.length || codes.every(c => supOf(c))) ? null
+        : Promise.resolve().then(() => o.supLoad(codes)).catch(() => null);
+    /** 받은 뒤 결과 줄의 빈 칸만 채운다(그사이 다른 라벨을 찍었으면 안 채움) */
+    function fillSup(p, my) {
+        if (!p) return;
+        p.then(() => {
+            if (my !== seq) return;
+            out.querySelectorAll('.bx-sup[data-code]').forEach(el => { const v = supOf(el.dataset.code); if (v && !el.textContent) el.textContent = v; });
+        }).catch(() => { /* 빈칸 그대로 */ });
+    }
     const ask = (say, sub, label, text) => { out.innerHTML = banner('bx-ask', `<div class="bx-say">${esc(say)}</div>`, sub ? esc(sub) : ''); addHist(label, text, 'bx-h-ask'); };
 
     async function readCodes(codes) {
@@ -343,7 +359,8 @@ export function setupScanBoxCheck(o) {
                     : x.noDoc ? '<span class="bx-q bx-q-nodoc">스캐너 목록에 없음</span>' : '<span class="bx-q">0</span>';
                 const cls = [x.mibal > 0 ? 'bx-hit' : '', x.urgent ? 'bx-urgent' : ''].filter(Boolean).join(' ');
                 return `<li class="${cls}">${x.urgent ? '<span class="bx-utag">긴급</span>' : ''}<span class="bx-code">${esc(x.code)}</span>`
-                    + `<span class="bx-name">${x.name ? esc(x.name) : ''}</span>${right}</li>`;
+                    + `<span class="bx-name">${x.name ? esc(x.name) : ''}</span>`
+                    + (o.supLoad ? `<span class="bx-sup" data-code="${esc(x.code)}">${esc(supOf(x.code))}</span>` : '') + right + '</li>';
             }).join('') + '</ul>';
         }
         out.innerHTML = h;
@@ -454,9 +471,11 @@ export function setupScanBoxCheck(o) {
                 out.innerHTML = banner('bx-ask', `<div class="bx-box">${esc(r.box)}번 박스</div><div class="bx-say">미발 확인 중…</div>`, '');
                 scrollResult();
                 const codes = [...new Set(r.packs.flatMap(x => x.codes || []))];
+                const supP = supStart(codes);   // 공급처상품명 — 기다리지 않는다
                 const results = await readCodes(codes);
                 if (my !== seq) return;   // 그사이 다른 라벨을 찍었다
                 showHit(r.box, r.packs, s, r.weak, results);
+                fillSup(supP, my);
                 scrollResult();
             } else if (r.status === 'many') {
                 out.innerHTML = banner('bx-ask', '<div class="bx-say">박스 번호가 여럿으로 읽힙니다 — 고르세요</div>', '',

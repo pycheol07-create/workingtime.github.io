@@ -19,10 +19,11 @@ import {
     doc, getDoc, collection, query, where, limit as fsLimit, onSnapshot, runTransaction, serverTimestamp, increment, deleteField
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { TASK, tName } from './task-names.js?v=33eb5ccd69bc-26ab8ff7';
-import { openManualAdd } from './inspection-manual.js?v=805af97f5899-6555fd07';
+import { openManualAdd } from './inspection-manual.js?v=9049bd2597b7-6555fd07';
 import { S as PS, loadLoc, locOf, fmtDateTime, tsMs } from './products-store.js?v=ba5573fa8d5a-44ec7d98';   // [재고 연동] — 위치·재고 요약(ProductLoc, IndexedDB 캐시 같이 씀)
-import { getCurrentInspItem } from './inspection-logic.js?v=805af97f5899-c40d2f6c';
+import { getCurrentInspItem } from './inspection-logic.js?v=9049bd2597b7-aad5f436';
 import { listKeyLogs, removeOrRevertOne } from './total-insp-edit.js?v=00825b3b7e9c-892af557';   // 잘못 연 회차 되돌리기(직전 회차 기록 합산)
+import { loadFor as loadSupNames, supNameOf, supNamesMeta } from './sup-names-store.js?v=d105e6dca190-1f52465e';   // 공급처상품명(GIP, 2026-11-27) — 목록 줄·고른 줄. 못 읽으면 빈칸
 import {
     ON, DONE, canRevertRound, reopenConfirmText, isDoneToday, totalKey, startOrReopen, applySave, applyInfoSave, isInfoOnly, periodLabel, ymd, markDone, markReopen, progressOf, todayQtyOf,
     sortList, nextOnKey, filterRows, exactRow, logOf, fromSampleItem, stockFromLoc, infoChangedLabels, stockBasisText, removePlan, removeCounts, removeMessage
@@ -187,6 +188,7 @@ function setListCollapsed(on) {
 export const toggleTotalListCollapsed = () => setListCollapsed(!listCollapsed);
 
 function afterRowsChanged() {
+    ensureSupNames();   // 공급처상품명 — 새 코드만(받으면 다시 그림)
     if (pendingSelect && rowById(pendingSelect)) {
         const id = pendingSelect;
         pendingSelect = '';
@@ -204,12 +206,29 @@ function afterRowsChanged() {
     renderSelected(false);
 }
 
+/** 공급처상품명 — 목록 코드 중 아직 안 찾은 것만 한 번 요청(그 코드가 든 문서만), 새로 받은 게 있으면 목록·고른 줄을 다시 그린다(입력칸은 그대로) */
+const supAsked = new Set();
+const supCodeOf = (r) => String((r && r.code) || '').trim();
+function ensureSupNames() {
+    const codes = [...new Set(allRows().map(supCodeOf).filter(c => c && !supAsked.has(c)))];
+    if (!codes.length) return;
+    codes.forEach(c => supAsked.add(c));
+    loadSupNames(State.db, codes).then(() => {
+        // 못 읽었으면(저장소는 reject 하지 않고 빈 결과 — META 없음) 이 코드들은 다음 갱신 때 다시 요청. 다시 그리지는 않는다(무한 반복 방지)
+        if (!supNamesMeta()) { codes.forEach(c => supAsked.delete(c)); return; }
+        if (!codes.some(c => supNameOf(c))) return;
+        renderList();
+        renderSelected(false);
+    }).catch(() => { codes.forEach(c => supAsked.delete(c)); });
+}
+
 // ── 화면 ─────────────────────────────────────────────────────────────
 function rowHtml(r, today) {
     const p = progressOf(r);
     const done = r.status === DONE;
     const sel = r.id === selectedId;
     const tq = todayQtyOf(r, today);
+    const sup = supNameOf(supCodeOf(r));
     const stock = p.total > 0
         ? `<span class="font-bold text-gray-800">${escapeHtml(p.acc.toLocaleString())} / ${escapeHtml(p.total.toLocaleString())}</span> <span class="text-gray-500">(${escapeHtml(p.pct)}%)</span>`
         : `<span class="font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded px-1.5">검수수량 미입력</span>`;
@@ -226,7 +245,7 @@ function rowHtml(r, today) {
         <button type="button" data-total-key="${escapeHtml(r.id)}" aria-pressed="${sel ? 'true' : 'false'}" class="flex-1 min-w-0 text-left px-3 py-2 min-h-[44px]">
             <div class="flex items-start justify-between gap-2">
                 <div class="min-w-0">
-                    <div class="font-bold text-sm text-gray-900 break-words">${escapeHtml(r.name || '-')}</div>
+                    <div class="font-bold text-sm text-gray-900 break-words">${escapeHtml(r.name || '-')}${sup ? ` <span class="text-[11px] font-medium text-gray-500" data-sup-name>${escapeHtml(sup)}</span>` : ''}</div>
                     <div class="text-xs text-gray-600 break-words">${escapeHtml(r.option || '옵션 없음')}${r.reason ? ` · ${escapeHtml(r.reason)}` : ' · <span class="text-red-600 font-bold">사유 미입력</span>'}</div>
                 </div>
                 <div class="text-xs text-right flex-shrink-0">${stock}</div>
@@ -269,6 +288,8 @@ function renderSelected(fill) {
     area.classList.remove('hidden');
     const done = r.status === DONE;
     if (DOM.totalInspSelName) DOM.totalInspSelName.textContent = r.name || '-';
+    const supEl = document.getElementById('total-insp-sel-supname');   // 공급처상품명(없으면 숨김)
+    if (supEl) { const v = supNameOf(supCodeOf(r)); supEl.textContent = v ? `공급처상품명: ${v}` : ''; supEl.classList.toggle('hidden', !v); }
     if (DOM.totalInspSelMeta) {
         DOM.totalInspSelMeta.textContent = [
             `${Math.max(1, Number(r.round) || 1)}회차`,

@@ -357,6 +357,8 @@ export function todoCardHtml(item, idx, opts = {}) {
     const reserveInfo = opts.showReserve && it.reserveLocation ? `<span class="text-amber-800 font-bold bg-amber-50 px-1 rounded">비축 ${escapeHtml(it.reserveLocation)}</span>` : '';
     const sampleInfo = it.sampleLocation ? `<span class="text-red-700 font-bold bg-red-50 px-1 rounded">샘플: ${escapeHtml(it.sampleLocation)}</span>` : '';
     const dateInfo = it.packingDate ? `<span class="text-gray-600 font-medium">출고: ${escapeHtml(String(it.packingDate).slice(2))}</span>` : '';
+    // 공급처상품명(GIP, opts.supName — 부르는 쪽이 js/sup-names-store.js 로 코드에서 찾아 넘긴다. 없으면 안 그림)
+    const supInfo = opts.supName ? ` <span class="text-[11px] font-medium text-gray-500" data-sup-name>${escapeHtml(opts.supName)}</span>` : '';
     const cls = `transition cursor-pointer px-3 py-2.5 min-h-[44px] ${isCompleted ? 'bg-gray-50 hover:bg-gray-100' : 'hover:bg-blue-50'}${opts.pickable ? ' flex items-stretch gap-2' : ''}`;
     // 피킹 체크 버튼(새창 — opts.pickable). 누르면 체크만 하고 상세로 가지 않는다(js/inspection-logic.js bindCardDelegation 이 data-pick-toggle 은 건너뜀)
     const pickBtn = opts.pickable
@@ -370,7 +372,7 @@ export function todoCardHtml(item, idx, opts = {}) {
                 <span class="font-bold text-[13px] text-gray-800 whitespace-nowrap tabular-nums">${escapeHtml(it.code)}</span>
                 ${srcBadge}${manualBadge}${statusBadge}
             </div>
-            <div class="font-bold text-gray-900 text-sm mt-0.5 break-words">${escapeHtml(it.name)}</div>
+            <div class="font-bold text-gray-900 text-sm mt-0.5 break-words">${escapeHtml(it.name)}${supInfo}</div>
             ${it.option ? `<div class="text-[11px] font-medium text-gray-600 mt-0.5 break-words">옵션: ${escapeHtml(it.option)}</div>` : ''}
             <div class="text-[12px] mt-1 flex flex-wrap gap-1 items-center">${locationInfo}${reserveInfo}${sampleInfo}${dateInfo}</div>${opts.pickable ? `</div>${pickBtn}` : ''}
         </div>`;

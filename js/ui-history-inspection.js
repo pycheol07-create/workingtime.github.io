@@ -5,8 +5,14 @@ import { getWeekOfYear, escapeHtml, getTodayDateString } from './utils.js?v=65bb
 import { dayInspItems, packDatesLabel, packDateGroups } from './lib/insp-day.js?v=df2594fe0811-d324b1d1';
 import { inspTypeLabel } from './lib/insp-manual.js?v=25e0bc0396d2-21f87941';
 import { doc, getDoc, runTransaction, collection, getDocs, query, where, orderBy, limit as fsLimit } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { itemKey, patchItemsByKey } from './lib/insp-flow.js?v=5447d8e8a137-43ce67d4';
+import { itemKey, patchItemsByKey } from './lib/insp-flow.js?v=5d563dd586be-06600d5f';
 import { dayRows, inspectorLabel, logDefectQty, periodLabel, accDocRow, DONE } from './lib/total-insp.js?v=d83d978fa87f-5334595d';
+import { loadFor as loadSupNames, supNameOf } from './sup-names-store.js?v=d105e6dca190-1f52465e';   // 공급처상품명(GIP, 2026-11-27) — 표의 '공급처상품명' 열. 못 읽으면 빈칸
+
+/** 공급처상품명 칸 — 코드(S…)로 찾고 없으면 빈칸. data-sup-code 는 상품별 보기가 늦게 받은 값을 채우는 자리 */
+const supCode = (v) => { const c = String(v == null ? '' : v).trim(); return c && c !== '-' ? c : ''; };
+const supTd = (code, cls) => `<td class="${cls}" data-sup-code="${escapeHtml(supCode(code))}">${escapeHtml(supNameOf(supCode(code)))}</td>`;
+const loadSupFor = (codes) => loadSupNames(State.db, [...new Set(codes.map(supCode).filter(Boolean))]).catch(() => null);
 
 // 전량검수 저장 기록(2026-11-17) — artifacts/team-work-logger-v2/total_inspection_logs where date >= fromDate(보기 기간 시작일),
 //   최근 날짜부터 최대 TOTAL_LOG_LIMIT 건. 검수이력 탭(js/listeners-history-inspection.js)이 탭에 들어올 때·[새로고침] 때 force 로 읽고,
@@ -92,6 +98,7 @@ function totalLogsTableHtml(rows, { dayDel = true, title = '' } = {}) {
             ${dayDel ? `<td class="px-3 py-2 text-sm font-medium text-gray-900">${escapeHtml(l.name || '-')}</td>` : ''}
             <td class="px-3 py-2 text-xs text-gray-600">${escapeHtml(l.option || '-')}</td>
             <td class="px-3 py-2 text-xs font-mono text-gray-500">${escapeHtml(l.code || '-')}</td>
+            ${dayDel ? supTd(l.code, 'px-3 py-2 text-xs text-gray-600 break-words') : ''}
             <td class="px-3 py-2 text-xs text-gray-700 break-words max-w-[220px]">${escapeHtml(l.reason || '-')}</td>
             <td class="px-3 py-2 text-[11px] font-mono text-gray-600 whitespace-nowrap">${escapeHtml(periodLabel(l.startDate, l.endDate))}</td>
             <td class="px-3 py-2 text-center text-xs font-bold text-green-700">${escapeHtml(n(l.normal))}</td>
@@ -114,6 +121,7 @@ function totalLogsTableHtml(rows, { dayDel = true, title = '' } = {}) {
                         ${dayDel ? '<th class="px-3 py-2 font-bold bg-gray-50">상품명</th>' : ''}
                         <th class="px-3 py-2 font-bold bg-gray-50">옵션</th>
                         <th class="px-3 py-2 font-bold bg-gray-50">코드</th>
+                        ${dayDel ? '<th class="px-3 py-2 font-bold bg-gray-50">공급처상품명</th>' : ''}
                         <th class="px-3 py-2 font-bold bg-gray-50">사유</th>
                         <th class="px-3 py-2 font-bold bg-gray-50">검수일자</th>
                         <th class="px-3 py-2 font-bold bg-gray-50 text-center">정상</th>
@@ -313,9 +321,11 @@ export const renderInspectionLayout = (container) => {
 // totalLogs = 전량검수 저장 기록(fetchTotalInspLogs) — 그날 기록이 있으면 날짜 목록에 넣고 표 아래 '전량검수 n건' 표(2026-11-17).
 //   '전량 검수만'이면 그 표만(리스트 줄은 inspectionType 'total' 인 것만 — 보통 없음), '샘플 검수만'이면 전량 표를 숨긴다.
 let dateListScrollTop = 0;   // 일자별 보기 날짜 목록의 마지막 스크롤 위치(페이지를 새로 열 때까지)
+let listSeq = 0;   // 일자별 보기 그리기 회차 — 읽기를 기다리는 사이 다시 불렸으면 늦게 끝난 앞 회차는 그리지 않는다
 export const renderInspectionListMode = async (dateList, selectedDateData, totalLogs = []) => {
     const container = document.getElementById('inspection-content-area');
     if (!container) return;
+    const my = ++listSeq;
 
     if (!container.querySelector('.insp-list-loaded')) {
         container.innerHTML = `<div class="flex h-full items-center justify-center text-indigo-500 font-bold animate-pulse">데이터 동기화 및 렌더링 중...</div>`;
@@ -350,7 +360,7 @@ export const renderInspectionListMode = async (dateList, selectedDateData, total
     });
 
     if (State.context.inspListBy === 'pack') {   // 패킹일자별(2026-11-27) — 서버 쓰기(샘플 수량 맞춤) 없이 보기만
-        await renderPackDateList(container, filteredDateList);
+        await renderPackDateList(container, filteredDateList, my);
         return;
     }
 
@@ -361,7 +371,8 @@ export const renderInspectionListMode = async (dateList, selectedDateData, total
     }
 
     const filteredSelectedData = filteredDateList.find(d => d.date === selectedDate)?.data || [];
-    const selectedTotalHtml = totalLogsTableHtml(filteredDateList.find(d => d.date === selectedDate)?.total || []);
+    const selectedTotal = filteredDateList.find(d => d.date === selectedDate)?.total || [];
+    const supP = loadSupFor([...filteredSelectedData.map(it => it.code), ...selectedTotal.map(l => l.code)]);   // 공급처상품명 — 고른 날짜의 코드가 든 문서만(아래 읽기와 같이)
 
     if (State.db && filteredSelectedData.length > 0) {
         let needsDbUpdate = false;
@@ -370,6 +381,7 @@ export const renderInspectionListMode = async (dateList, selectedDateData, total
         await Promise.all([
             loadHistLogs(filteredSelectedData.filter(it => it.status === '완료').map(it => it.name)),
             loadPackSrc(filteredSelectedData),
+            supP,
         ]);
         filteredSelectedData.forEach((item) => {
             if (item.status === '완료' && item.inspectionType !== 'total') {
@@ -412,6 +424,10 @@ export const renderInspectionListMode = async (dateList, selectedDateData, total
             } catch(e) { console.error("Silent DB update failed", e); }
         }
     }
+
+    await supP;   // 위 읽기를 건너뛴 경우(전량 기록만 있는 날 등)
+    if (my !== listSeq) return;   // 그사이 다른 날짜·보기로 다시 그렸다
+    const selectedTotalHtml = totalLogsTableHtml(selectedTotal);
 
     let dateListHtml = '';
     if (!filteredDateList || filteredDateList.length === 0) {
@@ -488,6 +504,7 @@ export const renderInspectionListMode = async (dateList, selectedDateData, total
                     <td class="px-4 py-3 text-sm font-medium text-gray-900">${escapeHtml(item.name)}</td>
                     <td class="px-4 py-3 text-xs text-gray-600">${escapeHtml(item.option || '-')}</td>
                     <td class="px-4 py-3 text-xs text-gray-600">${escapeHtml(item.supplierCode || item.supplierName || '-')}</td>
+                    ${supTd(item.code, 'px-4 py-3 text-xs text-gray-600 break-words')}
                     <td class="px-4 py-3 text-center">
                         <div class="text-xs font-bold text-gray-700">${escapeHtml(inboundQty.toLocaleString())}</div>
                         <div class="text-[11px] ${isCompleted ? 'text-blue-600' : 'text-gray-400'} font-bold">(샘플검수: ${escapeHtml(sampleQty.toLocaleString())}개)</div>
@@ -524,9 +541,10 @@ export const renderInspectionListMode = async (dateList, selectedDateData, total
                                 <th class="px-4 py-2 font-bold bg-gray-50 text-center w-[6%]">유형</th>
                                 <th class="px-2 py-2 font-bold bg-gray-50 text-center w-[6%]">구분</th>
                                 <th class="px-4 py-2 font-bold bg-gray-50 w-[11%]">코드</th>
-                                <th class="px-4 py-2 font-bold bg-gray-50 w-[20%]">상품명</th>
-                                <th class="px-4 py-2 font-bold bg-gray-50 w-[14%]">옵션</th>
-                                <th class="px-4 py-2 font-bold bg-gray-50 w-[11%]">공급처</th>
+                                <th class="px-4 py-2 font-bold bg-gray-50 w-[17%]">상품명</th>
+                                <th class="px-4 py-2 font-bold bg-gray-50 w-[11%]">옵션</th>
+                                <th class="px-4 py-2 font-bold bg-gray-50 w-[8%]">공급처</th>
+                                <th class="px-4 py-2 font-bold bg-gray-50 w-[9%]">공급처상품명</th>
                                 <th class="px-4 py-2 font-bold bg-gray-50 text-center w-[12%]">수량 (입고/샘플검수)</th>
                                 <th class="px-4 py-2 font-bold bg-gray-50 text-center w-[8%]">상태</th>
                                 <th class="px-3 py-2 font-bold bg-gray-50 text-center w-[12%]">정상여부</th>
@@ -572,7 +590,7 @@ const listByToggleHtml = (by) => {
 let packListScrollTop = 0;
 /** 패킹일자별 — 모든 검수일의 항목을 패킹일로 묶는다(js/lib/insp-day.js packDateGroups). 행마다 그 항목의 검수일로 정상여부·상세를 본다.
  *  이어서 검수·리스트 삭제는 검수일 단위라 여기엔 없다. 전량검수 기록 표는 패킹일이 없어 뺀다. */
-async function renderPackDateList(container, dayList) {
+async function renderPackDateList(container, dayList, my) {
     const groups = packDateGroups(dayList.map(d => ({ date: d.date, data: d.data })));
     let sel = State.context.selectedInspPackDate;
     if (!groups.find(g => g.date === sel) && groups.length > 0) {
@@ -585,8 +603,10 @@ async function renderPackDateList(container, dayList) {
         await Promise.all([
             loadHistLogs(items.filter(it => it.status === '완료').map(it => it.name)),
             loadPackSrc(items),
+            loadSupFor(items.map(it => it.code)),   // 공급처상품명
         ]);
     }
+    if (my !== listSeq) return;   // 그사이 다시 그렸다
     const label = (pk) => pk || '패킹일 없음';
     const listHtml = groups.length === 0
         ? `<div class="p-4 text-center text-sm text-gray-400">조건에 맞는 리스트가 없습니다.</div>`
@@ -636,6 +656,7 @@ async function renderPackDateList(container, dayList) {
                     <td class="px-3 py-3 text-sm font-medium text-gray-900">${escapeHtml(item.name)}</td>
                     <td class="px-3 py-3 text-xs text-gray-600">${escapeHtml(item.option || '-')}</td>
                     <td class="px-3 py-3 text-xs text-gray-600">${escapeHtml(item.supplierCode || item.supplierName || '-')}</td>
+                    ${supTd(item.code, 'px-3 py-3 text-xs text-gray-600 break-words')}
                     <td class="px-3 py-3 text-center">
                         <div class="text-xs font-bold text-gray-700">${escapeHtml(inboundQty.toLocaleString())}</div>
                         <div class="text-[11px] ${isCompleted ? 'text-blue-600' : 'text-gray-400'} font-bold">(샘플검수: ${escapeHtml(sampleQty.toLocaleString())}개)</div>
@@ -663,9 +684,10 @@ async function renderPackDateList(container, dayList) {
                                 <th class="px-3 py-2 font-bold bg-gray-50 text-center w-[6%]">유형</th>
                                 <th class="px-2 py-2 font-bold bg-gray-50 text-center w-[6%]">구분</th>
                                 <th class="px-3 py-2 font-bold bg-gray-50 w-[10%]">코드</th>
-                                <th class="px-3 py-2 font-bold bg-gray-50 w-[18%]">상품명</th>
-                                <th class="px-3 py-2 font-bold bg-gray-50 w-[12%]">옵션</th>
-                                <th class="px-3 py-2 font-bold bg-gray-50 w-[10%]">공급처</th>
+                                <th class="px-3 py-2 font-bold bg-gray-50 w-[15%]">상품명</th>
+                                <th class="px-3 py-2 font-bold bg-gray-50 w-[10%]">옵션</th>
+                                <th class="px-3 py-2 font-bold bg-gray-50 w-[8%]">공급처</th>
+                                <th class="px-3 py-2 font-bold bg-gray-50 w-[7%]">공급처상품명</th>
                                 <th class="px-3 py-2 font-bold bg-gray-50 text-center w-[12%]">수량 (입고/샘플검수)</th>
                                 <th class="px-3 py-2 font-bold bg-gray-50 text-center w-[7%]">상태</th>
                                 <th class="px-3 py-2 font-bold bg-gray-50 text-center w-[9%]">정상여부</th>
@@ -752,7 +774,8 @@ export const renderInspectionHistoryTable = (historyData) => {
                         <th scope="col" class="px-6 py-3 cursor-pointer hover:bg-gray-200 transition select-none bg-gray-100" data-sort-key="productName">
                             <div class="flex items-center">상품명 ${getSortIcon('productName')}</div>
                         </th>
-                        <th scope="col" class="px-6 py-3 bg-gray-100">공급처 상품명</th>
+                        <th scope="col" class="px-6 py-3 bg-gray-100">공급처</th>
+                        <th scope="col" class="px-6 py-3 bg-gray-100">공급처상품명</th>
                         <th scope="col" class="px-6 py-3 text-center cursor-pointer hover:bg-gray-200 transition select-none bg-gray-100" data-sort-key="totalInbound">
                             <div class="flex items-center justify-center">총 입고(검수) 횟수 ${getSortIcon('totalInbound')}</div>
                         </th>
@@ -767,7 +790,7 @@ export const renderInspectionHistoryTable = (historyData) => {
     `;
 
     if (filteredData.length === 0) {
-        html += `<tr><td colspan="6" class="px-6 py-8 text-center text-gray-400">
+        html += `<tr><td colspan="7" class="px-6 py-8 text-center text-gray-400">
             ${escapeHtml(searchTerm ? `'${searchTerm}'에 대한 검색 결과가 없습니다.` : '선택한 유형에 해당하는 저장된 검수 이력이 없습니다.')}
         </td></tr>`;
     } else {
@@ -786,6 +809,7 @@ export const renderInspectionHistoryTable = (historyData) => {
                     <td class="px-6 py-4 text-xs text-gray-500 truncate max-w-[150px]" title="${escapeHtml(supplierName)}">
                         ${escapeHtml(supplierName)}
                     </td>
+                    ${supTd(productCodeOf(item), 'px-6 py-4 text-xs text-gray-500 break-words max-w-[160px]')}
                     <td class="px-6 py-4 text-center">
                         ${item.totalOnly ? '' : `<span class="inline-flex items-center justify-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                             샘플 ${escapeHtml(item.totalInbound || 0)}회
@@ -815,7 +839,26 @@ export const renderInspectionHistoryTable = (historyData) => {
 
     html += `</tbody></table></div>`;
     container.innerHTML = html;
+    // 공급처상품명 — 아직 안 받은 코드가 있으면 그 문서만 받아 빈 칸만 채운다(표를 다시 그리지 않음 — 펼친 상세가 닫히지 않게)
+    const codes = filteredData.map(productCodeOf).filter(c => c && !supNameOf(c));
+    if (codes.length) {
+        loadSupFor(codes).then(() => {
+            container.querySelectorAll('td[data-sup-code]').forEach(td => {
+                const v = supNameOf(td.dataset.supCode);
+                if (v && !td.textContent.trim()) td.textContent = v;
+            });
+        });
+    }
 };
+
+/** 상품별 보기 한 줄의 상품코드 — lastCode, 없으면 마지막 기록(log.code) → 그 앞 기록. 없으면 '' */
+function productCodeOf(item) {
+    const c = supCode(item && item.lastCode);
+    if (c) return c;
+    const logs = (item && Array.isArray(item.logs)) ? item.logs : [];
+    for (let i = logs.length - 1; i >= 0; i--) { const lc = supCode(logs[i] && logs[i].code); if (lc) return lc; }
+    return '';
+}
 
 /** [상세보기] 전량검수 칸 — 옵션별 진행 표 + 저장 기록 표(수정·삭제). total = { logs: 원본 전량 기록[], docs: 진행 문서[] } */
 function totalSectionHtml(total) {

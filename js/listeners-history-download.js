@@ -14,7 +14,7 @@ import {
     downloadReportExcel,
     downloadPersonalReportExcel,
     downloadInspectionHistory
-} from './history-excel.js?v=7379c529043c-084171ab';
+} from './history-excel.js?v=12d0ff56d22b-084171ab';
 
 const getSelectedDateKey = () => {
     const btn = DOM.historyDateList.querySelector('.history-date-btn.is-on');

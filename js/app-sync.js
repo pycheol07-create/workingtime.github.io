@@ -6,8 +6,8 @@ import * as DOM from './dom-elements.js?v=2b9f19ecbde2-82fbef91';
 import { getTodayDateString, getCurrentTime, showToast } from './utils.js?v=65bb3512764f-e315797c';
 // ✨ limit가 추가되었습니다.
 import { doc, onSnapshot, collection, query, where, limit, writeBatch, getDocs, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { renderDashboardLayout, renderTaskSelectionModal } from './ui.js?v=8374fa2c401d-a84d3554';
-import { renderTodoList } from './inspection-logic.js?v=805af97f5899-c40d2f6c';
+import { renderDashboardLayout, renderTaskSelectionModal } from './ui.js?v=ebb1fe4df5ba-a84d3554';
+import { renderTodoList } from './inspection-logic.js?v=9049bd2597b7-aad5f436';
 import { renderNotificationList } from './app-notifications.js?v=2ea8413ffd18-af702167';
 import { onLeaveScheduleChanged } from './leave-schedule-sync.js?v=152edbc1d09a-ab7817f6';
 import { PRIVATE_CONFIG_KEYS } from './config.js?v=242bb63abbe9-dd1665a9';

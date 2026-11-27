@@ -6,17 +6,18 @@ import { showToast, getCurrentTime, getTodayDateString, escapeHtml, showConfirm 
 import { doc, getDoc, setDoc, updateDoc, arrayUnion, serverTimestamp, increment, runTransaction, deleteField } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // 분리된 모듈 가져오기
-import { clearImageState, setExistingPhoto, resolvePhotoForSave, isPhotoBusy, bumpPhotoEpoch } from './inspection-media.js?v=805af97f5899-cad5241c';
-import { syncInspSegments, syncBrushedField } from './inspection-segments.js?v=4deded8f323d-fc1be8ff';
+import { clearImageState, setExistingPhoto, resolvePhotoForSave, isPhotoBusy, bumpPhotoEpoch } from './inspection-media.js?v=9049bd2597b7-cad5241c';
+import { syncInspSegments, syncBrushedField } from './inspection-segments.js?v=95f7641dc727-fc1be8ff';
 import { moveDoneItems } from './lib/insp-day.js?v=df2594fe0811-d324b1d1';
-import { openManualAdd } from './inspection-manual.js?v=805af97f5899-6555fd07';   // [조회]에서 리스트에 없는 상품 → 개별 추가 창(2026-11-17)
+import { openManualAdd } from './inspection-manual.js?v=9049bd2597b7-6555fd07';   // [조회]에서 리스트에 없는 상품 → 개별 추가 창(2026-11-17)
 import { historyId } from './lib/insp-manual.js?v=25e0bc0396d2-21f87941';
+import { loadFor as loadSupNames, supNameOf, supNamesMeta } from './sup-names-store.js?v=d105e6dca190-1f52465e';   // 공급처상품명(GIP, 2026-11-27) — 대기 새창·상세 칩. 못 읽으면 빈칸
 import { TASK, tName } from './task-names.js?v=33eb5ccd69bc-26ab8ff7';
 import {
     CHECK_KEYS, BRUSHED_KEY, checkKeysFor, LABELS, judge, missingFields, nextPendingIndex, prevIndex, progress,
     logIdentity, upsertLog, findLogForItem, addDefectSummary, defectSummaryOf, uniqueInboundCount,
     applyDoneToList, applyDoneByKey, todoCardHtml, doneCardHtml, itemKey, relocateIndex, pickKey, isPicked, pickProgress, windowOrder, WINDOW_SORTS, windowSortOf
-} from './lib/insp-flow.js?v=5447d8e8a137-43ce67d4';
+} from './lib/insp-flow.js?v=5d563dd586be-06600d5f';
 
 // 상태 변수
 export let todayInspectionList = [];
@@ -91,7 +92,41 @@ const updateMobileSummary = () => {
         if (item.packingDate) line1.push(`출고 ${mmdd(item.packingDate)}`);
     }
     setText('insp-info-line1', line1.filter(Boolean).join(' · ') || '-');
-    setText('insp-info-line2', `공급처 ${item ? (item.supplierCode || item.supplierName || '-') : '-'}`);
+    const sup = supNameOf(code && code !== '-' ? code : '');
+    setText('insp-info-line2', `공급처 ${item ? (item.supplierCode || item.supplierName || '-') : '-'}${sup ? ` · ${sup}` : ''}`);
+};
+
+/** 공급처상품명 칩(#insp-supname-display) + 휴대폰 정보 칸 — 그 코드가 든 문서만 읽고(js/sup-names-store.js, 한 번 받으면 다시 안 읽음),
+ *  그사이 다른 상품을 골랐으면 그리지 않는다. 없거나 못 읽으면 칩을 숨긴다. code '' = 지우기. */
+let supSeq = 0;
+const showSupName = (code) => {
+    const my = ++supSeq;
+    const c = code && code !== '-' ? String(code) : '';
+    const paint = () => {
+        const el = document.getElementById('insp-supname-display');
+        const v = c ? supNameOf(c) : '';
+        if (el) { el.textContent = v ? `공급처상품명: ${v}` : ''; el.classList.toggle('hidden', !v); }
+    };
+    paint();
+    if (!c) return;
+    loadSupNames(State.db, [c]).then(() => {
+        if (my !== supSeq) return;
+        paint();
+        updateMobileSummary();
+    }).catch(() => { /* 저장소가 빈 결과로 돌려준다 — 여기까지 오지 않음 */ });
+};
+
+/** 대기 새창 카드의 공급처상품명 — 리스트 코드 중 아직 안 찾은 것만 한 번 요청하고, 새로 받은 게 있으면 창을 다시 그린다 */
+const supAsked = new Set();
+const ensureSupNames = (list) => {
+    const codes = [...new Set((list || []).map(it => it && typeof it.code === 'string' ? it.code.trim() : '').filter(c => c && !supAsked.has(c)))];
+    if (!codes.length) return;
+    codes.forEach(c => supAsked.add(c));
+    loadSupNames(State.db, codes).then(() => {
+        // 못 읽었으면(저장소는 reject 하지 않고 빈 결과 — META 없음) 이 코드들은 다음 그리기 때 다시 요청. 다시 그리지는 않는다(무한 반복 방지)
+        if (!supNamesMeta()) { codes.forEach(c => supAsked.delete(c)); return; }
+        if (codes.some(c => supNameOf(c))) renderListWindow({ keep: true });
+    }).catch(() => { codes.forEach(c => supAsked.delete(c)); });
 };
 
 /** 휴대폰 이력 한 줄(#insp-report-line). warn 이면 빨간 글자. */
@@ -254,6 +289,7 @@ export const initializeInspectionSession = async () => {
     if (DOM.inspOptionDisplay) DOM.inspOptionDisplay.textContent = '옵션: -';
     if (DOM.inspCodeDisplay) DOM.inspCodeDisplay.textContent = '코드: -';
     if (DOM.inspSupplierDisplay) DOM.inspSupplierDisplay.textContent = '공급처: -';
+    showSupName('');
     if (DOM.inspThicknessRef) DOM.inspThicknessRef.textContent = '기준: -';
 
     const selects = document.querySelectorAll('#insp-current-input-area select');
@@ -344,6 +380,7 @@ export const deleteInspectionList = async () => {
         if (DOM.inspOptionDisplay) DOM.inspOptionDisplay.textContent = '옵션: -';
         if (DOM.inspCodeDisplay) DOM.inspCodeDisplay.textContent = '코드: -';
         if (DOM.inspSupplierDisplay) DOM.inspSupplierDisplay.textContent = '공급처: -';
+    showSupName('');
         if (DOM.inspThicknessRef) DOM.inspThicknessRef.textContent = '기준: -';
 
         currentTodoIndex = -1;
@@ -557,6 +594,7 @@ function renderListWindow({ keep = false, keepScroll = false } = {}) {
     const cards = document.getElementById('dynamic-insp-list-cards');
     if (!cards) return;
     const list = withSource(currentList());
+    ensureSupNames(list);   // 공급처상품명 — 새 코드만 요청, 받으면 이 함수를 다시 부른다
     const picked = pickedMap();
     const inTab = (it) => (winTab === 'done') === isPicked(it, picked);
     let rows = windowOrder(list, picked, { sortBy: winOpt.sortBy, groupSource: winOpt.groupSource });
@@ -575,7 +613,7 @@ function renderListWindow({ keep = false, keepScroll = false } = {}) {
     cards.innerHTML = rows.length
         ? rows.map(r => {
             const on = isPicked(r.item, picked);
-            const html = todoCardHtml(r.item, r.idx, { showReserve: true, pickable: true, picked: on });
+            const html = todoCardHtml(r.item, r.idx, { showReserve: true, pickable: true, picked: on, supName: supNameOf(String(r.item.code || '').trim()) });
             return inTab(r.item) ? html : `<div class="opacity-40">${html}</div>`;
         }).join('')
         : `<div class="py-10 text-center text-sm text-gray-500">${escapeHtml(empty)}</div>`;
@@ -712,6 +750,7 @@ export const selectTodoItem = async (index, opts = {}) => {
     if (DOM.inspProductNameInput) DOM.inspProductNameInput.value = item.name;
     if (DOM.inspOptionDisplay) DOM.inspOptionDisplay.textContent = `옵션: ${item.option || '-'}`;
     if (DOM.inspCodeDisplay) DOM.inspCodeDisplay.textContent = `코드: ${item.code || '-'}`;
+    showSupName(item.code);
 
     let supplierText = `공급처: ${item.supplierCode || item.supplierName || '-'}`;
     if (item.location) supplierText += ` / 📦 Loc: ${item.location}`;
@@ -881,6 +920,7 @@ export const searchProductHistory = async () => {
         if(DOM.inspProductNameInput) DOM.inspProductNameInput.value = targetProductName;
         if (DOM.inspOptionDisplay) DOM.inspOptionDisplay.textContent = `옵션: ${matchedItem.option || '-'}`;
         if (DOM.inspCodeDisplay) DOM.inspCodeDisplay.textContent = `코드: ${matchedItem.code || '-'}`;
+        showSupName(matchedItem.code);
 
         let supplierText = `공급처: ${matchedItem.supplierCode || matchedItem.supplierName || '-'}`;
         if (matchedItem.location) supplierText += ` / 📦 Loc: ${matchedItem.location}`;
@@ -1332,6 +1372,7 @@ const resetInspectionForm = (clearProductName = false) => {
     if (DOM.inspOptionDisplay) DOM.inspOptionDisplay.textContent = '옵션: -';
     if (DOM.inspCodeDisplay) DOM.inspCodeDisplay.textContent = '코드: -';
     if (DOM.inspSupplierDisplay) DOM.inspSupplierDisplay.textContent = '공급처: -';
+    showSupName('');
     if (DOM.inspThicknessRef) DOM.inspThicknessRef.textContent = '기준: -';
 
     const selects = document.querySelectorAll('#insp-current-input-area select');
@@ -1375,5 +1416,5 @@ export const clearTodayList = async () => {
     renderTodayInspectionList();
 };
 
-export { toggleScanner, handleImageSelect, clearImageState, handleManualImageSelect, clearManualImageState } from './inspection-media.js?v=805af97f5899-cad5241c';
-export { loadAllInspectionHistory, loadInspectionLogs, prepareEditInspectionLog, updateInspectionLog, deleteInspectionLog, deleteProductHistory, savePreInspectionNote } from './inspection-editor.js?v=805af97f5899-a6083ed1';
+export { toggleScanner, handleImageSelect, clearImageState, handleManualImageSelect, clearManualImageState } from './inspection-media.js?v=9049bd2597b7-cad5241c';
+export { loadAllInspectionHistory, loadInspectionLogs, prepareEditInspectionLog, updateInspectionLog, deleteInspectionLog, deleteProductHistory, savePreInspectionNote } from './inspection-editor.js?v=9049bd2597b7-a6083ed1';

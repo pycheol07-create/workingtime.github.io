@@ -8,8 +8,8 @@ import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
 import { showToast, escapeHtml } from './utils.js?v=65bb3512764f-e315797c';
 import { S as PS, loadCatalog, loadLoc, locOf } from './products-store.js?v=ba5573fa8d5a-44ec7d98';
 import { parseSheetRows, matchRows, buildItems, summaryLines } from './lib/total-insp-excel.js?v=f0e92887896f-50f146bf';
-import { resolveHistory } from './inspection-manual.js?v=805af97f5899-6555fd07';   // 이력 상품명 찾기 — [개별 추가]와 같은 함수
-import { addTotalItemsFromExcel } from './total-inspection-logic.js?v=8340bbe17453-19692d1a';
+import { resolveHistory } from './inspection-manual.js?v=9049bd2597b7-6555fd07';   // 이력 상품명 찾기 — [개별 추가]와 같은 함수
+import { addTotalItemsFromExcel } from './total-inspection-logic.js?v=45bb0686846c-9fc94c2e';
 
 const BOX_ID = 'total-insp-excel-box';
 let busy = false;

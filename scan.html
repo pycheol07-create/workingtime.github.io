@@ -153,6 +153,8 @@
         .bx-list li.bx-hit { background: var(--c-risk-soft); }
         .bx-code { font-weight: 800; white-space: nowrap; }
         .bx-name { flex: 1; min-width: 0; color: var(--c-text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .bx-sup { flex: 0 1 auto; max-width: 40%; min-width: 0; font-size: 12px; color: var(--c-text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .bx-sup:empty { display: none; }
         .bx-q { font-weight: 800; white-space: nowrap; color: var(--c-text-3); }
         .bx-q.bx-q-yes { color: var(--c-risk-text); font-size: 17px; }
         .bx-q.bx-q-unk { color: var(--c-text-2); }
@@ -281,6 +283,7 @@
     <!-- 입고 선택 모달 (수량: [미발 N개] 원탭 / 빠른 선택(십/일 자리, 일의자리 누르면 자동 확정) / 키패드 직접 입력 1~999) -->
     <div class="overlay" id="ov-select"><div class="modal">
         <div class="m-code" id="sel-code"></div>
+        <div id="sel-supname" style="display:none; text-align:center; font-size:13px; color:var(--c-text-3); word-break:break-all; margin-top:2px;"></div>
         <div class="m-loc" id="sel-loc"></div>
         <div id="sel-urgent" style="display:none; background:var(--c-risk); color:#fff; border-radius:var(--r-sm); padding:10px 11px; margin:9px 0; font-size:24px; font-weight:900; text-align:center; letter-spacing:2px;">긴급</div>
         <div id="sel-memo" style="display:none; background:var(--c-risk-soft); color:var(--c-risk-text); border:2px solid var(--c-risk); border-radius:var(--r-sm); padding:9px 11px; margin:9px 0; font-size:16px; font-weight:800; text-align:center; white-space:pre-line; line-height:1.4;"></div>
@@ -338,10 +341,11 @@
         import { LOC_SCAN_COLL, buildLocScanDocs } from './js/lib/loc-scan-log.js?v=696b0986b508-7cdc6b24'; // 위치지정 건별 기록(문서 모양)
         import { connectEmulatorsIfEnabled } from './js/firebase-emulator.js?v=071adc2867a0-c60c17d2'; // 🧪 localhost + ?emu=1 일 때만 에뮬레이터(운영에서는 아무 일 안 함)
         import { escapeHtml } from './js/utils.js?v=65bb3512764f-e315797c';   // 대기열·배너에 상품명·바코드 등 넣을 때(2026-11-12 보안 점검)
-        import { setupScanBoxCheck } from './js/scan-boxcheck.js?v=9d7915b717cd-a9c6a49d';   // (2026-11-27) 박스 확인 모드 — 읽기만
+        import { setupScanBoxCheck } from './js/scan-boxcheck.js?v=a930487ffbe6-8f7296cf';   // (2026-11-27) 박스 확인 모드 — 읽기만
         import { scanUrgentSet } from './js/lib/box-check.js?v=6dc90ab96df1-f0a046ea';   // (2026-11-27) 부족수량관리 '긴급' — 켜져 있을 때만 코드 Set
+        import { loadFor as loadSupNames, supNameOf } from './js/sup-names-store.js?v=d105e6dca190-1f52465e';   // (2026-11-27) 공급처상품명 — 선택 창·박스 확인 줄에 표시만(못 읽으면 빈칸)
 
-        const SCAN_VERSION = '10.11'; // 웹 배포 버전과 함께 올림 (china-stock-version.json의 web)
+        const SCAN_VERSION = '10.12'; // 웹 배포 버전과 함께 올림 (china-stock-version.json의 web)
 
         // ---------------- 서버 선택 (URL 파라미터 → 저장값 → 기본 config) ----------------
         const params = new URLSearchParams(location.search);
@@ -801,6 +805,11 @@
         function showSelect(item) {
             currentItem = item;
             $('sel-code').textContent = item.code;
+            // (2026-11-27) 공급처상품명 한 줄 — 그 코드가 든 문서만(한 번 받으면 다시 안 읽음). 기다리지 않고, 창이 그 상품으로 열려 있을 때만 채운다
+            const supEl = $('sel-supname');
+            const paintSup = () => { const v = supNameOf(String(item.code || '').trim()); supEl.textContent = v; supEl.style.display = v ? 'block' : 'none'; };
+            paintSup();
+            if (item.code && !supNameOf(String(item.code).trim())) loadSupNames(db, [String(item.code).trim()]).then(() => { if (currentItem === item && selectOpen()) paintSup(); }).catch(() => {});
             $('sel-loc').textContent = item.location;
             $('sel-remain').textContent = item.mibalQty;
             // [미발 N개] 원탭 입고 — 미발 1~999개일 때만. 버튼이 같은 숫자를 보여 주므로 '미발수량' 줄은 숨긴다
@@ -1667,7 +1676,8 @@
         $('status-line').textContent = `v${SCAN_VERSION} · 서버: ${serverLabel}`;
         setLocSubMode(locSubMode); // [Ver 4.1] 세부 작업 표시 — (2026-10-16) 열 때마다 '당일 입고분'으로 시작
         setMode(mode);
-        try { boxChk = setupScanBoxCheck({ db, doc, getDoc, speak, camReady: () => !!(scanning && camTrack), grabPhoto: grabCamPhoto, urgent: () => scanUrgent }); } catch (e) { console.warn('[scan] 박스 확인 준비 실패', e); }   // [박스] 단추는 js/scan-boxcheck.js 가 연결
+        try { boxChk = setupScanBoxCheck({ db, doc, getDoc, speak, camReady: () => !!(scanning && camTrack), grabPhoto: grabCamPhoto, urgent: () => scanUrgent,
+            supLoad: (codes) => loadSupNames(db, codes), supName: supNameOf }); } catch (e) { console.warn('[scan] 박스 확인 준비 실패', e); }   // [박스] 단추는 js/scan-boxcheck.js 가 연결
         checkVersion();
         // [Ver 10.7] 시작 정리 — 결과를 모른 채 남은 미발 확인(pending)을 맞추고, 못 푼 몫을 다시 푼다. 로그인 전이면 실패 → online·다음 시작 때
         resolvePendingHolds().finally(() => retryReleases());

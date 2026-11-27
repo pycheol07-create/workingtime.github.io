@@ -14,11 +14,11 @@ import { calcElapsedMinutes, getCurrentTime, showToast, getTodayDateString } fro
 import { doc, collection, setDoc, updateDoc, writeBatch, query, where, getDocs, getDocsFromServer, limit, increment, deleteDoc, deleteField, runTransaction, FieldPath } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // ✨ 점심시간 자동화 후 이력(History)에도 즉시 반영하기 위해 추가
-import { syncTodayToHistory } from './history-data-manager.js?v=8374fa2c401d-a9403e97';
+import { syncTodayToHistory } from './history-data-manager.js?v=ebb1fe4df5ba-a9403e97';
 // 지각 기준·당일 근태 중복 판정 — 출근시각 수정(history-data-manager)·근태 저장과 같은 규칙
 import { tardyThreshold, isTardyClockIn, findDailyLeaveDup, checkClockInCancel, removeAutoTardyOf } from './lib/attendance-guard.js?v=2a8059f9ce4c-c8aba679';
 // 업무를 끝낸 뒤 남은 잠금(activeLocks)을 바로 확인하게 알린다 — 다른 탭은 10분 안전망만 돈다
-import { markLocalWorkEnded } from './app-sync.js?v=8374fa2c401d-68f6c921';
+import { markLocalWorkEnded } from './app-sync.js?v=ebb1fe4df5ba-68f6c921';
 
 
 const getWorkRecordsCollectionRef = () => {

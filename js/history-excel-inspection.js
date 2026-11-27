@@ -7,8 +7,21 @@ import { csvSafeSheet, csvSafeBook } from './lib/csv-safe.js?v=52895af199a4-46de
 import { inspTypeLabel } from './lib/insp-manual.js?v=25e0bc0396d2-21f87941';   // '유형' 열 — 전량 / 샘플 / 샘플(개별) / 요청확인(화면과 같은 이름)
 import { EXCEL_HEADERS, excelRow } from './lib/total-insp.js?v=d83d978fa87f-5334595d';
 import { historyRangeStart } from './lib/history-window.js?v=2641998b437e-d3102a84';
-import { fetchTotalInspLogs, totalInspLogsTruncated, TOTAL_LOG_LIMIT } from './ui-history-inspection.js?v=2629016dec47-772fed2f';
+import { fetchTotalInspLogs, totalInspLogsTruncated, TOTAL_LOG_LIMIT } from './ui-history-inspection.js?v=8466f46ce4de-ff9001e3';
 import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { loadAll as loadSupNames, supNameOf } from './sup-names-store.js?v=d105e6dca190-1f52465e';
+
+// 공급처상품명(GIP, 2026-11-27) — '공급처상품명' 열. 문서 전부(META + 1~2개, 한 번 받으면 다시 안 읽음). 못 읽으면 빈칸.
+//   '공급처' 열은 예전 그대로(공급처 코드, 없으면 옛 이름 칸) — 예전 머리글 '공급처 상품명' 은 실제로 이 값이라 '공급처' 로 바로잡았다.
+const supCode = (v) => { const c = String(v == null ? '' : v).trim(); return c && c !== '-' ? c : ''; };
+const supName = (...codes) => { for (const c of codes) { const v = supNameOf(supCode(c)); if (v) return v; } return ''; };
+const loadSup = () => loadSupNames(db).catch(() => null);
+const productCode = (item) => {
+    if (supCode(item.lastCode)) return supCode(item.lastCode);
+    const logs = Array.isArray(item.logs) ? item.logs : [];
+    for (let i = logs.length - 1; i >= 0; i--) { if (supCode(logs[i] && logs[i].code)) return supCode(logs[i].code); }
+    return '';
+};
 
 // 전량검수 기록(total_inspection_logs, 2026-11-17) — '전량검수_기록' 시트. 작업자는 이름만(lib/total-insp.js inspectorLabel).
 //   검수이력 탭이 읽어 둔 캐시(보기 기간 시작일 이후, 최대 TOTAL_LOG_LIMIT 건)를 그대로 쓴다 — 캐시가 없을 때만 한 번 읽는다.
@@ -46,14 +59,15 @@ const downloadListInspectionHistory = async (format = 'xlsx') => {
     const totals = await loadTotalLogs();
 
     if (allLists.length === 0 && totals.length === 0) return showToast('다운로드할 입고 리스트 데이터가 없습니다.', true);
+    await loadSup();
 
     try {
         const workbook = XLSX.utils.book_new();
-        const headers = ['날짜', '유형', '코드', '상품명', '옵션', '공급처', '수량', '기준 두께', '상태'];
+        const headers = ['날짜', '유형', '코드', '상품명', '옵션', '공급처', '공급처상품명', '수량', '기준 두께', '상태'];
         allLists.sort((a, b) => b.date.localeCompare(a.date));
         const sheetData = allLists.map(item => ({
             '날짜': item.date, '유형': inspTypeLabel(item), '코드': item.code || '-', '상품명': item.name, '옵션': item.option || '-',
-            '공급처': item.supplierCode || item.supplierName || '-', '수량': item.qty || 0, '기준 두께': item.thickness || '-', '상태': item.status || '대기'
+            '공급처': item.supplierCode || item.supplierName || '-', '공급처상품명': supName(item.code), '수량': item.qty || 0, '기준 두께': item.thickness || '-', '상태': item.status || '대기'
         }));
         const worksheet = XLSX.utils.json_to_sheet(sheetData, { header: headers });
         fitToColumn(worksheet);
@@ -81,12 +95,13 @@ const downloadProductInspectionHistory = async (format = 'xlsx') => {
     }
     
     if (!inspectionData || inspectionData.length === 0) return showToast('다운로드할 데이터가 없습니다.', true);
+    await loadSup();
     
     try {
         const workbook = XLSX.utils.book_new();
-        const sheet1Headers = ['상품명', '코드', '옵션', '공급처 상품명', '총 입고 횟수', '최근 검수일', '최근 불량 요약'];
+        const sheet1Headers = ['상품명', '코드', '옵션', '공급처', '공급처상품명', '총 입고 횟수', '최근 검수일', '최근 불량 요약'];
         const sheet1Data = inspectionData.map(item => ({
-            '상품명': item.id, '코드': item.lastCode || '-', '옵션': item.lastOption || '-', '공급처 상품명': item.lastSupplierCode || item.lastSupplierName || '-',
+            '상품명': item.id, '코드': item.lastCode || '-', '옵션': item.lastOption || '-', '공급처': item.lastSupplierCode || item.lastSupplierName || '-', '공급처상품명': supName(productCode(item)),
             '총 입고 횟수': item.totalInbound || 0, '최근 검수일': item.lastInspectionDate || '-', '최근 불량 요약': (item.defectSummary && item.defectSummary.length > 0) ? item.defectSummary[item.defectSummary.length - 1] : '-'
         }));
         const worksheet1 = XLSX.utils.json_to_sheet(sheet1Data, { header: sheet1Headers });
@@ -98,11 +113,11 @@ const downloadProductInspectionHistory = async (format = 'xlsx') => {
              XLSX.writeFile(workbook, `검수이력_상품별_${getTodayDateString()}.csv`); return;
         }
 
-        const sheet2Headers = ['상품명', '유형', '공급처 상품명', '일시(날짜)', '일시(시간)', '담당', '입고일자/패킹No', '코드', '옵션', '수량', '상태', '특이사항', '두께(실측)', '원단 상태', '컬러', '뒤틀림', '올 풀림', '실밥 마감', '지퍼', '단추', '안감', '보풀', '이염', '기모'];
+        const sheet2Headers = ['상품명', '유형', '공급처', '공급처상품명', '일시(날짜)', '일시(시간)', '담당', '입고일자/패킹No', '코드', '옵션', '수량', '상태', '특이사항', '두께(실측)', '원단 상태', '컬러', '뒤틀림', '올 풀림', '실밥 마감', '지퍼', '단추', '안감', '보풀', '이염', '기모'];
         const allLogs = inspectionData.flatMap(item => {
             const logs = item.logs || [];
             return logs.map(log => ({
-                '상품명': item.id, '유형': inspTypeLabel(log), '공급처 상품명': log.supplierCode || log.supplierName || item.lastSupplierCode || item.lastSupplierName || '-', '일시(날짜)': log.date || '-', '일시(시간)': log.time || '-', '담당': log.inspector || '-', '입고일자/패킹No': log.inboundDate || log.packingNo || '-', '코드': log.code || '-', '옵션': log.option || '-', '수량': log.inboundQty || 0, '상태': log.status || '-', '특이사항': (log.defects?.length > 0 ? `[${log.defects.join(', ')}] ` : '') + (log.note || ''),
+                '상품명': item.id, '유형': inspTypeLabel(log), '공급처': log.supplierCode || log.supplierName || item.lastSupplierCode || item.lastSupplierName || '-', '공급처상품명': supName(log.code, productCode(item)), '일시(날짜)': log.date || '-', '일시(시간)': log.time || '-', '담당': log.inspector || '-', '입고일자/패킹No': log.inboundDate || log.packingNo || '-', '코드': log.code || '-', '옵션': log.option || '-', '수량': log.inboundQty || 0, '상태': log.status || '-', '특이사항': (log.defects?.length > 0 ? `[${log.defects.join(', ')}] ` : '') + (log.note || ''),
                 '두께(실측)': log.checklist?.thickness || '-', '원단 상태': log.checklist?.fabric || '-', '컬러': log.checklist?.color || '-', '뒤틀림': log.checklist?.distortion || '-', '올 풀림': log.checklist?.unraveling || '-', '실밥 마감': log.checklist?.finishing || '-', '지퍼': log.checklist?.zipper || '-', '단추': log.checklist?.button || '-', '안감': log.checklist?.lining || '-', '보풀': log.checklist?.pilling || '-', '이염': log.checklist?.dye || '-', '기모': log.checklist?.brushed || '-'
             }));
         }).sort((a, b) => b['일시(날짜)'].localeCompare(a['일시(날짜)']));
@@ -133,12 +148,13 @@ export const downloadPeriodInspectionAsExcel = async (startDate, endDate, format
     const totals = await loadTotalLogs(startDate, endDate);
 
     if (allLists.length === 0 && totals.length === 0) return showToast('선택한 기간에 검수 리스트 데이터가 없습니다.', true);
+    await loadSup();
 
     const workbook = XLSX.utils.book_new();
-    const headers = ['날짜', '코드', '상품명', '옵션', '공급처', '수량', '기준 두께', '상태'];
+    const headers = ['날짜', '코드', '상품명', '옵션', '공급처', '공급처상품명', '수량', '기준 두께', '상태'];
     allLists.sort((a, b) => b.date.localeCompare(a.date));
     const sheetData = allLists.map(item => ({
-        '날짜': item.date, '코드': item.code || '-', '상품명': item.name, '옵션': item.option || '-', '공급처': item.supplierCode || item.supplierName || '-', '수량': item.qty || 0, '기준 두께': item.thickness || '-', '상태': item.status || '대기'
+        '날짜': item.date, '코드': item.code || '-', '상품명': item.name, '옵션': item.option || '-', '공급처': item.supplierCode || item.supplierName || '-', '공급처상품명': supName(item.code), '수량': item.qty || 0, '기준 두께': item.thickness || '-', '상태': item.status || '대기'
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(sheetData, { header: headers });
