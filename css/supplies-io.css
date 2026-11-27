@@ -56,6 +56,11 @@ body { margin: 0; }
     border: 1px solid var(--c-line-strong); border-radius: var(--r-inner); background: var(--c-surface); color: var(--c-text); font: inherit; cursor: pointer; }
 .si-unit:hover { background: var(--c-surface-2); }
 .si-unit.on { border-color: var(--c-accent); background: var(--c-accent-soft); }
+.si-unit-wrap { display: flex; flex-direction: column; gap: 4px; }
+.si-unit-minus { min-height: 36px; border: 1px solid var(--c-line); border-radius: var(--r-inner); background: var(--c-surface); color: var(--c-text-2);
+    font: inherit; font-size: 20px; font-weight: 700; line-height: 1; cursor: pointer; }
+.si-unit-minus:not(:disabled):hover { color: var(--c-risk-text); border-color: var(--c-risk); }
+.si-unit-minus:disabled { opacity: .35; cursor: default; }
 .si-unit-name { font-size: 16px; font-weight: 700; }
 .si-unit-base { font-size: 11px; color: var(--c-text-2); }
 .si-unit-n { position: absolute; top: 4px; right: 6px; font-size: 12px; font-weight: 700; color: var(--c-accent-deep); }

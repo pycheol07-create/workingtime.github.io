@@ -20,9 +20,9 @@ import { ledgerErrorText } from './lib/supplies-ledger.js?v=44c94c8b86ad-92d65f6
 import { newBatchId, loadStock, watchCart, cartPress, cartSend, cartClear, cartEntryId, ledgerEntryOnServer, loadLedger, commitRevert } from './supplies-ledger-store.js?v=a8c432ad2382-df961c02';
 import {
     safeItems, searchItems, favoriteItems, looksLikeBarcode, hangulBarcodeHint, burstCode, cardSummary, fmt, baseUnit, SESSION_KEY,
-    dropdownGroups, speechText, slotId, slotOf, countsDesc, pressSlot, slotRows, otherDirCount, slotEmptiedBy, agoText, slotIsOld,
+    dropdownGroups, speechText, slotId, slotOf, countsDesc, pressSlot, unpressSlot, slotRows, otherDirCount, slotEmptiedBy, agoText, slotIsOld,
     kstDayStartMs, kstTimeText, historyRows
-} from './lib/supplies-io.js?v=bddbf2dbb1ab-51290bbd';
+} from './lib/supplies-io.js?v=167eae41e003-f29708e5';
 import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
@@ -315,9 +315,11 @@ function renderCard() {
     st.classList.toggle('short', stockOk && after < 0);
     $('si-card-who').textContent = sl && sl.qty && sl.byEmail !== me.email
         ? `같이 쌓는 중 — 마지막 ${personOf(sl.byEmail)} · ${agoText(sl.atMs)}` : '';
-    $('si-units').innerHTML = sum.buttons.map(u => `<button type="button" class="si-unit${u.n ? ' on' : ''}" data-unit="${u.qty}"${busy ? ' disabled' : ''}>`
+    // 단위 단추 + 그 아래 [−](그 단위 1회 빼기 — 그 단위로 쌓인 것이 없으면 끔, 2026-11-27)
+    $('si-units').innerHTML = sum.buttons.map(u => `<div class="si-unit-wrap"><button type="button" class="si-unit${u.n ? ' on' : ''}" data-unit="${u.qty}"${busy ? ' disabled' : ''}>`
         + `<span class="si-unit-name">${esc(u.name)}</span><span class="si-unit-base num">${esc(fmt(u.qty))}${esc(unit)}</span>`
-        + (u.n ? `<span class="si-unit-n">×${u.n}</span>` : '') + '</button>').join('');
+        + (u.n ? `<span class="si-unit-n">×${u.n}</span>` : '') + '</button>'
+        + `<button type="button" class="si-unit-minus" data-unit-minus="${u.qty}" aria-label="${esc(u.name)} 하나 빼기"${busy || !u.n ? ' disabled' : ''}>−</button></div>`).join('');
     const desc = countsDesc(it, counts, dir);
     $('si-calc').textContent = total ? `${desc} = ${fmt(total)}${unit}` : '';
     $('si-add-why').textContent = pressWhy || (pressing ? '반영하는 중…' : '');
@@ -357,8 +359,8 @@ function renderAcc() {
     o.hidden = !other;
 }
 
-/** 단위 단추 한 번 — 공유 칸에 트랜잭션으로 더한다. 성공하면 그 칸 누적을 읽어 준다(내가 누른 것만) */
-async function pressUnitBtn(qty) {
+/** 단위 단추 한 번 — 공유 칸에 트랜잭션으로 더한다(minus = [−] 로 그 단위 1회 빼기). 성공하면 그 칸 누적을 읽어 준다(내가 누른 것만) */
+async function pressUnitBtn(qty, minus = false) {
     const it = selId ? byId.get(selId) : null;
     if (!it || busy) return;
     if (!online()) { pressWhy = '인터넷 연결이 없어 반영하지 않았습니다 — 연결된 뒤 다시 눌러 주세요.'; renderCard(); return; }
@@ -373,7 +375,7 @@ async function pressUnitBtn(qty) {
         const r = await cartPress(db, d0, it.id, me, (data, stockNow) => {
             const cur = slotOf(slotId(d0, it.id), data);
             if (slotIsOld(cur, liveAtMs) && cur.qty) return { why: OLD_TEXT };   // 트랜잭션에서 읽은 칸으로 한 번 더
-            return pressSlot(cur, qty, d0, stockNow);
+            return minus ? unpressSlot(cur, qty) : pressSlot(cur, qty, d0, stockNow);   // 빼기는 트랜잭션에서 읽은 칸 기준(남이 그사이 뺐으면 막힘)
         });
         if (!r.ok) { pressWhy = r.why; return; }
         flashId = it.id;
@@ -728,6 +730,8 @@ function wire() {
         if (x) { clearSlot(x.dataset.clear, x.dataset.clearDir || dir); return; }
         const p = e.target.closest('[data-pick]');
         if (p) { pick(p.dataset.pick); return; }
+        const m = e.target.closest('#si-units [data-unit-minus]');
+        if (m) { pressUnitBtn(Number(m.dataset.unitMinus), true); return; }
         const u = e.target.closest('#si-units [data-unit]');
         if (u) { pressUnitBtn(Number(u.dataset.unit)); return; }
     });

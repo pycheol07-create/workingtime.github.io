@@ -305,6 +305,21 @@ export function pressSlot(slot, qty, dir, stockNow) {
 }
 
 /**
+ * 단위 [−] 한 번(2026-11-27) — 그 단위로 쌓인 횟수에서 1 을 뺀 새 값. 횟수가 0(또는 빈 칸)이면 why.
+ * 다 빼서 qty 0 이 되면 counts 는 {} — 빈 칸과 같다(규칙: qty == Σ 단위 × 횟수, 횟수는 양의 정수).
+ * @returns {{ counts, qty, why:string }}
+ */
+export function unpressSlot(slot, qty) {
+    const before = slot && slot.qty ? { ...slot.counts } : {};
+    const k = String(qty);
+    if (!(Number(before[k]) > 0)) return { counts: before, qty: countsTotal(before) || 0, why: '그 단위로 쌓인 것이 없습니다' };
+    const next = { ...before };
+    if (next[k] > 1) next[k] -= 1; else delete next[k];
+    const total = countsTotal(next);
+    return total ? { counts: next, qty: total, why: '' } : { counts: {}, qty: 0, why: '' };
+}
+
+/**
  * 누적 칸 목록(이 방향, 수량 있는 칸만) — 내가 고른 비품이 맨 위, 나머지는 마지막 누름이 늦은 것부터.
  * liveAtMs = 앱 기준을 (다시) 켠 시각 — 그보다 먼저 쌓인 칸은 old(전송·이어 쌓기 막음, 비우기만).
  * @returns {{ id, itemId, qty, counts, by, byEmail, atMs, mine:boolean, selected:boolean, stale:boolean, old:boolean }[]}
