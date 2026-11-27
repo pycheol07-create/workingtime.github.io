@@ -6,7 +6,7 @@ import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
 import { openEditRecordModal } from './edit-record-open.js?v=1e02b5a65d31-e8d69915';
 
 // app.js에서는 'render'만, app-data.js에서는 'updateDailyData'를 가져옵니다.
-import { render } from './app.js?v=04a8802dd84f-2ba8f711';
+import { render } from './app.js?v=57f6f9e96983-2ba8f711';
 import { updateDailyData } from './app-data.js?v=9a8d4e266c76-c4996a74';
 
 import { calcElapsedMinutes, showToast, showConfirm, getTodayDateString, getCurrentTime, formatTimeTo24H, escapeHtml } from './utils.js?v=65bb3512764f-e315797c';

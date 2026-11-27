@@ -17,7 +17,7 @@ import { doc, getDoc, updateDoc, deleteField } from "https://www.gstatic.com/fir
 import { setupHistoryTabsListeners, getFilteredHistoryData, getPeriodFilteredData, renderAnalyticsTab } from './listeners-history-tabs.js?v=b5228026028d-8058cdde';
 import { saveView } from './view-state.js?v=1eb0de390ca8-0da8b754';
 import { goTo, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=b9a7199f3e1d-c80c27e9';
-import { initHistoryFlyout } from './history-flyout.js?v=303d2496f759-b770b3a1';
+import { initHistoryFlyout } from './history-flyout.js?v=17849b54f452-507d0536';
 import { isManagementDirty, confirmDiscardManagementEdits } from './ui-history-management.js?v=f7cf514cd049-688719b9';
 import { isLeaveDirty } from './ui-history-leave.js?v=38342bcc7f60-4c985a8b';
 import { isSimDirty } from './ui-history-prediction.js?v=0e333fe7c86f-91ee5358';

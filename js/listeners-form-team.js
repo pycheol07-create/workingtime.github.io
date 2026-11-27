@@ -5,7 +5,7 @@ import * as DOM from './dom-elements.js?v=2b9f19ecbde2-82fbef91';
 import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
 import { showToast, getCurrentTime, getTodayDateString, showConfirm } from './utils.js?v=65bb3512764f-e315797c';
 import { generateId, debouncedSaveState, updateDailyData } from './app-data.js?v=9a8d4e266c76-c4996a74';
-import { markDataAsDirty } from './app-lifecycle.js?v=04a8802dd84f-be3588c4';
+import { markDataAsDirty } from './app-lifecycle.js?v=57f6f9e96983-be3588c4';
 import { renderTeamSelectionModalContent } from './ui-modals.js?v=b4294a7e84f2-e0eb0faf';
 import { startWorkGroup, addMembersToWorkGroup, processClockIn } from './app-logic.js?v=e5ab41b9f797-5cd27cd7';
 import { collection, query, where, getDocs, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";

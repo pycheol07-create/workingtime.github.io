@@ -406,7 +406,7 @@ export const updateElapsedTimes = async () => {
         applyDueLeaves(now).catch(e => console.warn('[예약 근태] 적용 실패:', e));
         const sig = activeLeaveSignature(now);
         if (lastLeaveSig !== null && sig !== lastLeaveSig) {
-            import('./app.js?v=04a8802dd84f-2ba8f711').then(m => m.render()).catch(e => console.warn('[예약 근태] 다시 그리기 실패:', e));
+            import('./app.js?v=57f6f9e96983-2ba8f711').then(m => m.render()).catch(e => console.warn('[예약 근태] 다시 그리기 실패:', e));
         }
         lastLeaveSig = sig;
     }

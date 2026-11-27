@@ -6,7 +6,7 @@ import { waitForPendingWrites } from "https://www.gstatic.com/firebasejs/10.12.2
 import { initializeFirebase, loadAppConfig, loadLeaveSchedule, loadPrivateConfig, applyPrivateConfig } from './config.js?v=242bb63abbe9-dd1665a9';
 import { displayCurrentDate, showToast } from './utils.js?v=65bb3512764f-e315797c';
 import { renderDashboardLayout, renderRealtimeStatus, renderCompletedWorkLog, updateSummary, renderTaskAnalysis, renderTaskSelectionModal, applyDynamicSidebar } from './ui.js?v=0e333fe7c86f-a84d3554';
-import { initializeAppListeners } from './app-listeners.js?v=04a8802dd84f-60136d0c';
+import { initializeAppListeners } from './app-listeners.js?v=57f6f9e96983-60136d0c';
 import * as DOM from './dom-elements.js?v=2b9f19ecbde2-82fbef91';
 import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
 import { renderLongRunWarning } from './long-run-warn.js?v=5b49c7c10800-1d9ce55a';
@@ -14,7 +14,7 @@ import { autoPauseForLunch, autoResumeFromLunch } from './app-logic.js?v=e5ab41b
 import { subscribeNotices, unsubscribeNotices } from './notice-logic.js?v=9d1d22165214-c08a5845';
 
 // ✅ 분리된 모듈 가져오기
-import { updateElapsedTimes, autoSaveProgress, markDataAsDirty } from './app-lifecycle.js?v=04a8802dd84f-be3588c4';
+import { updateElapsedTimes, autoSaveProgress, markDataAsDirty } from './app-lifecycle.js?v=57f6f9e96983-be3588c4';
 import { setupNotificationListeners } from './app-notifications.js?v=2ea8413ffd18-af702167';
 import { setupFirebaseListeners, stopFirebaseListeners, whenTodayLoaded } from './app-sync.js?v=0e333fe7c86f-68f6c921';
 import { healYesterdayOnStartup } from './history-data-manager.js?v=0e333fe7c86f-a9403e97';

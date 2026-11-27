@@ -1,5 +1,5 @@
 // === js/app-shell.js ===
-// 공통 상단바 + 메뉴 서랍 (UI 1단계 1a, 2026-10-16). <script type="module" src="js/app-shell.js?v=0ad2923a7c3b-bf6553e1"> 로 붙이면 스스로 돈다.
+// 공통 상단바 + 메뉴 서랍 (UI 1단계 1a, 2026-10-16). <script type="module" src="js/app-shell.js?v=35b757f86d20-1454a9a2"> 로 붙이면 스스로 돈다.
 //   <body data-shell="페이지ID">              → 위쪽에 바를 얹는다(css/app-shell.css 가 본문을 그만큼 내린다)
 //   <body data-shell="index" data-shell-bar="off"> → 바 없이 메뉴 캐시만 채운다(대시보드)
 // 페이지는 js/app-shell-bridge.js 의 setShellContext 로 로그인 상태를 알려 준다.
@@ -17,6 +17,8 @@
 // 1d(2026-10-16): Ctrl+K(⌘K) 빠른 이동 — 바의 [검색] 버튼·대시보드의 [data-shell-search] 버튼도 같다.
 //   메뉴 이름 + 그 화면 안 탭(app-shell-data.js SUB_DESTINATIONS) + 홈. 같은 화면 안 이동은 해시 이동(뒤로가기로 되돌림),
 //   다른 화면은 navigate(이동 전 저장 훅). 팔레트도 섀도 DOM 안, 열 때 만들고 닫을 때 없앤다.
+// 2026-11-27: 레일·메뉴 서랍의 '데이터 관리'에 마우스를 올리면 대시보드처럼 2차 메뉴(데이터 관리 화면 목록)가 옆에 펼쳐진다
+//   (js/history-flyout.js attachFlyout 한 벌, 마우스 화면만 — 처음 쓸 때 늦게 불러온다). 항목 → history.html#tab=…(같은 화면이면 해시만).
 
 import { visibleMenuFor } from './menu-catalog.js?v=8219e3fbbda6-bda14b1d';
 import { PAGE_DEFAULTS, HOME_FILE, resolveMenuGroups, absUrl, pageFileOf, currentTitle, shellLinkTarget, buildDestinations, menuLabel } from './app-shell-data.js?v=e42c6a10ca7a-9319c795';
@@ -47,6 +49,8 @@ const PALETTE_MAX = 60;
 // 접힌 메뉴(레일, 2026-11-23 사용자 요청 — 중국제작 통합관리처럼): 대시보드 밖 PC 화면 왼쪽에 아이콘만, 마우스를 올리면 펼침.
 //   아이콘은 대시보드 사이드바(js/ui-main-dashboard.js EXTERNAL_LINK_META·index.html)와 같은 선 그림 — 링크로 고른다.
 const RAIL_MQ = '(min-width: 1024px) and (pointer: fine)';
+const RAIL_OPEN_W = 240;   // 펼친 레일 폭(RAIL_CSS) — 2차 메뉴가 그 오른쪽에 붙는다
+const HISTORY_FILE = 'history.html';
 const RAIL_ICONS = [
     ['index.html#open=quantity', '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>'],
     ['index.html#open=leave', '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'],
@@ -117,6 +121,13 @@ const BAR_CSS = `${TOKENS}
     .cur { font-size: 15px; }
 }`;
 
+// '데이터 관리' 2차 메뉴(js/history-flyout.js flyoutCss 와 같은 모양) — 섀도 안이라 대시보드 --c-* 토큰을 셸 색으로 잇는다.
+//   레일(z 45)·서랍 섀도 안에 붙으므로 그 위에 뜬다. 모양 글은 모듈을 불러온 뒤 채운다(.hf-css).
+const FLY_CSS = `
+.hf-panel { --c-surface: var(--as-bg); --c-line: var(--as-line); --c-text: var(--as-text); --c-text-3: var(--as-text-3);
+    --c-accent-soft: var(--as-accent-soft); --c-accent-deep: var(--as-accent-deep); --r-sm: 10px; }
+:host([data-theme="dark"]) .hf-panel { box-shadow: 6px 6px 18px rgba(0, 0, 0, .5) !important; }`;
+
 const OVERLAY_CSS = `${TOKENS}
 :host { all: initial; position: fixed; inset: 0; z-index: 2147483000; display: block;
         font-family: var(--as-font); font-size: 14px; line-height: 1.4; color: var(--as-text); }
@@ -138,7 +149,8 @@ nav { position: absolute; top: var(--as-top, 0px); bottom: 0; left: 0; width: 28
 .item[aria-current="page"] { background: var(--as-accent-soft); color: var(--as-accent-deep); font-weight: 600; }
 .item svg { color: var(--as-text-3); flex: none; }
 .btn:focus-visible, a:focus-visible { outline: 2px solid var(--as-accent); outline-offset: -2px; }
-.note { margin: 12px 8px 0; font-size: 12px; color: var(--as-text-3); line-height: 1.6; }`;
+.note { margin: 12px 8px 0; font-size: 12px; color: var(--as-text-3); line-height: 1.6; }
+${FLY_CSS}`;
 
 // 접힌 메뉴(레일) — 늘 52px, 마우스·키보드 초점이 오면 본문 위로 펼친다(자리는 접힌 폭 그대로)
 //   z 45 = 상단바(40) 위·페이지 확인창(z 50~, 어두운 배경이 레일까지 덮음) 아래. 데이터 관리 #history-modal 은 44 로 내려 레일이 그 위에 펼쳐진다
@@ -148,10 +160,10 @@ const RAIL_CSS = `${TOKENS}
 * { box-sizing: border-box; }
 nav { height: 100%; width: 52px; overflow: hidden; display: flex; flex-direction: column;
       background: var(--as-bg); border-right: 1px solid var(--as-line); transition: width .15s ease, box-shadow .15s ease; }
-nav:hover, nav:has(:focus-visible) { width: 240px; box-shadow: 6px 0 18px rgba(16, 24, 40, .16); }
+nav:hover, nav:has(:focus-visible), nav.hf-keep { width: ${RAIL_OPEN_W}px; box-shadow: 6px 0 18px rgba(16, 24, 40, .16); }
 .list { flex: 1 1 auto; overflow-y: auto; overflow-x: hidden; padding: 8px 8px 16px; scrollbar-width: thin; }
 .cat { margin: 12px 6px 4px; height: 14px; font-size: 11.5px; font-weight: 600; color: var(--as-text-3); white-space: nowrap; opacity: 0; transition: opacity .1s; }
-nav:hover .cat, nav:has(:focus-visible) .cat { opacity: 1; }
+nav:hover .cat, nav:has(:focus-visible) .cat, nav.hf-keep .cat { opacity: 1; }
 .item { display: flex; align-items: center; gap: 12px; height: 36px; padding: 0 8px; border-radius: 8px; white-space: nowrap;
         color: var(--as-text); text-decoration: none; font-weight: 500; }
 .item:hover { background: var(--as-surface-2); }
@@ -159,9 +171,10 @@ nav:hover .cat, nav:has(:focus-visible) .cat { opacity: 1; }
 .item svg { color: var(--as-text-3); flex: none; width: 20px; height: 20px; }
 .item[aria-current="page"] svg { color: var(--as-accent-deep); }
 .item span { overflow: hidden; text-overflow: ellipsis; opacity: 0; transition: opacity .1s; }
-nav:hover .item span, nav:has(:focus-visible) .item span { opacity: 1; }
+nav:hover .item span, nav:has(:focus-visible) .item span, nav.hf-keep .item span { opacity: 1; }
 a:focus-visible { outline: 2px solid var(--as-accent); outline-offset: -2px; }
-@media (prefers-reduced-motion: reduce) { nav, .cat, .item span { transition: none; } }`;
+@media (prefers-reduced-motion: reduce) { nav, .cat, .item span { transition: none; } }
+${FLY_CSS}`;
 
 // 안 읽은 알림 팝업 — 띄울 때 만들고 닫을 때 없앤다. role=alertdialog 의 section(섀도 안) — 봇이 찾는 div[role=dialog]·[data-act] 와 겹치지 않게.
 const POP_CSS = `${TOKENS}
@@ -338,6 +351,7 @@ function start() {
         const want = !barOff && !inFrame && !isAutomation() && !!(railMq && railMq.matches) && groups.length > 0
             && (signedIn === true || (noCtxPage && signedIn === null));
         if (!want) {
+            dropRailFly();
             if (railHost) { railHost.remove(); railHost = null; railKey = ''; }
             document.documentElement.classList.remove('as-rail');
             return;
@@ -351,11 +365,87 @@ function start() {
             syncTheme();
         }
         if (html !== railKey) {
+            dropRailFly();
             railHost.shadowRoot.innerHTML = `<style>${RAIL_CSS}</style><nav aria-label="메뉴"><div class="list">${html}</div></nav>`;
             railKey = html;
+            setupRailFly();
         }
         document.documentElement.classList.add('as-rail');
     }
+    // ── '데이터 관리' 2차 메뉴(2026-11-27) — 레일·서랍의 history.html 링크에 대시보드와 같은 목록(js/history-flyout.js).
+    //   모듈은 처음 쓸 때 불러온다 — 못 불러오면 2차 메뉴만 없고 링크는 그대로 간다. 마우스 화면만(터치는 눌러서 간다).
+    let flyMod = null, flyLoad = null;
+    let railFly = null, railFlyGen = 0, drawerFly = null, drawerFlyGen = 0;
+    const flyMq = window.matchMedia ? window.matchMedia('(hover: hover) and (pointer: fine)') : null;
+    function withFlyout(cb) {
+        if (!flyMq || !flyMq.matches) return;
+        if (flyMod) { cb(flyMod); return; }
+        if (!flyLoad) {
+            flyLoad = import('./history-flyout.js?v=17849b54f452-507d0536').then(m => (flyMod = m))
+                .catch(e => { console.warn('[app-shell] 데이터 관리 2차 메뉴를 불러오지 못함(링크는 그대로 씀):', e && e.message); return null; });
+        }
+        flyLoad.then(m => { if (m) cb(m); });
+    }
+    const historyLinkIn = (root) => [...root.querySelectorAll('a.item[href]')]
+        .find(a => { try { return pageFileOf(a.href, BASE) === HISTORY_FILE && !new URL(a.href).hash; } catch (e) { return false; } }) || null;
+    /** root(레일·서랍 섀도) 안 '데이터 관리' 링크에 2차 메뉴를 붙인다. alive() 가 거짓이면(그새 다시 그렸거나 닫힘) 안 붙인다 */
+    function attachHistoryFly(root, optsFor, alive, keep) {
+        withFlyout((m) => {
+            if (!alive()) return;
+            const a = historyLinkIn(root);
+            if (!a) return;
+            if (!root.querySelector('style.hf-css')) {
+                const st = document.createElement('style');
+                st.className = 'hf-css';
+                st.textContent = m.flyoutCss('.hf-panel');
+                root.appendChild(st);
+            }
+            const panel = m.createFlyoutPanel({ cls: 'hf-panel', tag: 'div' });
+            root.appendChild(panel);
+            const fly = m.attachFlyout(a, panel, {
+                go: (hash) => goHistorySection(a, hash),
+                isAvailable: () => a.isConnected && a.getClientRects().length > 0,
+                // 레일 링크에서 목록 아래쪽 항목으로 비스듬히 가면 다른 메뉴 위를 지난다 — 대시보드(0.2초)보다 넉넉히
+                closeDelay: 400,
+                ...optsFor(a)
+            });
+            if (fly) keep(fly); else panel.remove();
+        });
+    }
+    // 같은 화면(데이터 관리)이면 해시만 바꾼다(hashchange → js/view-state.js 가 그 화면을 연다 · 주소의 ?emu=1 등은 그대로).
+    // 다른 화면이면 이동 전 확인·저장 훅을 거쳐 history.html#tab=… 으로 간다.
+    function goHistorySection(a, hash) {
+        let u;
+        try { u = new URL(a.href, location.href); } catch (e) { return; }
+        u.hash = hash;
+        if (pageFile === HISTORY_FILE && u.origin === location.origin && u.pathname === location.pathname) {
+            closeMenu();
+            if (hash && location.hash !== hash) location.hash = hash;
+            return;
+        }
+        const t = a.getAttribute('target');
+        if (t && t !== '_self') { closeMenu(); window.open(u.href, t); return; }
+        navigate(u.href);
+    }
+    function dropRailFly() {
+        railFlyGen++;
+        if (railFly) { railFly.destroy(); railFly = null; }
+    }
+    function setupRailFly() {
+        const host = railHost, gen = ++railFlyGen;
+        if (!host) return;
+        const navOf = () => host.shadowRoot.querySelector('nav');
+        attachHistoryFly(host.shadowRoot, () => ({
+            // 펼친 레일 오른쪽 — 열려 있는 동안은 레일을 펼친 채 붙잡는다(목록으로 옮겨 가도 접히지 않게)
+            edge: () => { const n = navOf(); return (n ? n.getBoundingClientRect().left : 0) + RAIL_OPEN_W; },
+            onToggle: (open) => { const n = navOf(); if (n) n.classList.toggle('hf-keep', open); }
+        }), () => gen === railFlyGen && railHost === host, (fly) => { if (railFly) railFly.destroy(); railFly = fly; });
+    }
+    function dropDrawerFly() {
+        drawerFlyGen++;
+        if (drawerFly) { drawerFly.destroy(); drawerFly = null; }
+    }
+
     if (railMq) {
         const onMq = () => renderRail();
         if (railMq.addEventListener) railMq.addEventListener('change', onMq); else if (railMq.addListener) railMq.addListener(onMq);
@@ -797,6 +887,7 @@ function start() {
             // 셸 서랍만 닫는다 — 페이지 모달 ESC(js/modal-esc.js)까지 가지 않게
             e.preventDefault();
             e.stopImmediatePropagation();
+            if (drawerFly && drawerFly.isOpen()) { drawerFly.dismiss(); return; }   // 2차 메뉴가 열려 있으면 그것만 닫는다
             closeMenu();
         }
     }
@@ -823,10 +914,15 @@ function start() {
         if (barRoot) barRoot.querySelector('.menu').setAttribute('aria-expanded', 'true');
         const first = root.querySelector('[aria-current="page"]') || root.querySelector('.item');
         if (first) first.focus({ preventScroll: true });
+        // 2차 메뉴는 첫 초점을 준 뒤에 붙인다(데이터 관리 화면에서 서랍을 열자마자 목록이 펼쳐지지 않게)
+        const host = overlayHost, gen = ++drawerFlyGen;
+        attachHistoryFly(root, () => ({ edge: () => root.querySelector('nav').getBoundingClientRect().right }),
+            () => gen === drawerFlyGen && overlayHost === host, (fly) => { if (drawerFly) drawerFly.destroy(); drawerFly = fly; });
     }
 
     function closeMenu() {
         if (!overlayHost) return;
+        dropDrawerFly();
         window.removeEventListener('keydown', onKey, true);
         overlayHost.remove();
         overlayHost = null;
