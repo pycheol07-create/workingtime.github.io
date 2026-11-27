@@ -2,7 +2,8 @@
 import * as DOM from './dom-elements.js?v=2b9f19ecbde2-82fbef91';
 import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
 import { showToast, getTodayDateString, showConfirm } from './utils.js?v=65bb3512764f-e315797c';
-import { dayInspItems, resumePlan, removeMoved } from './lib/insp-day.js?v=f8f7e2c433a4-c41ef17c';
+import { dayInspItems, resumePlan, removeMoved } from './lib/insp-day.js?v=df2594fe0811-d324b1d1';
+import { clearLocalCache } from './history-data-manager.js?v=c109bb652d92-a9403e97';
 import { hasBrushed } from './lib/insp-flow.js?v=5447d8e8a137-43ce67d4';
 import { TASK, tName } from './task-names.js?v=33eb5ccd69bc-26ab8ff7';
 
@@ -10,8 +11,8 @@ import {
     renderInspectionHistoryTable, 
     renderInspectionLayout,
     renderInspectionListMode
-} from './ui-history.js?v=fa13ed2b5a56-b575143a'; 
-import { clearInspResultCache, seedInspResultCache, fetchTotalInspLogs, totalInspLogsTruncated, TOTAL_LOG_LIMIT } from './ui-history-inspection.js?v=f1398222f730-772fed2f';   // 정상여부 캐시 · 전량 기록
+} from './ui-history.js?v=c109bb652d92-b575143a'; 
+import { clearInspResultCache, seedInspResultCache, fetchTotalInspLogs, totalInspLogsTruncated, TOTAL_LOG_LIMIT } from './ui-history-inspection.js?v=2629016dec47-772fed2f';   // 정상여부 캐시 · 전량 기록
 import { mergeIntoProductHistory, nameKey, totalHistoryLogsOf, bulkSummary, bulkMessage } from './lib/total-insp.js?v=d83d978fa87f-5334595d';
 import { editTotalLog, deleteTotalLog, listDayLogs, listProductLogs, deleteTotalDay, deleteTotalProduct, askTotalLogEdit, fetchAccDocs, removeOrRevertOne, setAccStatus, deleteAccDocIfEmpty } from './total-insp-edit.js?v=00825b3b7e9c-892af557';
 import { historyRangeStart } from './lib/history-window.js?v=2641998b437e-d3102a84';
@@ -21,7 +22,7 @@ import {
     renderQCStatsMode, 
     currentInspTypeFilter, 
     setInspTypeFilter 
-} from './ui-history-inspection.js?v=f1398222f730-772fed2f';
+} from './ui-history-inspection.js?v=2629016dec47-772fed2f';
 
 import {
     loadInspectionLogs,
@@ -33,7 +34,7 @@ import {
     savePreInspectionNote,
     handleManualImageSelect, 
     clearManualImageState    
-} from './inspection-logic.js?v=02c3205156e9-e4d6f36f';
+} from './inspection-logic.js?v=bbc156ff6905-e4d6f36f';
 
 import { collection, getDocs, doc, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
@@ -93,19 +94,23 @@ async function resumeInspectionFromDate(date) {
             const hList = hSnap.exists() && Array.isArray(hSnap.data().inspectionList) ? hSnap.data().inspectionList : [];
             const dList = dSnap.exists() && Array.isArray(dSnap.data().inspectionList) ? dSnap.data().inspectionList : [];
             // 원래 날짜 리스트 = 이력 쪽(없으면 마감 안 한 날의 daily_data 쪽)
-            const plan = resumePlan(hList.length ? hList : dList, tSnap.exists() ? tSnap.data() : {});
-            if (plan.add.length === 0) return plan;
-            tx.set(todayRef, { inspectionList: plan.nextToday }, { merge: true });
-            const rh = removeMoved(hList, plan.addKeys);
+            const plan = resumePlan(hList.length ? hList : dList, tSnap.exists() ? tSnap.data() : {}, hList.length ? dList : hList);
+            if (plan.add.length > 0) tx.set(todayRef, { inspectionList: plan.nextToday }, { merge: true });
+            const rh = removeMoved(hList, plan.dropKeys);
             if (rh.removed > 0) tx.update(histRef, { inspectionList: rh.list });
             // 마감 안 한 날은 daily_data 쪽 리스트가 남아 자가복구가 이력을 다시 덮을 수 있다 — 같은 줄을 거기서도 뺀다
-            const rd = removeMoved(dList, plan.addKeys);
+            const rd = removeMoved(dList, plan.dropKeys);
             if (rd.removed > 0) tx.update(srcDailyRef, { inspectionList: rd.list });
-            return plan;
+            return { ...plan, srvSrc: hList.length ? rh.list : rd.list, wrote: plan.add.length > 0 || rh.removed > 0 || rd.removed > 0 };
         });
-        if (res.add.length === 0) { showToast('이미 오늘 검수 대기 리스트에 모두 들어 있습니다.'); return; }
+        if (day) day.inspectionList = res.srvSrc;   // 화면 캐시를 서버 값으로(옮길 것이 없었어도 — 다른 기기가 먼저 옮긴 경우)
+        if (res.wrote) { try { clearLocalCache(); } catch (_) { /* 30분 캐시 — 못 지워도 서버 값은 맞다 */ } }
+        if (res.add.length === 0) {
+            showToast(res.removed > 0 ? `이미 오늘 리스트에 있는 대기 ${res.removed}건을 ${date} 리스트에서 정리했습니다.` : '이미 오늘 검수 대기 리스트에 모두 들어 있습니다.');
+            fetchAndRenderInspectionHistory({ reuse: true });
+            return;
+        }
         if (State.appState) State.appState.inspectionList = res.nextToday;
-        if (day) day.inspectionList = res.nextSrc;   // 화면 캐시도 서버와 같게
         showToast(`검수 대기 리스트에 ${res.add.length}건을 옮겼습니다. 메인 화면 '${tName(TASK.sample)}'에서 이어서 진행하세요.`);
         fetchAndRenderInspectionHistory({ reuse: true });
     } catch (err) {

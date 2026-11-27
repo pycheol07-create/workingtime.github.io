@@ -2,7 +2,7 @@
 import * as DOM from './dom-elements.js?v=2b9f19ecbde2-82fbef91';
 import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
 import { getWeekOfYear, escapeHtml, getTodayDateString } from './utils.js?v=65bb3512764f-e315797c';
-import { dayInspItems, packDatesLabel, packDateGroups } from './lib/insp-day.js?v=f8f7e2c433a4-c41ef17c';
+import { dayInspItems, packDatesLabel, packDateGroups } from './lib/insp-day.js?v=df2594fe0811-d324b1d1';
 import { inspTypeLabel } from './lib/insp-manual.js?v=25e0bc0396d2-21f87941';
 import { doc, getDoc, runTransaction, collection, getDocs, query, where, orderBy, limit as fsLimit } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { itemKey, patchItemsByKey } from './lib/insp-flow.js?v=5447d8e8a137-43ce67d4';

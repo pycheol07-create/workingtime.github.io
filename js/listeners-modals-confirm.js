@@ -6,15 +6,15 @@ import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
 import { isPersistentLeaveType } from './state.js?v=c7f5fc984ef9-a2ce38c0';
 import { notifyLeaveScheduleChanged } from './leave-schedule-sync.js?v=152edbc1d09a-ab7817f6';
 import { showToast, getTodayDateString, getCurrentTime, showConfirm } from './utils.js?v=65bb3512764f-e315797c';
-import { finalizeStopGroup, stopWorkIndividual, stopWorkByTask } from './app-logic.js?v=38f4a87dd12a-5cd27cd7';
+import { finalizeStopGroup, stopWorkIndividual, stopWorkByTask } from './app-logic.js?v=444a31ddd423-5cd27cd7';
 import { updateLeaveSchedule } from './config.js?v=242bb63abbe9-dd1665a9';
 import { removeWhere, removeRecord } from './lib/leave-ops.js?v=00d03912bc0d-1176096f';
 import { isLeaveActiveAt } from './lib/leave-timing.js?v=56494f977986-82fd27e6';
-import { switchHistoryView } from './app-history-logic.js?v=58b541bba7f4-ef63fd43';
-import { saveDayDataToHistory, clearLocalCache } from './history-data-manager.js?v=fa13ed2b5a56-a9403e97';
+import { switchHistoryView } from './app-history-logic.js?v=56fded7dfdf1-ef63fd43';
+import { saveDayDataToHistory, clearLocalCache } from './history-data-manager.js?v=c109bb652d92-a9403e97';
 import { waitQuantitySave } from './listeners-form-quantity.js?v=1112b68e1b7b-306c88e3';
 import { saveStateToFirestore } from './app-data.js?v=9a8d4e266c76-c4996a74';
-import { writeRecordsReleasingLocks, markLocalWorkEnded } from './app-sync.js?v=fa13ed2b5a56-68f6c921';
+import { writeRecordsReleasingLocks, markLocalWorkEnded } from './app-sync.js?v=c109bb652d92-68f6c921';
 
 import {
     doc, deleteDoc, writeBatch, collection, updateDoc, getDoc, getDocs, setDoc, query
@@ -360,7 +360,7 @@ export function setupConfirmationModalListeners() {
                             r.startTime < dailyEntry.startTime
                         );
                         if (stale.length > 0) {
-                            const { forceEndMemberWork } = await import('./app-sync.js?v=fa13ed2b5a56-68f6c921');
+                            const { forceEndMemberWork } = await import('./app-sync.js?v=c109bb652d92-68f6c921');
                             const r = await forceEndMemberWork(memberName, dailyEntry.startTime, { onlyStartedBefore: true });
                             if (r.ended > 0) {
                                 console.warn(`[외출 복귀 보호막] ${memberName}: 외출 전부터 진행 중이던 ${r.ended}건을 ${dailyEntry.startTime}로 정리`, r.summaries);

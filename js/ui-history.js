@@ -46,12 +46,12 @@ import {
     renderInspectionLogTable,
     renderInspectionLayout,
     renderInspectionListMode
-} from './ui-history-inspection.js?v=f1398222f730-772fed2f';
+} from './ui-history-inspection.js?v=2629016dec47-772fed2f';
 
 // ✅ [신규] 8. 실적 예측 관련 함수
 import {
     renderPredictionTab
-} from './ui-history-prediction.js?v=fa13ed2b5a56-099e2602';
+} from './ui-history-prediction.js?v=c109bb652d92-099e2602';
 
 
 // --- 모든 함수를 ui.js 및 리스너가 사용할 수 있도록 다시 내보내기 ---

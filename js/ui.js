@@ -107,7 +107,7 @@ import {
     renderDashboardLayout,
     updateSummary,
     applyDynamicSidebar // ✨ 신규 임포트
-} from './ui-main.js?v=fa13ed2b5a56-d7b62405';
+} from './ui-main.js?v=c109bb652d92-d7b62405';
 
 export {
     renderTaskAnalysis,
@@ -131,7 +131,7 @@ import {
     renderReportWeekly,
     renderReportMonthly,
     renderReportYearly
-} from './ui-history.js?v=fa13ed2b5a56-b575143a';
+} from './ui-history.js?v=c109bb652d92-b575143a';
 
 export {
     renderWeeklyHistory,

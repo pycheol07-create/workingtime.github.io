@@ -73,21 +73,27 @@ export const inspItemKey = itemKey;
  *   todayDoc = 오늘 daily_data 문서 값({inspectionList, inspectionDone}) — 둘 다 보고 이미 있는 항목은 다시 안 붙인다
  * → { add: 붙일 항목(상태 '대기'), nextToday: 오늘 inspectionList, nextSrc: 원래 날짜 inspectionList, removed: 뺀 수 }
  */
-export function resumePlan(srcList, todayDoc) {
+export function resumePlan(srcList, todayDoc, otherList) {
     const src = Array.isArray(srcList) ? srcList : [];
     const cur = Array.isArray(todayDoc && todayDoc.inspectionList) ? todayDoc.inspectionList : [];
     const seen = new Set(dayInspItems(todayDoc).map(itemKey));
+    // 같은 날의 다른 쪽 리스트(이력 ↔ 마감 안 한 daily_data)에서 이미 완료면 옮기지 않는다(한쪽 저장이 늦은 경우 — 2026-11-27 리뷰)
+    const doneElsewhere = new Set((Array.isArray(otherList) ? otherList : []).filter(it => it && it.status === '완료').map(itemKey));
     const addKeys = new Set();
+    const dropKeys = new Set();   // 원래 날짜에서 뺄 열쇠 = 새로 붙인 것 + 이미 오늘 리스트(대기·완료)에 있는 것(두 날짜에 같은 대기가 남지 않게, 리뷰)
     const add = [];
     src.forEach(it => {
         if (!it || it.status === '완료') return;
         const k = itemKey(it);
-        if (seen.has(k) || addKeys.has(k)) return;
+        if (doneElsewhere.has(k)) return;
+        if (seen.has(k)) { dropKeys.add(k); return; }
+        if (addKeys.has(k)) return;
         addKeys.add(k);
+        dropKeys.add(k);
         add.push({ ...it, status: '대기' });
     });
-    const { list: nextSrc, removed } = removeMoved(src, addKeys);
-    return { add, nextToday: cur.concat(add), nextSrc, removed, addKeys };
+    const { list: nextSrc, removed } = removeMoved(src, dropKeys);
+    return { add, nextToday: cur.concat(add), nextSrc, removed, addKeys, dropKeys };
 }
 
 /** 리스트에서 옮긴(addKeys) 대기 줄만 뺀다 — 완료 줄은 그대로 */

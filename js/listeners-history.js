@@ -3,24 +3,24 @@ import * as DOM from './dom-elements.js?v=2b9f19ecbde2-82fbef91';
 import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
 import { showToast, getTodayDateString, toDateString } from './utils.js?v=65bb3512764f-e315797c';
 
-import { setupHistoryDownloadListeners, openDownloadFormatModal } from './listeners-history-download.js?v=9060c4d5d605-22e2520d';
-import { setupHistoryRecordListeners } from './listeners-history-records.js?v=0a2e72cb4cc4-1e7b78f7';
-import { setupHistoryAttendanceListeners } from './listeners-history-attendance.js?v=dac759367f6a-c214419d';
-import { setupHistoryInspectionListeners } from './listeners-history-inspection.js?v=98f908162d02-31e02432';
+import { setupHistoryDownloadListeners, openDownloadFormatModal } from './listeners-history-download.js?v=760835f416b5-22e2520d';
+import { setupHistoryRecordListeners } from './listeners-history-records.js?v=73c5d48d6ed5-1e7b78f7';
+import { setupHistoryAttendanceListeners } from './listeners-history-attendance.js?v=7f58e38a44a2-c214419d';
+import { setupHistoryInspectionListeners } from './listeners-history-inspection.js?v=ca6cd5d39ea6-85aca8bb';
 
-import { loadAndRenderHistoryList, renderHistoryDetail, switchHistoryView, openHistoryQuantityModal, augmentHistoryWithPersistentLeave } from './app-history-logic.js?v=58b541bba7f4-ef63fd43';
-import { renderAttendanceDailyHistory, renderAttendanceWeeklyHistory, renderAttendanceMonthlyHistory, renderAttendanceYearlyHistory, renderReportDaily, renderReportWeekly, renderReportMonthly, renderReportYearly, renderPersonalReport, renderManagementDaily, renderManagementSummary, renderWeeklyHistory, renderMonthlyHistory, renderYearlyHistory, renderPredictionTab } from './ui-history.js?v=fa13ed2b5a56-b575143a';
-import { syncTodayToHistory, saveManagementData, backfillFxRates, peekDailyData, recoverDailyDataToHistory, fetchAllHistoryData } from './history-data-manager.js?v=fa13ed2b5a56-a9403e97';
+import { loadAndRenderHistoryList, renderHistoryDetail, switchHistoryView, openHistoryQuantityModal, augmentHistoryWithPersistentLeave } from './app-history-logic.js?v=56fded7dfdf1-ef63fd43';
+import { renderAttendanceDailyHistory, renderAttendanceWeeklyHistory, renderAttendanceMonthlyHistory, renderAttendanceYearlyHistory, renderReportDaily, renderReportWeekly, renderReportMonthly, renderReportYearly, renderPersonalReport, renderManagementDaily, renderManagementSummary, renderWeeklyHistory, renderMonthlyHistory, renderYearlyHistory, renderPredictionTab } from './ui-history.js?v=c109bb652d92-b575143a';
+import { syncTodayToHistory, saveManagementData, backfillFxRates, peekDailyData, recoverDailyDataToHistory, fetchAllHistoryData } from './history-data-manager.js?v=c109bb652d92-a9403e97';
 import { REVENUE_CHANNELS, CHANNEL_METRICS } from './revenue-channels.js?v=553320652df2-c473a26d';
 import { doc, getDoc, updateDoc, deleteField } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-import { setupHistoryTabsListeners, getFilteredHistoryData, getPeriodFilteredData, renderAnalyticsTab } from './listeners-history-tabs.js?v=58b541bba7f4-8058cdde';
+import { setupHistoryTabsListeners, getFilteredHistoryData, getPeriodFilteredData, renderAnalyticsTab } from './listeners-history-tabs.js?v=56fded7dfdf1-8058cdde';
 import { saveView } from './view-state.js?v=c2e4bf06fdce-0da8b754';
 import { goTo, onBeforeLeave, leaveAlreadyConfirmed } from './app-shell-bridge.js?v=b9a7199f3e1d-c80c27e9';
 import { initHistoryFlyout } from './history-flyout.js?v=1c0ac82e9fd0-b770b3a1';
 import { isManagementDirty, confirmDiscardManagementEdits } from './ui-history-management.js?v=f7cf514cd049-688719b9';
-import { isLeaveDirty } from './ui-history-leave.js?v=4a80ad4f9d2a-4c985a8b';
-import { isSimDirty } from './ui-history-prediction.js?v=fa13ed2b5a56-099e2602';
+import { isLeaveDirty } from './ui-history-leave.js?v=9eba9a2c5565-4c985a8b';
+import { isSimDirty } from './ui-history-prediction.js?v=c109bb652d92-099e2602';
 import { placeOpenDropdown } from './table-filter.js?v=fd197c3531ef-b92b1b78';
 import { deletionSummary, deletionDetail } from './lib/history-delete-text.js?v=45db1f2f0f26-10f77366';
 

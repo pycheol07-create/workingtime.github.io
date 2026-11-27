@@ -6,9 +6,9 @@
 import { predictFutureTrends } from './analysis-logic.js?v=ad17bad984b3-0bfe0ae3';
 import { doc, getDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { mibalByArrival, makeArrivalLookup, makeArrivalsLookup } from './lib/mibal-forecast.js?v=60b17128e7b7-2e3b80a2';
-import { parseInspPacks, sampleCardsByArrival } from './lib/insp-packs.js?v=6a7d54e8b95f-16eb76b5';
-import { inspListCountFor } from './lib/insp-day.js?v=f8f7e2c433a4-c41ef17c';
-import { getSubscribedDate } from './app-sync.js?v=fa13ed2b5a56-68f6c921';
+import { parseInspPacks, sampleCardsByArrival } from './lib/insp-packs.js?v=1b36ec3984ba-16eb76b5';
+import { inspListCountFor } from './lib/insp-day.js?v=df2594fe0811-d324b1d1';
+import { getSubscribedDate } from './app-sync.js?v=c109bb652d92-68f6c921';
 import { runDay } from './lib/refill-view.js?v=3416a867c2d7-24e9bb3d';
 import { parseRecDay, pickRecDay, recCount, applyLocRecCount, dayKey as recDayKey } from './lib/locrec-view.js?v=0912d3bb4878-fdf32cdb';
 import { LOCREC_TASK } from './lib/feature-catalog.js?v=b88b1c1e60c1-81ffd467';
@@ -32,7 +32,7 @@ import { getIncomingQtyByDateFromCache, getIncomingDetailsByDateFromCache,
 import { getPlannedQuantitiesForDate, getPlannedTimeTasksForDate, getPlannedExcludeMinutesForDate, getPlannedAdminWorkersForDate,
          fetchPlannedData, savePlannedQuantities,
          saveForecastSnapshot, saveForecastSnapshotIfAbsent, deleteForecastSnapshot, fetchForecastSnapshots,
-         getForecastSnapshotForDate, historyLoadFailed, hasHistoryLoaded, fetchAllHistoryData } from './history-data-manager.js?v=fa13ed2b5a56-a9403e97';
+         getForecastSnapshotForDate, historyLoadFailed, hasHistoryLoaded, fetchAllHistoryData } from './history-data-manager.js?v=c109bb652d92-a9403e97';
 import { decomposeAccuracy, summarizeAccuracyRows, aggregateByTask, excludeTasksForAccuracy } from './forecast-accuracy.js?v=14735a690ed1-00c766d3';
 import { computeDayProgress, buildProgressRows, projectFinish, spentMinutesOf,
          nowTimeString, hhmmToMin, minToHhmm } from './forecast-progress.js?v=dbbe835978a6-40fe586a';
