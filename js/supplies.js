@@ -114,6 +114,18 @@ const fcOf = (it) => {
     return fc && !fc.today && forecastDoc.today ? { ...fc, today: forecastDoc.today } : fc;
 };
 const orderOf = (it) => (ordersDoc && ordersDoc.orders ? ordersDoc.orders[it.id] : null) || null;
+/** 최근 발주일 = 상세에 직접 넣은 날짜와 [발주함] 기록(지금 진행 중·지난 기록 log)의 발주일 중 늦은 것(2026-11-27 사용자 요청 —
+ *  발주 진행으로 10월에 발주·입고한 비품이 상세의 옛 날짜(2~3월)로 보였다). 'YYYY-MM-DD' 모양만 견준다 */
+function lastOrderOf(it) {
+    const ok = (v) => (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}/.test(v) ? v.slice(0, 10) : '');
+    let best = ok(it && it.lastOrderDate);
+    const cur = it ? orderOf(it) : null;
+    const take = (v) => { const d = ok(v); if (d > best) best = d; };
+    if (cur) take(cur.orderedDate);
+    const log = ordersDoc && Array.isArray(ordersDoc.log) ? ordersDoc.log : [];
+    log.forEach(x => { if (x && it && x.itemId === it.id) take(x.orderedDate); });
+    return best || (it && it.lastOrderDate) || '';
+}
 // 앱 기준(켜짐)이거나 예측 문서가 원장 기준(source 'ledger')이면 비품코드 없는 비품도 예측 상태를 그대로 보인다
 const fcOpts = () => forecastOpts(forecastDoc, ledgerLive);
 const statusOf = (it) => effectiveStatus(it, fcOf(it), orderOf(it), fcOpts());
@@ -191,8 +203,8 @@ const COLS = [
       get: it => leadTimeDaysEquiv(it),
       cell: it => num(it.leadTimeDays) > 0 ? esc(leadTimeTextOf(it)) : '-' },
     { key: 'lastOrderDate', label: '최근발주', type: 'text', td: 'mid text-slate-600',
-      get: it => it.lastOrderDate || '',
-      cell: it => esc(it.lastOrderDate || '-') },
+      get: it => lastOrderOf(it),
+      cell: it => esc(lastOrderOf(it) || '-') },
     // 메모는 길 수 있어 한 줄로 자르고(넘치면 …), 전체 내용은 마우스를 올리면 보인다.
     { key: 'memo', label: '메모', type: 'text', td: 'text-slate-500 text-[12px] max-w-[22rem] overflow-hidden text-ellipsis',
       get: it => it.memo || '',
