@@ -6,10 +6,10 @@ import { showToast, getCurrentTime, getTodayDateString, escapeHtml, showConfirm 
 import { doc, getDoc, setDoc, updateDoc, arrayUnion, serverTimestamp, increment, runTransaction, deleteField } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // 분리된 모듈 가져오기
-import { clearImageState, setExistingPhoto, resolvePhotoForSave, isPhotoBusy, bumpPhotoEpoch } from './inspection-media.js?v=e78427f6ef2e-cad5241c';
+import { clearImageState, setExistingPhoto, resolvePhotoForSave, isPhotoBusy, bumpPhotoEpoch } from './inspection-media.js?v=805af97f5899-cad5241c';
 import { syncInspSegments, syncBrushedField } from './inspection-segments.js?v=4deded8f323d-fc1be8ff';
 import { moveDoneItems } from './lib/insp-day.js?v=df2594fe0811-d324b1d1';
-import { openManualAdd } from './inspection-manual.js?v=e78427f6ef2e-6555fd07';   // [조회]에서 리스트에 없는 상품 → 개별 추가 창(2026-11-17)
+import { openManualAdd } from './inspection-manual.js?v=805af97f5899-6555fd07';   // [조회]에서 리스트에 없는 상품 → 개별 추가 창(2026-11-17)
 import { historyId } from './lib/insp-manual.js?v=25e0bc0396d2-21f87941';
 import { TASK, tName } from './task-names.js?v=33eb5ccd69bc-26ab8ff7';
 import {
@@ -1375,5 +1375,5 @@ export const clearTodayList = async () => {
     renderTodayInspectionList();
 };
 
-export { toggleScanner, handleImageSelect, clearImageState, handleManualImageSelect, clearManualImageState } from './inspection-media.js?v=e78427f6ef2e-cad5241c';
-export { loadAllInspectionHistory, loadInspectionLogs, prepareEditInspectionLog, updateInspectionLog, deleteInspectionLog, deleteProductHistory, savePreInspectionNote } from './inspection-editor.js?v=e78427f6ef2e-a6083ed1';
+export { toggleScanner, handleImageSelect, clearImageState, handleManualImageSelect, clearManualImageState } from './inspection-media.js?v=805af97f5899-cad5241c';
+export { loadAllInspectionHistory, loadInspectionLogs, prepareEditInspectionLog, updateInspectionLog, deleteInspectionLog, deleteProductHistory, savePreInspectionNote } from './inspection-editor.js?v=805af97f5899-a6083ed1';

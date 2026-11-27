@@ -35,10 +35,10 @@ const ITEMS = [
     { key: 'locrec', label: '변경추천표', ok: () => locRecAllowed(), run: () => openLocRecFromDash(),
       icon: svg('<path d="M7 7h11l-3-3M17 17H6l3 3"/>') },
     { key: 'insp', label: '샘플검수 매니저', ok: () => true,
-      run: () => import('./inspection-logic.js?v=e78427f6ef2e-c40d2f6c').then(m => m.openInspectionManager()),
+      run: () => import('./inspection-logic.js?v=805af97f5899-c40d2f6c').then(m => m.openInspectionManager()),
       icon: svg('<circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5"/>') },
     { key: 'total-insp', label: '전량검수 매니저', ok: () => true,
-      run: () => import('./total-inspection-logic.js?v=49fd6388e51c-19692d1a').then(m => m.openTotalInspection()),
+      run: () => import('./total-inspection-logic.js?v=8340bbe17453-19692d1a').then(m => m.openTotalInspection()),
       icon: svg('<path d="M9 3h6l1 2h3v16H5V5h3z"/><path d="M9 13l2 2 4-4"/>') }
 ];
 

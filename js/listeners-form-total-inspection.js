@@ -18,7 +18,7 @@ import {
     toggleTotalListCollapsed,
     toggleTotalFullscreen,
     syncTotalStock
-} from './total-inspection-logic.js?v=49fd6388e51c-19692d1a';
+} from './total-inspection-logic.js?v=8340bbe17453-19692d1a';
 
 export function setupTotalInspectionListeners() {
 
@@ -50,7 +50,7 @@ export function setupTotalInspectionListeners() {
         excelBtn.addEventListener('click', () => { excelFile.value = ''; excelFile.click(); });
         excelFile.addEventListener('change', () => {
             const f = excelFile.files && excelFile.files[0];
-            if (f) import('./total-insp-excel-ui.js?v=3dbd2ece572f-c16ad83e').then(m => m.uploadTotalExcel(f));
+            if (f) import('./total-insp-excel-ui.js?v=6b9fb3d05e66-c16ad83e').then(m => m.uploadTotalExcel(f));
         });
     }
 

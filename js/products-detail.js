@@ -6,10 +6,10 @@
 // 메모: 전원 편집. 열 때 본 at 과 지금 at 이 다르면 충돌 확인창. 직전 5개 보관(되돌리기).
 // 기본정보 편집: 관리자만(D5). 같은 트랜잭션 헬퍼(버킷 + META rev + 이력, ver 비교).
 import { doc, getDoc, getDocs, collection, query, where, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { S, countRead, locOf, fmtDateTime, tsMs, applyLocalProduct, putLocalNote, noteHistory } from './products-store.js?v=12e37e026ce6-ee5ce71b';
-import { esc, toast, setHead, isLocOld } from './products.js?v=9453776d29a0-749f10a1';
-import { statusPill } from './products-list.js?v=9453776d29a0-b6d23b13';
-import { renderCostCard, renderCostHistory } from './products-cost.js?v=9453776d29a0-b46a7823';
+import { S, countRead, locOf, fmtDateTime, tsMs, applyLocalProduct, putLocalNote, noteHistory, supNameOfProduct } from './products-store.js?v=ba5573fa8d5a-44ec7d98';
+import { esc, toast, setHead, isLocOld } from './products.js?v=d3c6c1f5ccdf-749f10a1';
+import { statusPill } from './products-list.js?v=d3c6c1f5ccdf-fab17109';
+import { renderCostCard, renderCostHistory } from './products-cost.js?v=d3c6c1f5ccdf-b46a7823';
 import { writeBucket, saveNote, NoteConflict } from './products-write.js?v=c12131c8d88b-699dc490';
 import { catalogBucketId, CATALOG_BUCKETS } from './lib/product-bucket.js?v=842897a6efab-a72f5a26';
 import { diffProduct, FIELD_LABEL, NAME_MAX, TEXT_MAX } from './lib/product-excel-rows.js?v=acc096d72726-b7ba4cab';
@@ -85,7 +85,7 @@ function renderInfo(info, optsEl, pid, p, rerender, editing = false) {
             <label class="pd-field">상태${inp('status', p.status, `maxlength="${TEXT_MAX}"`)}</label>
             <label class="pd-field">등록일${inp('regDate', p.regDate, 'maxlength="20"')}</label></div>`
         : `<dl class="pd-kv">
-            ${kv('상품명', esc(p.name))}${kv('품목코드', `<span class="num">${esc(pid)}</span>`)}${kv('자체상품코드', `<span class="num">${esc(p.code2) || '–'}</span>`)}
+            ${kv('상품명', esc(p.name))}${kv('공급처상품명', `<span class="num" title="첫 옵션 상품코드 기준(GIP, 영문·숫자 모양만)">${esc(supNameOfProduct(p)) || '–'}</span>`)}${kv('품목코드', `<span class="num">${esc(pid)}</span>`)}${kv('자체상품코드', `<span class="num">${esc(p.code2) || '–'}</span>`)}
             ${kv('브랜드', esc(p.brand) || '–')}${kv('카테고리', esc(p.cat) || '–')}
             ${kv('판매가', p.price !== null && p.price !== undefined ? `<span class="num">${Number(p.price).toLocaleString()}원</span>` : '–')}
             ${kv('상태', statusPill(p) || '–')}${kv('등록일', `<span class="num">${esc(p.regDate) || '–'}</span>`)}</dl>`}`;

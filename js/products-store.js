@@ -6,11 +6,14 @@
 // 브라우저 저장: IndexedDB 'ggsing-products' — **기본정보·메모·위치만**. 원가는 저장하지 않는다(products-cost.js 메모리만).
 // onSnapshot 은 쓰지 않는다(전부 getDoc). [새로고침] = 같은 흐름 한 번 더.
 // 읽기 횟수: window.__productReads = { total, by: {종류: 수} } — 콘솔에서 확인용(값은 찍지 않는다).
+// 공급처상품명(2026-11-27): ProductSupName/META + 문서 전부(sup-names-store.js, 페이지 동안 메모리만 — IndexedDB 에 안 둠).
+//   업로드(기본정보 엑셀)와 무관한 별도 저장소다 — 엑셀의 '공급처상품명' 열은 여전히 읽지 않는다.
 import {
     doc, getDoc, getDocs, collection, query, where, Timestamp
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { catalogBucketIds, CATALOG_BUCKETS } from './lib/product-bucket.js?v=842897a6efab-a72f5a26';
 import { parseCatalogJson } from './lib/product-excel-rows.js?v=acc096d72726-b7ba4cab';
+import { loadAll as loadSupNames, supNameOf, reset as resetSupNames } from './sup-names-store.js?v=d105e6dca190-1f52465e';
 
 const IDB_NAME = 'ggsing-products';
 const IDB_VER = 1;
@@ -183,12 +186,14 @@ export async function loadLoc() {
     if (consistent) await idbPut('loc', 'cur', { rev: S.locMeta.rev, data: merged });
 }
 
-/** 전체 불러오기 — 메모·위치 실패는 화면을 막지 않는다(경고만) */
+/** 전체 불러오기 — 메모·위치 실패는 화면을 막지 않는다(경고만). 공급처상품명은 실패해도 조용히 빈칸 */
 export async function loadAll({ force = false } = {}) {
     await ensureSchema();
-    const results = await Promise.allSettled([loadCatalog({ force }), loadNotes(), loadLoc()]);
+    if (force || S.loadedAt) resetSupNames();     // [새로고침](처음 열기 다음부터)·force 때는 공급처상품명도 META 부터 다시
+    const results = await Promise.allSettled([loadCatalog({ force }), loadNotes(), loadLoc(),
+        loadSupNames(S.db, { onRead: (k) => countRead(k) })]);
     S.loadedAt = Date.now();
-    const names = ['기본정보', '메모', '위치'];
+    const names = ['기본정보', '메모', '위치', '공급처상품명'];
     const fails = results.map((r, i) => r.status === 'rejected' ? `${names[i]}(${(r.reason && r.reason.code) || '오류'})` : '').filter(Boolean);
     if (results[0].status === 'rejected') throw results[0].reason;
     return fails;
@@ -200,6 +205,13 @@ export function locOf(scode) {
     const L = S.loc;
     if (!L) return { spots: [], reserve: null, stock: null };
     return { spots: L.l[scode] || [], reserve: L.r[scode] || null, stock: L.s[scode] || null };
+}
+
+/** 상품의 공급처상품명 — 첫 옵션(사라지지 않은 것, 없으면 맨 앞) 상품코드로 찾는다. 없으면 '' */
+export function supNameOfProduct(p) {
+    const o = (p && p.o) || [];
+    const first = o.find(x => !x[4]) || o[0];
+    return first ? supNameOf(first[0]) : '';
 }
 
 /** 상품 전체(옵션 합) 위치 요약 → { spots: n, qty: 합, first: 자리|null } */

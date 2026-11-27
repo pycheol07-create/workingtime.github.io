@@ -3,10 +3,10 @@
 //
 // 3,768행을 한 번에 그리지 않는다(50행씩). 추가 읽기 없음 — 전부 products-store.js 가 받아 둔 메모리에서.
 // 관리자 열(공급처·기본 단가)은 관리자일 때만 **만든다**(숨김 아님). 원가 값은 products-cost.js 메모리에만 있다.
-import { S, locSummary } from './products-store.js?v=12e37e026ce6-ee5ce71b';
-import { C, costOf } from './products-cost.js?v=9453776d29a0-b46a7823';
-import { esc, toast } from './products.js?v=9453776d29a0-749f10a1';
-import { loadXLSX } from './products-excel.js?v=9453776d29a0-8f20252b';
+import { S, locSummary, supNameOfProduct } from './products-store.js?v=ba5573fa8d5a-44ec7d98';
+import { C, costOf } from './products-cost.js?v=d3c6c1f5ccdf-b46a7823';
+import { esc, toast } from './products.js?v=d3c6c1f5ccdf-749f10a1';
+import { loadXLSX } from './products-excel.js?v=d3c6c1f5ccdf-8f20252b';
 import { catalogExportAoa } from './lib/product-excel-rows.js?v=acc096d72726-b7ba4cab';
 import { fmt2, hasOptionPrices } from './lib/product-price.js?v=960affe3b8e6-35ad98ac';
 
@@ -100,6 +100,8 @@ function colDefs() {
     const cols = [
         { key: 'code', label: '상품코드', type: 'text', get: (pid, p) => p.code2 || pid, fget: (pid, p) => `${p.code2 || ''} ${pid}` },
         { key: 'name', label: '상품명', type: 'text', get: (pid, p) => p.name || '' },
+        // 공급처상품명(GIP, 2026-11-27) — 첫 옵션 코드로 찾는다(sup-names-store.js). 업로드 엑셀과 무관한 별도 저장소
+        { key: 'supname', label: '공급처상품명', type: 'text', title: '첫 옵션 상품코드의 공급처상품명(GIP, 영문·숫자 모양만 — 한글 등이 섞인 값은 보이지 않음)', get: (pid, p) => supNameOfProduct(p) },
         { key: 'cat', label: '카테고리', type: 'set', get: (pid, p) => p.cat || NONE },
         { key: 'opt', label: '옵션', type: 'num', r: true, get: (pid, p) => activeOpts(p).length },
     ];
@@ -309,6 +311,7 @@ function chipsHtml() {
 
 function rowHtml(pid, p) {
     const ls = locSummary(p);
+    const sup = supNameOfProduct(p);
     const nOpt = activeOpts(p).length;
     const code = p.code2
         ? `<span class="pd-code-big num">${esc(p.code2)}</span><span class="pd-code-small num">${esc(pid)}</span>`
@@ -329,7 +332,7 @@ function rowHtml(pid, p) {
     }
     const loc = ls.first ? `${esc(ls.first)}${ls.spots > 1 ? `<span class="pd-inh" style="font-size:12px">(${esc(ls.spots)})</span>` : ''}` : `<span class="pd-inh">${S.loc ? '없음' : '–'}</span>`;
     return `<tr class="pd-click ${cls}" data-pid="${esc(pid)}" tabindex="0">
-        <td>${code}</td><td class="pd-name" title="${esc(p.name)}">${esc(p.name)}</td><td>${esc(p.cat)}</td>
+        <td>${code}</td><td class="pd-name" title="${esc(p.name)}">${esc(p.name)}</td><td class="pd-supname num" title="${esc(sup)}">${esc(sup)}</td><td>${esc(p.cat)}</td>
         <td class="r num">${esc(nOpt)}</td>${adm}
         <td class="num">${loc}</td><td class="r num">${esc(ls.spots ? ls.qty.toLocaleString() : '')}</td><td>${pills}</td></tr>`;
 }
@@ -396,7 +399,7 @@ export function renderList(main) {
         const cards = isCardView();
         main.querySelector('.pd-list-sec').classList.toggle('is-cards', cards);
         main.querySelector('#pd-tbody').innerHTML = cards ? '' : page.map(([pid, p]) => rowHtml(pid, p)).join('')
-            || `<tr><td colspan="${S.isAdmin ? 11 : 7}" class="pd-empty">조건에 맞는 상품이 없습니다</td></tr>`;
+            || `<tr><td colspan="${S.isAdmin ? 12 : 8}" class="pd-empty">조건에 맞는 상품이 없습니다</td></tr>`;
         main.querySelector('#pd-cards').innerHTML = !cards ? '' : page.map(([pid, p]) => cardHtml(pid, p)).join('')
             || '<div class="pd-empty">조건에 맞는 상품이 없습니다</div>';
         main.querySelector('#pd-count').textContent = rows.length ? `${rows.length.toLocaleString()}개 중 ${from + 1}–${Math.min(from + PAGE, rows.length)}` : '0개';
