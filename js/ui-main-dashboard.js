@@ -1,5 +1,5 @@
 // === js/ui-main-dashboard.js ===
-import { getAllDashboardDefinitions } from './ui.js?v=9a5a1aebec3c-a84d3554';
+import { getAllDashboardDefinitions } from './ui.js?v=c71236d37e51-a84d3554';
 import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
 import { getRegularMembersForCount, formatHM, escapeHtml, showToast, getCurrentTime } from './utils.js?v=65bb3512764f-e315797c';
 import { isLeaveActiveAt } from './lib/leave-timing.js?v=56494f977986-82fd27e6';
@@ -10,7 +10,7 @@ import { renderSuppliesAlert } from './supplies-alert-dash.js?v=3ed4b83fc4a4-e04
 import { canonicalTaskName } from './lib/task-ids.js?v=9c41e71742ef-83b1f46d';
 import { checkMissingQuantities } from './analysis-logic.js?v=ad17bad984b3-0bfe0ae3';
 import { minToHhmm } from './forecast-progress.js?v=dbbe835978a6-40fe586a';
-import { taskPace, combinePace, expectedRatio, rowsForDashboard, paceDoneQty } from './lib/task-pace.js?v=789a330a1e5a-8827e16b';
+import { taskPace, combinePace, expectedRatio, rowsForDashboard, paceDoneQty, endedLooksDone } from './lib/task-pace.js?v=da341b20b6b9-41f49a23';
 import { subscribeShipAuto, morningAutoToday, morningForecastToday } from './ship-auto-sync.js?v=18944e3040fa-fe881227';
 import { isLocRecTask } from './locrec-dash.js?v=b034eb53143e-852ed13e';
 import { locRecDoneToday, refreshLocRecDone } from './locrec-done.js?v=31433d535b69-37785663';   // 로케이션 동선관리 실적 = 변경 추천 표 오늘 완료 건수
@@ -431,7 +431,7 @@ const quantityOpener = () => ['open-quantity-modal-today', 'open-quantity-modal-
  *  오늘 숫자를 받기 전에 열면 빈 칸이 저장될 수 있어 기다린다(app.js #open=quantity 와 같은 규칙). */
 const openQuantityFromCard = async () => {
     try {
-        const { whenTodayLoaded } = await import('./app-sync.js?v=9a5a1aebec3c-68f6c921');
+        const { whenTodayLoaded } = await import('./app-sync.js?v=c71236d37e51-68f6c921');
         const ok = await Promise.race([whenTodayLoaded().then(() => true), new Promise(r => setTimeout(() => r(false), 15000))]);
         if (!ok) { showToast('오늘 데이터를 아직 받지 못해 처리량 입력 창을 열지 않았습니다. 사이드바에서 다시 눌러 주세요.', true); return; }
     } catch (e) { console.warn('[처리량 카드] 오늘 데이터 확인 실패:', e); return; }
@@ -517,7 +517,8 @@ const paceRowView = (row, inp, expected, qtyByTask, open) => {
         const t = inp.tasks[task] || { planQty: 0, uph: 0, working: 0, spentHours: 0, activeHours: 0, started: false, ended: false };
         // 그 업무를 다 끝냈으면(기록 있고 진행·정지 중인 사람 없음) 칸 값을 실적으로 본다 — 저녁 확인값이 아침값과 같아
         // 스크립트가 다시 안 쓰는 날(직진·에이블리·중국제작은 대개 같다) 끝난 일이 '예정'으로 남지 않게
-        let { done: doneQty, autoPending } = paceDoneQty(qtyByTask[task], t.ended && !forecast.has(task) ? undefined : auto[task]);
+        //   단, 잠깐 하고 멈춘 것(쓴 시간이 계획 시간의 70% 미만)은 끝낸 것으로 보지 않는다(endedLooksDone, 2026-11-27)
+        let { done: doneQty, autoPending } = paceDoneQty(qtyByTask[task], t.ended && !forecast.has(task) && endedLooksDone(t) ? undefined : auto[task]);
         // 로케이션 동선관리 — 변경 추천 표에서 오늘 '완료'로 표시한 건수가 실적(시간 어림 안 함, 2026-11-25).
         //   입력한 처리량이 더 크면 그 값. 표를 못 읽었으면(null) 예전처럼 시간 어림
         let tableDone = null;
@@ -631,7 +632,7 @@ const paintWorkloadPaceNow = () => {
     if (!paceMod) {
         if (!paceModLoading) {
             paceModLoading = true;
-            import('./ui-history-prediction.js?v=9a5a1aebec3c-099e2602')
+            import('./ui-history-prediction.js?v=c71236d37e51-099e2602')
                 .then(m => { paceMod = m; paceLastAt = 0; schedulePace(); })
                 .catch(e => console.warn('[처리량 카드] 업무 예상 모듈 로드 실패:', e))
                 .finally(() => { paceModLoading = false; });

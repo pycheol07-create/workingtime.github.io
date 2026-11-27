@@ -5,9 +5,9 @@ import * as DOM from './dom-elements.js?v=2b9f19ecbde2-82fbef91';
 import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
 import { showToast, getCurrentTime, getTodayDateString, showConfirm } from './utils.js?v=65bb3512764f-e315797c';
 import { generateId, debouncedSaveState, updateDailyData } from './app-data.js?v=9a8d4e266c76-c4996a74';
-import { markDataAsDirty } from './app-lifecycle.js?v=c0c47b4823db-be3588c4';
+import { markDataAsDirty } from './app-lifecycle.js?v=3379baf557be-be3588c4';
 import { renderTeamSelectionModalContent } from './ui-modals.js?v=b4294a7e84f2-e0eb0faf';
-import { startWorkGroup, addMembersToWorkGroup, processClockIn } from './app-logic.js?v=1fe8609b9b05-5cd27cd7';
+import { startWorkGroup, addMembersToWorkGroup, processClockIn } from './app-logic.js?v=e8d1ba57f91c-5cd27cd7';
 import { collection, query, where, getDocs, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // 헬퍼 변수 (ui-modals.js renderTeamSelectionModalContent 의 selectedClasses 와 같아야 한다)

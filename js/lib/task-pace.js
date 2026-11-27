@@ -58,6 +58,16 @@ export const MIN_LEFT_FOR_EXTRA_MIN = 30;
 
 /** 진행률에 쓸 '처리한 양' — 칸 값이 오늘 아침 자동 입력값 그대로면 0(아직 처리한 양이 아니라 처리할 양이다).
  *  사람이 고쳤거나(값이 다름) 자동 입력값이 없으면 칸 값 그대로. 반환 { done, autoPending } */
+/** 멈춘(진행·정지 중인 사람 없는) 업무를 '다 끝냈다'고 볼 만한가 — 쓴 인시가 계획 인시(계획 물량 ÷ 1인 UPH)의
+ *  ENDED_DONE_RATIO 이상일 때만(2026-11-27 사용자 요청: 아침에 10분만 하고 멈춘 중국제작이 아침 자동값 그대로 100% 완료로 보였다).
+ *  계획·UPH 를 모르면 예전처럼 끝낸 것으로 본다. 저녁 창(17:40) 뒤에는 아침 자동값 자체가 없어 이 판정이 필요 없다. */
+export const ENDED_DONE_RATIO = 0.7;
+export function endedLooksDone({ planQty, uph, spentHours }) {
+    const plan = Number(planQty) || 0, u = Number(uph) || 0;
+    if (!(plan > 0) || !(u > 0)) return true;
+    return (Number(spentHours) || 0) >= ENDED_DONE_RATIO * (plan / u);
+}
+
 export function paceDoneQty(qty, morningAuto) {
     const q = Math.max(0, num(qty));
     const auto = morningAuto == null ? null : Number(morningAuto);

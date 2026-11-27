@@ -79,8 +79,13 @@ let koVoice = null;
 function pickVoice() {
     try { koVoice = speechSynthesis.getVoices().find(v => /^ko(-|_|$)/i.test(v.lang)) || null; } catch (_) { koVoice = null; }
 }
+// 빈 음성으로 잠금 풀기는 아이폰·아이패드만 — 안드로이드 크롬은 이 소리 없는 음성이 '말하는 중'으로 남아 다음 음성을
+//   cancel() 직후 삼키는 일이 있다(2026-11-27 '안드로이드도 소리 안 남'). 안드로이드는 앞선 탭만 있으면 된다.
+const isIOS = (() => { try { return /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1); } catch (_) { return false; } })();
+let lastUtter = null;   // 크롬이 말하기 전에 음성 객체를 치워 버려 조용해지는 일이 있다 — 참조를 잡아 둔다
 function unlockSpeech() {
     if (speechUnlocked || !hasSpeech()) return;
+    if (!isIOS) { speechUnlocked = true; pickVoice(); return; }
     try {
         pickVoice();
         const u = new SpeechSynthesisUtterance('.');   // 빈 글자는 사파리가 건너뛰어 잠금이 안 풀린다 — 소리 없이 한 글자
@@ -104,10 +109,16 @@ function speak(text) {
         u.lang = 'ko-KR';
         if (koVoice) u.voice = koVoice;
         u.rate = 1.1;
-        // 말하는 중일 때만 끊는다 — cancel() 직후 speak() 가 조용히 무시되는 안드로이드 크롬이 있다
-        if (speechSynthesis.speaking || speechSynthesis.pending) speechSynthesis.cancel();
+        u.volume = 1;
+        lastUtter = u;
         if (speechSynthesis.paused) speechSynthesis.resume();
-        speechSynthesis.speak(u);
+        // 말하는 중이면 끊고 잠깐 뒤에 — cancel() 바로 뒤 speak() 는 안드로이드 크롬이 조용히 버린다
+        if (speechSynthesis.speaking || speechSynthesis.pending) {
+            speechSynthesis.cancel();
+            setTimeout(() => { try { if (lastUtter === u) speechSynthesis.speak(u); } catch (_) { /* 무시 */ } }, 120);
+        } else {
+            speechSynthesis.speak(u);
+        }
     } catch (_) { /* 음성 없음 */ }
 }
 

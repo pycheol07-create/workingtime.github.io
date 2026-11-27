@@ -4,18 +4,18 @@ import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
 import { getWeekOfYear } from './utils.js?v=65bb3512764f-e315797c';
 
 // 💡 실적 예측 함수 불러오기 추가
-import { renderPredictionTab, renderForecastTab } from './ui-history-prediction.js?v=9a5a1aebec3c-099e2602';
-import { fetchAndRenderInspectionHistory } from './listeners-history-inspection.js?v=86f4756d9379-85aca8bb';
+import { renderPredictionTab, renderForecastTab } from './ui-history-prediction.js?v=c71236d37e51-099e2602';
+import { fetchAndRenderInspectionHistory } from './listeners-history-inspection.js?v=7a7c88fc7674-85aca8bb';
 import * as UILeave from './ui-history-leave.js?v=9eba9a2c5565-4c985a8b';
-import { switchHistoryView, renderHistoryDateListByMode, updateGranularityButtons } from './app-history-logic.js?v=b69a52986341-ef63fd43';
-import { setTreeVisible, showPanelLoadError, clearPanelLoadError } from './history-list-controller.js?v=b69a52986341-bba56cb8';
+import { switchHistoryView, renderHistoryDateListByMode, updateGranularityButtons } from './app-history-logic.js?v=622b55524564-ef63fd43';
+import { setTreeVisible, showPanelLoadError, clearPanelLoadError } from './history-list-controller.js?v=622b55524564-bba56cb8';
 import { confirmDiscardManagementEdits } from './ui-history-management.js?v=f7cf514cd049-688719b9';
-import { historyLoadFailed } from './history-data-manager.js?v=9a5a1aebec3c-a9403e97';
+import { historyLoadFailed } from './history-data-manager.js?v=c71236d37e51-a9403e97';
 import { SECTIONS, LEGACY_SECTIONS, TREELESS_SUBS, sectionIdFor, sectionIconSvg } from './history-sections.js?v=2fc2330007e7-1af66818';
 import { saveView } from './view-state.js?v=c2e4bf06fdce-0da8b754';
 import { initPageNav } from './page-nav.js?v=2d9f4a86d931-b8f40ef7';
 import { OPS_MAIN, legacyTarget } from './lib/ops-report-route.js?v=bc1ec7e463eb-3f6f2065';
-import { initOpsReport, openOpsReport, renderOpsReport, leaveOpsReport } from './ui-history-ops-report.js?v=b69a52986341-6727a73f';
+import { initOpsReport, openOpsReport, renderOpsReport, leaveOpsReport } from './ui-history-ops-report.js?v=622b55524564-6727a73f';
 
 // 좌측 트리 단위(globalGranularity) → 각 로우데이터 서브탭의 뷰 이름 매핑
 const SUBTAB_VIEW = {

@@ -7,10 +7,10 @@
 // ('dash-forecast-ready' 이벤트를 받은 뒤 그린다). 이름은 보이지 않는다(인원 수·업무명·숫자만).
 import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
 import { escapeHtml as esc, formatHM, getTodayDateString } from './utils.js?v=65bb3512764f-e315797c';
-import { getStaffingOutlook, getTodayProgressSummary, getTodayTaskPaceInputs } from './ui-history-prediction.js?v=9a5a1aebec3c-099e2602';
+import { getStaffingOutlook, getTodayProgressSummary, getTodayTaskPaceInputs } from './ui-history-prediction.js?v=c71236d37e51-099e2602';
 import { canonicalTaskName } from './lib/task-ids.js?v=9c41e71742ef-83b1f46d';
 import { hhmmToMin } from './lib/long-run.js?v=86da0817a440-f9ae51b8';
-import { workMinutesBetween, paceDoneQty } from './lib/task-pace.js?v=789a330a1e5a-8827e16b';
+import { workMinutesBetween, paceDoneQty } from './lib/task-pace.js?v=da341b20b6b9-41f49a23';
 import { morningAutoToday, morningForecastToday } from './ship-auto-sync.js?v=18944e3040fa-fe881227';
 
 const WD = ['일', '월', '화', '수', '목', '금', '토'];

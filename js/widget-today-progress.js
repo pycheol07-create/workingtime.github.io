@@ -5,8 +5,8 @@
 
 import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
 import { formatHM } from './utils.js?v=65bb3512764f-e315797c';
-import { getTodayProgressSummary, ensureTodayForecastSnapshot, ensureMibalHistory, ensureCorrectCtx } from './ui-history-prediction.js?v=9a5a1aebec3c-099e2602';
-import { fetchDashboardHistoryData, fetchPlannedData } from './history-data-manager.js?v=9a5a1aebec3c-a9403e97';
+import { getTodayProgressSummary, ensureTodayForecastSnapshot, ensureMibalHistory, ensureCorrectCtx } from './ui-history-prediction.js?v=c71236d37e51-099e2602';
+import { fetchDashboardHistoryData, fetchPlannedData } from './history-data-manager.js?v=c71236d37e51-a9403e97';
 import { goTo } from './app-shell-bridge.js?v=b9a7199f3e1d-c80c27e9';
 
 const EL = 'today-progress-strip';
