@@ -910,7 +910,7 @@ function openItemModal(id = null) {
     $('f-order-unit').value = withThousands(it?.orderUnit || '');
     $('f-leadtime').value = it ? (num(it.leadTimeDays) || '') : '';
     $('f-leadtime-unit').value = leadTimeUnitOf(it);
-    $('f-last-order').value = it?.lastOrderDate || '';
+    $('f-last-order').value = it ? lastOrderOf(it) : '';   // [발주함] 기록이 더 늦으면 그 날짜(저장하면 상세 값도 맞춰진다)
     $('f-memo').value = it?.memo || '';
     $('f-main').checked = !!it?.isMain;
     // 입출고 단위·바코드(2단계)
