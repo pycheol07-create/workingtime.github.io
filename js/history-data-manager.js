@@ -16,7 +16,7 @@ import { normalizeAdminWorkers, DEFAULT_ADMIN_WORKERS } from './lib/forecast-exc
 import { buildPlannedDoc } from './lib/planned-fields.js?v=d045515d71d6-6077efa3';
 import { sameTaskKeys, aliasTaskName } from './lib/task-alias-view.js?v=2e131477eb8e-af660ceb';
 // 진행 중 기록을 끝내거나 지울 때 멤버 잠금(activeLocks)도 같이 푼다
-import { writeRecordsReleasingLocks, markLocalWorkEnded } from './app-sync.js?v=c109bb652d92-68f6c921';
+import { writeRecordsReleasingLocks, markLocalWorkEnded } from './app-sync.js?v=ddf9eee26ebd-68f6c921';
 import {
     doc, setDoc, getDoc, getDocFromServer, collection, getDocs, getDocsFromServer,
     deleteDoc, deleteField,

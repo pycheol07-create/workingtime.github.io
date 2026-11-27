@@ -116,7 +116,7 @@
         .list-table { width: 100%; border-collapse: collapse; min-width: 1900px; }
         .list-table th, .list-table td { padding: 5px 8px; text-align: center; border: 1px solid var(--c-line-soft); font-size: 12.5px; line-height: 1.35; white-space: nowrap; font-variant-numeric: tabular-nums; }
         .list-table th { background: var(--c-surface-2); color: var(--c-text-2); position: sticky; top: -1px; z-index: 10; font-weight: 600; }
-        .list-table th:first-child { width: 36px; }   /* No — 열 너비 조절이 인라인 width 를 지우므로 기본 너비는 CSS 에 */
+        .list-table th[data-col="no"] { width: 36px; }   /* No — 열 너비 조절이 인라인 width 를 지우므로 기본 너비는 CSS 에(열 순서를 바꿔도 이름으로) */
         .list-table th.sortable { cursor: pointer; user-select: none; }
         .list-table th.sortable:hover { color: var(--c-accent-deep); }
         /* 열 필터(js/china-mibal2.js setupColFilters · js/table-filter.js 떠 있는 목록) — 이 화면은 Tailwind 가 없어 목록 모양을 여기서 */
@@ -157,6 +157,10 @@
         .list-table.cols-fixed th, .list-table.cols-fixed tr:not(.detail-row) > td { overflow: hidden; text-overflow: ellipsis; }
         .list-table.cols-fixed td.name-cell, .list-table.cols-fixed td.opt-cell, .list-table.cols-fixed td.box-cell { max-width: none; }
         body.col-resizing, body.col-resizing * { cursor: col-resize !important; user-select: none !important; }
+        /* 열 순서 바꾸기(2026-11-27) — 머리글을 마우스로 끌면 놓을 자리에 세로 선(js/china-mibal2.js setupColMove) */
+        .list-table th.col-drag-src { opacity: .45; }
+        .col-drop-mark { position: fixed; width: 3px; background: var(--c-accent); z-index: 60; pointer-events: none; border-radius: 2px; }
+        body.col-dragging, body.col-dragging * { cursor: grabbing !important; user-select: none !important; }
         .list-table td .cap-kind { font-size: 10.5px; color: var(--c-text-3); margin-left: 3px; }
         .list-table tbody tr.diff-some td.diff-cell { background: var(--c-warn-bg); color: var(--c-warn-text); font-weight: 600; }
         .list-table tbody tr.diff-big td { background: var(--c-risk-row); }
@@ -190,6 +194,10 @@
         .cols-list label:hover { background: var(--c-surface-2); }
         .cols-list label.req { color: var(--c-text-3); cursor: not-allowed; }
         .cols-list input { width: 16px; height: 16px; }
+        .cols-item { display: flex; align-items: center; gap: 4px; }
+        .cols-item label { flex: 1; min-width: 0; }
+        .cols-move { display: inline-flex; gap: 2px; }
+        .cols-move .d-btn { padding: 0 6px; min-width: 0; line-height: 20px; font-size: 11px; }
         /* 간단히에서는 기존 계산기와의 차이 색(diff-big)을 빼고, 확인 필요(노랑)만 남긴다 */
         body[data-cols="simple"] .list-table tbody tr.diff-big:not(:hover) td { background: var(--c-surface); }
         body[data-cols="simple"] .list-table tbody tr.diff-big:not(:hover) td.new-mibal { background: var(--c-accent-row); }
@@ -218,30 +226,6 @@
         .loc-table tr.loc-warn td { background: var(--c-warn-bg); }   /* 기존재고 — 파일에 없던 상품 */
         .loc-new { display: inline-block; padding: 0 6px; border-radius: var(--r-pill); background: var(--c-ok-soft); color: var(--c-ok-text); font-weight: 600; }
         .loc-container { overflow: auto; background: var(--c-surface); margin: 0 0 14px 0; border-radius: var(--r-card); border: 1px solid var(--c-line); max-height: 68vh; -webkit-overflow-scrolling: touch; }
-        /* [박스 확인] 창(js/mibal2-boxcheck.js) */
-        .bc-form { display: flex; gap: 8px; margin: 10px 0; }
-        .bc-form input { flex: 1; min-width: 0; font-size: 18px; padding: 10px 12px; border: 2px solid var(--c-line); border-radius: var(--r-sm); }
-        .bc-form input:focus { outline: none; border-color: var(--c-primary, #3B6FD8); }
-        .bc-result { max-height: 48vh; overflow: auto; }
-        .bc-banner { border-radius: var(--r-sm); padding: 14px 16px; margin-bottom: 10px; }
-        .bc-banner.bc-yes { background: var(--c-risk-soft); color: var(--c-risk-text); }
-        .bc-banner.bc-no { background: var(--c-ok-soft); color: var(--c-ok-text); }
-        .bc-banner.bc-ask { background: var(--c-track, #EEF0F4); color: var(--c-text); }
-        .bc-box { font-size: 15px; font-weight: 600; }
-        .bc-say { font-size: 22px; font-weight: 800; margin-top: 2px; }
-        .bc-sub { font-size: 12.5px; margin-top: 4px; opacity: .85; }
-        .bc-warn { font-size: 12.5px; margin-top: 6px; font-weight: 700; color: var(--c-warn-text); }
-        .bc-choices { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
-        .bc-pack { font-weight: 700; font-size: 13px; margin: 10px 0 4px; }
-        .bc-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
-        .bc-table th, .bc-table td { border-bottom: 1px solid var(--c-line-soft); padding: 5px 6px; text-align: left; white-space: nowrap; }
-        .bc-table td:last-child, .bc-table th:last-child { text-align: right; }
-        .bc-table .bc-name { max-width: 260px; overflow: hidden; text-overflow: ellipsis; }
-        .bc-table tr.bc-hit td { background: var(--c-risk-row); font-weight: 600; }
-        .bc-hist { margin: 4px 0 12px; padding-left: 0; list-style: none; font-size: 12.5px; max-height: 120px; overflow: auto; }
-        .bc-hist li { padding: 2px 0; }
-        .bc-hist li.bc-h-yes b { color: var(--c-risk-text); }
-        .bc-hist li.bc-h-no b { color: var(--c-ok-text); }
         .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(35,39,46,0.45); z-index: 10000; justify-content: center; align-items: center; }
         .modal-content { background: var(--c-surface); color: var(--c-text); padding: 25px; border-radius: var(--r-card); width: 450px; box-shadow: var(--sh-pop); }
         .modal-content h3 { font-size: 17px; font-weight: 600; color: var(--c-text); }
@@ -403,9 +387,8 @@
             <input type="checkbox" id="chk-diff-only" style="width:16px; height:16px;"> 차이 있는 행만 보기
         </label>
         <span class="table-bar-right live-only">
-            <button type="button" id="btn-box-check" class="d-btn d-btn-sm" title="박스 라벨을 찍거나 박스 번호를 넣으면 그 박스에 미발 상품이 들었는지 보여 줍니다(고른 출고일의 패킹)">박스 확인</button>
             <button id="btn-excel" class="d-btn d-btn-sm" title="지금 보이는 행(검색·필터·정렬 반영)을 엑셀로 받습니다">엑셀</button>
-            <button type="button" id="btn-cols-set" class="d-btn d-btn-sm" aria-label="열 설정" title="열 설정 — 표에 보일 열을 고릅니다(이 PC 에만 기억). 숨긴 칸도 행을 누르면 나오는 계산 근거와 엑셀에 있습니다&#10;· 행을 누르면 계산 근거(전체 칸)가 펼쳐집니다 · 열 제목을 누르면 정렬">⚙ 열</button>
+            <button type="button" id="btn-cols-set" class="d-btn d-btn-sm" aria-label="열 설정" title="열 설정 — 표에 보일 열을 고릅니다(이 PC 에만 기억). 숨긴 칸도 행을 누르면 나오는 계산 근거와 엑셀에 있습니다&#10;· 행을 누르면 계산 근거(전체 칸)가 펼쳐집니다 · 열 제목을 누르면 정렬 · 열 제목을 마우스로 끌면 순서 바꾸기">⚙ 열</button>
         </span>
     </div>
     <div id="table-notes" class="live-only"></div>
@@ -540,33 +523,17 @@
         </div>
     </div>
 
-    <!-- [박스 확인] — 박스 라벨을 찍으면 그 박스에 미발 상품이 있는지(js/mibal2-boxcheck.js, 읽기만) -->
-    <div id="boxchk-modal" class="modal-overlay">
-        <div class="modal-content" style="width:680px; max-width:96vw;">
-            <h3 style="margin-top:0;">박스 확인 <span class="t-3" style="font-size:12px; font-weight:500;">— <span id="boxchk-dates"></span> · <span id="boxchk-src"></span></span></h3>
-            <form id="boxchk-form" class="bc-form" autocomplete="off">
-                <input id="boxchk-input" type="text" inputmode="text" placeholder="박스 라벨을 찍거나 번호(예: A5, 12)를 넣고 Enter" aria-label="박스 라벨 또는 박스 번호">
-                <button type="submit" class="d-btn d-btn-primary">확인</button>
-            </form>
-            <div id="boxchk-result" class="bc-result"><div class="t-3" style="padding:18px 4px;">스캐너로 박스 라벨을 찍으면 바로 결과가 나옵니다. 계속 찍어도 됩니다.</div></div>
-            <div class="t-3" style="font-size:12px; margin-top:10px;">찍은 기록(이 창에만, 저장 안 함)</div>
-            <ol id="boxchk-hist" class="bc-hist"></ol>
-            <div style="text-align:right; border-top:1px solid var(--c-line-soft); padding-top:12px;">
-                <button type="button" id="btn-boxchk-close" class="d-btn">닫기</button>
-            </div>
-        </div>
-    </div>
-
     <!-- [칸 설정] — 체크한 열만 표에 보인다. 닫으면(닫기·바깥 누름) 바로 반영, 이 PC 에만 기억(js/china-mibal2.js setupColsPick) -->
     <div id="cols-modal" class="modal-overlay">
         <div class="modal-content" style="width:640px; max-width:96vw;">
             <h3 style="margin-top:0;">헤더 설정 <span class="t-3" style="font-size:12px; font-weight:500;">— 이 PC 에만 기억합니다</span></h3>
-            <div class="t-3" style="font-size:12px; line-height:1.6;">체크한 열만 표에 보입니다(순서는 그대로). 회색 열은 꼭 보여야 해서 끌 수 없습니다. 숨긴 칸도 행을 누르면 나오는 계산 근거와 엑셀 받기에는 다 있습니다.</div>
+            <div class="t-3" style="font-size:12px; line-height:1.6;">체크한 열만 표에 보입니다. ▲▼ 로 열 순서를 바꿉니다(표 머리글을 마우스로 끌어도 됩니다 · 엑셀 열 순서는 그대로). 회색 열은 꼭 보여야 해서 끌 수 없습니다. 숨긴 칸도 행을 누르면 나오는 계산 근거와 엑셀 받기에는 다 있습니다.</div>
             <div id="cols-list" class="cols-list"></div>
             <div style="display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end;">
                 <button type="button" id="btn-cols-default" class="d-btn d-btn-sm">기본값으로</button>
                 <button type="button" id="btn-cols-all" class="d-btn d-btn-sm">전체 체크</button>
                 <button type="button" id="btn-cols-none" class="d-btn d-btn-sm" title="필수 열만 남기고 모두 해제합니다">전체 해제</button>
+                <button type="button" id="btn-cols-order-reset" class="d-btn d-btn-sm" title="열 순서만 처음대로 되돌립니다(열 너비·켠 열은 그대로)">열 순서 원래대로</button>
                 <span style="flex:1;"></span>
                 <button type="button" id="btn-cols-close" class="d-btn d-btn-primary">닫기</button>
             </div>
@@ -648,7 +615,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" integrity="sha384-vtjasyidUo0kW94K5MXDXntzOJpQgBKXmE7e2Ga4LG0skTTLeBi97eFAXsqewJjw" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
     <!-- 로그인 게이트는 기존 china-stock-goods.html 과 같은 파일·같은 주소 -->
     <script type="module" src="js/china-stock-gate.js?v=8ec605909d69-d8aba0f9"></script>
-    <script type="module" src="js/china-mibal2.js?v=0b2abd566768-6dc2131a"></script>
+    <script type="module" src="js/china-mibal2.js?v=41768d5fdcb1-63471fb6"></script>
     <script type="module" src="js/page-gate.js?v=91ff5d6d21f9-d1e977d0" data-perm-page="china.mibal2"></script>
     <script type="module" src="js/app-shell.js?v=0ad2923a7c3b-bf6553e1"></script>
 </body>

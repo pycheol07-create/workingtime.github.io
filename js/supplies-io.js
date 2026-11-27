@@ -1,22 +1,27 @@
-// === js/supplies-io.js — 비품 입·출고(supplies-io.html, 2026-11-26 비품관리 앱 기준 전환 3단계) ===
-// 휴대폰으로 비품을 고르고(검색·초성·바코드·자주 쓰는 것) 단위 단추로 수량을 쌓아 목록에 모은 뒤 [저장 및 전송] 한 번으로 원장에 쓴다.
-//   계산(검색·카드·목록·결과 나누기·sessionStorage 모양)은 js/lib/supplies-io.js, 저장은 js/supplies-ledger-store.js commitLines.
-//   스위치 persistent_data/suppliesSettings.ledgerLive 가 true 일 때만 받는다 — 저장 직전에 한 번 더 읽는다.
-// ⚠️ 비품 문서(persistent_data/supplies)는 읽자마자 safeItems 로 id·name·unit·barcodes·units·noSingleOut·favorite 만 남긴다(단가·업체 칸은 버림).
-// 오프라인 대기열은 없다 — 연결이 없으면 [저장 및 전송]을 막고, 목록은 sessionStorage(비품 id·수량·구성 글·전송 대기 묶음 id)에 남긴다.
+// === js/supplies-io.js — 비품 입·출고(supplies-io.html, 2026-11-26 비품관리 앱 기준 전환 3단계 · 2026-11-27 공유 누적) ===
+// 휴대폰으로 비품을 고르고(검색·초성·바코드·자주 쓰는 것·목록 드롭다운) 단위 단추를 누르면 공유 누적 칸에 바로 더한다.
+//   칸 = suppliesIoCart/{in|out}-{비품 id} — 모든 사람이 실시간(onSnapshot)으로 같은 칸을 본다. 같은 비품은 누가 눌러도 한 칸(이중 누적 없음),
+//   다른 비품 칸은 서로 독립. 누름은 트랜잭션(cartPress)이라 동시에 눌러도 잃지 않는다. 쓰기가 실패한 누름은 '반영 안 됨'으로 보이고 내 폰에 쌓아 두지 않는다.
+//   [출고 전송]/[입고 전송] = 고른 비품 칸만 한 트랜잭션에서 원장 기록 + 칸 비움(cartSend). 남이 먼저 보냈으면 칸이 비어 두 번 들어가지 않는다.
+//   입고도 출고와 같은 흐름(2026-11-27 — 공유 누적이라 '내 폰 카드에 모았다가 넣기'가 없다).
+//   음성 안내: 내가 누른 것만, 그 비품 칸의 누적(기본 단위 합 + 단위). 다른 사람 변경은 화면만.
+//   계산(검색·칸 모양·누름 검사·목록 순서)은 js/lib/supplies-io.js, 저장은 js/supplies-ledger-store.js cartPress·cartSend·cartClear.
+//   스위치 persistent_data/suppliesSettings.ledgerLive 가 true 일 때만 받는다 — 전송 직전에 한 번 더 읽는다(규칙도 켜짐일 때만 허용).
+// ⚠️ 비품 문서(persistent_data/supplies)는 읽자마자 safeItems 로 id·name·unit·barcodes·units·noSingleOut·favorite·category·code(비품코드) 만 남긴다(단가·업체 칸은 버림).
+//   칸 문서의 by(이름)는 화면에만 보인다(로그에 남기지 않는다).
 
 import { initializeFirebase } from './config.js?v=242bb63abbe9-dd1665a9';
 import { setShellContext } from './app-shell-bridge.js?v=b9a7199f3e1d-c80c27e9';
 import { memberNameFor } from './app-shell-data.js?v=e42c6a10ca7a-9319c795';
 import { escapeHtml as esc, showConfirm, showAlert } from './utils.js?v=65bb3512764f-e315797c';
 import { findByBarcode } from './lib/supplies-units.js?v=38146ad5b84d-33598b26';
-import { isLive } from './lib/supplies-mode.js?v=5f016d6adc90-90c9a625';
+import { isLive, atMs } from './lib/supplies-mode.js?v=5f016d6adc90-90c9a625';
 import { ledgerErrorText } from './lib/supplies-ledger.js?v=44c94c8b86ad-92d65f68';
-import { newBatchId, loadStock, commitLines, ledgerEntriesOnServer } from './supplies-ledger-store.js?v=d18800c379ed-8adb83c4';
+import { newBatchId, loadStock, watchCart, cartPress, cartSend, cartClear, cartEntryId, ledgerEntryOnServer } from './supplies-ledger-store.js?v=a62e379586ce-61b761c2';
 import {
-    safeItems, searchItems, favoriteItems, looksLikeBarcode, hangulBarcodeHint, burstCode, cardSummary, pressUnit, listQtyOf, projected, cardBlockReason,
-    addLine, removeLine, planSend, idsToCheck, readResult, afterFailure, toSession, fromSession, fmt, baseUnit, SESSION_KEY
-} from './lib/supplies-io.js?v=f9a9017b1958-9f0e7939';
+    safeItems, searchItems, favoriteItems, looksLikeBarcode, hangulBarcodeHint, burstCode, cardSummary, fmt, baseUnit, SESSION_KEY,
+    dropdownGroups, speechText, slotId, slotOf, countsDesc, pressSlot, slotRows, otherDirCount, slotEmptiedBy, agoText, slotIsOld
+} from './lib/supplies-io.js?v=61c6b531ea4a-780e0e48';
 import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
@@ -33,30 +38,48 @@ let byId = new Map();
 let stock = {};            // { itemId: qty } 원장 재고
 let stockOk = false;
 let live = null;           // null = 아직 모름(못 읽음), true/false
+let liveAtMs = NaN;        // 앱 기준을 (다시) 켠 시각 — 그보다 먼저 쌓인 칸은 전송·이어 쌓기 막음(비우기만)
+let loaded = false;        // 첫 불러오기가 끝났나(그 전에는 이름이 와도 다시 그리지 않는다)
+let memberEmails = null;   // mainConfig.memberEmails — 칸을 누른·보낸 사람 이름은 byEmail 로 여기서 찾는다(메모리에만)
 let dir = 'out';
-let list = [];             // [{ itemId, qty, desc }]
-let pending = null;        // 저장됐는지 모르는 앞 전송 { dir, batchId, lines, remainKey } — 같은 목록이면 같은 batchId 로 다시
 let selId = null;          // 카드에 고른 비품
-let counts = {};           // { 단위 qty: 누른 횟수 }
-let busy = false;
+let slots = new Map();     // 공유 누적 칸 { slotId: slotOf(...) } — onSnapshot 이 채운다
+let cartOk = false;        // 칸 구독이 한 번이라도 서버 값을 받았나
+let cartErr = '';          // 구독 오류 안내
+let unwatch = null;
+let pressing = 0;          // 쓰는 중인 누름 수(그동안 [전송]을 막는다 — 마지막 누름이 빠진 채 보내지 않게)
+let pressWhy = '';         // 방금 누름이 막히거나 실패한 이유
+let flashId = null;        // 누적 칸에서 잠깐 강조할 비품(방금 누름)
+let busy = false;          // 전송 중
+let selectFor = null;      // 드롭다운을 그린 items(같으면 다시 안 그림 — 펼친 목록이 닫히지 않게)
 let me = { email: '', name: '' };
 let asking = 0;            // 앱 확인창·안내창이 떠 있는 수 — 그동안 카메라 스캔 결과는 버린다
 const HANGUL_TEXT = '바코드가 한글로 들어왔습니다 — 한/영 키를 영문으로 바꾼 뒤 다시 스캔하세요.';
-const PENDING_TEXT ='앞 전송이 저장됐는지 확인하지 못했습니다 — 목록을 그대로 두고 먼저 [다시 전송]을 누르세요(두 번 들어가지 않습니다). 실물 출고를 취소했다면 연결된 뒤 [다시 전송]으로 결과를 확인하고, 저장됐으면 비품 관리 화면 이력에서 [되돌리기]를 누르세요.';
 
 const nameOf = (id) => (byId.get(id) ? byId.get(id).name : '(알 수 없는 비품)');
+// 사람 이름 — byEmail → memberEmails(비품관리 이력과 같은 방식). 모르면 '다른 사람'
+const personOf = (email) => (email && email === me.email ? '나' : (memberNameFor(memberEmails, email) || '다른 사람'));
+const OLD_TEXT = '앱 기준을 다시 켜기 전에 쌓인 칸입니다 — [비우기] 한 뒤 다시 쌓아 주세요.';
 const unitOf = (id) => baseUnit(byId.get(id));
 const dirWord = () => (dir === 'out' ? '출고' : '입고');
-const hasCounts = () => Object.values(counts).some(n => n > 0);
+const slotFor = (id) => slots.get(slotId(dir, id)) || null;
 const ask = async (fn) => { asking++; try { return await fn(); } finally { asking--; } };
 const confirmBox = (msg, opts) => ask(() => showConfirm(msg, opts));
 const alertBox = (msg, opts) => ask(() => showAlert(msg, opts));
 // 찾기 칸으로 초점 — USB 스캐너용(PC). 터치 화면(휴대폰)은 화면 키보드가 올라와 가리므로 옮기지 않는다(2026-11-26)
 const isTouch = () => { try { return matchMedia('(pointer: coarse)').matches; } catch (_) { return false; } };
 const focusSearch = () => { if (!scanner && !isTouch() && !$('si-work').hidden) $('si-search').focus(); };
-
-function saveSession() {
-    try { sessionStorage.setItem(SESSION_KEY, toSession(dir, list, pending)); } catch (_) { /* 저장소 막힘 — 이번 화면만 */ }
+const online = () => navigator.onLine !== false;
+// 음성 안내 — 앞 음성은 끊고 새로. 지원 안 되거나 막히면 조용히 넘어간다
+function speak(text) {
+    try {
+        if (!window.speechSynthesis || typeof SpeechSynthesisUtterance === 'undefined') return;
+        const u = new SpeechSynthesisUtterance(text);
+        u.lang = 'ko-KR';
+        u.rate = 1.1;
+        speechSynthesis.cancel();
+        speechSynthesis.speak(u);
+    } catch (_) { /* 음성 없음 */ }
 }
 
 function setMsg(text, ok = false) {
@@ -66,11 +89,20 @@ function setMsg(text, ok = false) {
     el.hidden = !text;
 }
 
+function showResult(cls, html) {
+    const box = $('si-result');
+    box.className = `si-result ${cls}`;
+    box.innerHTML = html;
+    box.hidden = false;
+}
+
 // ───────── 불러오기 ─────────
 async function loadSettings() {
     try {
         const s = await getDoc(SETTINGS_REF);
-        live = isLive(s.exists() ? s.data() : null);
+        const d = s.exists() ? s.data() : null;
+        live = isLive(d);
+        liveAtMs = live ? atMs(d.liveAt) : NaN;
     } catch (e) {
         console.warn('[supplies-io] 재고 기준 설정 읽기 실패:', e && e.code);
         live = null;
@@ -85,8 +117,10 @@ async function loadStockNow() {
 
 async function loadAll() {
     $('si-error').hidden = true;
+    // 2026-11-26 판의 '내 폰 목록'(sessionStorage) — 공유 누적으로 바뀌어 더 쓰지 않는다
+    try { sessionStorage.removeItem(SESSION_KEY); } catch (_) { /* 저장소 막힘 */ }
     await loadSettings();
-    if (live !== true) { items = []; byId = new Map(); return; }
+    // 꺼짐이어도 비품 이름·누적 칸은 읽는다 — 남은 칸을 비울 수 있게(다시 켰을 때 옛 칸이 전송되지 않도록)
     try {
         const snap = await getDoc(ITEMS_REF);
         items = safeItems(snap.exists() ? snap.data().items : []);   // 단가·업체 등은 여기서 버린다
@@ -96,17 +130,38 @@ async function loadAll() {
         items = []; byId = new Map();
         showError('비품 목록을 불러오지 못했습니다 — 새로고침해 주세요.');
     }
+    startWatch();
+    if (live !== true) return;
     await loadStockNow();
     if (!stockOk) showError('앱 재고를 불러오지 못했습니다 — 새로고침한 뒤 다시 해 주세요.');
-    let saved = null;
-    try { saved = sessionStorage.getItem(SESSION_KEY); } catch (_) { saved = null; }
-    if (saved) {
-        const r = fromSession(saved, new Set(byId.keys()));
-        dir = r.dir; list = r.list; pending = r.pending;
-        if (r.dropped) setMsg(`저장 전 목록 중 ${r.dropped}건은 비품을 찾지 못해 뺐습니다.`);
-        saveSession();
-    }
 }
+
+// 공유 누적 칸 구독 — 바뀔 때마다 다시 그린다. 내가 고른 칸을 남이 전송·비웠으면 짧게 알린다(이름은 화면에만)
+function startWatch() {
+    if (unwatch) return;
+    unwatch = watchCart(db, (docs, qs) => {
+        const next = new Map();
+        for (const d of docs) { const s = slotOf(d.id, d.data); if (s) next.set(s.id, s); }
+        if (selId) {
+            const k = slotId(dir, selId);
+            const why = slotEmptiedBy(slots.get(k), next.get(k), me.email);
+            if (why) {
+                const who = personOf(why.byEmail);
+                setMsg(`${nameOf(selId)} — ${who === '다른 사람' ? '다른 사람이' : who + '님이'} ${why.kind === 'sent' ? `${dirWord()} 전송했습니다` : '비웠습니다'}.`);
+            }
+        }
+        slots = next;
+        if (!qs.metadata.fromCache) { cartOk = true; cartErr = ''; }
+        renderAll();
+    }, (e) => {
+        console.warn('[supplies-io] 누적 칸 구독 실패:', e && e.code);
+        cartOk = false;
+        cartErr = '누적 칸을 불러오지 못했습니다 — 새로고침해 주세요.';
+        unwatch = null;
+        renderAll();
+    });
+}
+function stopWatch() { if (unwatch) { unwatch(); unwatch = null; } slots = new Map(); cartOk = false; }
 
 function showError(text) {
     const el = $('si-error');
@@ -132,11 +187,26 @@ function renderAll() {
     $('si-work').hidden = live !== true;
     $('si-scan').disabled = live !== true;
     if (live !== true && scanner) stopScan();
+    renderLeftovers();
     if (live !== true) return;
     renderResults();
+    renderSelect();
     renderFavs();
     renderCard();
-    renderList();
+    renderAcc();
+}
+
+// 꺼짐일 때 남은 누적 칸(입고·출고 모두) — 비우기만 된다. 켜짐이면 숨김
+function renderLeftovers() {
+    const box = $('si-off-left');
+    const rows = live === false ? [...slots.values()].filter(s => s.qty > 0) : [];
+    box.hidden = !rows.length;
+    if (!rows.length) { box.innerHTML = ''; return; }
+    box.innerHTML = `<div class="si-small"><b>남은 누적 칸 ${rows.length}건</b> — 원장에는 안 들어갔습니다. 다시 켰을 때 옛 수량이 전송되지 않도록 비워 주세요.</div>`
+        + '<ul class="si-acc-list">' + rows.map(r => `<li class="si-acc-li" data-left="${esc(r.id)}"><span class="si-acc-name">${esc(nameOf(r.itemId))}`
+            + `<span class="si-acc-meta">${r.dir === 'out' ? '출고' : '입고'} · ${esc(personOf(r.byEmail))} · ${esc(agoText(r.atMs))}</span></span>`
+            + `<span class="si-acc-qty num">${r.dir === 'out' ? '−' : '+'}${esc(fmt(r.qty))}${esc(unitOf(r.itemId))}</span>`
+            + `<button type="button" class="si-x" data-clear="${esc(r.itemId)}" data-clear-dir="${esc(r.dir)}" aria-label="${esc(nameOf(r.itemId))} 누적 비우기">✕</button></li>`).join('') + '</ul>';
 }
 
 const stockLabel = (id) => (stockOk ? `${fmt(stock[id] || 0)}${unitOf(id)}` : '재고 ?');
@@ -152,6 +222,16 @@ function renderResults() {
     box.hidden = false;
 }
 
+// 목록 드롭다운 — 분류별 묶음(optgroup), 이름순, 비품코드 같이. 고르면 검색으로 고른 것과 같은 pick()
+function renderSelect() {
+    if (selectFor === items) return;
+    selectFor = items;
+    const groups = dropdownGroups(items);
+    $('si-select').innerHTML = `<option value="">목록에서 고르기 (${items.length}개)</option>`
+        + groups.map(g => `<optgroup label="${esc(g.category)}">${g.items.map(x => `<option value="${esc(x.id)}">${esc(x.label)}</option>`).join('')}</optgroup>`).join('');
+    $('si-select').value = '';
+}
+
 function renderFavs() {
     const favs = favoriteItems(items);
     $('si-favs').innerHTML = favs.length
@@ -159,66 +239,118 @@ function renderFavs() {
         : '<span class="si-small t-2">자주 쓰는 비품이 없습니다(비품 관리 상세에서 표시)</span>';
 }
 
+/** 전송 단추를 막는 이유('' = 켤 수 있음) */
+function sendBlock(sl) {
+    if (!online()) return '인터넷 연결이 없습니다 — 연결된 뒤 다시 눌러 주세요(누적은 공유 칸에 남아 있습니다).';
+    if (!stockOk) return '재고를 불러오지 못해 막았습니다 — 새로고침해 주세요.';
+    if (!cartOk) return cartErr || '누적 칸을 불러오는 중입니다…';
+    if (pressing) return '방금 누른 것을 반영하는 중…';
+    if (slotIsOld(sl, liveAtMs) && sl.qty) return OLD_TEXT;
+    return '';
+}
+
 function renderCard() {
     const card = $('si-card');
     const it = selId ? byId.get(selId) : null;
     if (!it) { card.hidden = true; return; }
     card.hidden = false;
+    const sl = slotFor(it.id);
+    const counts = sl && sl.qty ? sl.counts : {};
     const sum = cardSummary(it, counts, dir);
+    const total = sl ? sl.qty : 0;
     const now = stock[it.id] || 0;
-    const inList = listQtyOf(list, it.id);
-    const after = projected(now, inList, sum.total || 0, dir);
+    const after = dir === 'in' ? now + total : now - total;
     const unit = baseUnit(it);
     $('si-card-name').textContent = it.name;
     const st = $('si-card-stock');
     st.innerHTML = stockOk
-        ? `재고 <b>${esc(fmt(now))}</b> → 저장 후 <b>${esc(fmt(after))}</b> ${esc(unit)}${inList ? ` <span class="si-small">(목록 ${dir === 'out' ? '−' : '+'}${esc(fmt(inList))} 포함)</span>` : ''}`
+        ? `재고 <b>${esc(fmt(now))}</b> → 전송 후 <b>${esc(fmt(after))}</b> ${esc(unit)}`
         : '재고를 불러오지 못했습니다';
     st.classList.toggle('short', stockOk && after < 0);
-    $('si-units').innerHTML = sum.buttons.map(u => `<button type="button" class="si-unit${u.n ? ' on' : ''}" data-unit="${u.qty}">`
+    $('si-card-who').textContent = sl && sl.qty && sl.byEmail !== me.email
+        ? `같이 쌓는 중 — 마지막 ${personOf(sl.byEmail)} · ${agoText(sl.atMs)}` : '';
+    $('si-units').innerHTML = sum.buttons.map(u => `<button type="button" class="si-unit${u.n ? ' on' : ''}" data-unit="${u.qty}"${busy ? ' disabled' : ''}>`
         + `<span class="si-unit-name">${esc(u.name)}</span><span class="si-unit-base num">${esc(fmt(u.qty))}${esc(unit)}</span>`
         + (u.n ? `<span class="si-unit-n">×${u.n}</span>` : '') + '</button>').join('');
-    $('si-calc').textContent = sum.text;
-    const why = !stockOk ? '재고를 불러오지 못해 막았습니다 — 새로고침해 주세요.'
-        : pending ? '앞 전송 결과를 확인하지 못해 목록에 더 넣을 수 없습니다 — 먼저 [다시 전송]을 누르세요.'
-        : cardBlockReason(sum, now, inList, dir);
-    const add = $('si-add');
-    add.textContent = dirWord();
-    add.disabled = !!why || busy;
-    $('si-add-why').textContent = sum.parts.length || pending ? why : '';
+    const desc = countsDesc(it, counts, dir);
+    $('si-calc').textContent = total ? `${desc} = ${fmt(total)}${unit}` : '';
+    $('si-add-why').textContent = pressWhy || (pressing ? '반영하는 중…' : '');
+    const save = $('si-save');
+    const why = sendBlock(sl);
+    save.textContent = busy ? '전송하는 중…' : total ? `${dirWord()} 전송 (${fmt(total)}${unit})` : `${dirWord()} 전송`;
+    save.disabled = busy || !!why || !total;
+    $('si-save-why').textContent = why;
+    $('si-reset').disabled = busy || !total;
 }
 
-function renderList() {
-    $('si-list-title').textContent = list.length ? `${dirWord()}할 것 ${list.length}건 — 아직 저장 전` : `${dirWord()}할 것 0건`;
+// 누적 칸 — 이 방향의 비품별 공유 칸(모든 사람). 고른 비품 강조, 다른 줄은 마지막 누른 사람·시각·진행 중/오래됨, 누르면 그 비품으로
+function renderAcc() {
+    const rows = slotRows(slots.values(), dir, selId, me.email, Date.now(), liveAtMs);
     const sign = dir === 'out' ? '−' : '+';
-    $('si-list').innerHTML = list.length
-        ? list.map(l => `<li class="si-li" data-line="${esc(l.itemId)}"><div class="si-li-main"><div class="si-li-name">${esc(nameOf(l.itemId))}</div>`
-            + `<div class="si-li-desc">${esc(l.desc || '')}</div></div><span class="si-li-qty num">${sign}${esc(fmt(l.qty))}${esc(unitOf(l.itemId))}</span>`
-            + `<button type="button" class="si-x" data-remove="${esc(l.itemId)}" aria-label="${esc(nameOf(l.itemId))} 빼기"${pending || busy ? ' disabled' : ''}>✕</button></li>`).join('')
-        : '<li class="si-li-empty">비품을 고르고 단위 단추를 누른 뒤 [' + dirWord() + ']를 누르면 여기에 모입니다.</li>';
-    const save = $('si-save');
-    save.textContent = busy ? '저장하는 중…' : pending ? `다시 전송 (${list.length}건)` : `저장 및 전송 (${list.length}건)`;
-    const online = navigator.onLine !== false;
-    let why = '';
-    if (!online) why = '인터넷 연결이 없습니다 — 연결된 뒤 다시 눌러 주세요(목록은 이 화면에 남아 있습니다).';
-    else if (!stockOk && list.length) why = '재고를 불러오지 못해 막았습니다 — 새로고침해 주세요(목록은 남아 있습니다).';
-    else if (pending) why = PENDING_TEXT;
-    // pending 이 있으면 화면 목록이 비어 보여도(세션에서 모르는 비품이 빠진 경우) 다시 보낼 수 있게 켠다
-    save.disabled = busy || (!list.length && !pending) || !online || !stockOk;
-    $('si-save-why').textContent = why;
+    $('si-acc-title').textContent = `누적 — ${dirWord()} ${rows.length}건`;
+    const fl = flashId;
+    flashId = null;   // 강조는 한 번만(다시 그리면 사라진다)
+    $('si-acc').innerHTML = !cartOk && !rows.length
+        ? `<li class="si-acc-empty">${esc(cartErr || '불러오는 중…')}</li>`
+        : rows.length
+        ? rows.map(r => {
+            const it = byId.get(r.itemId);
+            const desc = it ? countsDesc(it, r.counts, dir) : '';
+            const meta = `${esc(personOf(r.byEmail))} · ${esc(agoText(r.atMs))}`
+                + (r.selected ? ' · 고른 비품' : ' · 진행 중') + (r.old ? ' · <span class="stale">켜기 전 칸</span>' : r.stale ? ' · <span class="stale">오래됨</span>' : '');
+            return `<li class="si-acc-li${r.selected ? ' cur' : ''}${r.itemId === fl ? ' flash' : ''}" data-acc="${esc(r.itemId)}">`
+                + `<button type="button" class="si-acc-pick" data-pick="${esc(r.itemId)}"><span class="si-acc-name">${esc(nameOf(r.itemId))}`
+                + `<span class="si-acc-desc">${esc(desc)}</span><span class="si-acc-meta">${meta}</span></span>`
+                + `<span class="si-acc-qty num">${sign}${esc(fmt(r.qty))}${esc(unitOf(r.itemId))}</span></button>`
+                + `<button type="button" class="si-x" data-clear="${esc(r.itemId)}" aria-label="${esc(nameOf(r.itemId))} 누적 비우기"${busy ? ' disabled' : ''}>✕</button></li>`;
+        }).join('')
+        : '<li class="si-acc-empty">비품을 고르고 단위 단추를 누르면 여기에 쌓입니다(모든 사람이 같이 봅니다).</li>';
+    const other = otherDirCount(slots.values(), dir);
+    const o = $('si-acc-other');
+    o.textContent = other ? `${dir === 'out' ? '입고' : '출고'} 쪽에 쌓는 중인 비품 ${other}건이 있습니다.` : '';
+    o.hidden = !other;
+}
+
+/** 단위 단추 한 번 — 공유 칸에 트랜잭션으로 더한다. 성공하면 그 칸 누적을 읽어 준다(내가 누른 것만) */
+async function pressUnitBtn(qty) {
+    const it = selId ? byId.get(selId) : null;
+    if (!it || busy) return;
+    if (!online()) { pressWhy = '인터넷 연결이 없어 반영하지 않았습니다 — 연결된 뒤 다시 눌러 주세요.'; renderCard(); return; }
+    if (!cartOk) { pressWhy = cartErr || '누적 칸을 불러오는 중입니다 — 잠시 뒤 다시 눌러 주세요.'; renderCard(); return; }
+    if (slotIsOld(slotFor(it.id), liveAtMs) && slotFor(it.id).qty) { pressWhy = OLD_TEXT; renderCard(); return; }
+    const d0 = dir;
+    pressing++;
+    pressWhy = '';
+    renderCard();
+    try {
+        const r = await cartPress(db, d0, it.id, me, (data, stockNow) => {
+            const cur = slotOf(slotId(d0, it.id), data);
+            if (slotIsOld(cur, liveAtMs) && cur.qty) return { why: OLD_TEXT };   // 트랜잭션에서 읽은 칸으로 한 번 더
+            return pressSlot(cur, qty, d0, stockNow);
+        });
+        if (!r.ok) { pressWhy = r.why; return; }
+        flashId = it.id;
+        $('si-result').hidden = true;
+        if (d0 === dir && selId === it.id) speak(speechText(r.qty, baseUnit(it)));
+    } catch (e) {
+        console.warn('[supplies-io] 누름 쓰기 실패:', e && e.code);
+        pressWhy = e && e.code === 'permission-denied'
+            ? '반영하지 못했습니다 — 비품 권한이 없거나 방금 앱 기준이 꺼졌습니다(새로고침해서 확인).'
+            : '방금 누른 것은 반영되지 않았습니다 — 연결을 확인한 뒤 다시 눌러 주세요.';
+    } finally {
+        pressing--;
+        renderAll();
+    }
 }
 
 // ───────── 고르기 ─────────
-async function pick(id) {
+function pick(id) {
     const it = byId.get(id);
     if (!it) return;
-    if (selId && selId !== id && hasCounts()) {
-        const ok = await confirmBox(`'${nameOf(selId)}'에 넣던 수량을 버리고 '${it.name}'(으)로 바꿀까요?`, { title: '비품 바꾸기', okText: '바꾸기' });
-        if (!ok) return;
-    }
-    if (selId !== id) counts = {};
     selId = id;
+    pressWhy = '';
     $('si-search').value = '';
+    $('si-select').value = '';
     setMsg('');
     renderAll();
 }
@@ -242,101 +374,111 @@ function handleCode(raw, fromCamera = false) {
     }
 }
 
-// ───────── 카드 → 목록 ─────────
-function addToList() {
-    const it = selId ? byId.get(selId) : null;
-    if (!it || busy || !stockOk || pending) return;
-    const sum = cardSummary(it, counts, dir);
-    if (cardBlockReason(sum, stock[it.id] || 0, listQtyOf(list, it.id), dir)) return;
-    list = addLine(list, { itemId: it.id, qty: sum.total, desc: sum.desc });
-    selId = null; counts = {};
-    $('si-result').hidden = true;
-    saveSession();
-    setMsg(`${it.name} ${fmt(sum.total)}${baseUnit(it)}를 목록에 넣었습니다.`, true);
-    renderAll();
-    focusSearch();
-}
-
-async function switchDir(to) {
+// 입고·출고 바꾸기 — 칸은 방향마다 따로라 비울 것이 없다(공유 칸은 그대로 남는다)
+function switchDir(to) {
     if (to === dir || busy) return;
-    if (pending) { alertBox(PENDING_TEXT, { title: '입고·출고 바꾸기' }); return; }
-    if (list.length || hasCounts()) {
-        const what = list.length ? `저장 전 목록 ${list.length}건` : '고르던 수량';
-        const ok = await confirmBox(`${what}을 비우고 ${to === 'out' ? '출고' : '입고'}로 바꿀까요?`, { title: '입고·출고 바꾸기', okText: '비우고 바꾸기', danger: true });
-        if (!ok) return;
-        list = []; pending = null; counts = {};
-    }
     dir = to;
+    pressWhy = '';
     $('si-result').hidden = true;
-    saveSession();
     renderAll();
 }
 
-// ───────── 저장 및 전송 ─────────
-const errText = (e) => {
-    // permission-denied = 비품 권한이 없거나, 그사이 관리자가 앱 기준(스위치)을 껐다(규칙이 막음)
-    if (e && e.reason === 'write') return e.code === 'permission-denied' ? '저장하지 못했습니다 — 비품 관리 권한이 없거나, 방금 앱 기준이 꺼졌습니다(새로고침해서 확인).' : `저장하지 못했습니다(${e.code || '연결 확인'}).`;
-    return ledgerErrorText(e, nameOf);
-};
-const lineLi = (l) => `<li>${esc(nameOf(l.itemId))} ${dir === 'out' ? '−' : '+'}${esc(fmt(l.qty))}${esc(unitOf(l.itemId))}</li>`;
+// [이 칸 비우기] — 모두에게 비워진다(확인창). 꺼짐이어도 된다(남은 칸 정리). 그사이 누가 더 눌렀으면 새 수량으로 다시 묻는다
+async function clearSlot(itemId, dirX = dir) {
+    const word = dirX === 'out' ? '출고' : '입고';
+    let sl = slots.get(slotId(dirX, itemId)) || null;
+    if (busy || !sl || !sl.qty) return;
+    let seenRev = sl.rev, qty = sl.qty;
+    for (let round = 0; round < 3; round++) {
+        const whoTxt = sl && sl.byEmail !== me.email ? `\n마지막으로 ${personOf(sl.byEmail)}님이 ${agoText(sl.atMs)} 눌렀습니다.` : '';
+        const head = round ? `그사이 늘었습니다(새 합계 ${fmt(qty)}${unitOf(itemId)}).\n` : '';
+        const ok = await confirmBox(`${head}'${nameOf(itemId)}' ${word} 누적 ${fmt(qty)}${unitOf(itemId)}를 비울까요?\n모든 사람 화면에서 비워집니다(원장에는 안 들어감).${whoTxt}`,
+            { title: '누적 비우기', okText: '비우기', danger: true });
+        if (!ok) return;
+        let r;
+        try { r = await cartClear(db, dirX, itemId, me, seenRev); }
+        catch (e) {
+            console.warn('[supplies-io] 비우기 실패:', e && e.code);
+            alertBox('비우지 못했습니다 — 연결을 확인한 뒤 다시 해 주세요.', { title: '비우기', isError: true });
+            return;
+        }
+        if (r.ok) { setMsg(`${nameOf(itemId)} 누적을 비웠습니다.`, true); return; }
+        seenRev = r.rev; qty = r.qty; sl = slots.get(slotId(dirX, itemId)) || sl;   // 'moved' — 새 수량으로 다시 묻는다
+    }
+}
+
+// ───────── 전송(고른 비품 칸만) ─────────
+const errText = (e) => ledgerErrorText(e, nameOf);
 
 async function save() {
-    if (busy || (!list.length && !pending)) return;
-    if (navigator.onLine === false) { renderList(); return; }
+    const it = selId ? byId.get(selId) : null;
+    const sl = it ? slotFor(it.id) : null;
+    if (busy || !it || !sl || !sl.qty || sendBlock(sl)) return;
+    const d0 = dir, unit = baseUnit(it);
+    const word = d0 === 'out' ? '출고' : '입고', sign = d0 === 'out' ? '−' : '+';
     busy = true;
     renderAll();
-    const box = $('si-result');
     try {
-        // 저장 직전에 스위치를 다시 본다 — 그사이 관리자가 껐으면 쓰지 않는다
-        //   못 읽으면 화면 상태(live)는 그대로 두고 이번 저장만 멈춘다(목록·다시 전송 단추가 사라지지 않게)
+        // 전송 직전에 스위치를 다시 본다 — 그사이 관리자가 껐으면 쓰지 않는다
         let nowLive = null;
         try { const s = await getDoc(SETTINGS_REF); nowLive = isLive(s.exists() ? s.data() : null); }
         catch (e) { console.warn('[supplies-io] 재고 기준 설정 다시 읽기 실패:', e && e.code); }
         if (nowLive !== true) {
             if (nowLive === false) live = false;
-            busy = false;
-            renderAll();
-            if (nowLive === null) alertBox('재고 기준 설정을 읽지 못해 저장하지 않았습니다 — 연결을 확인한 뒤 다시 눌러 주세요.', { title: '저장 안 함', isError: true });
+            else alertBox('재고 기준 설정을 읽지 못해 전송하지 않았습니다 — 연결을 확인한 뒤 다시 눌러 주세요.', { title: '전송 안 함', isError: true });
             return;
         }
-        const shown = list.slice();
-        const sent = planSend(dir, shown, pending, newBatchId);
-        let r;
-        try { r = await commitLines(db, sent.lines, dir, me, sent.batchId); }
-        catch (e) { r = { parts: [{ ok: false, errors: [{ itemId: '', reason: 'write', code: e && e.code }] }] }; }
-        let res = readResult(sent.lines, r.parts, sent.batchId);
-        if (!res.allOk && res.uncertain) {
-            // 연결 오류 — 안 된 덩어리의 기록 id 를 서버에서 하나씩 확인한다(캐시는 안 믿음 — 오프라인이면 빈 사본으로 '없음' 이 된다).
-            // 하나라도 못 읽으면 '모름' 그대로 → pending 으로 같은 batchId 를 다시 쓰게
-            try {
-                const found = await ledgerEntriesOnServer(db, idsToCheck(sent.lines, r.parts, sent.batchId));
-                res = readResult(sent.lines, r.parts, sent.batchId, found);
-            } catch (e) { console.warn('[supplies-io] 저장 확인 읽기 실패:', e && e.code); }
+        // 화면이 본 rev 로 보낸다 — 그사이 누가 더 눌렀으면(moved) 새 합계로 다시 묻는다(전송 단추 수량 = 원장 수량)
+        let seenRev = sl.rev, r = null, unknown = false, bid = '';
+        for (let round = 0; round < 3; round++) {
+            bid = newBatchId();
+            r = null;
+            try { r = await cartSend(db, d0, it.id, me, bid, seenRev); }
+            catch (e) {
+                console.warn('[supplies-io] 전송 쓰기 실패:', e && e.code);
+                if (e && e.code === 'permission-denied') r = { ok: false, reason: 'denied' };
+                else {
+                    // 연결 오류 — 이 묶음의 원장 기록이 서버에 있는지로 판정한다(트랜잭션이라 기록이 있으면 칸도 같이 비워졌다).
+                    //   칸의 sent 는 그 뒤 누름이 칸을 다시 쓰면 사라지므로 보지 않는다. 수량도 기록에서 읽는다
+                    try {
+                        const en = await ledgerEntryOnServer(db, cartEntryId(bid, it.id));
+                        r = en ? { ok: true, qty: Math.abs(Number(en.qty) || 0) } : { ok: false, reason: 'notsent' };
+                    } catch (e2) { unknown = true; }
+                }
+            }
+            if (unknown || !r || r.reason !== 'moved') break;
+            busy = false; renderAll();
+            const again = await confirmBox(`그사이 늘었습니다(새 합계 ${fmt(r.qty)}${unit}).\n'${it.name}' ${fmt(r.qty)}${unit}를 ${word} 전송할까요?`,
+                { title: `${word} 전송`, okText: '전송' });
+            busy = true; renderAll();
+            if (!again) { r = { ok: false, reason: 'cancel' }; break; }
+            seenRev = r.rev;
         }
-        const savedShown = shown.filter(l => res.saved.includes(l.itemId));
-        if (res.allOk) {
-            list = []; pending = null; selId = null; counts = {};
-            box.className = 'si-result ok';
-            box.innerHTML = `<b>저장했습니다</b> — ${dirWord()} ${savedShown.length}건<ul>${savedShown.map(lineLi).join('')}</ul>`
-                + (res.already ? '<div>이미 저장돼 있던 것은 두 번 들어가지 않았습니다.</div>' : '');
+        if (unknown) {
+            showResult('bad', `<b>전송됐는지 확인하지 못했습니다</b> — ${esc(it.name)}<div>연결된 뒤 비품 관리 화면 이력(원장)을 보세요. 기록이 없으면 다시 [${word} 전송]을 누르면 됩니다(누적 칸이 남아 있으면 아직 안 들어간 것입니다 — 두 번 들어가지 않습니다).</div>`);
+        } else if (r.ok) {
+            showResult('ok', `<b>${word} 전송했습니다</b> — ${esc(it.name)} ${sign}${esc(fmt(r.qty))}${esc(unit)}`);
+            selId = null;
+        } else if (r.reason === 'cancel') {
+            showResult('part', `<b>전송하지 않았습니다</b> — ${esc(it.name)} 누적은 그대로 남아 있습니다.`);
+        } else if (r.reason === 'moved') {
+            showResult('part', `<b>전송하지 않았습니다</b> — 그사이 계속 바뀌고 있습니다. 누적을 확인한 뒤 다시 눌러 주세요.`);
+        } else if (r.reason === 'empty') {
+            const who = r.byEmail ? personOf(r.byEmail) : '';
+            showResult('part', `<b>보낼 것이 없습니다</b> — ${esc(it.name)} 칸이 이미 비었습니다${who ? `(${esc(who)}${who === '나' ? '' : '님'}이 ${r.sent ? '전송' : '비움'})` : ''}. 두 번 들어가지 않았습니다.`);
+        } else if (r.reason === 'plan') {
+            showResult('bad', `<b>전송하지 못했습니다</b>${[...new Set((r.errors || []).map(errText))].map(m => `<div>${esc(m)}</div>`).join('')}<div>누적은 그대로 남아 있습니다.</div>`);
+        } else if (r.reason === 'denied') {
+            showResult('bad', '<b>전송하지 못했습니다</b> — 비품 관리 권한이 없거나, 방금 앱 기준이 꺼졌습니다(새로고침해서 확인). 누적은 그대로 남아 있습니다.');
         } else {
-            const next = afterFailure(dir, shown, sent, res);
-            list = next.list; pending = next.pending;
-            const msgs = [...new Set(res.errors.map(errText))];
-            box.className = savedShown.length ? 'si-result part' : 'si-result bad';
-            box.innerHTML = (savedShown.length ? `<b>저장된 것 ${savedShown.length}건</b><ul>${savedShown.map(lineLi).join('')}</ul>` : '')
-                + `<b>안 된 것 ${list.length}건</b>(목록에 남김)<ul>${list.map(lineLi).join('')}</ul>`
-                + msgs.map(m => `<div>${esc(m)}</div>`).join('')
-                + (res.uncertain ? '<div>연결이 끊겨 저장됐는지 확인하지 못했습니다 — 목록을 고치지 말고 연결된 뒤 [다시 전송]을 누르면 두 번 들어가지 않습니다.</div>' : '');
+            showResult('bad', `<b>전송하지 못했습니다</b> — 연결을 확인한 뒤 다시 [${word} 전송]을 눌러 주세요. 누적은 그대로 남아 있습니다.`);
         }
-        box.hidden = false;
-        saveSession();
-        await loadStockNow();   // 저장한 뒤·재고 부족 뒤 — 지금 재고로 다시
+        await loadStockNow();   // 전송한 뒤·재고 부족 뒤 — 지금 재고로 다시
         if (!stockOk) showError('앱 재고를 다시 불러오지 못했습니다 — 새로고침해 주세요.');
     } finally {
         busy = false;
         renderAll();
-        if (!list.length && !pending) focusSearch();
+        if (!selId) focusSearch();
     }
 }
 
@@ -422,21 +564,18 @@ function wire() {
         handleCode(search.value);
     });
     document.addEventListener('click', (e) => {
+        const x = e.target.closest('[data-clear]');
+        if (x) { clearSlot(x.dataset.clear, x.dataset.clearDir || dir); return; }
         const p = e.target.closest('[data-pick]');
         if (p) { pick(p.dataset.pick); return; }
         const u = e.target.closest('#si-units [data-unit]');
-        if (u) { counts = pressUnit(counts, Number(u.dataset.unit)); renderCard(); return; }
-        const x = e.target.closest('[data-remove]');
-        if (x && !busy && !pending) {
-            list = removeLine(list, x.dataset.remove);
-            $('si-result').hidden = true;
-            saveSession();
-            renderAll();
-        }
+        if (u) { pressUnitBtn(Number(u.dataset.unit)); return; }
     });
-    $('si-reset').addEventListener('click', () => { counts = {}; renderCard(); });
-    $('si-change').addEventListener('click', () => { selId = null; counts = {}; renderAll(); search.focus(); });
-    $('si-add').addEventListener('click', addToList);
+    // [비우기] — 고른 비품 칸을 모두에게 비운다(확인창)
+    $('si-reset').addEventListener('click', () => { if (selId) clearSlot(selId); });
+    $('si-change').addEventListener('click', () => { selId = null; pressWhy = ''; renderAll(); search.focus(); });
+    // 고른 뒤 드롭다운은 '목록에서 고르기'로 되돌린다
+    $('si-select').addEventListener('change', (e) => { const v = e.target.value; e.target.value = ''; if (v) pick(v); });
     $('si-save').addEventListener('click', save);
     // USB 스캐너 — 찾기 칸 밖(단추에 초점 등)에서 빠르게 들어온 글자 + Enter 도 바코드로 받는다(js/lib/supplies-io.js burstCode).
     //   그때 Enter 는 막는다(초점이 간 단추가 눌리지 않게). 다른 입력칸·찾기 칸에서는 건드리지 않는다(찾기 칸은 자기 Enter 처리)
@@ -468,15 +607,19 @@ function wire() {
     window.addEventListener('online', () => renderAll());
     window.addEventListener('offline', () => renderAll());
     window.addEventListener('pagehide', () => { if (scanner) stopScan(); });
+    // 'n분 전'·'오래됨' 표시를 1분마다 새로(데이터는 안 읽음)
+    setInterval(() => { if (live === true && !$('si-work').hidden) { renderAcc(); renderCard(); } }, 60000);
 }
 
-// 공통 상단바 개인 알림·원장 by 칸(표시용) — 이름은 메모리에만
+// 공통 상단바 개인 알림·칸·원장 by 칸(표시용) — 이름은 메모리에만
 function loadMemberName(user) {
     getDoc(CONFIG_REF).then((snap) => {
         const name = memberNameFor(snap.exists() ? snap.data().memberEmails : null, user.email);
         if (!auth.currentUser || auth.currentUser.uid !== user.uid) return;
         me = { ...me, name: name || '' };
+        memberEmails = (snap.exists() && snap.data().memberEmails) || null;
         if (name) setShellContext({ signedIn: true, uid: user.uid, memberName: name });
+        if (loaded) renderAll();   // 누적 칸의 사람 이름
     }).catch((e) => console.warn('[supplies-io] 설정 읽기 실패:', e && e.code));
 }
 
@@ -485,6 +628,7 @@ onAuthStateChanged(auth, async (user) => {
     setShellContext(user ? { signedIn: true, uid: user.uid } : { signedIn: false });
     $('si-loading').hidden = true;
     if (!user) {
+        stopWatch();
         $('si-gate').hidden = false;
         $('si-main').hidden = true;
         if (scanner) stopScan();
@@ -496,5 +640,6 @@ onAuthStateChanged(auth, async (user) => {
     $('si-main').hidden = false;
     $('si-loading').hidden = false;
     await loadAll();
+    loaded = true;
     renderAll();
 });

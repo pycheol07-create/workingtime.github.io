@@ -16,7 +16,9 @@
 //  - 스위치 persistent_data/suppliesSettings.ledgerLive(관리자만 씀). 켜짐이면 재고는 suppliesStock(원장) 하나 —
 //    화면의 모든 재고 숫자는 curStock()(js/lib/supplies-mode.js stockOf)로만 읽는다. items[].stock·logs 는 읽은 값 그대로 다시 쓴다(persist).
 //  - 켜짐 재고 패널: 입고·사용·실사 → 원장(commitLines·commitCount), 단위 단추로 기본 단위 환산(js/lib/supplies-units.js), 이력은 원장 + [되돌리기].
-//    이지어드민 코드 칸·현재고조회 파일·연동 안내·메모 칸은 숨긴다. 이력의 사람 이름은 byEmail → mainConfig.memberEmails(by 칸은 안 씀).
+//    현재고조회 파일·연동 안내·메모 칸은 숨긴다. 이력의 사람 이름은 byEmail → mainConfig.memberEmails(by 칸은 안 씀).
+//  - 비품코드(칸 이름 ezCode 그대로, 2026-11-27): 켜짐이어도 보이고 고친다. 비워 두고 저장하면 SP0001 모양 번호를 자동으로 붙이고
+//    (저장 트랜잭션에서 서버 목록 기준 — js/lib/supplies-codes.js), 다른 비품과 같은 코드는 막는다(대소문자·공백 무시).
 //  - 비품 상세의 새 칸: barcodes·units·noSingleOut·favorite(꺼짐이어도 저장).
 
 import { initializeFirebase } from './config.js?v=242bb63abbe9-dd1665a9';
@@ -28,12 +30,13 @@ import { checkStockAdjust } from './lib/supplies-stock-check.js?v=bece1017afad-4
 import { normalizeItemUnits, validateUnits, unitButtons, checkBaseQty, findByBarcode, MAX_BARCODES, MAX_UNITS, MAX_UNIT_QTY } from './lib/supplies-units.js?v=38146ad5b84d-33598b26';
 import { isLive, atMs, stockOf, isLowBy, ezLeftover, resumeBatchId, ledgerWho, cutoverStale, cutoverStartBlock, liveOnBlock } from './lib/supplies-mode.js?v=5f016d6adc90-90c9a625';
 import { ledgerErrorText, ITEM_ID_RE } from './lib/supplies-ledger.js?v=44c94c8b86ad-92d65f68';
-import { newBatchId, loadStock, loadStockOf, loadLedger, commitLines, commitCount, commitRevert } from './supplies-ledger-store.js?v=d18800c379ed-8adb83c4';
+import { nextSupplyCodes, findDuplicateCode, isBlankCode, isEzCode, codeChanged } from './lib/supplies-codes.js?v=a9e176f7d66f-13c66d6f';
+import { newBatchId, loadStock, loadStockOf, loadLedger, commitLines, commitCount, commitRevert } from './supplies-ledger-store.js?v=a62e379586ce-61b761c2';
 import {
     effectiveStatus, statusBadge, depleteText, depleteSortValue, reorderText, reorderSortValue, reorderDaysLeft, recommendText, isStale, parseQty, mdw, basisText,
     leadTimeText, expectedDateFor, orderSummaryText, appOnlyWarning, packsProgressText, safetySuggestion, alertReasons, sortAlertRows,
     alertsEmptyText, ALERT_ORDERS_UNKNOWN, NOCODE_HINT, DRIVER_OPTIONS, TONE_CLASS, forecastOpts
-} from './lib/supplies-forecast-view.js?v=9e441a60a562-e866071c';
+} from './lib/supplies-forecast-view.js?v=c308b964945e-6e807d3e';
 import { doc, getDoc, setDoc, onSnapshot, runTransaction, arrayUnion, FieldPath, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
@@ -111,7 +114,7 @@ const fcOf = (it) => {
     return fc && !fc.today && forecastDoc.today ? { ...fc, today: forecastDoc.today } : fc;
 };
 const orderOf = (it) => (ordersDoc && ordersDoc.orders ? ordersDoc.orders[it.id] : null) || null;
-// 앱 기준(켜짐)이거나 예측 문서가 원장 기준(source 'ledger')이면 이지어드민 코드 없는 비품도 예측 상태를 그대로 보인다
+// 앱 기준(켜짐)이거나 예측 문서가 원장 기준(source 'ledger')이면 비품코드 없는 비품도 예측 상태를 그대로 보인다
 const fcOpts = () => forecastOpts(forecastDoc, ledgerLive);
 const statusOf = (it) => effectiveStatus(it, fcOf(it), orderOf(it), fcOpts());
 const reasonsOf = (it) => alertReasons(it, fcOf(it), orderOf(it), ordersOk, undefined, fcOpts());
@@ -177,7 +180,7 @@ const COLS = [
       get: it => it.vendor || '',
       cell: it => `${esc(it.vendor || '-')}`
                 + (it.vendorContact ? `<div class="text-[11px] text-slate-400">${esc(it.vendorContact)}</div>` : '') },
-    { key: 'ezCode', label: '이지어드민코드', type: 'text', td: 'text-slate-500 text-[12px]',
+    { key: 'ezCode', label: '비품코드', type: 'text', td: 'text-slate-500 text-[12px]',
       get: it => it.ezCode || '',
       cell: it => it.ezCode ? esc(it.ezCode) : '-' },
     { key: 'moq', label: 'MOQ', type: 'text', td: 'text-slate-600',
@@ -196,8 +199,8 @@ const COLS = [
       cell: it => it.memo ? `<span title="${esc(it.memo)}">${esc(it.memo)}</span>` : '-' }
 ];
 const colOf = (key) => COLS.find(c => c.key === key);
-// 지금 보이는 열 — 앱 기준(켜짐)이면 이지어드민코드 열을 뺀다(헤더·본문·필터가 같은 목록을 쓴다)
-const activeCols = () => (ledgerLive ? COLS.filter(c => c.key !== 'ezCode') : COLS);
+// 지금 보이는 열(헤더·본문·필터가 같은 목록을 쓴다) — 비품코드 열은 앱 기준(켜짐)에서도 보인다(2026-11-27)
+const activeCols = () => COLS;
 const NUM_COLS = new Set(COLS.filter(c => c.type === 'num').map(c => c.key));
 
 // 헤더에서 고른 정렬·필터 상태
@@ -363,6 +366,8 @@ async function loadForecast() {
 // opts.keepModal — 충돌이어도 상세 창을 닫지 않는다(재고 반영 경로: 상세 폼의 저장 안 한 입력을 지키려고).
 //                   이때는 다시 불러오기까지만 하고, 창 안을 서버 값으로 다시 그리는 것은 부른 쪽이 한다.
 // opts.conflictMsg — 충돌 안내문(없으면 기본 문구)
+// opts.assignCode — 상세 저장하는 비품 객체(items 안의 것). 비품코드가 비었으면(앱 기준일 때만) 트랜잭션 안에서 SP 번호를 붙인다(실패하면 부른 쪽이 되돌린다)
+// opts.checkCode — 코드 칸을 바꿨다(그때만 겹침 검사 — 이미 겹친 옛 코드가 있어도 다른 칸 수정은 막지 않는다)
 async function persist(opts = {}) {
     const updatedAt = new Date().toISOString();
     let written = null;
@@ -377,6 +382,19 @@ async function persist(opts = {}) {
             const ss = await tx.get(SETTINGS_REF);
             if (settingsOk !== true || isLive(ss.exists() ? ss.data() : null) !== ledgerLive) throw new SuppliesConflict('mode');
             ezSync = { at: d.ezSyncedAt ?? null, summary: d.ezSyncSummary ?? null };
+            // 비품코드 — 저장하는 비품(opts.assignCode)의 코드가 비었으면 앱 기준(켜짐)일 때만 서버 목록 + 이 화면 목록에서 다음 SP 번호를 붙이고,
+            //   코드 칸을 바꿨으면(opts.checkCode) 서버 목록과도 겹치는지 본다. 위의 updatedAt 검사로 서버 목록은 불러온 때와 같다 —
+            //   다른 사람이 그사이 저장했으면 충돌로 멈추므로 두 사람이 같은 번호를 받지 않는다(재시도 때마다 다시 계산)
+            //   이지어드민 기준(꺼짐)이면 붙이지 않는다 — 그때 코드는 이지어드민 품목코드여야 한다
+            const tgt = opts.assignCode || null;
+            if (tgt) {
+                const others = [...(Array.isArray(d.items) ? d.items : []), ...items].filter(x => x && x !== tgt && x.id !== tgt.id);
+                if (isBlankCode(tgt.ezCode)) { if (ledgerLive) tgt.ezCode = nextSupplyCodes(others, 1)[0]; }
+                else if (opts.checkCode) {
+                    const dupS = findDuplicateCode(others, tgt.ezCode, tgt.id);
+                    if (dupS) throw new Error(codeDupText(dupS));
+                }
+            }
             // 앱 기준(켜짐) — items[].stock·logs 는 이 화면이 바꾸지 않는다: 서버에서 읽은 값 그대로(새 비품은 0·빈 이력)
             //   원장 재고가 items 쪽으로 새면 끌 때(비상) 엉뚱한 숫자가 보인다.
             let out = items;
@@ -896,8 +914,6 @@ function openItemModal(id = null) {
     $('f-no-single-out').checked = nu.noSingleOut;
     $('f-favorite').checked = nu.favorite;
     renderUnitBaseLabel();
-    // 앱 기준(켜짐)이면 이지어드민 코드 칸을 숨긴다(값은 그대로 두고 저장 때도 그대로 — 사용량 예측이 쓴다)
-    $('f-ez-code-wrap').classList.toggle('hidden', ledgerLive);
     takeItemSnapshot();
 
     openModal('item-modal');
@@ -981,6 +997,12 @@ async function saveItem() {
     const unitFields = { barcodes, units: formUnits(), noSingleOut: $('f-no-single-out').checked, favorite: $('f-favorite').checked };
     const unitErrs = validateUnits({ id: editingId, name, unit: $('f-unit').value.trim() || '개', ...unitFields }, items);
     if (unitErrs.length) return showError('item-modal-error', unitErrs.join('\n'));
+    // 비품코드 — 칸을 바꿨을 때만 다른 비품과 같은 코드를 막는다(대소문자·공백 무시 — 이미 겹친 옛 코드가 있어도 이름·단위 수정은 저장되게).
+    //   비어 있으면 앱 기준일 때 저장 트랜잭션에서 다음 SP 번호를 붙인다(persist assignCode)
+    const prevItem = editingId ? items.find(x => x.id === editingId) : null;
+    const checkCode = codeChanged(prevItem ? prevItem.ezCode : '', $('f-ez-code').value);
+    const codeDup = checkCode ? findDuplicateCode(items, $('f-ez-code').value, editingId) : null;
+    if (codeDup) return showError('item-modal-error', codeDupText(codeDup));
 
     const data = {
         name,
@@ -1009,6 +1031,7 @@ async function saveItem() {
     // 저장이 실패하면 메모리를 되돌린다 — 안 그러면 실패한 수정이 다음 저장 때 같이 올라간다.
     // 원래 객체는 건드리지 않고 사본을 만들어 바꿔 끼운다(이력 배열도 복사 — pushLog 가 unshift 한다).
     let undo = null;
+    let target = null;   // 이번에 저장하는 비품 객체(비품코드 자동 번호를 붙일 자리)
     try {
         if (editingId) {
             const idx = items.findIndex(x => x.id === editingId);
@@ -1024,15 +1047,17 @@ async function saveItem() {
             }
             next.priceLogs = priceLogs.slice(0, MAX_PRICE_LOG);
             items[idx] = next;
+            target = next;
             undo = () => { const i = items.indexOf(next); if (i >= 0) items[i] = prev; };
         } else {
             if (ledgerLive) data.stock = 0;   // 앱 기준 — 재고는 추가한 뒤 재고 패널(원장)에서
             const added = { id: uid(), logs: [], ...data,
                 priceLogs: data.unitPrice > 0 ? [{ at: data.updatedAt, by: currentUser || '', from: 0, to: data.unitPrice }] : [] };
             items.push(added);
+            target = added;
             undo = () => { items = items.filter(x => x !== added); };
         }
-        await persist();
+        await persist({ assignCode: target, checkCode });
         formBarcodes = barcodes; $('f-barcode-input').value = '';
         takeItemSnapshot();
         closeModal('item-modal');
@@ -1268,7 +1293,7 @@ function renderStockPanel() {
 
     // 앱 기준(켜짐)이면 이지어드민 쪽 안내·현재고조회 파일·메모 칸을 숨긴다(메모는 원장에 칸이 없다)
     const ez = $('stock-ez-note');
-    const ezOn = !ledgerLive && !!it.ezCode;
+    const ezOn = !ledgerLive && isEzCode(it.ezCode);   // SP 번호(앱 비품코드)는 이지어드민 연동 대상이 아니다
     ez.textContent = ezOn ? `이지어드민 연동 비품(${it.ezCode}) — 매일 19:30 이지어드민 재고로 자동 반영됩니다 · 매일 08:30 사용량 예측.` : '';
     ez.classList.toggle('hidden', !ezOn);
     $('btn-stock-excel').classList.toggle('hidden', ledgerLive);
@@ -1529,7 +1554,7 @@ function renderForecastBox() {
         ${b.label !== '-' ? `<span class="text-[10px] font-bold px-1.5 py-0.5 rounded-full ${b.cls} shrink-0"${b.title ? ` title="${esc(b.title)}"` : ''}>${esc(b.label)}</span>` : ''}
     </div>`];
     const ordered = order && order.status === 'ordered';
-    if (!String(it.ezCode || '').trim() && !ordered && !fcOpts().ledger) {
+    if (!isEzCode(it.ezCode) && !ordered && !fcOpts().ledger) {
         box.innerHTML = parts.join('') + `<p class="text-[11px] text-slate-500 leading-snug">${esc(NOCODE_HINT)}</p>`;
         return;
     }
@@ -2043,6 +2068,8 @@ function restoreOpenerFocus() {
     }, 0);
 }
 function showError(id, msg) { const el = $(id); el.textContent = msg; el.classList.toggle('hidden', !msg); }
+/** findDuplicateCode 결과 → 안내 글 */
+const codeDupText = (d) => (d.item ? `비품코드 ${d.code} 는 '${d.item.name || '(이름 없음)'}' 이(가) 이미 쓰고 있습니다.` : `비품코드 ${d.code} 를 두 번 적었습니다.`);
 
 // ───────── 이벤트 ─────────
 $('btn-add-item').addEventListener('click', () => { opener = null; openItemModal(null); });

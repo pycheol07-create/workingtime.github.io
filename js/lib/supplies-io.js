@@ -1,6 +1,9 @@
 // === js/lib/supplies-io.js — 휴대폰 비품 입·출고 화면 계산(순수, node 시험 tests/supplies-io.test.js) ===
 // 비품관리 앱 기준 전환 3단계(2026-11-26). 화면은 supplies-io.html · js/supplies-io.js.
-//   비품 고르기(이름·초성·바코드 검색) → 단위 단추로 수량 쌓기(카드) → [출고]/[입고]로 목록에 넣기 → [저장 및 전송] 한 번(commitLines)
+//   2026-11-27 공유 누적: 비품 고르기(검색·초성·바코드·자주 쓰는 것·목록 드롭다운) → 단위 단추를 누를 때마다 공유 누적 칸
+//   (suppliesIoCart/{입고·출고}-{비품 id}, 모든 사람이 같은 칸을 본다)에 더함(pressSlot) → [출고 전송]/[입고 전송] = 고른 비품 칸만 원장에 쓰고 비움
+//   (js/supplies-ledger-store.js cartPress·cartSend·cartClear). 칸 모양·검사는 아래 slot* 함수, 규칙 firestore.rules suppliesIoCart 블록.
+//   ↓ 아래 목록·sessionStorage·planSend 함수들(addLine ~ fromSession)은 2026-11-26 '내 폰 목록' 방식 — 화면은 더 쓰지 않는다(시험만 남음, 지울지 결정 대기).
 // 저장은 js/supplies-ledger-store.js commitLines 가 비품 MAX_TX_ITEMS 개씩 나눠 보낸다(덩어리 i 의 기록 id = `${batchId}-${i}-${itemId}`).
 //   같은 batchId 를 다시 쓰는 것은 '보낸 줄 그대로' 다시 보낼 때만(planSend) — 줄을 고치면 새 batchId.
 // ⚠️ 비품 문서(persistent_data/supplies)에는 단가·업체 같은 칸이 있다 — 화면은 safeItems 로 아래 칸만 남기고 나머지는 버린다.
@@ -9,7 +12,7 @@ import { unitButtons, toBaseQty, normalizeItemUnits, MAX_UNIT_QTY } from './supp
 import { splitLines, MAX_QTY } from './supplies-ledger.js?v=44c94c8b86ad-92d65f68';
 import { score } from '../hangul-search.js?v=081b2de73c15-baed8498';
 
-export const SAFE_FIELDS = ['id', 'name', 'unit', 'barcodes', 'units', 'noSingleOut', 'favorite'];
+export const SAFE_FIELDS = ['id', 'name', 'unit', 'barcodes', 'units', 'noSingleOut', 'favorite', 'category', 'code'];   // code = 비품코드(ezCode)
 export const MAX_DESC = 200;
 export const SESSION_KEY = 'suppliesIo.v1';
 
@@ -26,9 +29,29 @@ export function safeItems(items) {
         if (!it || !idSafe(it.id)) continue;
         const n = normalizeItemUnits(it);
         out.push({ id: String(it.id), name: str(it.name) || '(이름 없음)', unit: baseUnit(it),
-            barcodes: n.barcodes, units: n.units, noSingleOut: n.noSingleOut, favorite: n.favorite });
+            barcodes: n.barcodes, units: n.units, noSingleOut: n.noSingleOut, favorite: n.favorite,
+            category: str(it.category) || NO_CATEGORY, code: str(it.ezCode) });
     }
     return out;
+}
+
+export const NO_CATEGORY = '미분류';   // js/supplies.js 와 같은 이름
+
+/**
+ * 드롭다운 묶음 — 분류(category)별, 분류는 이름순('미분류'는 맨 뒤), 분류 안은 이름순.
+ * @returns {{ category:string, items:{id,name,label}[] }[]}  label = '이름 (비품코드)' — 코드가 없으면 이름만
+ */
+export function dropdownGroups(items) {
+    const m = new Map();
+    for (const it of Array.isArray(items) ? items : []) {
+        if (!it || !it.id) continue;
+        const c = str(it.category) || NO_CATEGORY;
+        if (!m.has(c)) m.set(c, []);
+        m.get(c).push({ id: it.id, name: str(it.name), label: str(it.code) ? `${str(it.name)} (${str(it.code)})` : str(it.name) });
+    }
+    const ko = (a, b) => a.localeCompare(b, 'ko');
+    return [...m.keys()].sort((a, b) => ((a === NO_CATEGORY) - (b === NO_CATEGORY)) || ko(a, b))
+        .map(category => ({ category, items: m.get(category).sort((a, b) => ko(a.name, b.name) || ko(a.id, b.id)) }));
 }
 
 /** 바코드처럼 보이는 글자(영문·숫자·_- 4~40자, 숫자 하나 이상) — 모르는 바코드 안내에 쓴다 */
@@ -114,6 +137,9 @@ export function cardBlockReason(sum, stockNow, listQty, dir) {
     if (dir === 'out' && projected(stockNow, listQty, sum.total, dir) < 0) return '재고보다 많이 출고할 수 없습니다';
     return '';
 }
+
+/** 음성 안내 글 — 기본 단위 합계 + 단위 이름('1100장'). 쉼표 없이(읽기 편하게) */
+export const speechText = (qty, unit) => `${Math.trunc(Number(qty) || 0)}${str(unit) || '개'}`;
 
 /** 목록에 넣기 — 같은 비품은 합치고 구성 글은 ' + ' 로 이어 붙인다(새 배열) */
 export function addLine(list, line) {
@@ -219,4 +245,98 @@ export function fromSession(raw, knownIds) {
     const pending = p && p.dir === dir && /^[A-Za-z0-9_-]{1,60}$/.test(String(p.batchId || '')) && Array.isArray(p.lines) && p.lines.length && p.lines.every(okLine)
         && typeof p.remainKey === 'string' ? { dir, batchId: p.batchId, lines: p.lines.map(l => ({ itemId: l.itemId, qty: l.qty })), remainKey: p.remainKey } : null;
     return { dir, list, pending, dropped };
+}
+
+// ───────── 공유 누적 칸(2026-11-27) ─────────
+// 문서 artifacts/team-work-logger-v2/suppliesIoCart/{dir}-{itemId}
+//   { dir:'in'|'out', itemId, counts:{ 단위 qty(글자): 누른 횟수 }, qty(기본 단위 합, 0 = 빈 칸), rev(+1), byEmail, by(이름), at(서버 시각),
+//     sent?(전송한 묶음 id — 빈 칸이 된 까닭), cleared?(true — [이 칸 비우기]로 빈 칸) }
+//   빈 칸도 문서는 남긴다(지우기 금지 — 누가 전송·비웠는지 다른 화면에 알리려고). 규칙 suppliesIoCart 블록과 칸을 맞출 것.
+export const STALE_SLOT_MS = 2 * 60 * 60 * 1000;   // 마지막 누름 뒤 2시간 — '오래됨' 표시만(자동 삭제 없음)
+export const MAX_SLOT_UNITS = 6;                     // counts 칸 수 상한(규칙 supCountsOk 와 같다 — 단위표는 기본 단위 + 4개라 보통 5칸 이하)
+export const slotId = (dir, itemId) => `${dir}-${itemId}`;
+
+/** 단위 누른 횟수 → 기본 단위 합(넘치면 null) */
+export function countsTotal(counts) {
+    let t = 0;
+    for (const [q, n] of Object.entries(counts || {})) {
+        const v = Number(q) * Number(n);
+        if (!Number.isFinite(v) || v < 0) return null;
+        t += v;
+    }
+    return t > MAX_QTY ? null : t;
+}
+
+/** 서버 칸 문서 → 화면에 쓸 모양(이상하면 null). atMs = 서버 시각 밀리초(아직 안 정해졌으면 지금) */
+export function slotOf(id, d, nowMs = Date.now()) {
+    if (!d || !['in', 'out'].includes(d.dir) || !idSafe(d.itemId) || id !== slotId(d.dir, d.itemId)) return null;
+    const counts = {};
+    if (d.counts && typeof d.counts === 'object') {
+        for (const [q, n] of Object.entries(d.counts)) {
+            if (Number.isInteger(Number(q)) && Number(q) > 0 && Number.isInteger(n) && n > 0) counts[q] = n;
+        }
+    }
+    const qty = Number.isInteger(d.qty) && d.qty > 0 ? d.qty : 0;
+    const at = d.at && typeof d.at.toMillis === 'function' ? d.at.toMillis() : (typeof d.at === 'number' ? d.at : nowMs);
+    return { id, dir: d.dir, itemId: d.itemId, counts: qty ? counts : {}, qty, rev: Number(d.rev) || 0,
+        byEmail: str(d.byEmail).toLowerCase(), by: str(d.by), atMs: at, sent: str(d.sent), cleared: d.cleared === true };
+}
+
+/** 구성 글 '1박스×2 + 1묶음×1' — 단위 이름은 지금 비품의 단위표(없는 단위는 '500장' 처럼 수량으로) */
+export function countsDesc(it, counts, dir) {
+    const names = new Map(unitButtons(it, dir).map(u => [u.qty, u.name]));
+    return Object.entries(counts || {}).map(([q, n]) => [Number(q), n]).filter(([, n]) => n > 0).sort((a, b) => b[0] - a[0])
+        .map(([q, n]) => (names.has(q) ? `1${names.get(q)}×${n}` : `${fmt(q)}${baseUnit(it)}×${n}`)).join(' + ');
+}
+
+/**
+ * 단위 단추 한 번 — 칸의 지금 counts(slot, 없으면 빈 칸)에 더한 새 값. 출고는 재고(stockNow)보다 많으면 막는다.
+ * @returns {{ counts, qty, why:string }}  why 가 있으면 쓰지 않는다
+ */
+export function pressSlot(slot, qty, dir, stockNow) {
+    const before = slot && slot.qty ? { ...slot.counts } : {};
+    const next = pressUnit(before, qty);
+    if (JSON.stringify(next) === JSON.stringify(before)) return { counts: before, qty: countsTotal(before) || 0, why: '수량이 너무 많습니다' };
+    if (Object.keys(next).length > MAX_SLOT_UNITS) return { counts: before, qty: countsTotal(before) || 0, why: '단위가 너무 많습니다' };
+    const total = countsTotal(next);
+    if (total == null) return { counts: before, qty: countsTotal(before) || 0, why: '수량이 너무 많습니다' };
+    if (dir === 'out' && total > (Number(stockNow) || 0)) return { counts: before, qty: countsTotal(before) || 0, why: '재고보다 많이 출고할 수 없습니다' };
+    return { counts: next, qty: total, why: '' };
+}
+
+/**
+ * 누적 칸 목록(이 방향, 수량 있는 칸만) — 내가 고른 비품이 맨 위, 나머지는 마지막 누름이 늦은 것부터.
+ * liveAtMs = 앱 기준을 (다시) 켠 시각 — 그보다 먼저 쌓인 칸은 old(전송·이어 쌓기 막음, 비우기만).
+ * @returns {{ id, itemId, qty, counts, by, byEmail, atMs, mine:boolean, selected:boolean, stale:boolean, old:boolean }[]}
+ */
+export const slotIsOld = (s, liveAtMs) => !!s && Number.isFinite(liveAtMs) && s.atMs < liveAtMs;
+export function slotRows(slots, dir, selId, myEmail, nowMs = Date.now(), liveAtMs = NaN) {
+    const me = str(myEmail).toLowerCase();
+    return [...(slots || [])].filter(s => s && s.dir === dir && s.qty > 0)
+        .map(s => ({ ...s, mine: !!me && s.byEmail === me, selected: s.itemId === selId, stale: nowMs - s.atMs > STALE_SLOT_MS, old: slotIsOld(s, liveAtMs) }))
+        .sort((a, b) => (b.selected - a.selected) || (b.atMs - a.atMs) || a.itemId.localeCompare(b.itemId));
+}
+
+/** 다른 방향에 진행 중인 칸 수(안내 한 줄용) */
+export const otherDirCount = (slots, dir) => [...(slots || [])].filter(s => s && s.dir !== dir && s.qty > 0).length;
+
+/**
+ * 칸이 바뀐 까닭(내 화면 안내용) — 수량 있던 칸이 남의 손으로 빈 칸이 됐으면 { kind:'sent'|'cleared', byEmail }, 아니면 null.
+ * 이름은 화면이 byEmail → mainConfig.memberEmails 로 찾는다(칸의 by 는 쓴 사람이 적은 값이라 표시에 쓰지 않는다).
+ * 내가 한 것(byEmail == 나)이면 null(내 화면은 이미 안내함).
+ */
+export function slotEmptiedBy(prev, next, myEmail) {
+    if (!prev || !prev.qty || !next || next.qty) return null;
+    if (next.byEmail && next.byEmail === str(myEmail).toLowerCase()) return null;
+    return { kind: next.sent ? 'sent' : 'cleared', byEmail: next.byEmail };
+}
+
+/** '방금' · 'n분 전' · 'n시간 전' · 'M/D HH:MM' */
+export function agoText(atMs, nowMs = Date.now()) {
+    const d = Math.max(0, nowMs - atMs);
+    if (d < 60000) return '방금';
+    if (d < 3600000) return `${Math.floor(d / 60000)}분 전`;
+    if (d < 86400000) return `${Math.floor(d / 3600000)}시간 전`;
+    const t = new Date(atMs), p2 = (n) => String(n).padStart(2, '0');
+    return `${t.getMonth() + 1}/${t.getDate()} ${p2(t.getHours())}:${p2(t.getMinutes())}`;
 }

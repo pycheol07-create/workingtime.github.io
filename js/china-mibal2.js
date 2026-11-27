@@ -56,8 +56,8 @@ import { liveDatesFrom } from './lib/mibal2-rows.js?v=7e329105283b-5a50671e';
 import { stableSig, ARCHIVE_COLL } from './lib/mibal2-live.js?v=7ccac6277373-d7d6b954';
 import { bestShipOf, mismatchLine, codeListText } from './lib/ship-mismatch.js?v=18b1bfe6bfc0-42172506';   // 출고일 불일치(2026-11-10)
 import { rowPasses, optionsFor, activeFilterCount, toStored, toChecked } from './lib/mibal2-filter.js?v=5afbd872551e-6927d56c';   // 열 필터(2026-11-26)
-import { parsePackBoxes, packsOn, boxesFor, boxSortVal, cmpBoxSort, failedPacks } from './lib/pack-boxes.js?v=ff567fa413e9-8c6a9912';
-import { setupBoxCheck } from './mibal2-boxcheck.js?v=77f657eb3859-c0f947bf';   // [박스 확인] 창 — 박스 라벨을 찍으면 미발 상품이 들었는지(2026-11-26)   // 박스 열(2026-11-26 — 패킹봇 box_sync 가 쓴 integrations/packBoxes)
+import { parsePackBoxes, packsOn, boxesFor, boxSortVal, cmpBoxSort, failedPacks } from './lib/pack-boxes.js?v=ff567fa413e9-8c6a9912';   // 박스 열(2026-11-26 — 패킹봇 box_sync 가 쓴 integrations/packBoxes)
+// [박스 확인] 창은 2026-11-27 이 화면에서 뺐다(파일 js/mibal2-boxcheck.js 도 지움) — 입고 스캐너로 옮김(판정은 js/lib/box-check.js 그대로)
 import { openFloatingFilter, closeFloatingFilter } from './table-filter.js?v=fd197c3531ef-b92b1b78';
 import { writeXls } from './lib/xls-limits.js?v=64b8f5a113a9-e512cb8a';
 import { readHash, writeHash, onHashNav } from './hash-state.js?v=41d515385973-40fe10fb';   // live 때만 씀(빠른 이동 #tab=mibal|location)
@@ -65,7 +65,8 @@ import { refreshDoneAuto, claimOk, claimMine, autoStopText, serverBatchOpen, AUT
 // 마감된 작업 보기(2026-11-12) — 마감한 출고일을 다시 고르면 입고확인 = 보관함 기록
 import { closedQueryDates, closedCacheKey, closedViewOf, closedNoteLines } from './lib/mibal2-closed-view.js?v=99af493d6d0f-f6895793';
 import { COLS_PICK_KEY, LEGACY_COLS_KEY, DEFAULT_ON, REQUIRED, pickableCols, normalizeOn, colsFromStorage, serializeCols, toggleCol,
-    hiddenCss, colsMode, visibleCount } from './lib/mibal2-cols.js?v=f661594ce339-1b3c5307';
+    hiddenCss, colsMode, visibleCount,
+    COL_ORDER_KEY, normalizeOrder, orderFromStorage, serializeOrder, isDefaultOrder, moveCol, stepCol } from './lib/mibal2-cols.js?v=60dbdb4fdfb6-c2662013';
 
 const { db, auth } = initializeFirebase();
 const LIVE = isMibal2Live();   // 단독 운영인가(지금은 false — 에뮬레이터 시험 주소 ?emu=1&live=1 에서만 true)
@@ -132,7 +133,6 @@ let locIndex = {};             // code → {id, count, etcOnly}
 let oldSnap = null;            // { kind:'version'|'live', atMs, trigger, note, map, noUpload }
 let settings = null;           // mibal2/settings
 let selectedDates = [];
-let packBoxesFailed = false;   // [박스 확인] 창이 '읽는 중'과 '읽기 실패'를 가른다
 let packBoxes = null;          // parsePackBoxes(integrations/packBoxes) — 못 읽었으면 null(박스 칸 빈칸)
 let dateSource = 'legacy';     // 'legacy' | 'own'
 let ctx = null;                // 지금 보기의 근거 표시용 정보(detail·안내줄)
@@ -394,7 +394,8 @@ function applyFilters() {
 //   위: [오름차순]/[내림차순](정렬 열만) · 아래: 값 목록 필터(js/table-filter.js — 입고확인은 일치/불일치, No 열은 메뉴 없음).
 //   목록 값은 다른 열 필터를 통과한 행에서(엑셀처럼). 필터가 걸린 머리글은 글자색(th.col-filtered). 표 위 '열 필터 N개 [모두 풀기]'.
 const mainHeadCells = () => { const t = $('table-body') && $('table-body').closest('table'); return t ? [...t.querySelectorAll('thead th')] : []; };
-function filterKeyOfTh(th, i, all) { return th.dataset.sort || (i === all.length - 1 ? 'flags' : ''); }
+// 열 이름 = th data-col(시작 때 찍음 — 열 순서를 바꿔도 같다). No 열은 메뉴 없음('')
+function filterKeyOfTh(th, i, all) { const k = th.dataset.col || th.dataset.sort || (i === all.length - 1 ? 'flags' : ''); return k === 'no' ? '' : k; }
 const ASC_FIRST = ['code', 'name', 'option', 'box', 'loc'];   // 글자 열 — 오름차순을 먼저 보인다
 function openHeadMenu(th, key) {
     const label = (th.firstChild && th.firstChild.textContent ? th.firstChild.textContent : th.textContent).trim() || key;
@@ -439,7 +440,7 @@ function setupColFilters() {
         th.tabIndex = 0;
         th.setAttribute('aria-haspopup', 'dialog');
         const open = (e) => {
-            if (justResized || (e && e.target && e.target.closest && e.target.closest('.col-grip'))) return;   // 열 너비 끌기
+            if (justResized || justMoved || (e && e.target && e.target.closest && e.target.closest('.col-grip'))) return;   // 열 너비 끌기·열 옮기기 직후
             openHeadMenu(th, key);
         };
         th.addEventListener('click', open);
@@ -550,35 +551,37 @@ function renderTable() {
         if (r.check) cls.push('need-check');
         const diffTxt = r.diff === null ? numOr(null) : (r.diff > 0 ? '+' + num(r.diff) : num(r.diff));
         const warnNum = (v) => (v > 0 ? `<b class="t-warn">${esc(num(v))}</b>` : numOr(v));
-        html += `<tr class="${esc(cls.join(' '))}" data-code="${esc(r.code)}">
-            <td>${i + 1}</td>
-            <td class="code-cell">${esc(r.code)}</td>
-            <td class="name-cell" title="${esc(r.name)}">${esc(r.name)}</td>
-            <td class="opt-cell" title="${esc(r.option || '')}">${esc(r.option || '')}</td>
-            <td class="box-cell" title="${esc(r.boxText || r.boxFail || '')}">${esc(r.boxText || '')}</td>
-            <td>${r.locInfo ? esc(r.loc) : '<span class="t-risk">미지정</span>'}</td>
-            ${r.cap === null ? `<td>${numOr(null)}</td>` : `<td class="cap-cell" title="${esc(r.capSrc)}">${esc(num(r.cap))}<span class="cap-kind">${esc(r.capKind)}</span></td>`}
-            <td><b>${esc(num(r.arr))}</b></td>
-            ${confCellHtml(r)}
-            ${inDiffCellHtml(r)}
-            <td>${numOr(r.stock)}</td>
-            <td>${numOr(r.bstock)}</td>
-            <td>${r.pstock < 0 ? `<b class="t-risk">${esc(num(r.pstock))}</b>` : numOr(r.pstock)}</td>
-            <td>${numOr(r.recv)}</td>
-            <td>${numOr(r.inv)}</td>
-            <td>${numOr(r.out)}</td>
-            <td>${numOr(r.short)}</td>
-            <td class="new-mibal">${numOr(r.mibal)}</td>
-            <td>${warnNum(r.unres)}</td>
-            <td>${numOr(r.room)}</td>
-            <td class="new-mibal">${numOr(r.third)}</td>
-            <td>${numOr(r.pick)}</td>
-            <td>${numOr(r.resv)}</td>
-            <td>${warnNum(r.refill)}</td>
-            <td>${numOr(r.old)}</td>
-            <td class="diff-cell">${diffTxt}</td>
-            <td>${flagsHtml(r)}</td>
-        </tr>`;
+        // 칸마다 열 이름(data-col) — [칸 설정] 숨김 CSS 가 이름으로 고르고, 머리글 순서(colOrder)대로 붙인다(2026-11-27 열 옮기기)
+        const c = {
+            no: `<td data-col="no">${i + 1}</td>`,
+            code: `<td class="code-cell" data-col="code">${esc(r.code)}</td>`,
+            name: `<td class="name-cell" data-col="name" title="${esc(r.name)}">${esc(r.name)}</td>`,
+            option: `<td class="opt-cell" data-col="option" title="${esc(r.option || '')}">${esc(r.option || '')}</td>`,
+            box: `<td class="box-cell" data-col="box" title="${esc(r.boxText || r.boxFail || '')}">${esc(r.boxText || '')}</td>`,
+            loc: `<td data-col="loc">${r.locInfo ? esc(r.loc) : '<span class="t-risk">미지정</span>'}</td>`,
+            cap: r.cap === null ? `<td data-col="cap">${numOr(null)}</td>` : `<td class="cap-cell" data-col="cap" title="${esc(r.capSrc)}">${esc(num(r.cap))}<span class="cap-kind">${esc(r.capKind)}</span></td>`,
+            arr: `<td data-col="arr"><b>${esc(num(r.arr))}</b></td>`,
+            conf: confCellHtml(r),
+            inDiff: inDiffCellHtml(r),
+            stock: `<td data-col="stock">${numOr(r.stock)}</td>`,
+            bstock: `<td data-col="bstock">${numOr(r.bstock)}</td>`,
+            pstock: `<td data-col="pstock">${r.pstock < 0 ? `<b class="t-risk">${esc(num(r.pstock))}</b>` : numOr(r.pstock)}</td>`,
+            recv: `<td data-col="recv">${numOr(r.recv)}</td>`,
+            inv: `<td data-col="inv">${numOr(r.inv)}</td>`,
+            out: `<td data-col="out">${numOr(r.out)}</td>`,
+            short: `<td data-col="short">${numOr(r.short)}</td>`,
+            mibal: `<td class="new-mibal" data-col="mibal">${numOr(r.mibal)}</td>`,
+            unres: `<td data-col="unres">${warnNum(r.unres)}</td>`,
+            room: `<td data-col="room">${numOr(r.room)}</td>`,
+            third: `<td class="new-mibal" data-col="third">${numOr(r.third)}</td>`,
+            pick: `<td data-col="pick">${numOr(r.pick)}</td>`,
+            resv: `<td data-col="resv">${numOr(r.resv)}</td>`,
+            refill: `<td data-col="refill">${warnNum(r.refill)}</td>`,
+            old: `<td data-col="old">${numOr(r.old)}</td>`,
+            diff: `<td class="diff-cell" data-col="diff">${diffTxt}</td>`,
+            flags: `<td data-col="flags">${flagsHtml(r)}</td>`,
+        };
+        html += `<tr class="${esc(cls.join(' '))}" data-code="${esc(r.code)}">${colOrder.map(k => c[k] || '').join('')}</tr>`;
         if (expanded.has(r.code)) html += `<tr class="detail-row"><td colspan="${colSpan()}">${detailHtml(r)}</td></tr>`;
     });
     tb.innerHTML = html;
@@ -730,7 +733,7 @@ function outsideRow(code, qty) {
 /** 입고확인 칸 — 기존 화면과 같은 색: 도착과 다르면(빈칸=0 포함) 빨강, 같고 앱 스캔이면 파랑(서버 값 기준).
  *  칸 안에서 바로 고친다(conf-edit, 2026-11-04) — 저장 대기 값은 노랑으로 덧칠(conf-pending), 고친 적 있는 칸은 점선 테두리(conf-fixed) */
 function confCellHtml(r) {
-    if (r.confSrc === undefined) return `<td>${numOr(null)}</td>`;
+    if (r.confSrc === undefined) return `<td data-col="conf">${numOr(null)}</td>`;
     const mismatch = (parseInt(r.conf) || 0) !== (parseInt(r.arr) || 0);
     const fromApp = inboundMap[r.code] !== undefined;
     const fx = fixMap[r.code];
@@ -739,7 +742,7 @@ function confCellHtml(r) {
     if (closedBlocks()) {   // 마감된 작업 — 보관함 기록(회색, 고치기 없음). 읽는 중이면 '…', 못 읽었으면 입고이력 값(고치기 없음)
         const t = closedView.loading ? '보관함 기록 읽는 중' : closedView.error ? '보관함을 확인하지 못해 고치지 않습니다(연결 확인 후 출고일을 다시 고르세요)'
             : `보관함 기록(작업 ${closedView.view.ids.join(', ')}) — 마감된 작업이라 고치지 않습니다`;
-        return `<td class="conf-closed" data-code="${esc(r.code)}" title="${esc(t)}">${closedView.loading ? '…' : esc(v)}</td>`;
+        return `<td class="conf-closed" data-col="conf" data-code="${esc(r.code)}" title="${esc(t)}">${closedView.loading ? '…' : esc(v)}</td>`;
     }
     const cls = ['conf-edit', mismatch ? 'conf-bad' : (fromApp ? 'conf-scan' : ''), fx ? 'conf-fixed' : '', pd ? 'conf-pending' : ''].filter(Boolean).join(' ');
     const title = [
@@ -749,7 +752,7 @@ function confCellHtml(r) {
         '눌러서 고친 뒤 아래 [저장]'
     ].filter(Boolean).join('\n');
     const editable = isAccessOk ? ' contenteditable="true"' : '';
-    return `<td class="${cls}" data-code="${esc(r.code)}"${editable} title="${esc(title)}">${esc(pd ? pd.after : v)}</td>`;
+    return `<td class="${cls}" data-col="conf" data-code="${esc(r.code)}"${editable} title="${esc(title)}">${esc(pd ? pd.after : v)}</td>`;
 }
 
 // ── 입고확인 수동 수정 — 여러 칸 고친 뒤 [저장] (2026-11-04 사용자 요청) ──
@@ -856,13 +859,13 @@ async function saveConfirmedBatch() {
 }
 /** 차이(도착 − 입고확인) 칸 — 기존 화면 diffCellView 와 같다: 양수 빨강(부족입고) · 음수 파랑(과입고) · 미스캔 '–' */
 function inDiffCellHtml(r) {
-    if (r.confSrc === undefined) return `<td>${numOr(null)}</td>`;
+    if (r.confSrc === undefined) return `<td data-col="inDiff">${numOr(null)}</td>`;
     const v = r.inDiff;
-    if (v === null || v === undefined) return `<td class="in-diff-cell t-3" title="도착·입고확인을 모름">–</td>`;
-    if (r.noScan && v > 0) return `<td class="in-diff-cell t-risk" title="입고확인 없음(스캔 0건) — 도착 ${esc(num(v))} 전부 부족입고">${esc(num(v))}</td>`;
-    if (v > 0) return `<td class="in-diff-cell t-risk" title="부족입고 ${esc(num(v))}">${esc(num(v))}</td>`;
-    if (v < 0) return `<td class="in-diff-cell t-accent" title="과입고 ${esc(num(-v))}">${esc(num(v))}</td>`;
-    return `<td class="in-diff-cell" title="도착 = 입고확인">0</td>`;
+    if (v === null || v === undefined) return `<td class="in-diff-cell t-3" data-col="inDiff" title="도착·입고확인을 모름">–</td>`;
+    if (r.noScan && v > 0) return `<td class="in-diff-cell t-risk" data-col="inDiff" title="입고확인 없음(스캔 0건) — 도착 ${esc(num(v))} 전부 부족입고">${esc(num(v))}</td>`;
+    if (v > 0) return `<td class="in-diff-cell t-risk" data-col="inDiff" title="부족입고 ${esc(num(v))}">${esc(num(v))}</td>`;
+    if (v < 0) return `<td class="in-diff-cell t-accent" data-col="inDiff" title="과입고 ${esc(num(-v))}">${esc(num(v))}</td>`;
+    return `<td class="in-diff-cell" data-col="inDiff" title="도착 = 입고확인">0</td>`;
 }
 /** 입고이력 구독 — 부족수량 보기에 처음 들어갈 때 한 번만(위치지정 보기만 여는 사람은 읽지 않는다). 입장 판정 뒤에만 */
 function ensureInbound() {
@@ -897,7 +900,6 @@ async function loadPackBoxes() {
         packBoxes = parsePackBoxes(snap.exists() ? snap.data() : null);
     } catch (e) {
         console.warn('[mibal2] 박스 번호(packBoxes) 읽기 실패 — 박스 칸 빈칸:', (e && e.code) || e);
-        packBoxesFailed = true;
         return;
     }
     if (allRows.length) { attachBoxes(allRows); applyFilters(); }
@@ -1246,6 +1248,7 @@ async function downloadExcel() {
     // 입고이력을 아직 못 받았거나 읽기 실패면 입고확인·차이에 스캔분이 빠져 있다 — 받기 전에 알린다
     if ((!inboundKnown || inboundErr) && !(await showConfirm('⚠️ 앱 스캔 입고 기록을 아직 받지 못했습니다(또는 읽기 실패).\n엑셀의 입고확인·차이 칸에 스캔분이 빠져 있습니다.\n\n그래도 받을까요?', { title: '그래도 받을까요?', okText: '그래도 받기' }))) return;
     const id = ymd();
+    // 엑셀 열 순서는 화면 열 순서(머리글 끌기, mibal2.colOrder)를 따르지 않는다 — excelAoaOf 의 EXCEL_COLS 그대로(2026-11-27)
     const bad = writeXls(X, [{ name: '부족수량관리', aoa: excelAoaOf(viewRows) }], `부족수량관리_신규_${id}.xls`);   // .xls(biff8, 2026-11-10 — 한도 넘으면 안내만)
     if (bad) showAlert(bad, { title: '받지 못했습니다', isError: true });
 }
@@ -1253,6 +1256,7 @@ async function downloadExcel() {
 // ── 보기 항목: [칸 설정](2026-11-10, 예전 간단히/전체 대신) — 고른 열만 보인다(js/lib/mibal2-cols.js). 이 브라우저에만 기억 ──
 // 열 숨김은 #cols-style(만든 CSS). body[data-cols] 는 예전 이름 그대로(colsMode) — 요약 카드·차이 체크·색·열 너비 기억이 예전처럼 따른다
 let colsOn = colsFromStorage(null, null).on;
+let colOrder = normalizeOrder(null);          // 화면 열 순서(머리글 끌기·[칸 설정] ▲▼, 2026-11-27) — loadColOrder 가 이 PC 저장값으로
 const colSpan = () => visibleCount(colsOn);   // 펼친 상세 행 칸 수
 function setCols(on, save) {
     colsOn = normalizeOn(on);
@@ -1277,21 +1281,47 @@ function loadCols() {
     const r = colsFromStorage(raw, legacy);
     setCols(r.on, r.migrated);   // 예전 간단히/전체만 있거나 새 기본 열(박스 등)을 켰으면 한 번 저장(seen 을 남김)
 }
-/** [칸 설정] 창 — 체크 목록(꼭 보일 열은 끌 수 없음)·[기본값으로]·[모두]. 닫으면(닫기·바깥) 바로 반영 */
+/** [칸 설정] 창 — 체크 목록(꼭 보일 열은 끌 수 없음)·[기본값으로]·[모두]·열마다 ▲▼(순서, 2026-11-27)·[열 순서 원래대로]. 닫으면(닫기·바깥) 바로 반영 */
 function setupColsPick() {
     const modal = $('cols-modal'), list = $('cols-list');
     const labels = {};
     headCells().forEach((th, i, all) => { labels[colKey(th, i, all)] = (th.firstChild && th.firstChild.textContent ? th.firstChild.textContent : th.textContent).trim(); });
     let draft = colsOn;
+    let draftOrder = colOrder;
+    const orderReset = $('btn-cols-order-reset');
     const draw = () => {
-        list.innerHTML = pickableCols(LIVE).map(k => {
+        const listed = pickableCols(LIVE);
+        const shown = draftOrder.filter(k => listed.includes(k));   // 목록도 지금(고친) 순서대로
+        list.innerHTML = shown.map((k, i) => {
             const req = REQUIRED.includes(k);
-            return `<label class="${req ? 'req' : ''}" title="${req ? '꼭 보여야 하는 열이라 끌 수 없습니다' : ''}"><input type="checkbox" data-col="${esc(k)}"${draft.includes(k) ? ' checked' : ''}${req ? ' disabled' : ''}> ${esc(labels[k] || k)}${req ? ' <span class="t-3" style="font-size:11px;">(필수)</span>' : ''}</label>`;
+            const lbl = labels[k] || k;
+            // ▲▼ — 'no' 는 늘 맨 앞(못 옮김), 'no' 바로 다음 열은 ▲ 없음
+            const up = k !== 'no' && i > 1, down = k !== 'no' && i < shown.length - 1;
+            const mv = k === 'no' ? '' : `<span class="cols-move"><button type="button" class="d-btn d-btn-sm" data-move="-1" data-key="${esc(k)}" aria-label="${esc(lbl)} 앞으로" title="앞으로(왼쪽)"${up ? '' : ' disabled'}>▲</button><button type="button" class="d-btn d-btn-sm" data-move="1" data-key="${esc(k)}" aria-label="${esc(lbl)} 뒤로" title="뒤로(오른쪽)"${down ? '' : ' disabled'}>▼</button></span>`;
+            return `<div class="cols-item"><label class="${req ? 'req' : ''}" title="${req ? '꼭 보여야 하는 열이라 끌 수 없습니다' : ''}"><input type="checkbox" data-col="${esc(k)}"${draft.includes(k) ? ' checked' : ''}${req ? ' disabled' : ''}> ${esc(lbl)}${req ? ' <span class="t-3" style="font-size:11px;">(필수)</span>' : ''}</label>${mv}</div>`;
         }).join('');
+        if (orderReset) orderReset.disabled = isDefaultOrder(draftOrder);
     };
-    const close = () => { if (modal.style.display !== 'flex') return; modal.style.display = 'none'; setCols(draft, true); };
-    $('btn-cols-set').addEventListener('click', () => { draft = colsOn; draw(); modal.style.display = 'flex'; });
+    const close = () => {
+        if (modal.style.display !== 'flex') return;
+        modal.style.display = 'none';
+        if (draftOrder.join() !== colOrder.join()) setColOrder(draftOrder, true);
+        setCols(draft, true);
+    };
+    $('btn-cols-set').addEventListener('click', () => { draft = colsOn; draftOrder = colOrder; draw(); modal.style.display = 'flex'; });
     list.addEventListener('change', (e) => { const c = e.target.closest('input[data-col]'); if (c) { draft = toggleCol(draft, c.dataset.col, c.checked); draw(); } });
+    list.addEventListener('click', (e) => {
+        const b = e.target.closest('button[data-move]'); if (!b) return;
+        e.preventDefault();
+        const key = b.dataset.key, dir = Number(b.dataset.move);
+        draftOrder = stepCol(draftOrder, key, dir, pickableCols(LIVE));
+        draw();
+        // 키보드로 계속 누를 수 있게 같은 단추에 초점(끝에 닿아 꺼졌으면 반대쪽)
+        const again = list.querySelector(`button[data-move="${dir}"][data-key="${CSS.escape(key)}"]:not([disabled])`)
+            || list.querySelector(`button[data-move="${-dir}"][data-key="${CSS.escape(key)}"]`);
+        if (again) again.focus();
+    });
+    if (orderReset) orderReset.addEventListener('click', () => { draftOrder = normalizeOrder(null); draw(); });   // 열 너비 기억(mibal2.colWidths)은 그대로
     $('btn-cols-default').addEventListener('click', () => { draft = normalizeOn(DEFAULT_ON); draw(); });
     $('btn-cols-all').addEventListener('click', () => { draft = normalizeOn(pickableCols(LIVE)); draw(); });
     $('btn-cols-none').addEventListener('click', () => { draft = normalizeOn(REQUIRED.filter(k => pickableCols(LIVE).includes(k))); draw(); });   // 필수 열만 남김
@@ -1323,7 +1353,8 @@ function loadColWidths() {
 }
 let colWidths = loadColWidths();
 const headCells = () => [...document.querySelectorAll('.list-table thead th')];
-const colKey = (th, i, all) => th.dataset.sort || (i === 0 ? 'no' : (i === all.length - 1 ? 'flags' : 'c' + i));
+// data-col 먼저(stampHeadCols 가 시작 때 찍는다 — 그 뒤로는 열 순서를 바꿔도 이름이 그대로). 위치 판정은 찍기 전 처음 한 번만 쓰인다
+const colKey = (th, i, all) => th.dataset.col || th.dataset.sort || (i === 0 ? 'no' : (i === all.length - 1 ? 'flags' : 'c' + i));
 const isShown = (el) => getComputedStyle(el).display !== 'none';
 const curMode = () => (document.body.dataset.cols === 'simple' ? 'simple' : 'full');
 function saveColWidths() { try { localStorage.setItem(WIDTH_KEY, JSON.stringify(colWidths)); } catch (e) { /* 기억 못 해도 지금 화면은 바뀐다 */ } }
@@ -1411,9 +1442,134 @@ function setupColResize() {
     });
 }
 
+// ── 열 순서 바꾸기(2026-11-27 사용자 요청) — 머리글을 마우스로 끌어 옮긴다. 손가락(터치)은 [칸 설정] ▲▼ ──
+// 순서 = colOrder(js/lib/mibal2-cols.js normalizeOrder — 'no' 는 늘 맨 앞), 이 PC localStorage COL_ORDER_KEY 에 기억.
+// 머리글 th 를 그 순서로 다시 붙이고, 행 칸도 renderTable 이 같은 순서로 만든다. 숨김은 열 이름(data-col)이라 순서와 무관.
+const COL_MOVE_PX = 6;      // 이만큼 움직여야 끌기로 본다(그보다 적으면 그냥 누르기 = 정렬·필터 메뉴)
+const EDGE_PX = 40;         // 표 가장자리 이 안쪽에 있으면 가로로 저절로 넘긴다
+let justMoved = false;      // 끌기를 막 끝낸 직후의 click 이 머리글 메뉴로 새지 않게(justResized 와 같은 방식)
+/** 머리글마다 열 이름(data-col) — 처음 thead 순서(= COLS)로 한 번만 찍는다 */
+function stampHeadCols() {
+    headCells().forEach((th, i, all) => { if (!th.dataset.col) th.dataset.col = colKey(th, i, all); });
+}
+/** 머리글 th 를 colOrder 순서로 다시 붙인다(이벤트·너비는 th 에 붙어 있어 그대로) */
+function applyHeadOrder() {
+    const ths = headCells();
+    const tr = ths.length ? ths[0].parentElement : null;
+    if (!tr) return;
+    const by = {};
+    ths.forEach(th => { by[th.dataset.col] = th; });
+    colOrder.forEach(k => { if (by[k]) tr.appendChild(by[k]); });
+}
+function loadColOrder() {
+    let raw = null;
+    try { raw = localStorage.getItem(COL_ORDER_KEY); } catch (e) { /* 못 읽으면 원래 순서 */ }
+    colOrder = orderFromStorage(raw);
+    applyHeadOrder();
+}
+/** 순서 바꾸기 — 입고확인 칸을 고치는 중이면 하지 않는다(그리기를 미루는 동안 머리글·칸이 어긋나지 않게). 바꿨으면 true */
+function setColOrder(order, save) {
+    if (editingConfActive()) { showToast('입고확인 칸을 고치는 중에는 열 순서를 바꾸지 않습니다 — 칸을 나간 뒤 다시 해 주세요'); return false; }
+    colOrder = normalizeOrder(order);
+    applyHeadOrder();
+    renderTable();
+    if (save) { try { localStorage.setItem(COL_ORDER_KEY, serializeOrder(colOrder)); } catch (e) { /* 기억 못 해도 지금 화면은 바뀐다 */ } }
+    return true;
+}
+function setupColMove() {
+    const box = document.querySelector('.list-container');
+    headCells().forEach(th => {
+        const key = th.dataset.col;
+        if (key === 'no') return;   // No 는 늘 맨 앞 — 끌지 않는다
+        th.addEventListener('pointerdown', (e) => {
+            if (e.button !== 0 || e.pointerType === 'touch') return;          // 마우스·펜만(손가락은 표 넘기기)
+            if (e.target.closest && e.target.closest('.col-grip')) return;     // 너비 끌기
+            if (editingConfActive()) return;                                   // 입고확인 칸 고치는 중
+            const startX = e.clientX, startY = e.clientY;
+            let started = false, lastX = startX, target = undefined, raf = 0, mark = null;
+            // 놓을 자리 — 보이는 머리글 가운데를 기준으로 '그 열 앞'. 'no' 앞이면 'no' 다음 열 앞
+            const pick = () => {
+                const vis = headCells().filter(h => h !== th && isShown(h));
+                let before = null, edge = null;
+                for (const h of vis) {
+                    const r = h.getBoundingClientRect();
+                    if (lastX < r.left + r.width / 2) { before = h; edge = r.left; break; }
+                }
+                if (before && before.dataset.col === 'no') {
+                    const i = vis.indexOf(before);
+                    before = vis[i + 1] || null;
+                    edge = before ? before.getBoundingClientRect().left : null;
+                }
+                if (!before) { const last = vis[vis.length - 1]; edge = last ? last.getBoundingClientRect().right : th.getBoundingClientRect().right; }
+                target = before ? before.dataset.col : null;
+                if (mark && box) {
+                    const b = box.getBoundingClientRect();
+                    const x = Math.min(Math.max(edge, b.left), b.right);
+                    mark.style.left = (x - 1) + 'px';
+                    mark.style.top = b.top + 'px';
+                    mark.style.height = b.height + 'px';
+                }
+            };
+            const tick = () => {   // 가장자리에 머물면 계속 넘긴다
+                raf = 0;
+                if (!started || !box) return;
+                const b = box.getBoundingClientRect();
+                const d = lastX < b.left + EDGE_PX ? -1 : (lastX > b.right - EDGE_PX ? 1 : 0);
+                if (!d) return;
+                const before = box.scrollLeft;
+                box.scrollLeft += d * 18;
+                if (box.scrollLeft !== before) pick();
+                raf = requestAnimationFrame(tick);
+            };
+            const begin = () => {
+                started = true;
+                closeFloatingFilter();   // 떠 있는 정렬·필터 메뉴는 닫는다
+                mark = document.createElement('div');
+                mark.className = 'col-drop-mark';
+                document.body.appendChild(mark);
+                th.classList.add('col-drag-src');
+                document.body.classList.add('col-dragging');
+            };
+            const move = (ev) => {
+                lastX = ev.clientX;
+                if (!started) {
+                    if (Math.hypot(ev.clientX - startX, ev.clientY - startY) < COL_MOVE_PX) return;
+                    begin();
+                }
+                pick();
+                if (!raf) raf = requestAnimationFrame(tick);
+            };
+            const end = (ev) => {
+                window.removeEventListener('pointermove', move);
+                window.removeEventListener('pointerup', end);
+                window.removeEventListener('pointercancel', end);
+                window.removeEventListener('blur', end);
+                if (raf) cancelAnimationFrame(raf);
+                raf = 0;
+                if (!started) return;   // 누르기만 했다 — 머리글 메뉴(click)는 그대로
+                if (mark) mark.remove();
+                th.classList.remove('col-drag-src');
+                document.body.classList.remove('col-dragging');
+                justMoved = true;
+                setTimeout(() => { justMoved = false; }, 0);
+                if (!ev || ev.type !== 'pointerup' || target === undefined) return;   // 취소·창 밖으로 나감 — 그대로
+                const next = moveCol(colOrder, key, target);
+                if (next.join() !== colOrder.join()) setColOrder(next, true);
+            };
+            window.addEventListener('pointermove', move);
+            window.addEventListener('pointerup', end);
+            window.addEventListener('pointercancel', end);
+            window.addEventListener('blur', end);
+        });
+    });
+}
+
 // ── 이벤트 ───────────────────────────────────────────────────
 function setupEvents() {
+    stampHeadCols();   // 머리글에 열 이름(data-col)을 찍고 저장된 순서로 — 아래 너비·칸 설정·머리글 메뉴보다 먼저
+    loadColOrder();
     setupColResize();
+    setupColMove();
     loadCols();
     setupColsPick();
     setupDatePopup();
@@ -1542,7 +1698,7 @@ const sharedSigOf = (snaps) => stableSig(snaps.map(x => (x.exists() ? x.data() :
 async function loadLiveTools() {
     if (!LIVE) return null;
     try {
-        const mod = await import('./china-mibal2-live.js?v=b8d21d3f4fff-59008fea');
+        const mod = await import('./china-mibal2-live.js?v=98fb04274ad2-d71f42ed');
         return mod.startLive({
             db, showToast, setLoading, errText,
             isAdmin: () => accessIsAdmin,
@@ -1689,13 +1845,6 @@ async function startAfterAccess() {
     renderRefreshUI();
     // 단독 운영(live)에서는 기존 계산기 미발수량(비교값)을 읽지 않는다 — oldSnap 이 null 이면 '신규에만' 플래그·버전기록 경고도 나오지 않는다
     loadPackBoxes();   // 기다리지 않는다 — 박스 칸은 읽히면 채운다
-    setupBoxCheck({
-        getRows: () => allRows,
-        getPacksOn: () => (packBoxes ? packsOn(selectedDates, packBoxes) : null),
-        getDatesText: () => selectedDates.join(', '),
-        // 표(부족수량 행)를 아직 못 만들었으면 미발을 판정하지 않는다 — 빈 표로 '미발 없음'을 보이면 안 된다
-        getState: () => (!latest || !selectedDates.length ? 'rows' : (packBoxes ? 'ok' : (packBoxesFailed ? 'fail' : 'boxes'))),
-    });
     const results = await Promise.allSettled([loadConfig(), loadEditedCells(), loadLocations(), LIVE ? null : loadOldSnapshot().then(s => { oldSnap = s; }), loadSettings()]);
     const names = ['CONFIG', 'EDITED_CELLS', 'Locations', '기존 계산기 미발수량', 'settings'];
     const fails = results.map((r, i) => r.status === 'rejected' ? `${names[i]}(${(r.reason && r.reason.code) || r.reason})` : '').filter(Boolean);

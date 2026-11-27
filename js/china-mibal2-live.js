@@ -24,7 +24,7 @@ import { scanApplyPlan, versionDataOf, archiveRecordOf, shrinkArchive, archiveAo
     fileRowsOf, inboundFileAoa, mibalFileAoa, floor2FileAoa, readAllPages } from './lib/mibal2-live.js?v=7ccac6277373-d7d6b954';
 import { buildDiffRecord, shouldAutoSave, mergeRev, shrinkIfLarge, diffSummaryText, overlapping, queryRange } from './lib/inbound-diff.js?v=6028b21f8c15-bb911da2';
 import { inboundMapOf, floor2MapOf } from './lib/scan-link.js?v=143bf19ba572-01119c1f';
-import { liveHiddenCss } from './lib/mibal2-cols.js?v=f661594ce339-1b3c5307';
+import { liveHiddenCss } from './lib/mibal2-cols.js?v=60dbdb4fdfb6-c2662013';
 import { inboundSig } from './lib/inbound-fix.js?v=7894fc22c949-9113d082';
 import { buildScanLogDocs, expandScanLogDocs, checkScanLogParts, docIdOf, scanLogInputOf, scanLogListHtml, scanLogExcelRows,
     SCANLOG_JOBS_COLL, SCANLOG_MAX_PARTS } from './lib/mibal2-scanlog.js?v=afd9130d6f71-ce95b891';
@@ -133,7 +133,7 @@ export function startLive(ctx) {
             admin.editCapacity(tr.dataset.code);
         }, true);
         const style = document.createElement('style');
-        // 기존 계산기 비교 열(기존 미발수량·차이 — LIVE_HIDDEN)은 live 에 값이 없어 숨긴다. 번호는 COLS 에서(js/lib/mibal2-cols.js)
+        // 기존 계산기 비교 열(기존 미발수량·차이 — LIVE_HIDDEN)은 live 에 값이 없어 숨긴다. 열 이름(data-col)으로 — 열 순서를 바꿔도 따라감(js/lib/mibal2-cols.js)
         style.textContent = '.list-table td.cap-cell { cursor: text; text-decoration: underline dotted var(--c-line-strong); } ' + liveHiddenCss();
         document.head.appendChild(style);
         $('btn-scan-off-sync').addEventListener('click', () => guard(applyToScanner));

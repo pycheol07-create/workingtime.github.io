@@ -12,8 +12,8 @@ import * as State from './state.js?v=c7f5fc984ef9-a2ce38c0';
 import { can } from './lib/perm.js?v=c1e53d91da8e-49afeea3';
 import { escapeHtml } from './utils.js?v=65bb3512764f-e315797c';
 import { sidebarLinkTarget } from './app-shell-data.js?v=e42c6a10ca7a-9319c795';
-import { mdw } from './lib/supplies-forecast-view.js?v=9e441a60a562-e866071c';
-import { reorderAlerts, alertDayLabel, alertSummaryText, pickForecast } from './lib/supplies-reorder-alert.js?v=3c60cd7eea97-685ff571';
+import { mdw } from './lib/supplies-forecast-view.js?v=c308b964945e-6e807d3e';
+import { reorderAlerts, alertDayLabel, alertSummaryText, pickForecast } from './lib/supplies-reorder-alert.js?v=331955f1d3db-685ff571';
 
 const BASE = ['artifacts', 'team-work-logger-v2'];
 const SOURCES = {

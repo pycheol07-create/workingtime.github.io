@@ -123,6 +123,46 @@
         html.dark #update-banner button { background: #111418; color: var(--c-warn-text); }
         html.dark #btn-in-manual-code { color: #111418 !important; }   /* 인라인 style 위 */
         html.dark #loc-manual input, html.dark #in-manual input, html.dark .set-row input[type="text"] { background: var(--c-surface); color: var(--c-text); }
+
+        /* (2026-11-27) 박스 확인 모드(js/scan-boxcheck.js) — 켜면 입고·위치 칸과 목록·전송을 숨기고 박스 확인 칸만. 읽기만 한다 */
+        .bx-panel { display: none; flex-shrink: 0; max-height: 62dvh; overflow-y: auto; padding: 8px 10px; background: var(--c-bg); }
+        body.box-mode .bx-panel { display: block; }
+        body.box-mode #loc-submode, body.box-mode #loc-banner, body.box-mode #loc-manual-row, body.box-mode #loc-manual,
+        body.box-mode #in-manual-row, body.box-mode #in-manual, body.box-mode #queue, body.box-mode .send-bar { display: none !important; }
+        body.box-mode .tabs { background: #6B5B95 !important; }   /* setMode 가 인라인으로 칠하므로 !important */
+        body.box-mode .tabs .tab.active:not(#tab-box) { background: transparent; color: #fff; }
+        .bx-row { display: flex; gap: 6px; align-items: center; }
+        .bx-row select, .bx-row input { flex: 1; min-width: 0; padding: 10px; border: 1px solid var(--c-line-strong); border-radius: var(--r-sm); font-size: 15px; font-family: inherit; background: var(--c-surface); color: var(--c-text); }
+        .bx-row button { padding: 10px 13px; border: 1px solid var(--c-line-strong); background: var(--c-surface); color: var(--c-text); border-radius: var(--r-sm); font-weight: 800; font-family: inherit; white-space: nowrap; cursor: pointer; }
+        .bx-row button.bx-go { border: none; background: #6B5B95; color: #fff; }
+        .bx-src { font-size: 12.5px; color: var(--c-text-2); margin: 5px 2px 8px; }
+        .bx-src.bx-src-warn { color: var(--c-warn-text); font-weight: 800; }
+        #bx-result { margin-top: 8px; }
+        .bx-banner { border-radius: var(--r-card); padding: 14px; text-align: center; border: 3px solid transparent; }
+        .bx-banner.bx-yes { background: var(--c-risk-soft); color: var(--c-risk-text); border-color: var(--c-risk); }
+        .bx-banner.bx-no { background: var(--c-ok-soft); color: var(--c-ok-text); border-color: var(--c-ok); }
+        .bx-banner.bx-ask { background: var(--c-track); color: var(--c-text); border-color: var(--c-line-strong); }
+        .bx-box { font-size: 22px; font-weight: 800; }
+        .bx-say { font-size: 26px; font-weight: 900; margin-top: 2px; }
+        .bx-sub { font-size: 13.5px; margin-top: 6px; opacity: .9; word-break: break-all; }
+        .bx-warn { margin-top: 8px; padding: 7px 9px; border-radius: var(--r-sm); background: var(--c-warn-soft); color: var(--c-warn-text); font-size: 14px; font-weight: 800; }
+        .bx-choices { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 10px; }
+        .bx-pick { min-width: 84px; height: 52px; border: 1px solid var(--c-line-strong); border-radius: var(--r-pill); background: var(--c-surface); color: var(--c-text); font-size: 19px; font-weight: 800; font-family: inherit; cursor: pointer; }
+        .bx-list { list-style: none; margin: 8px 0 0; padding: 0; }
+        .bx-list li { display: flex; align-items: center; gap: 8px; padding: 9px 10px; border-bottom: 1px solid var(--c-line-soft); background: var(--c-surface); font-size: 15px; }
+        .bx-list li.bx-hit { background: var(--c-risk-soft); }
+        .bx-code { font-weight: 800; white-space: nowrap; }
+        .bx-name { flex: 1; min-width: 0; color: var(--c-text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .bx-q { font-weight: 800; white-space: nowrap; color: var(--c-text-3); }
+        .bx-q.bx-q-yes { color: var(--c-risk-text); font-size: 17px; }
+        .bx-q.bx-q-unk { color: var(--c-text-2); }
+        .bx-q.bx-q-nodoc { font-size: 12px; font-weight: 700; }
+        .bx-hist-title { font-size: 12.5px; font-weight: 800; color: var(--c-text-2); margin: 12px 2px 4px; }
+        #bx-hist { list-style: none; margin: 0; padding: 0; font-size: 13.5px; }
+        #bx-hist li { padding: 5px 2px; border-bottom: 1px solid var(--c-line-soft); }
+        #bx-hist li.bx-h-yes { color: var(--c-risk-text); }
+        #bx-hist li.bx-h-no { color: var(--c-ok-text); }
+        #bx-hist .bx-t { color: var(--c-text-3); }
     </style>
 </head>
 <body data-shell="scan">
@@ -131,6 +171,7 @@
     <div class="tabs" id="tabs">
         <button type="button" class="tab active" id="tab-in" aria-pressed="true">입고</button>
         <button type="button" class="tab" id="tab-loc" aria-pressed="false">위치</button>
+        <button type="button" class="tab" id="tab-box" aria-pressed="false" title="박스 라벨을 찍으면 그 박스에 미발 상품이 있는지 봅니다(입고 안 됨)">박스</button>
         <button class="btn-gear" id="btn-settings" aria-label="설정"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="display:block; margin:4px;"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
     </div>
     <div class="status-line" id="status-line">-</div>
@@ -169,6 +210,22 @@
             <input id="in-manual-code" placeholder="상품코드/바코드 (S 생략 가능: 123456)" inputmode="numeric" pattern="[0-9]*" autocapitalize="characters" autocomplete="off" style="flex:1; min-width:0; padding:9px; border:1px solid var(--c-line-strong); border-radius:var(--r-sm); font-size:14px;">
             <button id="btn-in-manual-code" style="padding:9px 14px; border:none; background:var(--c-accent); color:#fff; border-radius:var(--r-sm); font-weight:800; white-space:nowrap;">확인</button>
         </div>
+    </div>
+
+    <!-- (2026-11-27) 박스 확인 모드 — js/scan-boxcheck.js. 찍은 글자를 박스 라벨로 본다(입고·쓰기 없음) -->
+    <div class="bx-panel" id="bx-panel">
+        <div class="bx-row">
+            <select id="bx-pack" aria-label="패킹 고르기"><option value="">박스 번호 자료를 읽는 중…</option></select>
+            <button type="button" id="bx-reload">다시 읽기</button>
+        </div>
+        <div class="bx-src" id="bx-src">박스 번호 자료를 읽는 중…</div>
+        <form class="bx-row" id="bx-form" autocomplete="off">
+            <input id="bx-input" placeholder="박스 라벨 찍기 또는 번호 입력 (예: A5, 12)" autocapitalize="characters" autocomplete="off" enterkeyhint="done">
+            <button type="submit" class="bx-go">확인</button>
+        </form>
+        <div id="bx-result"></div>
+        <div class="bx-hist-title">최근 확인</div>
+        <ul id="bx-hist"></ul>
     </div>
 
     <div class="scan-wrap">
@@ -245,8 +302,9 @@
         import { LOC_SCAN_COLL, buildLocScanDocs } from './js/lib/loc-scan-log.js?v=696b0986b508-7cdc6b24'; // 위치지정 건별 기록(문서 모양)
         import { connectEmulatorsIfEnabled } from './js/firebase-emulator.js?v=071adc2867a0-c60c17d2'; // 🧪 localhost + ?emu=1 일 때만 에뮬레이터(운영에서는 아무 일 안 함)
         import { escapeHtml } from './js/utils.js?v=65bb3512764f-e315797c';   // 대기열·배너에 상품명·바코드 등 넣을 때(2026-11-12 보안 점검)
+        import { setupScanBoxCheck } from './js/scan-boxcheck.js?v=d1fe6b5f3a06-06934056';   // (2026-11-27) 박스 확인 모드 — 읽기만
 
-        const SCAN_VERSION = '10.9'; // 웹 배포 버전과 함께 올림 (china-stock-version.json의 web)
+        const SCAN_VERSION = '10.10'; // 웹 배포 버전과 함께 올림 (china-stock-version.json의 web)
 
         // ---------------- 서버 선택 (URL 파라미터 → 저장값 → 기본 config) ----------------
         const params = new URLSearchParams(location.search);
@@ -434,6 +492,7 @@
         let fixedLocation = null;
         let directQty = localStorage.getItem('scanDirectQty') === '1';
         let scanner = null, scanning = false, processing = false, sending = false;
+        let boxChk = null;   // (2026-11-27) 박스 확인 모드(js/scan-boxcheck.js) — 켜져 있으면 onScan 이 박스 확인으로 보낸다
         const sendingIds = new Set();   // 지금 전송 묶음에 든 입고 항목 id — 이 몫은 트랜잭션이 되살리지 않는다(batch 가 지움)
 
         const $ = (id) => document.getElementById(id);
@@ -587,6 +646,11 @@
                         resumeScan(); return;
                     }
                 } catch (e) {}
+            }
+            // (2026-11-27) 박스 확인 모드 — 찍은 글자를 박스 라벨로 본다. 입고·위치 목록·ScanDB 에 아무것도 쓰지 않는다(읽기만)
+            if (boxChk && boxChk.isOn()) {
+                try { await boxChk.check(raw); } catch (e) { console.warn('[scan] 박스 확인 오류', e); }
+                resumeScan(1200); return;
             }
             if (mode === 'in') await processInbound(raw); else processLocation(raw);
         }
@@ -1505,8 +1569,8 @@
             showFocusRing(e.clientX, e.clientY);
             focusAt(nx, ny);
         });
-        $('tab-in').onclick = () => setMode('in');
-        $('tab-loc').onclick = () => setMode('loc');
+        $('tab-in').onclick = () => { if (boxChk) boxChk.setOn(false); setMode('in'); };   // 박스 확인 모드를 끄고 입고로
+        $('tab-loc').onclick = () => { if (boxChk) boxChk.setOn(false); setMode('loc'); };
         // [Ver 4.1] 위치 세부 작업 선택
         document.querySelectorAll('#loc-submode button').forEach(btn => btn.onclick = () => setLocSubMode(btn.dataset.sub));
         $('btn-send').onclick = () => mode === 'in' ? sendInbound() : sendLocation();
@@ -1534,6 +1598,7 @@
         $('status-line').textContent = `v${SCAN_VERSION} · 서버: ${serverLabel}`;
         setLocSubMode(locSubMode); // [Ver 4.1] 세부 작업 표시 — (2026-10-16) 열 때마다 '당일 입고분'으로 시작
         setMode(mode);
+        try { boxChk = setupScanBoxCheck({ db, doc, getDoc, speak }); } catch (e) { console.warn('[scan] 박스 확인 준비 실패', e); }   // [박스] 단추는 js/scan-boxcheck.js 가 연결
         checkVersion();
         // [Ver 10.7] 시작 정리 — 결과를 모른 채 남은 미발 확인(pending)을 맞추고, 못 푼 몫을 다시 푼다. 로그인 전이면 실패 → online·다음 시작 때
         resolvePendingHolds().finally(() => retryReleases());

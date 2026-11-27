@@ -19,6 +19,8 @@
 //
 // 순수 모듈(import 0).
 
+import { isEzCode } from './supplies-codes.js?v=a9e176f7d66f-13c66d6f';
+
 export const STATUS_INFO = {
     ok:           { label: '정상',        tone: 'ok' },
     watch:        { label: '주의',        tone: 'warn' },
@@ -41,7 +43,8 @@ export const TONE_CLASS = {
     none: ''
 };
 
-export const NOCODE_HINT = '이지어드민 코드를 등록하면 다음 날 아침부터 예측됩니다';
+// 코드 없음 안내 — 이지어드민 기준(꺼짐)일 때만 뜬다(켜짐·원장 예측은 코드를 보지 않음). 그때 코드는 이지어드민 품목코드여야 한다
+export const NOCODE_HINT = '비품코드(이지어드민 품목코드)를 등록하면 다음 날 아침부터 예측됩니다';
 
 export const DRIVER_LABEL = { domestic: '국내배송', zab: '플랫폼 출고', zabPacks: '플랫폼 출고 봉' };
 
@@ -61,7 +64,8 @@ const DEFAULT_LEAD_DAYS = 7;                        // 발주알림설정.json �
 const STALE_MS = 2 * 24 * 60 * 60 * 1000;
 
 const num = (v) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
-const hasCode = (item) => String(item?.ezCode ?? '').trim() !== '';
+// 이지어드민 코드가 있나 — 앱 SP 번호(SP0001)는 코드 없음과 같다(서버 예측규칙.코드판정 과 같은 규칙, js/lib/supplies-codes.js isEzCode)
+const hasCode = (item) => isEzCode(item?.ezCode);
 // 앱 기준(원장) 예측 — 서버(발주알림.py)가 켜짐일 때 코드 없는 비품도 예측하고 예측 문서에 source 'ledger' 를 붙인다(2026-11-26).
 //   opts.ledger(화면이 켜짐이거나 문서 source 가 ledger) 또는 fc.source === 'ledger' 면 코드 유무로 '-'(nocode) 처리하지 않는다.
 const ledgerFc = (fc, opts) => !!(opts && opts.ledger) || (fc && fc.source === 'ledger');

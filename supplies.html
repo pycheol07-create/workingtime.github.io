@@ -214,11 +214,11 @@
                             <input id="f-size" class="inp" placeholder="예: 25 x 35cm, 두께 0.06mm">
                         </div>
                         <div id="f-ez-code-wrap">
-                            <label class="lbl">이지어드민 품목코드</label>
-                            <input id="f-ez-code" class="inp" placeholder="예: A0012 (여러 개면 쉼표로 구분)">
+                            <label class="lbl" for="f-ez-code">비품코드</label>
+                            <input id="f-ez-code" class="inp" placeholder="앱 기준이면 비워 두고 저장할 때 SP0001 처럼 자동으로 붙습니다">
                             <p class="text-[11px] text-slate-400 mt-1 leading-relaxed">
-                                이지어드민 사용내역을 자동 반영할 때 이 코드로 비품을 찾습니다.
-                                비워 두면 품명이 정확히 같은 경우에만 매칭됩니다.
+                                앱 기준일 때 비워 두고 저장하면 다음 번호(SP0001, SP0002 …)가 자동으로 붙습니다. 다른 비품과 같은 코드는 쓸 수 없습니다.
+                                이지어드민 기준으로 되돌렸을 때는 이 코드로 이지어드민 품목을 찾습니다.
                             </p>
                         </div>
                         <div>
@@ -391,7 +391,7 @@
         </div>
     </div>
 
-    <script type="module" src="js/supplies.js?v=74972ffebcec-4ae5277c"></script>
+    <script type="module" src="js/supplies.js?v=94ceca5f67f0-f9eff8fa"></script>
     <script type="module" src="js/page-gate.js?v=91ff5d6d21f9-d1e977d0" data-perm-page="supplies.view"></script>
     <script type="module" src="js/app-shell.js?v=0ad2923a7c3b-bf6553e1"></script>
     <script src="js/connection-banner.js?v=fb04e0b435ed-f6d55014"></script>

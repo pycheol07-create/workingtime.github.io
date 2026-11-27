@@ -217,11 +217,11 @@
 
             try {
                 const State = await import('./js/state.js?v=c7f5fc984ef9-a2ce38c0');
-                try { await import('./js/app.js?v=4d38fc16fed9-2ba8f711'); } catch(e) {} 
+                try { await import('./js/app.js?v=097b61589901-2ba8f711'); } catch(e) {} 
                 
-                const { loadAndRenderHistoryList } = await import('./js/app-history-logic.js?v=56fded7dfdf1-ef63fd43');
+                const { loadAndRenderHistoryList } = await import('./js/app-history-logic.js?v=7ba8d2e43b3c-ef63fd43');
                 const { restoreHistoryView } = await import('./js/view-state.js?v=c2e4bf06fdce-0da8b754');
-                const { showSection } = await import('./js/listeners-history-tabs.js?v=56fded7dfdf1-8058cdde');
+                const { showSection } = await import('./js/listeners-history-tabs.js?v=7ba8d2e43b3c-8058cdde');
 
                 const revealModal = () => {
                     const modal = document.getElementById('history-modal');

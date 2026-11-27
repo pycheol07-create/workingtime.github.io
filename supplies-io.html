@@ -7,12 +7,14 @@
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#2563eb">
     <title>비품 입·출고</title>
-    <!-- 비품 입·출고(2026-11-26 비품관리 앱 기준 전환 3단계) — 휴대폰으로 비품을 골라(검색·초성·바코드·자주 쓰는 것) 단위 단추로 수량을 쌓고
-         목록에 모아 한 번에 저장한다(원장 js/supplies-ledger-store.js commitLines). 스위치 persistent_data/suppliesSettings.ledgerLive 가 켜져 있을 때만 받는다.
+    <!-- 비품 입·출고(2026-11-26 비품관리 앱 기준 전환 3단계 · 2026-11-27 공유 누적) — 휴대폰으로 비품을 골라(검색·초성·바코드·자주 쓰는 것·목록 드롭다운)
+         단위 단추를 누르면 공유 누적 칸(suppliesIoCart/{입고·출고}-{비품 id}, 모든 사람이 실시간으로 같은 칸)에 바로 더하고,
+         [출고 전송]/[입고 전송]은 고른 비품 칸만 원장에 쓰고 비운다(한 트랜잭션 — js/supplies-ledger-store.js cartSend). 다른 비품 칸은 그대로.
+         단위 단추를 누를 때마다 내가 누른 비품의 누적을 음성으로 읽는다(늘 켬, 지원 안 되는 기기는 조용히). 스위치 persistent_data/suppliesSettings.ledgerLive 가 켜져 있을 때만 받는다.
          계산은 js/lib/supplies-io.js(시험 tests/supplies-io.test.js), 화면 시험 tools/supplies-io-check.py. -->
     <link rel="stylesheet" href="css/suit.css?v=46e3de7a3d1d-51b336f8">
     <link rel="stylesheet" href="css/d-theme.css?v=953f526a14fe-f287cc85">
-    <link rel="stylesheet" href="css/supplies-io.css?v=2fa7f4fbe888-46f94d1e">
+    <link rel="stylesheet" href="css/supplies-io.css?v=0222aa556503-6f15192c">
     <link rel="stylesheet" href="css/app-shell.css?v=5966338d2f36-2dcf6c28">
 </head>
 <body data-shell="supplies">
@@ -37,6 +39,8 @@
 
         <!-- 스위치가 꺼져 있거나 못 읽었을 때 — 입·출고를 받지 않는다 -->
         <div id="si-off" class="si-alert warn" role="status" hidden></div>
+        <!-- 꺼짐일 때 남은 누적 칸 — 비우기만(다시 켰을 때 옛 칸이 전송되지 않게) -->
+        <div id="si-off-left" class="d-card si-pad" hidden></div>
         <div id="si-error" class="si-alert risk" role="alert" hidden></div>
 
         <div id="si-work" hidden>
@@ -51,6 +55,9 @@
                 <input id="si-search" class="si-input" type="search" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="search"
                        placeholder="이름 일부 · 초성(ㄱㄴ) · 바코드" aria-label="비품 찾기(이름·초성·바코드)" aria-controls="si-results">
                 <div id="si-results" class="si-results" role="list" hidden></div>
+                <select id="si-select" class="si-input si-select" aria-label="목록에서 비품 고르기">
+                    <option value="">목록에서 고르기</option>
+                </select>
                 <p id="si-msg" class="si-msg" role="status" aria-live="polite" hidden></p>
                 <div id="si-favs-wrap" class="si-favs-wrap">
                     <div class="si-small t-2">자주 쓰는 것</div>
@@ -58,35 +65,37 @@
                 </div>
             </section>
 
-            <!-- 고른 비품 카드 -->
+            <!-- 고른 비품 카드 — 단위 단추를 누를 때마다 공유 누적 칸(suppliesIoCart)에 바로 더한다. [전송] = 이 비품 칸만 원장에 쓰고 비움 -->
             <section id="si-card" class="d-card si-pad si-card" aria-live="polite" hidden>
                 <div class="si-card-head">
                     <b id="si-card-name" class="si-card-name"></b>
                     <div class="si-grow"></div>
-                    <button type="button" id="si-reset" class="d-btn d-btn-sm">다시</button>
+                    <button type="button" id="si-reset" class="d-btn d-btn-sm" title="이 비품 누적 칸 비우기(모두에게 비워짐)">비우기</button>
                     <button type="button" id="si-change" class="d-btn d-btn-sm">바꾸기</button>
                 </div>
                 <div id="si-card-stock" class="si-card-stock num"></div>
+                <div id="si-card-who" class="si-small t-2"></div>
                 <div id="si-units" class="si-units"></div>
                 <div id="si-calc" class="si-calc num"></div>
-                <button type="button" id="si-add" class="d-btn d-btn-primary si-big">출고</button>
-                <div id="si-add-why" class="si-small t-2"></div>
+                <div id="si-add-why" class="si-small t-2" role="status" aria-live="polite"></div>
+                <button type="button" id="si-save" class="d-btn d-btn-primary si-big">출고 전송</button>
+                <div id="si-save-why" class="si-small t-2"></div>
             </section>
 
-            <!-- 저장 전 목록 -->
-            <section class="d-card si-pad" aria-labelledby="si-list-title">
-                <h2 id="si-list-title" class="si-h"></h2>
-                <ul id="si-list" class="si-list"></ul>
-                <div id="si-result" class="si-result" role="status" aria-live="polite" hidden></div>
-                <button type="button" id="si-save" class="d-btn d-btn-primary si-big">저장 및 전송 (0건)</button>
-                <div id="si-save-why" class="si-small t-2"></div>
+            <div id="si-result" class="si-result" role="status" aria-live="polite" hidden></div>
+
+            <!-- 누적 — 모든 사람이 같이 보는 비품별 칸(이 방향만). 고른 비품은 강조, 다른 비품 줄을 누르면 그 비품으로 이어서 -->
+            <section class="d-card si-pad si-acc-sec" aria-labelledby="si-acc-title">
+                <h2 id="si-acc-title" class="si-h">누적</h2>
+                <ul id="si-acc" class="si-acc-list"></ul>
+                <div id="si-acc-other" class="si-small t-2" hidden></div>
             </section>
         </div>
     </main>
 
     <script src="js/connection-banner.js?v=fb04e0b435ed-f6d55014"></script>
     <script src="js/modal-esc.js?v=0458b4470d9a-71e98692"></script>
-    <script type="module" src="js/supplies-io.js?v=d49aba34983c-ebcd578c"></script>
+    <script type="module" src="js/supplies-io.js?v=ffa60e32a3d4-86e692d8"></script>
     <script type="module" src="js/page-gate.js?v=91ff5d6d21f9-d1e977d0" data-perm-page="supplies.view"></script>
     <script type="module" src="js/app-shell.js?v=0ad2923a7c3b-bf6553e1"></script>
 </body>
