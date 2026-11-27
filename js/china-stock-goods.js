@@ -3442,7 +3442,7 @@ function setupMobileGate() {
 //  - 웹: 열려있는 탭이 구버전이면 새로고침 배너 표시
 //  - 앱: 최신 앱 버전을 APP_META 문서로 게시 → 앱이 시작 시 확인해 업데이트 유도
 // ---------------------------------------------------------
-const WEB_VERSION = '10.17';
+const WEB_VERSION = '10.18';
 let lastVersionCheck = 0;
 
 async function fetchVersionInfo() {

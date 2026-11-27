@@ -179,7 +179,6 @@
         .bx-shutter:active { filter: brightness(1.15); }
         body.box-mode .bx-shutter { display: block; }
         body.box-mode .btn-capture { display: none !important; }   /* 박스 모드는 바코드 수동 촬영 대신 [찍어서 읽기] */
-        .bx-qr-link { display: inline-block; margin: 12px 2px 4px; font-size: 13px; font-weight: 800; color: #6B5B95; }
         .bx-other-title { margin: 12px 2px 4px; font-size: 13px; font-weight: 800; color: var(--c-text-2); }
         .bx-list.bx-list-other li { font-size: 13px; padding: 6px 10px; }
         .bx-entry-toggle { width: 100%; padding: 8px 10px; border: 1px dashed var(--c-line-strong); background: var(--c-surface); color: var(--c-text-2); border-radius: var(--r-sm); font-size: 14px; font-weight: 800; font-family: inherit; cursor: pointer; }
@@ -288,7 +287,6 @@
         <div class="bx-hist-title">최근 확인</div>
         <ul id="bx-hist"></ul>
         <!-- (2026-11-27) 박스 번호 QR 스티커 만들기 — 실사용 검토 중 -->
-        <a class="bx-qr-link" id="bx-qr-link" href="box-qr.html" target="_blank" rel="noopener">박스 번호 QR 스티커 만들기 ↗</a>
     </div>
 
     <div class="scan-wrap">
@@ -375,7 +373,7 @@
         import { isBoxQr } from './js/lib/box-qr.js?v=b6f91b6e9e93-9b7fb1d9';   // (2026-11-27) 박스 번호 QR 스티커 'GGSBOX:<번호>'(box-qr.html)   // (2026-11-27) 부족수량관리 '긴급' — 켜져 있을 때만 코드 Set
         import { loadFor as loadSupNames, loadAll as loadAllSupNames, supNameOf } from './js/sup-names-store.js?v=de8b3ea4a05e-1f52465e';   // (2026-11-27) 공급처상품명 — 선택 창·박스 확인 줄에 표시만(못 읽으면 빈칸)
 
-        const SCAN_VERSION = '10.17'; // 웹 배포 버전과 함께 올림 (china-stock-version.json의 web)
+        const SCAN_VERSION = '10.18'; // 웹 배포 버전과 함께 올림 (china-stock-version.json의 web)
 
         // ---------------- 서버 선택 (URL 파라미터 → 저장값 → 기본 config) ----------------
         const params = new URLSearchParams(location.search);
